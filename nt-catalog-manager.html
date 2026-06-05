@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NukkadTales · Catalog Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{--cream:#fdf6f0;--brown:#3d2b1a;--orange:#c47a45;--muted:#8c7b6e;--border:#e8d5c0;--sand:#f5ede0;--green:#2d7d46;--red:#c0392b;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--cream);font-family:'DM Sans',sans-serif;color:var(--brown);min-height:100vh;}
+  header{background:var(--brown);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  header h1{font-family:'Poppins',sans-serif;font-weight:900;font-size:16px;color:#fff;}
+  .toolbar{background:var(--sand);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:45px;z-index:99;}
+  .toolbar input[type=text]{flex:1;min-width:180px;border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-family:'DM Sans',sans-serif;font-size:12px;background:#fff;color:var(--brown);}
+  .toolbar input[type=text]:focus{outline:none;border-color:var(--orange);}
+  .toolbar select{border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-family:'DM Sans',sans-serif;font-size:12px;background:#fff;color:var(--brown);}
+  .toggle-wrap{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;cursor:pointer;}
+  .toggle-wrap input{accent-color:var(--orange);}
+  .btn{border:none;border-radius:8px;padding:7px 13px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+  .btn:hover{opacity:.85;}
+  .btn-primary{background:var(--orange);color:#fff;}
+  .btn-green{background:var(--green);color:#fff;}
+  .btn-red{background:var(--red);color:#fff;}
+  .btn-ghost{background:rgba(61,43,26,.08);color:var(--brown);}
+  .btn-sm{padding:4px 10px;font-size:10px;}
+  .stats{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 14px;cursor:pointer;}
+  .stat:hover{border-color:var(--orange);}
+  .stat.active{border-color:var(--orange);background:#fff8f3;}
+  .stat-n{font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:var(--brown);}
+  .stat-l{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
+  .list-toolbar{display:flex;align-items:center;gap:8px;padding:8px 20px;border-bottom:1px solid var(--border);background:var(--cream);flex-wrap:wrap;}
+  .list-toolbar span{font-size:11px;color:var(--muted);font-weight:600;}
+  .products-wrap{padding:12px 20px 40px;}
+  .product-card{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;transition:border-color .15s;}
+  .product-card.approved{border-color:#b8dfc8;}
+  .product-card.rejected{opacity:.35;}
+  .product-card.loading{opacity:.6;pointer-events:none;}
+  .product-title{font-weight:700;font-size:13px;margin-bottom:2px;}
+  .product-handle{font-size:9px;color:var(--muted);font-family:monospace;}
+  .product-tags{font-size:9px;color:var(--muted);line-height:1.6;margin:4px 0;}
+  .badge{font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;text-transform:uppercase;}
+  .badge-new{background:#fff3e0;color:var(--orange);}
+  .badge-approved{background:#e8f5ec;color:var(--green);}
+  .badge-rejected{background:#fde8e8;color:var(--red);}
+  .tag-editor{margin-top:10px;background:#f9f4ef;border:1px solid var(--border);border-radius:8px;padding:10px;}
+  .tag-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+  .tag-field label{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:2px;}
+  .tag-field input,.tag-field textarea{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:10px;font-family:'DM Sans',sans-serif;color:var(--brown);background:#fff;}
+  .tag-field textarea{resize:vertical;min-height:38px;}
+  .tag-field input:focus,.tag-field textarea:focus{outline:none;border-color:var(--orange);}
+  .empty{text-align:center;padding:48px 20px;color:var(--muted);}
+  .empty h3{font-family:'Poppins',sans-serif;font-weight:700;margin-bottom:6px;color:var(--brown);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--brown);color:#fff;padding:8px 18px;border-radius:20px;font-size:11px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;}
+  .progress{font-size:11px;color:var(--orange);font-weight:600;padding:6px 20px;}
+  .dropdown.show{display:flex!important;}
+  .dropdown-item{background:none;border:none;text-align:left;padding:8px 10px;font-size:12px;color:var(--brown);cursor:pointer;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:500;white-space:nowrap;}
+  .dropdown-item:hover{background:var(--sand);}
+  .card-menu-btn{background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:6px;}
+  .card-menu-btn:hover{background:var(--sand);color:var(--brown);}
+  .card-menu{position:absolute;right:0;top:100%;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.08);padding:4px;display:none;flex-direction:column;gap:2px;min-width:160px;z-index:20;}
+  .card-menu.show{display:flex;}
+  .card-menu-item{background:none;border:none;text-align:left;padding:7px 10px;font-size:11px;color:var(--brown);cursor:pointer;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:500;white-space:nowrap;}
+  .card-menu-item:hover{background:var(--sand);}
+  .card-menu-item.danger{color:var(--red);}
+  .empty-cta{background:linear-gradient(135deg,#fff8f0,#fdf6f0);border:2px dashed var(--orange);border-radius:14px;padding:32px 24px;text-align:center;margin:20px;}
+  .empty-cta h3{font-family:'Poppins',sans-serif;font-weight:900;color:var(--brown);font-size:18px;margin-bottom:6px;}
+  .empty-cta p{color:var(--muted);font-size:13px;margin-bottom:14px;}
+  .thumb-wrap{position:relative;display:inline-block;}
+  .thumb-wrap img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);cursor:zoom-in;display:block;transition:border-color .15s;}
+  .thumb-wrap:hover img{border-color:var(--orange);}
+  .spinner-mini{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .activity-row{padding:8px 0;border-bottom:1px solid var(--border);}
+  .activity-row:last-child{border-bottom:none;}
+  .activity-action{font-size:11px;font-weight:700;color:var(--brown);text-transform:capitalize;}
+  .activity-time{font-size:9px;color:var(--muted);margin-top:2px;}
+  .activity-details{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🪵 Catalog Manager</h1>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button onclick="toggleTalesPanel()" style="background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:10px;font-weight:600;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:'DM Sans',sans-serif;">✦ Gul Tales</button>
+    <button onclick="toggleActivityLog()" style="background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:10px;font-weight:600;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:'DM Sans',sans-serif;">📋 Activity Log</button>
+    <span style="font-size:10px;color:rgba(255,255,255,.5)" id="headerStats">—</span>
+  </div>
+</header>
+<!-- Activity bar — sticky below header -->
+<div id="ntActivityBar" style="display:none;background:linear-gradient(135deg,#fff8f0,#fdf6f0);border-bottom:1px solid var(--border);padding:8px 20px;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="spinner-mini" id="activitySpinner" style="display:none;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:11px;font-weight:700;color:var(--brown);" id="activityTitle">—</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:1px;" id="activityMessage">—</div>
+    </div>
+    <div style="min-width:80px;">
+      <div style="background:#f5ede0;border-radius:8px;overflow:hidden;height:5px;">
+        <div id="activityBar" style="background:var(--orange);height:100%;width:0%;transition:width .3s;"></div>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="toggleActivityLog()" style="font-size:10px;">📋 Log</button>
+    <button class="btn btn-ghost btn-sm" onclick="hideActivityBar()" style="font-size:10px;padding:4px 8px;">✕</button>
+  </div>
+</div>
+
+<!-- Activity log slide-out -->
+<div id="ntActivityLog" style="display:none;position:fixed;top:0;right:0;bottom:0;width:380px;background:#fff;border-left:1.5px solid var(--border);box-shadow:-4px 0 20px rgba(0,0,0,0.08);z-index:9990;overflow-y:auto;">
+  <div style="position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:14px;color:var(--brown);">📋 Activity Log</div>
+    <button onclick="toggleActivityLog()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+  </div>
+  <div id="activityLogList" style="padding:10px 14px;font-size:11px;font-family:'DM Sans',sans-serif;"></div>
+</div>
+
+<!-- ── Gul Tales Panel ───────────────────────────────────── -->
+<div id="ntTalesPanel" style="display:none;position:fixed;inset:0;background:#fff;z-index:9995;overflow-y:auto;font-family:'DM Sans',sans-serif;">
+  <div style="position:sticky;top:0;background:#fff;border-bottom:1.5px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;z-index:10;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button onclick="toggleTalesPanel()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">&#8592;</button>
+      <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:16px;color:var(--brown);">&#10022; Gul Tales</div>
+      <span id="tales-count-badge" style="font-size:11px;color:var(--muted);font-weight:500;"></span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="talesLoad(true)">&#8635; Reload</button>
+      <button class="btn btn-ghost btn-sm" onclick="talesExport()">&#8595; Export</button>
+      <button class="btn btn-primary btn-sm" id="tales-push-btn" onclick="talesSave()">&#8593; Push to Live</button>
+    </div>
+  </div>
+  <div id="tales-filter-row" style="display:flex;gap:6px;padding:12px 20px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);flex-wrap:nowrap;"></div>
+  <div style="margin:16px 20px;background:var(--sand);border:1.5px dashed var(--border);border-radius:12px;padding:16px;">
+    <div style="font-size:12px;font-weight:700;color:var(--brown);margin-bottom:10px;">+ New tale</div>
+    <textarea id="new-tale-text" placeholder="One papa's way of saying I missed you is&#8230;" rows="3"
+      style="width:100%;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13.5px;font-style:italic;line-height:1.6;color:var(--brown);resize:vertical;min-height:72px;font-family:'DM Sans',sans-serif;box-sizing:border-box;"></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+      <select id="new-tale-cat" style="flex:1;background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--brown);">
+        <option>Papa / Maa</option><option>Dadi / Family</option><option>Marriage</option>
+        <option>Friendship</option><option>Chai &amp; Food</option><option>Nukkad Life</option>
+        <option>Faith &amp; Shukr</option><option>For the Desk</option><option>Just True</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="talesAddNew()">Add tale</button>
+    </div>
+  </div>
+  <div id="tales-dirty-bar" style="display:none;background:#fff8f0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-size:12px;font-weight:700;color:var(--orange);">&#9679; Unsaved changes &#8212; push to make live</span>
+    <button class="btn btn-primary btn-sm" onclick="talesSave()">&#8593; Push to Live</button>
+  </div>
+  <div id="tales-list" style="padding:12px 20px;display:grid;gap:8px;"></div>
+</div>
+<style>
+.tale-row{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;cursor:grab;}
+.tale-row:active{cursor:grabbing;}
+.tale-row.tale-inactive{opacity:.4;}
+.tale-row.drag-over{border-color:var(--orange);background:#fff8f0;}
+.tale-drag{color:var(--muted);font-size:14px;padding-top:3px;user-select:none;text-align:center;}
+.tale-cat-label{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--orange);margin-bottom:4px;}
+.tale-body-text{font-size:13px;line-height:1.6;color:var(--brown);font-style:italic;}
+.tale-edit-area{font-size:13px;line-height:1.6;color:var(--brown);width:100%;background:var(--sand);border:1.5px solid var(--orange);border-radius:6px;padding:6px 8px;font-style:italic;resize:vertical;font-family:'DM Sans',sans-serif;min-height:64px;}
+.tale-btns{display:flex;flex-direction:column;gap:4px;}
+.tale-icon-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);}
+.tale-icon-btn:hover{border-color:var(--orange);color:var(--orange);}
+.tale-icon-btn.tdel:hover{border-color:#e53;color:#e53;}
+.cat-chip{font-size:11px;font-weight:700;border:1.5px solid var(--border);border-radius:999px;padding:4px 12px;cursor:pointer;white-space:nowrap;background:transparent;color:var(--muted);transition:.15s;}
+.cat-chip.on{border-color:var(--orange);background:var(--orange);color:#fff;}
+</style>
+
+<div class="toolbar">
+  <input type="text" id="searchInp" placeholder="Search products…" oninput="renderProducts()" />
+  <select id="sortSel" onchange="renderProducts()">
+    <option value="rank">Rank · best first</option>
+    <option value="default">Default order</option>
+    <option value="name">Name A–Z</option>
+    <option value="name_desc">Name Z–A</option>
+    <option value="price">Price ↑</option>
+  </select>
+  <button class="btn btn-primary" onclick="manualSync()">🔄 Sync</button>
+  <div style="position:relative;" id="moreMenu">
+    <button class="btn btn-ghost" onclick="document.getElementById('moreDropdown').classList.toggle('show')">⋯ More</button>
+    <div id="moreDropdown" class="dropdown" style="position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.08);padding:5px;display:none;flex-direction:column;gap:2px;min-width:200px;z-index:50;">
+      <button class="dropdown-item" onclick="bulkApproveAll();closeMore()">✦ Auto-tag all new</button>
+      <button class="dropdown-item" onclick="openBulkImageGen();closeMore()">🖼 Generate images (bulk)</button>
+      <button class="dropdown-item" onclick="openBulkDownload();closeMore()">⬇ Bulk download images</button>
+      <button class="dropdown-item" onclick="pushAllMetafields();closeMore()" id="pushAllBtn">⬆ Push metafields to Shopify</button>
+      <div style="height:1px;background:var(--border);margin:3px 0;"></div>
+      <button class="dropdown-item" onclick="buildRanksWithDates();closeMore()" id="rankBtn">📊 Rebuild rankings</button>
+      <button class="dropdown-item" onclick="exportCatalog();closeMore()">⬇ Export catalog JSON</button>
+      <button class="dropdown-item" id="seedBtn" style="display:none;" onclick="seedCatalog();closeMore()">Seed Redis (first time)</button>
+    </div>
+  </div>
+</div>
+    <button class="btn btn-ghost" onclick="buildRanks()" id="rankBtn">📊 Build Rankings</button>
+  </div>
+  <button class="btn btn-ghost" onclick="exportCatalog()">⬇ Export</button>
+  <button class="btn btn-ghost" id="bulkImgBtn" onclick="openBulkImageGen()">🖼 Generate Images</button>
+  <button class="btn btn-ghost" onclick="openBulkDownload()">⬇ Bulk Download</button>
+  <button class="btn btn-ghost" id="seedBtn" style="display:none" onclick="seedCatalog()">Seed Redis</button>
+</div>
+<div class="stats" id="statsRow"></div>
+<div class="list-toolbar" id="listToolbar">
+  <span id="listCount">—</span>
+  <select id="tierFilter" onchange="renderProducts()" style="border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-size:11px;font-family:'DM Sans',sans-serif;background:#fff;color:var(--brown);">
+    <option value="">All products</option>
+    <option value="ranked">Ranked only</option>
+    <option value="top10">Top 10</option>
+    <option value="top50">Top 50</option>
+    <option value="top100">Top 100</option>
+    <option value="imgpick">🎯 Top 100 + new (image targets)</option>
+    <option value="0">Unranked</option>
+  </select>
+  <button class="btn btn-ghost btn-sm" onclick="selectAll()">☐ Select all</button>
+  <button class="btn btn-primary btn-sm" onclick="pickTopForImages()" title="Select top 100 sellers + recent additions, ready for bulk image generation">🎯 Top 100 + new</button>
+  <button class="btn btn-red btn-sm" id="bulkRejectBtn" style="display:none" onclick="bulkRejectSelected()">✕ Reject selected (<span id="selCount">0</span>)</button>
+  <div style="flex:1"></div>
+</div>
+<div class="progress" id="progressMsg"></div>
+<div class="products-wrap" id="productsWrap"></div>
+<div class="toast" id="toast"></div>
+
+<!-- Bulk Download Modal -->
+<div id="ntBulkDlModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9997;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;max-width:440px;width:90%;margin:auto;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:15px;color:var(--brown);">⬇ Bulk Download</div>
+      <button onclick="document.getElementById('ntBulkDlModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+    <div id="bulkDlInfo" style="font-size:12px;color:var(--muted);margin-bottom:14px;"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;">Resolution</label>
+      <div style="display:flex;gap:12px;">
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="dlRes" value="high"> High-res (original from Supabase)</label>
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="dlRes" value="web" checked> Web (1200px Shopify)</label>
+      </div>
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:4px;">Image types</label>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="dlWhiteBg" checked> White bg</label>
+        <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="dlLifestyle" checked> Lifestyle</label>
+        <label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="dlColorVar" checked> Color variants</label>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:11px;" onclick="startBulkDownload()" id="bulkDlBtn">⬇ Download ZIP</button>
+    <div id="bulkDlProgress" style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="ntLightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:10000;display:none;align-items:center;justify-content:center;">
+  <button onclick="closeLightbox()" style="position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;z-index:1;">✕</button>
+  <button onclick="lightboxNav(-1)" style="position:absolute;left:16px;background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:28px;cursor:pointer;padding:12px 16px;border-radius:8px;z-index:1;">‹</button>
+  <div style="text-align:center;max-width:80vw;max-height:90vh;">
+    <img id="ntLightboxImg" src="" style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;">
+    <div style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;">
+      <span id="ntLightboxLabel" style="color:rgba(255,255,255,0.7);font-size:12px;font-family:'DM Sans',sans-serif;"></span>
+      <a id="ntLightboxDownload" href="#" download style="color:#fff;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:700;background:rgba(255,255,255,0.15);padding:6px 14px;border-radius:20px;text-decoration:none;">⬇ Download</a>
+      <button id="ntLightboxPush" onclick="lightboxPushToShopify()" style="color:#fff;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:700;background:var(--green);border:none;padding:6px 14px;border-radius:20px;cursor:pointer;">⬆ Push to Shopify</button>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;" id="ntLightboxDots"></div>
+  </div>
+  <button onclick="lightboxNav(1)" style="position:absolute;right:16px;background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:28px;cursor:pointer;padding:12px 16px;border-radius:8px;z-index:1;">›</button>
+</div>
+
+<!-- Bulk image gen modal -->
+<div id="ntBulkImgModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;overflow-y:auto;padding:20px;">
+  <div style="background:#fff;border-radius:16px;max-width:500px;margin:0 auto;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:15px;color:var(--brown);">🖼 Bulk Generate Images</div>
+      <button onclick="document.getElementById('ntBulkImgModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+    <div id="bulkImgSelection" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;">Mode</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="bulkMode" value="all" checked> All slots (white + lifestyle)</label>
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="bulkMode" value="white_bg"> Colours / white only</label>
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="bulkMode" value="lifestyle"> Lifestyle only</label>
+        <label style="font-size:12px;cursor:pointer;"><input type="radio" name="bulkMode" value="color_variants"> Colours only</label>
+      </div>
+      <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="bulkPushShopify" checked style="accent-color:var(--orange);"> Auto-push to Shopify when done
+      </label>
+      <div style="font-size:10px;color:var(--muted);line-height:1.5;">Fills only empty slots — already-generated images are skipped, so you can safely re-run to fill gaps. Each product uses its own metafields (context, mood, who/occasion) and colour variants.</div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:11px;" onclick="startBulkGen()" id="bulkGenStartBtn">✦ Start Bulk Generation</button>
+    <div id="bulkGenProgress" style="margin-top:14px;display:none;">
+      <div style="font-size:12px;font-weight:700;color:var(--brown);margin-bottom:8px;" id="bulkGenStatusText">Running in background…</div>
+      <div style="background:#f5ede0;border-radius:8px;overflow:hidden;height:8px;margin-bottom:8px;">
+        <div id="bulkGenBar" style="background:var(--orange);height:100%;width:0%;transition:width .3s;"></div>
+      </div>
+      <div id="bulkGenLog" style="font-size:10px;color:var(--muted);max-height:120px;overflow-y:auto;font-family:monospace;line-height:1.6;"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="checkBulkProgress()">↻ Check progress</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image gen modal -->
+<div id="ntImgModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:20px;">
+  <div style="background:#fff;border-radius:16px;max-width:560px;margin:0 auto;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:16px;color:var(--brown);">🖼 Generate Images</div>
+      <button onclick="document.getElementById('ntImgModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+    <div id="ntImgHandle" style="font-size:11px;font-family:monospace;color:var(--muted);margin-bottom:14px;"></div>
+
+    <div style="margin-bottom:16px;">
+      <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:8px;">Image slots — tap an empty slot, or use the buttons to fill a whole section</label>
+      <div id="slotGrid" style="display:flex;flex-direction:column;gap:14px;"></div>
+    </div>
+
+    <details style="margin-bottom:12px;">
+      <summary style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;cursor:pointer;padding:6px 0;">⚙ Manage Wood Colors</summary>
+      <div style="margin-top:10px;background:#f9f4ef;border-radius:8px;padding:10px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">One per line: <b>name | #hex | description</b>. Hex is optional but fixes wrong colours — e.g. <code>peach | #FFCBA4 | soft peach</code>. Variant's own swatch hex wins when present.</div>
+        <textarea id="colorEditorTa" rows="6" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;font-family:monospace;color:var(--brown);background:#fff;resize:vertical;box-sizing:border-box;" placeholder="yellow | #F4C430 | bright marigold yellow&#10;peach | #FFCBA4 | soft peach&#10;walnut |  | dark walnut wood, rich deep brown"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="loadColors()">↻ Load saved</button>
+          <button class="btn btn-green btn-sm" onclick="saveColors()">✓ Save colors</button>
+        </div>
+      </div>
+    </details>
+    <details style="margin-bottom:12px;">
+      <summary style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;cursor:pointer;padding:6px 0;">🎁 Reference Images — gift box / wrap (global)</summary>
+      <div style="margin-top:10px;background:#fdf3ec;border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:10px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Upload once, used for every product. These power the <b>🎁 Extras</b> slots (Gift box / Gift wrapped). Each is a single shot per product — never multiplied by colour.</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:130px;">
+            <label style="font-size:10px;font-weight:700;color:var(--brown);display:block;margin-bottom:5px;">Gift box</label>
+            <img id="refImg-giftBox" src="" style="display:none;width:100%;max-height:90px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px;">
+            <input type="file" accept="image/*" id="refFile-giftBox" onchange="uploadRef('giftBox',this)" style="font-size:10px;width:100%;">
+          </div>
+          <div style="flex:1;min-width:130px;">
+            <label style="font-size:10px;font-weight:700;color:var(--brown);display:block;margin-bottom:5px;">Gift wrapping</label>
+            <img id="refImg-giftWrap" src="" style="display:none;width:100%;max-height:90px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px;">
+            <input type="file" accept="image/*" id="refFile-giftWrap" onchange="uploadRef('giftWrap',this)" style="font-size:10px;width:100%;">
+          </div>
+        </div>
+        <div id="refStatus" style="font-size:10px;color:var(--green);font-weight:600;margin-top:8px;display:none;"></div>
+      </div>
+    </details>
+    <details id="brainDetails" style="margin-bottom:12px;">
+      <summary style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;cursor:pointer;padding:6px 0;">🧠 Prompt Brain — guide the AI</summary>
+      <div style="margin-top:10px;background:#f0f4ff;border:1px solid #c8d4f0;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;">
+        <div style="font-size:10px;color:#5566aa;line-height:1.6;">Write in plain English. These instructions apply to ALL generated images until you change them. Be specific — the more detail, the better the result.</div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">✦ Always include</label>
+          <textarea id="brainAdd" rows="2" placeholder="E.g. always show the stand on a jute mat, always include a small brass bell nearby, warm golden hour lighting only" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Sans',sans-serif;color:var(--brown);background:#fff;resize:vertical;box-sizing:border-box;"></textarea>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">✕ Never include</label>
+          <textarea id="brainExclude" rows="2" placeholder="E.g. no flowers, no candles, no books, avoid blue tones, no modern minimal look" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Sans',sans-serif;color:var(--brown);background:#fff;resize:vertical;box-sizing:border-box;"></textarea>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">🎨 Style direction</label>
+          <textarea id="brainStyle" rows="2" placeholder="E.g. warm earthy tones only, rustic Indian grandma's home feel, premium luxury look with dark moody lighting" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;font-family:'DM Sans',sans-serif;color:var(--brown);background:#fff;resize:vertical;box-sizing:border-box;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="loadBrain()">↻ Load saved</button>
+          <button class="btn btn-primary btn-sm" onclick="saveBrain()">✓ Save brain</button>
+        </div>
+        <div id="brainStatus" style="font-size:10px;color:var(--green);font-weight:600;display:none;">✓ Brain saved — applies to all future generations</div>
+      </div>
+    </details>
+    <div id="imgProgress" style="font-size:11px;color:var(--muted);margin-top:4px;text-align:center;"></div>
+  </div>
+</div>
+<script>
+const PROXY='https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
+let results={new:[],approved:[],rejected:[],auto:[]};
+let currentFilter='new';
+const pushMf=()=>false; // Push metafields manually via Push Metafields button
+
+window.onload=()=>{loadDiff();loadSavedLists();};
+
+async function pushAllMetafields(){
+  const btn=document.getElementById('pushAllBtn');
+  btn.textContent='Pushing…';btn.disabled=true;
+  document.getElementById('progressMsg').textContent='Pushing metafields to Shopify in background…';
+  try{
+    await fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-metafields-background',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'push_all'})
+    });
+    document.getElementById('progressMsg').textContent='Metafields running in background — Shopify will update within 2-3 minutes';
+    toast('⬆ Metafields push started in background');
+  }catch(e){toast('Error: '+e.message,true);}
+  finally{btn.textContent='⬆ Push Metafields';btn.disabled=false;}
+}
+
+document.addEventListener('change', function(e){
+  if(e.target.id==='rankDays'){
+    document.getElementById('customDateWrap').style.display=e.target.value==='custom'?'flex':'none';
+  }
+});
+
+async function buildRanks(days){
+  const btn=document.getElementById('rankBtn');
+  if(btn){btn.textContent='Building…';btn.disabled=true;}
+  const d = (days===undefined||days===null||isNaN(days)) ? 0 : parseInt(days);  // default = all time
+  document.getElementById('progressMsg').textContent = d===0 ? 'Fetching ALL-TIME orders…' : `Fetching ${d} days of orders…`;
+  try{
+    // Background function — fires async, returns 202 immediately. days:0 = all time (no date filter)
+    await fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-catalog-rank-background',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'build', days:d})
+    });
+    document.getElementById('progressMsg').textContent =
+      `Rankings (${d===0?'all-time':d+'d'}) running in background — reload approved tab in ~30–60s`;
+    toast('📊 Rankings ('+(d===0?'all-time':d+' days')+') building — reload in ~30s');
+    loadSavedLists();
+  }catch(e){toast('Error: '+e.message,true);}
+  finally{if(btn){btn.textContent='📊 Build Rankings';btn.disabled=false;}}
+}
+
+async function seedCatalog(){
+  const btn=document.getElementById('seedBtn');
+  btn.textContent='Seeding…';btn.disabled=true;
+  try{
+    const res=await api('nt-catalog-approve','POST',{action:'seed'});
+    if(res.seeded){toast('Seeded '+res.count+' products to Redis');}
+    else{toast('Already seeded ('+res.count+' products)');}
+    btn.style.display='none';
+    loadSavedLists();
+  }catch(e){toast('Seed failed: '+e.message,true);btn.textContent='Seed Redis';btn.disabled=false;}
+}
+
+async function loadSavedLists(){
+  try{
+    const [appRes, rejRes, autoRes] = await Promise.all([
+      api('nt-catalog-approve','POST',{action:'load_approved'}),
+      api('nt-catalog-approve','POST',{action:'load_rejected'}),
+      api('nt-catalog-approve','POST',{action:'load_auto_approved'})
+    ]);
+    results.approved=(appRes.approved||[]).map(p=>({...p,handle:p.handle||p.h,title:p.title||p.t,tags:p.tags||p.occ||'',price:p.price||'',status:'approved'}));
+    const rejHandles=rejRes.rejected||[];
+    results.rejected=rejHandles.map(h=>({handle:h,title:h,status:'rejected',tags:'',price:''}));
+    results.auto=(autoRes.log||[]).map(p=>({...p,handle:p.handle,title:p.title,status:'auto',tagged:p.tagged}));
+    // Update stat counts
+    const autoEl=document.querySelectorAll('.stat')[3];if(autoEl){autoEl.querySelector('.stat-n').textContent=results.auto.length;}
+    const apEl=document.querySelectorAll('.stat')[1];
+    if(apEl){apEl.querySelector('.stat-n').textContent=results.approved.length;apEl.querySelector('.stat-n').style.color='var(--green)';}
+    const rjEl=document.querySelectorAll('.stat')[2];
+    if(rjEl){rjEl.querySelector('.stat-n').textContent=results.rejected.length;rjEl.querySelector('.stat-n').style.color='var(--red)';}
+  }catch(e){console.warn('Could not load lists:',e.message);}
+}
+
+async function api(fn,method,body){
+  const r=await fetch(`${PROXY}/${fn}`,{
+    method:method||'GET',
+    headers:{'Content-Type':'application/json'},
+    body:body?JSON.stringify(body):undefined
+  });
+  if(!r.ok)throw new Error(await r.text());
+  return r.json();
+}
+
+async function loadDiff(forceRefresh){
+  // Load from cache first if available
+  const cached = localStorage.getItem('nt_sync_cache');
+  if(cached && !forceRefresh){
+    try{
+      const data = JSON.parse(cached);
+      results.new = (data.products||[]).map(p=>({...p,status:'new',_ts:Date.now()}));
+      updateStats(data);
+      setFilter('new');
+      const ageMin = Math.floor((Date.now()-new Date(data.synced_at).getTime())/60000);
+      toast(`Loaded cached data (${ageMin}m old) — refreshing in background…`);
+    }catch(e){console.warn('cache parse failed:',e.message);}
+  } else {
+    document.getElementById('productsWrap').innerHTML='<div class="empty"><p>Starting sync…</p></div>';
+  }
+  showActivityBar('Syncing Shopify', 'Fetching latest products in background…', true);
+  try{
+    fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-catalog-sync-background',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+    });
+    pollSyncProgress();
+  }catch(e){toast('Error: '+e.message,true);hideActivityBar();}
+}
+
+function manualSync(){ loadDiff(true); }
+
+let _syncPollInterval = null;
+async function pollSyncProgress(){
+  if(_syncPollInterval)clearInterval(_syncPollInterval);
+  _syncPollInterval = setInterval(async ()=>{
+    try{
+      const res = await api('nt-catalog-approve','POST',{action:'get_key',key:'nt:catalog:sync_progress'});
+      const p = res.value;
+      if(!p) return;
+      const data = typeof p === 'string' ? JSON.parse(p) : p;
+      updateActivityBar(data.message || data.step, data.done, data.total);
+      if(data.status === 'done'){
+        clearInterval(_syncPollInterval);
+        // Load result
+        const resultRes = await api('nt-catalog-approve','POST',{action:'get_key',key:'nt:catalog:sync_result'});
+        const result = resultRes.value;
+        if(result){
+          const data2 = typeof result === 'string' ? JSON.parse(result) : result;
+          results.new = (data2.products||[]).map(p=>({...p,status:'new',_ts:Date.now()}));
+          updateStats(data2);
+          setFilter('new');
+          // Cache result
+          try{ localStorage.setItem('nt_sync_cache', typeof result === 'string' ? result : JSON.stringify(result)); }catch(_){}
+          toast(`✓ ${data2.new_count} new products found`);
+        }
+        // Don't auto-hide — keep showing completed state
+        document.getElementById('activitySpinner').style.display='none';
+      } else if(data.status === 'error'){
+        clearInterval(_syncPollInterval);
+        toast('Sync error: '+(data.message||''),true);
+        document.getElementById('activitySpinner').style.display='none';
+      }
+    }catch(e){console.warn('Poll error:',e.message);}
+  }, 2000);
+}
+
+// Activity bar
+function showActivityBar(title, message, spinner){
+  document.getElementById('ntActivityBar').style.display = 'block';
+  document.getElementById('activityTitle').textContent = title;
+  document.getElementById('activityMessage').textContent = message || '';
+  document.getElementById('activitySpinner').style.display = spinner?'block':'none';
+  document.getElementById('activityBar').style.width = '0%';
+}
+
+function updateActivityBar(message, done, total){
+  if(message) document.getElementById('activityMessage').textContent = message;
+  if(typeof done==='number' && typeof total==='number' && total>0){
+    const pct = Math.min(100, Math.round(done/total*100));
+    document.getElementById('activityBar').style.width = pct+'%';
+  }
+}
+
+function hideActivityBar(){
+  document.getElementById('ntActivityBar').style.display = 'none';
+}
+
+async function toggleActivityLog(){
+  const panel = document.getElementById('ntActivityLog');
+  const isOpen = panel.style.display === 'block';
+  if(isOpen){
+    panel.style.display = 'none';
+  } else {
+    panel.style.display = 'block';
+    await loadActivityLog();
+  }
+}
+
+const ACTION_ICONS = {
+  sync_started: '🔄', sync_complete: '✓', sync_error: '⚠️',
+  approve: '✓', reject: '✕', remove_from_catalog: '🗑',
+  image_pushed: '🖼', images_generated: '🖼', images_bulk_started: '🖼',
+  rankings_built: '📊', metafields_pushed: '⬆️',
+  webhook_auto_approved: '🤖'
+};
+
+function formatDetailValue(v){
+  if(v===null||v===undefined)return '—';
+  if(typeof v==='string')return v.length>80?v.slice(0,80)+'…':v;
+  if(typeof v==='number')return String(v);
+  if(typeof v==='boolean')return v?'yes':'no';
+  if(Array.isArray(v))return v.length<=5?v.join(', '):v.slice(0,5).join(', ')+` (+${v.length-5} more)`;
+  if(typeof v==='object')return JSON.stringify(v).slice(0,80);
+  return String(v);
+}
+
+async function loadActivityLog(){
+  const listEl = document.getElementById('activityLogList');
+  listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:11px;">Loading…</div>';
+  try{
+    const res = await fetch(`${PROXY}/nt-activity-log`);
+    const data = await res.json();
+    const list = data.entries || [];
+    if(!list.length){
+      listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:11px;">No activity yet</div>';
+      return;
+    }
+    // Group by date
+    const groups = {};
+    list.forEach(e=>{
+      const d = new Date(e.created_at);
+      const key = d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+      if(!groups[key])groups[key]=[];
+      groups[key].push(e);
+    });
+
+    listEl.innerHTML = Object.entries(groups).map(([date,entries])=>{
+      const rows = entries.map(e=>{
+        let details = {};
+        try{ details = typeof e.details === 'string' ? JSON.parse(e.details) : (e.details||{}); }catch(_){}
+        const time = new Date(e.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+        const icon = ACTION_ICONS[e.action] || '•';
+        const detailEntries = Object.entries(details).filter(([k,v])=>v!==null&&v!==undefined&&v!=='');
+        const detailsHtml = detailEntries.length ?
+          '<div class="activity-details">' +
+            detailEntries.map(([k,v])=>`<div style="margin-top:2px;"><b style="color:var(--brown);text-transform:capitalize;">${k.replace(/_/g,' ')}:</b> ${formatDetailValue(v)}</div>`).join('') +
+          '</div>' : '';
+        return `<div class="activity-row">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div class="activity-action">${icon} ${e.action.replace(/_/g,' ')}</div>
+            <div style="font-size:9px;color:var(--muted);white-space:nowrap;">${time}</div>
+          </div>
+          ${detailsHtml}
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.06em;padding:4px 0;border-bottom:1.5px solid var(--orange);margin-bottom:6px;">${date}</div>
+        ${rows}
+      </div>`;
+    }).join('');
+  }catch(e){
+    listEl.innerHTML = `<div style="color:var(--red);font-size:11px;padding:20px;">Error loading log: ${e.message}</div>`;
+  }
+}
+
+function timeAgo(d){
+  const s = Math.floor((Date.now()-d.getTime())/1000);
+  if(s<60)return s+'s ago';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+
+function updateStats(data){
+  document.getElementById('headerStats').textContent=`${data.in_catalog||0} in catalog`;
+  const tabs=[
+    {key:'new',label:'New',n:data.new_count||0,color:'var(--orange)'},
+    {key:'approved',label:'Approved',n:results.approved.length,color:'var(--green)'},
+    {key:'rejected',label:'Rejected',n:data.rejected||0,color:'var(--red)'},
+    {key:'auto',label:'Auto Approved',n:results.auto?.length||0,color:'#5566dd'},
+    {key:'',label:'Shopify Total',n:data.total_shopify||0,color:'var(--brown)'}
+  ];
+  document.getElementById('statsRow').innerHTML=tabs.map(t=>`
+    <div class="stat${currentFilter===t.key?' active':''}" onclick="${t.key?`setFilter('${t.key}')`:''}" style="${!t.key?'cursor:default':''}">
+      <div class="stat-n" style="color:${t.color}">${t.n}</div>
+      <div class="stat-l">${t.label}</div>
+    </div>`).join('');
+}
+
+function setFilter(f){
+  currentFilter=f;
+  updateStats({new_count:results.new.length,in_catalog:0,rejected:results.rejected.length,total_shopify:0});
+  renderProducts();
+}
+
+function getSorted(list){
+  const tierF=document.getElementById('tierFilter')?.value||'';
+  if(tierF==='ranked')list=list.filter(p=>p.rank>0);
+  else if(tierF==='top10')list=list.filter(p=>p.rank>0&&p.rank<=10);
+  else if(tierF==='top50')list=list.filter(p=>p.rank>0&&p.rank<=50);
+  else if(tierF==='top100')list=list.filter(p=>p.rank>0&&p.rank<=100);
+  else if(tierF==='imgpick')list=list.filter(p=>(p.rank>0&&p.rank<=100)||isNewItem(p));
+  else if(tierF==='0')list=list.filter(p=>!p.rank||p.rank===0);
+  // Image-target view: float NEW additions to the very top, then best sellers by rank
+  if(tierF==='imgpick'){
+    return [...list].sort((a,b)=>{
+      const an=isNewItem(a)?0:1, bn=isNewItem(b)?0:1;
+      if(an!==bn) return an-bn;
+      return (a.rank||9999)-(b.rank||9999);
+    });
+  }
+  const sort=document.getElementById('sortSel').value;
+  const arr=[...list];
+  if(sort==='name')arr.sort((a,b)=>a.title.localeCompare(b.title));
+  else if(sort==='name_desc')arr.sort((a,b)=>b.title.localeCompare(a.title));
+  else if(sort==='price')arr.sort((a,b)=>parseFloat(a.price||0)-parseFloat(b.price||0));
+  else if(sort==='rank'){arr.sort((a,b)=>{const ar=a.rank||9999,br=b.rank||9999;return ar-br;});}
+  return arr;
+}
+
+// A product counts as "new" if it was approved recently and hasn't sold yet — so fresh additions
+// surface for image generation even though they have 0 sales and no rank.
+const NEW_WINDOW_DAYS = 14;
+function isNewItem(p){
+  const t = p.approved_at || p.ts || p.added_at;
+  if(!t) return false;
+  const ageDays = (Date.now() - new Date(t).getTime())/86400000;
+  if(isNaN(ageDays)) return false;
+  return ageDays <= NEW_WINDOW_DAYS && Number(p.sales||0) === 0;
+}
+
+function renderProducts(){
+  const q=document.getElementById('searchInp').value.toLowerCase();
+  const raw=results[currentFilter]||[];
+  const list=getSorted(q?raw.filter(p=>p.title.toLowerCase().includes(q)||p.handle.includes(q)):raw);
+  document.getElementById('listCount').textContent=`${list.length} products`;
+  document.getElementById('listToolbar').style.display=(currentFilter==='new'||currentFilter==='approved')&&list.length?'flex':'none';
+
+  if(!list.length){
+    if(currentFilter==='new'){
+      document.getElementById('productsWrap').innerHTML=`<div class="empty-cta"><div style="font-size:32px;margin-bottom:8px;">✓</div><h3>All caught up!</h3><p>No new products waiting for review. Hit Sync to check Shopify again.</p><button class="btn btn-primary" onclick="loadDiff()">🔄 Sync from Shopify</button></div>`;
+    } else {
+      document.getElementById('productsWrap').innerHTML=`<div class="empty"><h3>No ${currentFilter} products</h3></div>`;
+    }
+    return;
+  }
+  document.getElementById('productsWrap').innerHTML=list.map(p=>`
+    <div class="product-card ${p.status!=='new'?p.status:''}" id="card-${p.handle.replace(/[^a-z0-9]/g,'-')}">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        ${currentFilter==='new'||currentFilter==='approved'?`<input type="checkbox" class="nt-sel" data-handle="${p.handle}" onchange="updateSelCount()" style="margin-top:2px;width:15px;height:15px;accent-color:var(--orange);flex-shrink:0;" ${currentFilter==='new'?'checked':''}>`:''}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap;">
+            <span class="product-title">${p.title}</span>
+            <span class="badge badge-${p.status==='new'?'new':p.status==='approved'?'approved':'rejected'}">${p.status}</span>
+            ${isNewItem(p)?`<span style="font-size:9px;font-weight:800;color:#fff;background:var(--green);padding:2px 8px;border-radius:20px;letter-spacing:.3px;">★ NEW</span>`:''}
+          </div>
+          <div class="product-handle">${p.handle}</div>
+          ${p.shopifyImage?`<div style="margin-top:6px;"><img src="${p.shopifyImage}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);" alt="${p.title}"></div>`:''}
+          ${p.variantColorHex&&p.variantColorHex.length?`<div style="display:flex;align-items:center;gap:5px;margin-top:5px;flex-wrap:wrap;">
+            <span style="font-size:10px;color:var(--muted);font-weight:600;">Colors:</span>
+            ${p.variantColorHex.map(v=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--brown);background:#f5ede0;padding:2px 7px;border-radius:10px;"><span style="width:10px;height:10px;border-radius:50%;background:${v.hex||'#ccc'};border:1px solid rgba(0,0,0,0.15);display:inline-block;"></span>${v.name}</span>`).join('')}
+          </div>`:(p.variantColors&&p.variantColors.length?`<div style="font-size:10px;color:var(--muted);margin-top:4px;"><b>Variants:</b> ${p.variantColors.join(', ')}</div>`:'')}
+          ${(p.images&&p.images.length)?`
+            <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
+              ${p.images.map((img,ii)=>`<div class="thumb-wrap"><img src="${img.url}" onclick="openLightbox('${p.handle||p.h}',${ii})" title="Click to enlarge — ${img.type||''} ${img.color||''}"></div>`).join('')}
+            </div>`:''}
+          ${p.tagged||p.tl?(function(){
+            const t=p.tagged||p;
+            return '<div style="font-size:9px;color:var(--muted);line-height:1.7;margin:3px 0;">'
+              +(t.tl?'<span style="font-style:italic;color:var(--brown);">'+t.tl+'</span><br>':'')
+              +(t.cat?'<b>Cat:</b> '+t.cat+' &nbsp;':'')
+              +(t.who_p?'<b>Who:</b> '+t.who_p+'<br>':'')
+              +(t.occ?'<b>Occ:</b> '+t.occ+'<br>':'')
+              +(t.vibe?'<b>Vibe:</b> '+t.vibe:'')
+
+              +'</div>';
+          })():'<div class="product-tags">'+(p.tags||'<em>no tags</em>')+'</div>'}
+          <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
+            ${p.price?`<span style="font-size:10px;font-weight:700;color:var(--orange);">₹${p.price}</span>`:''}
+            ${p.rank?`<span style="font-size:10px;font-weight:800;padding:2px 10px;border-radius:20px;background:${p.rank<=10?'#fff3e0':p.rank<=50?'#f0f4ff':'#f5f5f5'};color:${p.rank<=10?'#c47a45':p.rank<=50?'#4455cc':'#888'};">#${p.rank} · ${p.sales||0} sales</span>`:'<span style="font-size:10px;color:#ccc;">Unranked</span>'}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+          ${currentFilter==='new'?`
+            <button class="btn btn-green btn-sm" onclick="approveOne('${p.handle}')">✓ Accept</button>
+            <div style="position:relative;">
+              <button class="card-menu-btn" onclick="toggleCardMenu(event,'${p.handle}')">⋯</button>
+              <div class="card-menu" id="menu-${p.handle}">
+                <button class="card-menu-item" onclick="previewTag('${p.handle}');closeCardMenu()">✦ Preview tags first</button>
+                <button class="card-menu-item danger" onclick="rejectOne('${p.handle}');closeCardMenu()">✕ Reject</button>
+              </div>
+            </div>
+          `:''}
+          ${currentFilter==='approved'?`
+            <button class="btn btn-ghost btn-sm" onclick="openImageGen('${p.handle}')">🖼 Images</button>
+            <div style="position:relative;">
+              <button class="card-menu-btn" onclick="toggleCardMenu(event,'${p.handle}')">⋯</button>
+              <div class="card-menu" id="menu-${p.handle}">
+                <button class="card-menu-item" onclick="previewTag('${p.handle}');closeCardMenu()">↻ Re-tag</button>
+                <button class="card-menu-item" onclick="pushSingleMetafield('${p.handle}');closeCardMenu()">⬆ Push metafields</button>
+                ${p.images&&p.images.length?`<button class="card-menu-item" onclick="downloadProductImages('${p.handle}','high');closeCardMenu()">⬇ Hi-res ZIP</button><button class="card-menu-item" onclick="downloadProductImages('${p.handle}','web');closeCardMenu()">⬇ Web ZIP</button>`:''}
+                <button class="card-menu-item danger" onclick="removeFromApproved('${p.handle}');closeCardMenu()">✕ Remove from catalog</button>
+              </div>
+            </div>
+          `:''}
+          ${currentFilter==='auto'?`
+            <div style="font-size:9px;color:var(--muted);text-align:right;">${p.ts?new Date(p.ts).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—'}</div>
+          `:''}
+        </div>
+      </div>
+      ${p.tagged&&(currentFilter==='new'||p._editing)?renderTagEditor(p):''}
+    </div>`).join('');
+
+  if(currentFilter==='new') updateSelCount();
+}
+
+function renderTagEditor(p){
+  const t=p.tagged||{};
+  const fields=[['tl','Tagline',false],['cat','Category',true],['who_p','Who for',true],['occ','Occasion',true],['ctx','Context',false],['vibe','Vibe',true],['personality','Personality',true],['lang','Language',false]];
+  return `<div class="tag-editor">
+    <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:8px;">Claude tags — edit before saving:</div>
+    <div class="tag-grid">${fields.map(([k,l,multi])=>`
+      <div class="tag-field">
+        <label>${l}</label>
+        ${multi?`<textarea id="tf-${p.handle}-${k}" rows="2">${t[k]||''}</textarea>`:`<input type="text" id="tf-${p.handle}-${k}" value="${(t[k]||'').replace(/"/g,'&quot;')}">`}
+      </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-green btn-sm" onclick="saveWithEdits('${p.handle}',false)">✓ Save to catalog</button>
+      <button class="btn btn-primary btn-sm" onclick="saveWithEdits('${p.handle}',true)">✓ Save + Push to Shopify</button>
+      <button class="btn btn-red btn-sm" onclick="rejectOne('${p.handle}')">✕ Reject</button>
+    </div>
+  </div>`;
+}
+
+function getCardId(handle){return 'card-'+handle.replace(/[^a-z0-9]/g,'-');}
+
+async function previewTag(handle){
+  const src=currentFilter==='approved'?results.approved:results.new;
+  const p=src.find(x=>x.handle===handle);
+  if(!p)return;
+  const card=document.getElementById(getCardId(handle));
+  if(card)card.classList.add('loading');
+  try{
+    const res=await api('nt-catalog-approve','POST',{action:'tag',product:p});
+    p.tagged=res.tagged;
+      p._editing=true;
+    renderProducts();
+    toast('Tags previewed — edit and save');
+  }catch(e){toast('Error: '+e.message,true);}
+  finally{const c=document.getElementById(getCardId(handle));if(c)c.classList.remove('loading');}
+}
+
+function getEditorValues(handle){
+  const p=results.new.find(x=>x.handle===handle)||results.approved.find(x=>x.handle===handle);
+  if(!p)return null;
+  const keys=['tl','cat','who_p','occ','ctx','vibe','personality','lang'];
+  const v={h:handle,t:p.title,collections:[]};
+  keys.forEach(k=>{const el=document.getElementById(`tf-${handle}-${k}`);v[k]=el?el.value.trim():(p.tagged?.[k]||'');});
+  return v;
+}
+
+async function saveWithEdits(handle,pushToShopify){
+  const inApproved=results.approved.find(x=>(x.handle||x.h)===handle);
+  const p=inApproved||results.new.find(x=>x.handle===handle);
+  if(!p)return;
+  if(inApproved){
+    const card=document.getElementById(getCardId(handle));
+    if(card)card.classList.add('loading');
+    try{
+      const tagged=getEditorValues(handle);
+      await api('nt-catalog-approve','POST',{action:'approve',product:p,tagged,pushMetafields:!!pushToShopify});
+      p.tagged=tagged;p._editing=false;p.status='approved';
+      Object.assign(p,{tl:tagged.tl,cat:tagged.cat,who_p:tagged.who_p,occ:tagged.occ,ctx:tagged.ctx,vibe:tagged.vibe});
+      renderProducts();
+      toast(pushToShopify?'✓ Saved + pushed to Shopify':'✓ Saved to catalog');
+    }catch(e){toast('Error: '+e.message,true);}
+    finally{const c=document.getElementById(getCardId(handle));if(c)c.classList.remove('loading');}
+  } else {
+    await _doApprove(p,getEditorValues(handle));
+  }
+}
+
+async function approveOne(handle){
+  const p=results.new.find(x=>x.handle===handle);
+  if(!p)return;
+  await _doApprove(p,p.tagged?getEditorValues(handle):null);
+}
+
+async function _doApprove(p,manualTags){
+  const card=document.getElementById(getCardId(p.handle));
+  if(card)card.classList.add('loading');
+  try{
+    const res=await api('nt-catalog-approve','POST',{action:'approve',product:p,tagged:manualTags||null,pushMetafields:pushMf()});
+    p.status='approved';p.tagged=res.tagged;
+    results.approved.unshift(p);
+    results.new=results.new.filter(x=>x.handle!==p.handle);
+    renderProducts();
+    updateStats({new_count:results.new.length,in_catalog:0,rejected:results.rejected.length,total_shopify:0});
+    toast(`✓ ${p.title} added${pushMf()?' + metafields':''}` );
+  }catch(e){const c=document.getElementById(getCardId(p.handle));if(c)c.classList.remove('loading');toast('Error: '+e.message,true);}
+}
+
+async function removeFromApproved(handle){
+  if(!confirm('Remove from catalog? Product will no longer appear in search.'))return;
+  try{
+    await api('nt-catalog-approve','POST',{action:'remove_approved',product:{handle}});
+    const p=results.approved.find(x=>(x.handle||x.h)===handle);
+    if(p){p.status='rejected';results.rejected.unshift(p);}
+    results.approved=results.approved.filter(x=>(x.handle||x.h)!==handle);
+    updateStats({new_count:results.new.length,in_catalog:0,rejected:results.rejected.length,total_shopify:0});
+    renderProducts();
+    toast('✕ Removed from catalog');
+  }catch(e){toast('Error: '+e.message,true);}
+}
+
+async function rejectOne(handle){
+  const p=results.new.find(x=>x.handle===handle);
+  if(!p)return;
+  const card=document.getElementById(getCardId(handle));
+  if(card)card.classList.add('loading');
+  try{
+    await api('nt-catalog-approve','POST',{action:'reject',product:{handle}});
+    p.status='rejected';
+    results.rejected.unshift(p);
+    results.new=results.new.filter(x=>x.handle!==handle);
+    updateStats({new_count:results.new.length,in_catalog:0,rejected:results.rejected.length,total_shopify:0});
+    renderProducts();
+    toast(`✕ Rejected`);
+  }catch(e){const c=document.getElementById(getCardId(handle));if(c)c.classList.remove('loading');toast('Error: '+e.message,true);}
+}
+
+function selectAll(){
+  const boxes=document.querySelectorAll('.nt-sel');
+  const anyUnchecked=[...boxes].some(b=>!b.checked);
+  boxes.forEach(b=>{b.checked=anyUnchecked;});
+  updateSelCount();
+}
+
+// Curate image targets: top-100 sellers (all-time rank) + recent additions, new floated to top.
+// Reuses the existing checkbox selection that bulk image gen reads — so you generate for ~100, not 600.
+function pickTopForImages(){
+  if(currentFilter!=='approved') setFilter('approved');
+  const tf=document.getElementById('tierFilter'); if(tf) tf.value='imgpick';
+  renderProducts();
+  const boxes=document.querySelectorAll('.nt-sel');
+  boxes.forEach(b=>{ b.checked=true; });
+  updateSelCount();
+  const ranked=results.approved.filter(p=>p.rank>0&&p.rank<=100).length;
+  const fresh =results.approved.filter(p=>isNewItem(p)&&!(p.rank>0&&p.rank<=100)).length;
+  if(!boxes.length){ toast('No ranked products yet — run 📊 Rebuild rankings (all-time) first',true); return; }
+  toast(`Selected ${boxes.length} — top ${ranked} sellers + ${fresh} new. Uncheck any to skip, then ⋯ → Generate images (bulk).`);
+}
+
+function updateSelCount(){
+  const n=document.querySelectorAll('.nt-sel:checked').length;
+  const el=document.getElementById('selCount'); if(el) el.textContent=n;
+  const rb=document.getElementById('bulkRejectBtn'); if(rb) rb.style.display=(n>0&&currentFilter==='new')?'inline-flex':'none';
+}
+
+async function bulkRejectSelected(){
+  const handles=[...document.querySelectorAll('.nt-sel:checked')].map(b=>b.dataset.handle);
+  if(!handles.length)return;
+  if(!confirm(`Reject ${handles.length} products? They won't appear again.`))return;
+  try{
+    await api('nt-catalog-approve','POST',{action:'reject',handles});
+    handles.forEach(h=>{
+      const p=results.new.find(x=>x.handle===h);
+      if(p){p.status='rejected';results.rejected.push(p);}
+    });
+    results.new=results.new.filter(x=>!handles.includes(x.handle));
+    updateStats({new_count:results.new.length,in_catalog:0,rejected:results.rejected.length,total_shopify:0});
+    renderProducts();
+    updateSelCount();
+    toast(`✕ ${handles.length} rejected`);
+  }catch(e){toast('Error: '+e.message,true);}
+}
+
+async function bulkApproveAll(){
+  const pending=results.new.filter(p=>!p.tagged);
+  const withPreview=results.new.filter(p=>p.tagged);
+  const total=results.new.length;
+  if(!total)return toast('No new products');
+  if(!confirm(`Approve all ${total} products?`))return;
+  let done=0;
+  const prog=()=>{document.getElementById('progressMsg').textContent=`Processing ${done}/${total}…`;};
+  prog();
+  for(const p of withPreview){await _doApprove(p,getEditorValues(p.handle));done++;prog();}
+  for(const p of [...pending]){await _doApprove(p,null);done++;prog();}
+  document.getElementById('progressMsg').textContent=`Done — ${done} approved`;
+  toast(`All done! ${done} added to catalog`);
+}
+
+async function exportCatalog(){
+  try{
+    const r=await fetch(`${PROXY}/nt-catalog-approve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'export'})});
+    const data=await r.json();
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='nukkad-catalog-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+    toast(`Exported ${data.length} products`);
+  }catch(e){toast('Export failed: '+e.message,true);}
+}
+
+// Card menu helpers
+function toggleCardMenu(e, handle){
+  e.stopPropagation();
+  document.querySelectorAll('.card-menu.show').forEach(m=>m.classList.remove('show'));
+  const menu = document.getElementById('menu-'+handle);
+  if (menu) menu.classList.toggle('show');
+}
+function closeCardMenu(){ document.querySelectorAll('.card-menu.show').forEach(m=>m.classList.remove('show')); }
+function closeMore(){ document.getElementById('moreDropdown')?.classList.remove('show'); }
+document.addEventListener('click', e => {
+  if (!e.target.closest('.card-menu-btn')) closeCardMenu();
+  if (!e.target.closest('#moreMenu')) closeMore();
+});
+
+// ── Push single metafield ──
+async function pushSingleMetafield(handle){
+  try{
+    const p = results.approved.find(x=>(x.handle||x.h)===handle);
+    if(!p)return;
+    await api('nt-catalog-approve','POST',{action:'push_metafields',product:{handle}});
+    toast('⬆ Metafields pushed for '+handle);
+  }catch(e){toast('Error: '+e.message,true);}
+}
+
+// ── Rebuild rankings — opens a simple prompt for date range ──
+function buildRanksWithDates(){
+  const choice = prompt('Time range for rankings?\n\n1 = Last 30 days\n2 = Last 60 days\n3 = Last 90 days\n4 = Last 1 year\n5 = All time (recommended)\n\nEnter 1-5:', '5');
+  if(!choice)return;
+  const days = {'1':30,'2':60,'3':90,'4':365,'5':0}[choice]||0;
+  buildRanks(days);
+}
+
+// ── Download functions ──
+
+async function fetchImageAsBlob(url) {
+  const r = await fetch(url);
+  return await r.blob();
+}
+
+async function downloadProductImages(handle, resolution) {
+  const p = results.approved.find(x=>(x.handle||x.h)===handle);
+  if (!p || !p.images || !p.images.length) { toast('No images for this product', true); return; }
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = 'Packing…'; btn.disabled = true;
+
+  try {
+    const zip = new JSZip();
+    const folder = zip.folder(handle);
+    for (const img of p.images) {
+      const url = resolution === 'high' ? (img.originalUrl || img.url) : img.url;
+      if (!url) continue;
+      const fname = `${img.type||'image'}${img.color?'-'+img.color:''}-${resolution}.jpg`;
+      try {
+        const blob = await fetchImageAsBlob(url);
+        folder.file(fname, blob);
+      } catch(e) { console.warn('Failed to fetch:', url); }
+    }
+    const content = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(content);
+    a.download = `${handle}-images-${resolution}.zip`;
+    a.click();
+    toast(`✓ Downloaded ${p.images.length} images`);
+  } catch(e) { toast('Error: '+e.message, true); }
+  finally { btn.textContent = origText; btn.disabled = false; }
+}
+
+let _bulkDlHandles = [];
+
+function openBulkDownload() {
+  const checked = [...document.querySelectorAll('.nt-sel:checked')].map(b=>b.dataset.handle);
+  // Filter to only those with images
+  const withImages = (checked.length ? checked : results.approved.map(p=>p.handle||p.h))
+    .filter(h => results.approved.find(p=>(p.handle||p.h)===h&&p.images&&p.images.length));
+  _bulkDlHandles = withImages;
+  document.getElementById('bulkDlInfo').textContent =
+    `${withImages.length} products with generated images`;
+  document.getElementById('ntBulkDlModal').style.display = 'flex';
+}
+
+async function startBulkDownload() {
+  if (!_bulkDlHandles.length) { toast('No products with images', true); return; }
+  const resolution = document.querySelector('input[name="dlRes"]:checked')?.value || 'web';
+  const types = [];
+  if (document.getElementById('dlWhiteBg')?.checked) types.push('white_bg');
+  if (document.getElementById('dlLifestyle')?.checked) types.push('lifestyle');
+  if (document.getElementById('dlColorVar')?.checked) types.push('color_variant');
+
+  const btn = document.getElementById('bulkDlBtn');
+  btn.textContent = 'Packing ZIP…'; btn.disabled = true;
+  const prog = document.getElementById('bulkDlProgress');
+
+  try {
+    const zip = new JSZip();
+    let totalImgs = 0;
+
+    for (const handle of _bulkDlHandles) {
+      const p = results.approved.find(x=>(x.handle||x.h)===handle);
+      if (!p?.images?.length) continue;
+      const folder = zip.folder(handle);
+      const filtered = p.images.filter(img => !types.length || types.includes(img.type));
+
+      for (const img of filtered) {
+        const url = resolution === 'high' ? (img.originalUrl || img.url) : img.url;
+        if (!url) continue;
+        const fname = `${img.type||'image'}${img.color?'-'+img.color:''}-${resolution}.jpg`;
+        try {
+          prog.textContent = `Fetching ${handle}/${fname}…`;
+          const blob = await fetchImageAsBlob(url);
+          folder.file(fname, blob);
+          totalImgs++;
+        } catch(e) { console.warn('Skip:', url); }
+      }
+    }
+
+    prog.textContent = 'Generating ZIP…';
+    const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(content);
+    a.download = `nukkadtales-images-${resolution}-${new Date().toISOString().slice(0,10)}.zip`;
+    a.click();
+    prog.textContent = `✓ Downloaded ${totalImgs} images from ${_bulkDlHandles.length} products`;
+    toast(`✓ ZIP downloaded — ${totalImgs} images`);
+  } catch(e) {
+    toast('Error: '+e.message, true);
+  } finally {
+    btn.textContent = '⬇ Download ZIP'; btn.disabled = false;
+  }
+}
+
+// Lightbox
+let _lbHandle = null;
+let _lbImages = [];
+let _lbIdx = 0;
+
+function openLightbox(handle, idx){
+  const p = results.approved.find(x=>(x.handle||x.h)===handle);
+  if(!p||!p.images||!p.images.length) return;
+  _lbHandle = handle;
+  _lbImages = p.images;
+  _lbIdx = idx || 0;
+  const lb = document.getElementById('ntLightbox');
+  lb.style.display = 'flex';
+  renderLightbox();
+  // Keyboard nav
+  document.addEventListener('keydown', lightboxKeyNav);
+}
+
+function closeLightbox(){
+  document.getElementById('ntLightbox').style.display = 'none';
+  document.removeEventListener('keydown', lightboxKeyNav);
+}
+
+function lightboxKeyNav(e){
+  if(e.key==='ArrowRight') lightboxNav(1);
+  else if(e.key==='ArrowLeft') lightboxNav(-1);
+  else if(e.key==='Escape') closeLightbox();
+}
+
+function lightboxNav(dir){
+  _lbIdx = (_lbIdx + dir + _lbImages.length) % _lbImages.length;
+  renderLightbox();
+}
+
+function renderLightbox(){
+  const img = _lbImages[_lbIdx];
+  if(!img) return;
+  document.getElementById('ntLightboxImg').src = img.url;
+  document.getElementById('ntLightboxLabel').textContent = (img.type||'').replace('_',' ') + (img.color?' · '+img.color:'') + ` (${_lbIdx+1}/${_lbImages.length})`;
+  document.getElementById('ntLightboxDownload').href = img.url;
+  document.getElementById('ntLightboxDownload').download = _lbHandle + '-' + (img.type||'image') + '.jpg';
+  // Dot indicators
+  document.getElementById('ntLightboxDots').innerHTML = _lbImages.map((_,i)=>
+    `<div onclick="lightboxJump(${i})" style="width:7px;height:7px;border-radius:50%;background:${i===_lbIdx?'#fff':'rgba(255,255,255,0.3)'};cursor:pointer;transition:background .15s;"></div>`
+  ).join('');
+  // Show/hide push button (only for images not yet on Shopify — but Shopify-stored images won't have base64)
+  const pushBtn = document.getElementById('ntLightboxPush');
+  // If URL is a Shopify URL it's already pushed
+  if(img.url && (img.url.includes('shopify.com') || img.url.includes('cdn.shop'))) {
+    pushBtn.textContent = '✓ Already on Shopify'; pushBtn.style.background = 'rgba(255,255,255,0.2)'; pushBtn.disabled = true;
+  } else {
+    pushBtn.textContent = '⬆ Push to Shopify'; pushBtn.style.background = 'var(--green)'; pushBtn.disabled = false;
+  }
+}
+
+function lightboxJump(i){ _lbIdx=i; renderLightbox(); }
+
+async function lightboxPushToShopify(){
+  const img = _lbImages[_lbIdx];
+  if(!img || !img.url) return;
+  // For non-Shopify URLs fetch and push
+  const btn = document.getElementById('ntLightboxPush');
+  btn.textContent = 'Pushing…'; btn.disabled = true;
+  try {
+    const p = results.approved.find(x=>(x.handle||x.h)===_lbHandle);
+    const res = await api('nt-imagen','POST',{ action:'push_image', handle:_lbHandle, imageUrl: img.url, altText: img.alt || img.type || _lbHandle });
+    img.url = res.imageUrl || img.url; // update to Shopify URL
+    renderLightbox();
+    toast('✓ Pushed to Shopify');
+    renderProducts(); // refresh thumbnails
+  } catch(e) { toast('Error: '+e.message,true); btn.textContent='⬆ Push to Shopify'; btn.disabled=false; }
+}
+
+// Bulk image generation
+let _bulkHandles = [];
+
+function openBulkImageGen(){
+  // Use checked items if any, else all approved
+  const checked = [...document.querySelectorAll('.nt-sel:checked')].map(b=>b.dataset.handle);
+  _bulkHandles = checked.length ? checked : results.approved.map(p=>p.handle||p.h).filter(Boolean);
+  document.getElementById('bulkImgSelection').textContent = `${_bulkHandles.length} products selected`;
+  document.getElementById('ntBulkImgModal').style.display = 'block';
+  document.getElementById('bulkGenProgress').style.display = 'none';
+}
+
+async function startBulkGen(){
+  const mode = document.querySelector('input[name="bulkMode"]:checked')?.value || 'white_bg';
+  const push = document.getElementById('bulkPushShopify')?.checked;
+  const btn = document.getElementById('bulkGenStartBtn');
+  btn.textContent = 'Starting…'; btn.disabled = true;
+
+  document.getElementById('bulkGenProgress').style.display = 'block';
+  document.getElementById('bulkGenStatusText').textContent = 'Firing background job…';
+
+  try {
+    await fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-imagen-background', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handles: _bulkHandles, mode, pushToShopify: push })
+    });
+    document.getElementById('bulkGenStatusText').textContent = `Running — ${_bulkHandles.length} products queued`;
+    toast('🖼 Bulk generation started in background');
+    // Start polling
+    _bulkPollInterval = setInterval(checkBulkProgress, 8000);
+    checkBulkProgress();
+  } catch(e) {
+    toast('Error: '+e.message, true);
+    btn.textContent = '✦ Start Bulk Generation'; btn.disabled = false;
+  }
+}
+
+let _bulkPollInterval = null;
+
+async function checkBulkProgress(){
+  try {
+    const res = await api('nt-catalog-approve','POST',{action:'get_key',key:'nt:catalog:imagen_progress'});
+    if(!res.value)return;
+    const prog = typeof res.value === 'string' ? JSON.parse(res.value) : res.value;
+    const pct = prog.total ? Math.round(prog.done/prog.total*100) : 0;
+    document.getElementById('bulkGenBar').style.width = pct+'%';
+    document.getElementById('bulkGenStatusText').textContent =
+      prog.status==='done' ? `✓ Done — ${prog.done}/${prog.total} images generated` : `Running — ${prog.done}/${prog.total} done`;
+    // Show log
+    const log = Object.entries(prog.results||{}).slice(-10).map(([h,r])=>
+      (r.ok?'✓ ':'✕ ')+h+(r.images?.length?' ('+r.images.length+' images)':r.error?' — '+r.error:'')
+    ).join('\n');
+    document.getElementById('bulkGenLog').textContent = log;
+    // Stop polling when done
+    if(prog.status==='done'){
+      clearInterval(_bulkPollInterval);
+      document.getElementById('bulkGenStartBtn').textContent='✦ Start Bulk Generation';
+      document.getElementById('bulkGenStartBtn').disabled=false;
+      // Reload approved to show new thumbnails
+      loadSavedLists();
+    }
+  } catch(e) { console.warn('Progress check failed:', e.message); }
+}
+
+// regenSingle / pushSingleImage removed — superseded by genSlot()/deleteSlot() in the slot grid.
+
+// Prompt brain
+async function loadBrain(){
+  try{
+    const res = await api('nt-imagen','POST',{action:'get_brain'});
+    const b = res.brain || {};
+    document.getElementById('brainAdd').value = b.add || '';
+    document.getElementById('brainExclude').value = b.exclude || '';
+    document.getElementById('brainStyle').value = b.style || '';
+  }catch(e){toast('Error loading brain: '+e.message,true);}
+}
+
+async function saveBrain(){
+  const brain = {
+    add:     document.getElementById('brainAdd').value.trim(),
+    exclude: document.getElementById('brainExclude').value.trim(),
+    style:   document.getElementById('brainStyle').value.trim()
+  };
+  try{
+    await api('nt-imagen','POST',{action:'save_brain',brain});
+    const s = document.getElementById('brainStatus');
+    s.style.display='block';
+    setTimeout(()=>{s.style.display='none';},3000);
+    toast('🧠 Brain saved');
+  }catch(e){toast('Error: '+e.message,true);}
+}
+
+// Color management
+async function loadColors(){
+  try{
+    const res = await api('nt-imagen','POST',{action:'get_colors'});
+    const colors = res.colors || {};
+    document.getElementById('colorEditorTa').value = Object.entries(colors).map(([k,v])=>{
+      const o = (v && typeof v==='object') ? v : { hex:'', desc:v||'' };
+      return [k, o.hex||'', o.desc||''].join(' | ');
+    }).join('\n');
+    refreshColorDropdown(colors);
+    toast('Colors loaded');
+  }catch(e){toast('Error: '+e.message,true);}
+}
+
+async function saveColors(){
+  const lines = document.getElementById('colorEditorTa').value.trim().split('\n').filter(Boolean);
+  const colors = {};
+  const isHex = s => /^#?[0-9a-fA-F]{3,8}$/.test(s);
+  lines.forEach(l=>{
+    const parts = l.split('|').map(s=>s.trim());
+    const name = parts[0];
+    if(!name) return;
+    let hex='', desc='';
+    if(parts[1] && isHex(parts[1])){ hex = parts[1].startsWith('#')?parts[1]:'#'+parts[1]; desc = parts.slice(2).join(' | '); }
+    else if(parts.length>=3){ desc = parts.slice(2).join(' | '); }   // empty/invalid hex column → skip it
+    else { desc = parts.slice(1).join(' | '); }                       // legacy "name | description"
+    colors[name.toLowerCase()] = { hex: hex||null, desc: desc.trim()||'' };
+  });
+  try{
+    await api('nt-imagen','POST',{action:'save_colors',colors});
+    refreshColorDropdown(colors);
+    toast('✓ Colors saved');
+  }catch(e){toast('Error: '+e.message,true);}
+}
+
+function refreshColorDropdown(colors){
+  const sel = document.getElementById('imgColorSel');
+  if(!sel) return;
+  sel.innerHTML = Object.keys(colors).map(k=>`<option value="${k}">${k.charAt(0).toUpperCase()+k.slice(1)}</option>`).join('');
+}
+
+// Image generation
+let _imgGenHandle = null;
+let _imgGenItem = null;
+
+document.addEventListener('change', function(e){
+  if(e.target.name==='imgMode'){
+    document.getElementById('colorPickWrap').style.display=
+      (e.target.value==='color_variant'||e.target.value==='all')?'block':'none';
+  }
+});
+
+function openImageGen(handle){
+  const p = results.approved.find(x=>(x.handle||x.h)===handle);
+  if(!p){toast('Product not loaded in approved tab',true);return;}
+  _imgGenHandle = handle;
+  _imgGenItem = p;
+  document.getElementById('ntImgHandle').textContent = handle + (p.tl?' · '+p.tl:'');
+  // Pre-fill colors from Shopify variants — prefer hex if available
+  if(p.variantColorHex && p.variantColorHex.length){
+    const sel = document.getElementById('imgColorSel');
+    if(sel){
+      sel.innerHTML = p.variantColorHex.map(v=>`<option value="${v.hex||v.name.toLowerCase().replace(/\s+/g,'_')}" data-name="${v.name}">${v.name} ${v.hex?'· '+v.hex:''}</option>`).join('');
+    }
+  } else if(p.variantColors && p.variantColors.length){
+    const sel = document.getElementById('imgColorSel');
+    if(sel){
+      sel.innerHTML = p.variantColors.map(c=>`<option value="${c.toLowerCase().replace(/\s+/g,'_')}">${c}</option>`).join('');
+    }
+  } else {
+    loadColors();
+  }
+  loadBrain();
+  loadRefs();
+  document.getElementById('imgProgress').textContent = '';
+  renderSlotGrid();
+  document.getElementById('ntImgModal').style.display = 'block';
+}
+
+// ===== Slot-based image grid =====
+// Backend contract (nt-imagen.js):
+//   generate_slot → { action, handle, catalogItem, slot:'white_bg'|'lifestyle'|'extra',
+//                     label, color, hex, refKey, extraPrompt, variation }  →  { ok, imageUrl }  (Shopify CDN, pushed)
+//   delete_image  → { action, handle, slot, label, color }  →  { ok }
+//   save_ref/get_refs → manage global gift-box / gift-wrap reference images.
+//   imageSlots = { whiteBg:{url}|null, lifestyle:{[label]:{url}}, colorVariants:{[color]:{url,hex}}, extras:{[label]:{url}} }
+let _slotDefs = {};
+let _refs = {};          // global reference images: { giftBox:{url}, giftWrap:{url} }
+
+async function loadRefs(){
+  try{
+    const res = await api('nt-imagen','POST',{action:'get_refs'});
+    _refs = res.refs || {};
+    ['giftBox','giftWrap'].forEach(k=>{
+      const img = document.getElementById('refImg-'+k);
+      if(img){ if(_refs[k]?.url){ img.src=_refs[k].url; img.style.display='block'; } else { img.style.display='none'; } }
+    });
+    if(document.getElementById('ntImgModal').style.display==='block') renderSlotGrid();
+  }catch(e){ /* refs are optional */ }
+}
+
+function fileToBase64(file){
+  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=()=>rej(new Error('read failed')); r.readAsDataURL(file); });
+}
+
+async function uploadRef(key, inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  const st = document.getElementById('refStatus');
+  if(st){ st.style.display='block'; st.style.color='var(--muted)'; st.textContent='Uploading '+key+'…'; }
+  try{
+    const imageBase64 = await fileToBase64(file);
+    const res = await api('nt-imagen','POST',{action:'save_ref', key, imageBase64});
+    if(!res.url) throw new Error(res.error||'upload failed');
+    _refs[key] = { url: res.url };
+    const img = document.getElementById('refImg-'+key);
+    if(img){ img.src=res.url; img.style.display='block'; }
+    if(st){ st.style.color='var(--green)'; st.textContent='✓ '+key+' saved — Extras slot is now available'; }
+    renderSlotGrid();
+  }catch(e){ if(st){ st.style.color='var(--red)'; st.textContent='Error: '+e.message; } }
+}
+
+// One lifestyle slot per ctx suggestion (e.g. "Bedroom · Altar | Prayer Room · Shelf")
+function lifestyleLabelsFromCtx(ctx){
+  if(!ctx) return ['Shelf'];
+  const parts = ctx.split(/[·|,\/]/).map(s=>s.trim()).filter(Boolean);
+  const seen=new Set(), out=[];
+  parts.forEach(p=>{ const k=p.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(p); } });
+  return out.length?out:['Shelf'];
+}
+
+// Colour variants from Shopify — prefer native swatches (with hex), else plain option names.
+// Strips trailing price annotations like "Gold (+Rs. 300)" → "Gold".
+function colorVariantsOf(item){
+  const clean = n => (n||'').replace(/\s*\([^)]*\)\s*$/,'').trim();
+  if(item.variantColorHex && item.variantColorHex.length)
+    return item.variantColorHex.map(v=>({ name:clean(v.name), hex:v.hex||null })).filter(v=>v.name);
+  if(item.variantColors && item.variantColors.length)
+    return item.variantColors.map(n=>({ name:clean(n), hex:null })).filter(v=>v.name);
+  return [];
+}
+
+// Build predictable, ascii-safe slot definitions (keys avoid unicode/spaces so onclick stays clean).
+// White-background slots = hero on a white background, ONE per colour variant (8 variants → 8 slots).
+// Lifestyle slots = one per ctx suggestion. If a product has no variants, a single plain white slot.
+function buildSlotDefs(item){
+  const defs=[];
+  const colors = colorVariantsOf(item);
+  if(colors.length){
+    colors.forEach(c=>{
+      defs.push({key:'wb_'+c.name.replace(/[^a-z0-9]+/gi,'_').toLowerCase(), type:'white_bg', title:c.name, label:null, color:c.name, hex:c.hex||null});
+    });
+  } else {
+    defs.push({key:'wb', type:'white_bg', title:'White bg', label:null, color:null, hex:null});
+  }
+  lifestyleLabelsFromCtx(item.ctx).forEach(lbl=>{
+    defs.push({key:'ls_'+lbl.replace(/[^a-z0-9]+/gi,'_').toLowerCase(), type:'lifestyle', title:lbl, label:lbl, color:null, hex:null});
+  });
+  // Extras: gift slots backed by global reference images + any custom shots added on this product.
+  // Bounded on purpose — each is a single shot, never multiplied by colour.
+  const extras=[];
+  if(_refs.giftBox)  extras.push({title:'Gift box',     refKey:'giftBox'});
+  if(_refs.giftWrap) extras.push({title:'Gift wrapped', refKey:'giftWrap'});
+  (item.customExtras||[]).forEach(name=>extras.push({title:name, refKey:null}));
+  extras.forEach(e=>{
+    defs.push({key:'ex_'+e.title.replace(/[^a-z0-9]+/gi,'_').toLowerCase(), type:'extra', title:e.title, label:e.title, color:null, hex:null, refKey:e.refKey||null});
+  });
+  return defs;
+}
+
+function slotUrl(item, def){
+  const s = item.imageSlots || {};
+  if(def.type==='lifestyle') return s.lifestyle && s.lifestyle[def.label] && s.lifestyle[def.label].url;
+  if(def.type==='extra')     return s.extras && s.extras[def.label] && s.extras[def.label].url;
+  if(def.color)              return s.colorVariants && s.colorVariants[def.color] && s.colorVariants[def.color].url;
+  return s.whiteBg && s.whiteBg.url;
+}
+
+function slotCardHtml(def){
+  const url = slotUrl(_imgGenItem, def);
+  const icon = def.type==='lifestyle'?'🏠':def.type==='extra'?'🎁':(def.color?'🎨':'⬜');
+  const swatch = def.hex?`<span style="width:9px;height:9px;border-radius:50%;background:${def.hex};border:1px solid rgba(0,0,0,.2);display:inline-block;margin-right:4px;"></span>`:'';
+  const label = `<span style="font-size:9px;font-weight:700;color:var(--brown);display:flex;align-items:center;justify-content:center;line-height:1.2;">${swatch}${icon}&nbsp;${def.title}</span>`;
+  if(url){
+    return `<div style="position:relative;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);aspect-ratio:1;" onmouseover="this.querySelector('.slot-ov').style.opacity=1" onmouseout="this.querySelector('.slot-ov').style.opacity=0">
+      <img src="${url}" style="width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in;" onclick="openSlotLightbox('${def.key}')">
+      <div class="slot-ov" style="position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:8px;pointer-events:none;">
+        <button title="Regenerate (different result)" onclick="event.stopPropagation();regenSlot('${def.key}')" style="pointer-events:auto;background:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;">↻</button>
+        <button title="Delete" onclick="event.stopPropagation();deleteSlot('${def.key}')" style="pointer-events:auto;background:var(--red);color:#fff;border:none;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;">✕</button>
+      </div>
+      <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);padding:3px 2px;text-align:center;">${label}</div>
+    </div>`;
+  }
+  return `<div onclick="genSlot('${def.key}')" title="Generate ${def.title}" style="border:2px dashed var(--border);border-radius:10px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;background:#faf6f1;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='var(--orange)';this.style.background='#fff7ef'" onmouseout="this.style.borderColor='var(--border)';this.style.background='#faf6f1'">
+    <span style="font-size:20px;opacity:.55;">📷</span>
+    ${label}
+    <span style="font-size:7.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">tap to generate</span>
+  </div>`;
+}
+
+function renderSlotGrid(){
+  if(!_imgGenItem) return;
+  if(!_imgGenItem.imageSlots) _imgGenItem.imageSlots = { whiteBg:null, lifestyle:{}, colorVariants:{}, extras:{} };
+  if(!_imgGenItem.imageSlots.extras) _imgGenItem.imageSlots.extras = {};
+  _slotDefs = {};
+  const defs = buildSlotDefs(_imgGenItem);
+  defs.forEach(d=>{ _slotDefs[d.key]=d; });
+  const life  = defs.filter(d=>d.type==='lifestyle');
+  const white = defs.filter(d=>d.type==='white_bg');
+  const extra = defs.filter(d=>d.type==='extra');
+
+  const cells = arr => arr.map(d=>`<div id="slot-${d.key}">${slotCardHtml(d)}</div>`).join('');
+  const grid  = inner => `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">${inner}</div>`;
+  const head  = (txt,sub) => `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+      <span style="font-size:11px;font-weight:800;color:var(--brown);text-transform:uppercase;letter-spacing:.4px;">${txt}</span>
+      ${sub?`<span style="font-size:10px;color:var(--muted);">${sub}</span>`:''}</div>`;
+  const addTile = `<div onclick="addCustomExtra()" title="Add a custom shot" style="border:2px dashed var(--border);border-radius:10px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:#faf6f1;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+    <span style="font-size:22px;opacity:.5;">＋</span>
+    <span style="font-size:8.5px;font-weight:700;color:var(--brown);">Add shot</span></div>`;
+
+  const bar = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
+    <button class="btn btn-ghost btn-sm" onclick="genAll('white')">✦ All white</button>
+    <button class="btn btn-ghost btn-sm" onclick="genAll('lifestyle')">✦ All lifestyle</button>
+    <button class="btn btn-primary btn-sm" onclick="genAll('all')">✦ Generate all</button>
+  </div>`;
+
+  let html = bar;
+  // Lifestyle first
+  if(life.length){
+    const ctxNote = (_imgGenItem.ctx||'').trim();
+    html += `<div>${head('🏠 Lifestyle · '+life.length, ctxNote?('from Context: '+ctxNote):'no Context metafield set — using default')}${grid(cells(life))}</div>`;
+  }
+  // Then colours / white background
+  if(white.length){
+    const isColours = white.some(d=>d.color);
+    const title = isColours ? '🎨 Colours · '+white.length : '⬜ White background · '+white.length;
+    const sub   = isColours ? (white.length+' variant'+(white.length>1?'s':'')+' on white') : 'hero on white';
+    html += `<div>${head(title, sub)}${grid(cells(white))}</div>`;
+  }
+  // Then extras (gift + custom) — single shots, never multiplied by colour
+  const extrasSub = (_refs.giftBox||_refs.giftWrap) ? 'gift shots from your reference images + custom' : 'upload gift refs above, or add a custom shot';
+  html += `<div>${head('🎁 Extras', extrasSub)}${grid(cells(extra) + addTile)}</div>`;
+  document.getElementById('slotGrid').innerHTML = html;
+}
+
+// Sequentially fill every EMPTY slot of a kind ('white' | 'lifestyle' | 'all').
+// 'all' covers white + lifestyle only — extras (gift/custom) are deliberate, never auto-generated.
+// Sequential by design — Gemini image gen is slow and rate-limited; parallel calls get throttled.
+let _genBusy = false;
+async function genAll(kind){
+  if(_genBusy){ toast('Already generating…'); return; }
+  const targets = Object.values(_slotDefs).filter(d=>{
+    if(slotUrl(_imgGenItem, d)) return false;             // skip filled
+    if(kind==='lifestyle') return d.type==='lifestyle';
+    if(kind==='white')     return d.type==='white_bg';
+    return d.type!=='extra';                              // 'all' = white + lifestyle, not extras
+  });
+  if(!targets.length){ toast('Nothing empty to generate'); return; }
+  _genBusy = true;
+  const prog = document.getElementById('imgProgress');
+  let done = 0;
+  try{
+    for(const d of targets){
+      if(prog) prog.textContent = `Generating ${done+1}/${targets.length} — ${d.title}…`;
+      await genSlot(d.key);   // handles its own spinner / cell render / per-slot toast + error
+      done++;
+    }
+    if(prog) prog.textContent = `Done — ${done}/${targets.length} generated`;
+  } finally { _genBusy = false; }
+}
+
+// Add a custom extra shot (e.g. "Festive table", "Rakhi gift") to this product only.
+function addCustomExtra(){
+  const name = (prompt('Name this custom shot (e.g. "Festive table", "Rakhi gift"):','')||'').trim();
+  if(!name) return;
+  _imgGenItem.customExtras = _imgGenItem.customExtras || [];
+  if(!_imgGenItem.customExtras.some(n=>n.toLowerCase()===name.toLowerCase())) _imgGenItem.customExtras.push(name);
+  renderSlotGrid();
+}
+
+function slotSpinnerHtml(){
+  return `<div style="border:1.5px solid var(--border);border-radius:10px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:#faf6f1;"><div style="width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite;"></div></div>`;
+}
+
+// Regenerate: forces a different result (variation token) and optionally takes per-image art direction.
+function regenSlot(key){
+  const def = _slotDefs[key]; if(!def) return;
+  const g = prompt('Regenerate "'+def.title+'".\nOptional art direction for THIS image (leave blank for a fresh variation):','');
+  if(g===null) return;                       // cancelled
+  genSlot(key, { regen:true, extra:g.trim() });
+}
+
+async function genSlot(key, opts){
+  opts = opts || {};
+  const def = _slotDefs[key];
+  if(!def || !_imgGenHandle) return;
+  const cell = document.getElementById('slot-'+key);
+  if(cell) cell.innerHTML = slotSpinnerHtml();
+  try{
+    const res = await api('nt-imagen','POST',{
+      action:'generate_slot',
+      handle:_imgGenHandle,
+      catalogItem:_imgGenItem,
+      slot:def.type,
+      label:def.label||null,
+      color:def.color||null,
+      hex:def.hex||null,
+      refKey:def.refKey||null,
+      extraPrompt:opts.extra||null,
+      variation:opts.regen?Date.now():null,
+      pushToShopify:true
+    });
+    const url = res.imageUrl;
+    if(!url) throw new Error(res.error || 'No image returned');
+    const s = _imgGenItem.imageSlots;
+    if(def.type==='lifestyle'){ s.lifestyle = s.lifestyle||{}; s.lifestyle[def.label] = {url}; }
+    else if(def.type==='extra'){ s.extras = s.extras||{}; s.extras[def.label] = {url}; }
+    else if(def.color){ s.colorVariants = s.colorVariants||{}; s.colorVariants[def.color] = {url, hex:def.hex||null}; }
+    else { s.whiteBg = {url}; }
+    if(cell) cell.innerHTML = slotCardHtml(def);
+    toast('✓ '+def.title+(opts.regen?' regenerated':' generated'));
+  }catch(e){
+    if(cell) cell.innerHTML = slotCardHtml(def);
+    toast('Gen failed: '+e.message, true);
+  }
+}
+
+async function deleteSlot(key){
+  const def = _slotDefs[key];
+  if(!def || !_imgGenHandle) return;
+  if(!confirm('Delete "'+def.title+'"?\nRemoves it from Shopify media + Supabase storage and clears the slot.')) return;
+  const cell = document.getElementById('slot-'+key);
+  try{
+    await api('nt-imagen','POST',{
+      action:'delete_image',
+      handle:_imgGenHandle,
+      slot:def.type,
+      label:def.label||null,
+      color:def.color||null
+    });
+    const s = _imgGenItem.imageSlots || {};
+    if(def.type==='lifestyle' && s.lifestyle) delete s.lifestyle[def.label];
+    else if(def.type==='extra' && s.extras) delete s.extras[def.label];
+    else if(def.color && s.colorVariants) delete s.colorVariants[def.color];
+    else s.whiteBg = null;
+    if(cell) cell.innerHTML = slotCardHtml(def);
+    toast('✓ '+def.title+' deleted');
+  }catch(e){ toast('Delete failed: '+e.message, true); }
+}
+
+// Reuse the existing lightbox: build _lbImages from filled slots so nav/dots work.
+// Slot URLs are Shopify CDN urls, so renderLightbox shows "Already on Shopify".
+function openSlotLightbox(key){
+  const filled = Object.values(_slotDefs)
+    .map(d=>({ d, url:slotUrl(_imgGenItem, d) }))
+    .filter(x=>x.url);
+  if(!filled.length) return;
+  _lbHandle = _imgGenHandle;
+  _lbImages = filled.map(x=>({ url:x.url, type:x.d.title, color:null, alt:x.d.title }));
+  _lbIdx = Math.max(0, filled.findIndex(x=>x.d.key===key));
+  document.getElementById('ntLightbox').style.display = 'flex';
+  renderLightbox();
+  document.addEventListener('keydown', lightboxKeyNav);
+}
+
+function toast(msg,err){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.background=err?'var(--red)':'var(--brown)';
+  t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// ═══════════════════════════════════════════════════════
+// GUL TALES MANAGER
+// ═══════════════════════════════════════════════════════
+(function(){
+  const TALES_URL = PROXY + '/nt-tales';
+  const CATS = ['All','Papa / Maa','Dadi / Family','Marriage','Friendship',
+    'Chai & Food','Nukkad Life','Faith & Shukr','For the Desk','Just True'];
+  let TALES = [];
+  let filterCat = 'All';
+  let dirty = false;
+  let dragSrc = null;
+
+  // ── panel toggle ──────────────────────────────────────
+  window.toggleTalesPanel = function() {
+    const panel = document.getElementById('ntTalesPanel');
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen && TALES.length === 0) talesLoad();
+  };
+
+  // ── build filter chips ────────────────────────────────
+  function buildFilter() {
+    const row = document.getElementById('tales-filter-row');
+    row.innerHTML = '';
+    CATS.forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'cat-chip' + (c === 'All' ? ' on' : '');
+      b.textContent = c === 'All' ? 'All' : c;
+      b.onclick = () => {
+        filterCat = c;
+        row.querySelectorAll('.cat-chip').forEach(x => x.classList.toggle('on', x.textContent === c));
+        renderTales();
+      };
+      row.appendChild(b);
+    });
+  }
+  buildFilter();
+
+  // ── load from Redis ───────────────────────────────────
+  window.talesLoad = async function(force = false) {
+    try {
+      const res = await fetch(TALES_URL);
+      const raw = await res.json();
+      TALES = raw.map((t, i) => ({
+        id:       t.id       || Date.now().toString(36) + i,
+        cat:      t.cat      || 'Just True',
+        text:     typeof t === 'string' ? t : (t.text || ''),
+        active:   t.active   !== false,
+        priority: t.priority || i + 1,
+      })).sort((a, b) => a.priority - b.priority);
+      setDirty(false);
+      renderTales();
+      if (force) toast('Tales loaded — ' + TALES.length + ' stories');
+    } catch(e) {
+      toast('Could not load tales: ' + e.message, true);
+    }
+  };
+
+  // ── save to Redis ─────────────────────────────────────
+  window.talesSave = async function() {
+    try {
+      TALES.forEach((t, i) => t.priority = i + 1);
+      const res = await fetch(TALES_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', tales: TALES }),
+      });
+      const d = await res.json();
+      if (d.ok) { setDirty(false); toast('Pushed live — ' + d.count + ' tales \u2713'); }
+      else toast('Save failed', true);
+    } catch(e) { toast('Save error: ' + e.message, true); }
+  };
+
+  // ── add tale ──────────────────────────────────────────
+  window.talesAddNew = function() {
+    const text = document.getElementById('new-tale-text').value.trim();
+    const cat  = document.getElementById('new-tale-cat').value;
+    if (!text) { toast('Write the tale first', true); return; }
+    TALES.unshift({ id: Date.now().toString(36), cat, text, active: true, priority: 0 });
+    document.getElementById('new-tale-text').value = '';
+    setDirty(true);
+    renderTales();
+    toast('Tale added — push to make live');
+  };
+
+  // ── export ────────────────────────────────────────────
+  window.talesExport = function() {
+    const arr = TALES.filter(t => t.active).map(t => t.text);
+    const blob = new Blob([JSON.stringify(arr, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'gul-tales-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+  };
+
+  // ── render ────────────────────────────────────────────
+  function renderTales() {
+    const list = document.getElementById('tales-list');
+    const active = TALES.filter(t => t.active).length;
+    document.getElementById('tales-count-badge').textContent =
+      active + ' active / ' + TALES.length + ' total';
+    const visible = filterCat === 'All' ? TALES : TALES.filter(t => t.cat === filterCat);
+    list.innerHTML = '';
+
+    visible.forEach(tale => {
+      const row = document.createElement('div');
+      row.className = 'tale-row' + (tale.active ? '' : ' tale-inactive');
+      row.draggable = true;
+      row.dataset.id = tale.id;
+
+      row.innerHTML =
+        '<div class="tale-drag">\u283f</div>' +
+        '<div>' +
+          '<div class="tale-cat-label">' + esc(tale.cat) + '</div>' +
+          '<div class="tale-body-text" id="tbody-' + tale.id + '">' + esc(tale.text) + '</div>' +
+        '</div>' +
+        '<div class="tale-btns">' +
+          '<button class="tale-icon-btn" title="Edit" onclick="talesEdit(\'' + tale.id + '\')">\u270e</button>' +
+          '<button class="tale-icon-btn" title="' + (tale.active ? 'Deactivate' : 'Activate') + '" onclick="talesToggle(\'' + tale.id + '\')">' + (tale.active ? '\u25c9' : '\u25cc') + '</button>' +
+          '<button class="tale-icon-btn tdel" title="Delete" onclick="talesDelete(\'' + tale.id + '\')">\u2715</button>' +
+        '</div>';
+
+      // drag
+      row.addEventListener('dragstart', e => {
+        dragSrc = tale.id;
+        setTimeout(() => row.style.opacity = '.35', 0);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => { row.style.opacity = ''; });
+      row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', e => {
+        e.preventDefault(); row.classList.remove('drag-over');
+        if (dragSrc && dragSrc !== tale.id) {
+          const from = TALES.findIndex(t => t.id === dragSrc);
+          const to   = TALES.findIndex(t => t.id === tale.id);
+          const [moved] = TALES.splice(from, 1);
+          TALES.splice(to, 0, moved);
+          setDirty(true); renderTales();
+        }
+      });
+      list.appendChild(row);
+    });
+  }
+
+  // ── edit inline ───────────────────────────────────────
+  window.talesEdit = function(id) {
+    const tale = TALES.find(t => t.id === id);
+    if (!tale) return;
+    const el = document.getElementById('tbody-' + id);
+    if (!el || el.tagName === 'TEXTAREA') return;
+    const ta = document.createElement('textarea');
+    ta.className = 'tale-edit-area';
+    ta.value = tale.text;
+    ta.onblur = () => {
+      const v = ta.value.trim();
+      if (v && v !== tale.text) { tale.text = v; setDirty(true); }
+      renderTales();
+    };
+    ta.onkeydown = e => { if (e.key === 'Escape') renderTales(); };
+    el.replaceWith(ta);
+    ta.focus(); ta.select();
+  };
+
+  // ── toggle active ─────────────────────────────────────
+  window.talesToggle = function(id) {
+    const t = TALES.find(t => t.id === id);
+    if (t) { t.active = !t.active; setDirty(true); renderTales(); }
+  };
+
+  // ── delete ────────────────────────────────────────────
+  window.talesDelete = function(id) {
+    if (!confirm('Delete this tale? Cannot undo.')) return;
+    TALES = TALES.filter(t => t.id !== id);
+    setDirty(true); renderTales();
+  };
+
+  // ── dirty state ───────────────────────────────────────
+  function setDirty(val) {
+    dirty = val;
+    const bar = document.getElementById('tales-dirty-bar');
+    const btn = document.getElementById('tales-push-btn');
+    if (bar) bar.style.display = val ? 'flex' : 'none';
+    if (btn) btn.style.fontWeight = val ? '900' : '';
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+})();
+</script>
+</body>
+</html>

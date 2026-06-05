@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NukkadTales — Production Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Dancing+Script:wght@700&family=Noto+Sans+Devanagari:wght@700;900&family=Baloo+2:wght@700;800&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#111009;--panel:#1a1814;--p2:#201e1a;--b:#2d2a25;--b2:#3a3530;
+  --tx:#ede8e0;--mu:#7a7268;--fa:#2a2722;--ac:#c47a45;--gr:#2d7d46;
+  --red:#c44040;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* Top bar */
+.bar{height:42px;background:var(--panel);border-bottom:1px solid var(--b);display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;}
+.logo{font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;color:var(--ac);}
+.logo span{color:var(--mu);font-weight:400;}
+.bar-spacer{flex:1;}
+.bbtn{height:28px;padding:0 12px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.bbtn.ghost{background:var(--fa);color:var(--tx);}
+.bbtn.ghost:hover{background:var(--b2);}
+.bbtn.green{background:var(--gr);color:#fff;}
+.bbtn.orange{background:var(--ac);color:#fff;}
+#loadingBar{height:2px;background:linear-gradient(90deg,var(--ac),#e8a870);position:absolute;top:42px;left:0;width:0;transition:width .3s;z-index:100;}
+
+/* Main layout */
+.main{display:flex;flex:1;overflow:hidden;}
+
+/* Left: order queue */
+.queue{width:300px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--b);display:flex;flex-direction:column;overflow:hidden;}
+.queue-head{padding:12px 14px 8px;border-bottom:1px solid var(--b);flex-shrink:0;}
+.queue-title{font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}
+.queue-stats{font-size:10px;color:var(--mu);}
+.queue-stats b{color:var(--tx);}
+.queue-filters{display:flex;gap:4px;margin-top:8px;}
+.qfbtn{height:22px;padding:0 8px;border:1px solid var(--b2);border-radius:20px;background:none;color:var(--mu);font-size:10px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.qfbtn.on{background:var(--ac);border-color:var(--ac);color:#fff;}
+.queue-list{flex:1;overflow-y:auto;padding:6px;}
+
+/* Order card in queue */
+.ocard{padding:10px 11px;border-radius:9px;cursor:pointer;border:1.5px solid transparent;margin-bottom:4px;transition:background .12s,border-color .12s;}
+.ocard:hover{background:var(--fa);}
+.ocard.sel{background:var(--fa);border-color:var(--ac);}
+.ocard.produced{opacity:.5;}
+.oc-top{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+.oc-id{font-size:11px;font-weight:700;color:var(--ac);}
+.oc-name{font-size:12px;font-weight:700;color:var(--tx);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.oc-badge{font-size:8px;font-weight:700;padding:2px 5px;border-radius:8px;flex-shrink:0;}
+.oc-badge.done{background:rgba(45,125,70,.3);color:#6dc98a;}
+.oc-badge.pending{background:rgba(196,122,69,.2);color:var(--ac);}
+.oc-meta{font-size:10px;color:var(--mu);}
+.oc-lines{font-size:10px;color:var(--tx);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* Right: design canvas */
+.design-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.design-top{height:42px;background:var(--p2);border-bottom:1px solid var(--b);display:flex;align-items:center;padding:0 16px;gap:8px;flex-shrink:0;}
+.design-info{font-size:11px;color:var(--mu);flex:1;}
+.design-info b{color:var(--tx);}
+.design-body{flex:1;display:flex;overflow:hidden;}
+
+/* Canvas preview */
+.canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px;}
+#designCanvas{border-radius:10px;box-shadow:0 6px 32px rgba(0,0,0,.6);max-width:100%;max-height:100%;}
+.canvas-empty{color:var(--mu);font-size:13px;text-align:center;}
+
+/* Right panel: controls */
+.ctrl-panel{width:240px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--b);overflow-y:auto;padding:14px;}
+.ctrl-section{margin-bottom:16px;}
+.ctrl-label{font-size:9px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
+.ctrl-input{width:100%;background:var(--fa);border:1px solid var(--b2);border-radius:7px;color:var(--tx);padding:6px 9px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;}
+.ctrl-input:focus{border-color:var(--ac);}
+.ctrl-input.poppins{font-family:'Poppins',sans-serif;font-weight:700;}
+.line-edit-row{margin-bottom:6px;}
+.line-edit-label{font-size:9px;color:var(--mu);margin-bottom:2px;}
+.line-meta{font-size:9px;color:var(--mu);margin-top:2px;}
+.icon-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(196,122,69,.15);border:1px solid rgba(196,122,69,.3);border-radius:5px;padding:1px 5px;font-size:9px;color:var(--ac);}
+.icon-chip img{width:12px;height:12px;object-fit:contain;}
+
+.ctrl-btn{width:100%;height:32px;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:6px;}
+.ctrl-btn.primary{background:var(--ac);color:#fff;}
+.ctrl-btn.secondary{background:var(--fa);color:var(--tx);}
+.ctrl-btn.secondary:hover{background:var(--b2);}
+.ctrl-btn.success{background:var(--gr);color:#fff;}
+.ctrl-btn.danger{background:var(--red);color:#fff;}
+
+.spec-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--b);font-size:11px;}
+.spec-row:last-child{border-bottom:none;}
+.spec-key{color:var(--mu);}
+.spec-val{font-weight:700;color:var(--tx);}
+.colour-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid rgba(255,255,255,.2);}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--mu);}
+.empty-icon{font-size:40px;opacity:.3;}
+
+/* Loading spinner */
+.spinner{width:20px;height:20px;border:2px solid var(--b2);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="logo">NukkadTales <span>Production Queue</span></div>
+  <div class="bar-spacer"></div>
+  <button class="bbtn ghost" onclick="loadOrders()">↻ Refresh</button>
+</div>
+<div id="loadingBar"></div>
+
+<div class="main">
+  <!-- Left: order list -->
+  <div class="queue">
+    <div class="queue-head">
+      <div class="queue-title">Paid Orders</div>
+      <div class="queue-stats" id="queueStats">Loading…</div>
+      <div class="queue-filters">
+        <button class="qfbtn on" onclick="setFilter('all',this)">All</button>
+        <button class="qfbtn" onclick="setFilter('pending',this)">Pending</button>
+        <button class="qfbtn" onclick="setFilter('produced',this)">Produced</button>
+      </div>
+    </div>
+    <div class="queue-list" id="queueList"><div style="padding:20px;text-align:center;"><div class="spinner" style="margin:auto;"></div></div></div>
+  </div>
+
+  <!-- Right: design canvas + controls -->
+  <div class="design-area">
+    <div class="design-top">
+      <div class="design-info" id="designInfo">← Select an order to preview</div>
+      <button class="bbtn ghost" id="btnDesigner" onclick="openInDesigner()" style="display:none">Open in Designer ↗</button>
+      <button class="bbtn green" id="btnProduced" onclick="markProduced()" style="display:none">✓ Mark Produced</button>
+    </div>
+    <div class="design-body">
+      <div class="canvas-wrap" id="canvasWrap">
+        <div class="empty-state">
+          <div class="empty-icon">🪵</div>
+          <div>Select an order from the queue</div>
+        </div>
+      </div>
+      <div class="ctrl-panel" id="ctrlPanel" style="display:none">
+        <!-- Specs -->
+        <div class="ctrl-section">
+          <div class="ctrl-label">Order Specs</div>
+          <div id="specRows"></div>
+        </div>
+        <!-- Editable lines -->
+        <div class="ctrl-section">
+          <div class="ctrl-label">Edit Lines</div>
+          <div id="lineEdits"></div>
+        </div>
+        <!-- Actions -->
+        <div class="ctrl-section">
+          <div class="ctrl-label">Actions</div>
+          <button class="ctrl-btn primary" onclick="downloadPNG()">⬇ Download PNG</button>
+          <button class="ctrl-btn secondary" onclick="downloadSVG()">⬇ Download SVG</button>
+          <button class="ctrl-btn success" id="ctrlProduced" onclick="markProduced()">✓ Mark Produced</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROXY   = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
+const ICON_CDN= 'https://chipper-macaron-58ec89.netlify.app';
+
+// Colour name → {fc: text color hex, bg: background hex}
+const COLOUR_MAP = {
+  'Dark Espresso':  { fc:'#3d2b1a', bg:'#fdf6f0' },
+  'Ivory White':    { fc:'#f2ece3', bg:'#3d2b1a' },
+  'Sky Blue':       { fc:'#5bb8e8', bg:'#f0f8ff' },
+  'Mantra Gold':    { fc:'#e8c84a', bg:'#1e1408' },
+  'Deep Navy':      { fc:'#f2ece3', bg:'#1e3a5f' },
+  'Espresso':       { fc:'#f2ece3', bg:'#3d2b1a' },
+  'Charcoal':       { fc:'#f2ece3', bg:'#2a2a2a' },
+  'Forest':         { fc:'#d4edda', bg:'#1a2e1a' },
+  'Rosewood':       { fc:'#f9e4e4', bg:'#3d1515' },
+  'Warm Walnut':    { fc:'#c47a45', bg:'#2a1f14' },
+  'Blush Pink':     { fc:'#d4608a', bg:'#fff0f5' },
+  'Sage Green':     { fc:'#5a8c6a', bg:'#f0f7f2' },
+};
+
+const FONT_MAP = {
+  'Bold':   { family:'Poppins',               weight:'900', style:'normal'  },
+  'Serif':  { family:'Playfair Display',       weight:'700', style:'normal'  },
+  'Script': { family:'Dancing Script',         weight:'700', style:'normal'  },
+  'Hindi':  { family:'Noto Sans Devanagari',   weight:'900', style:'normal'  },
+};
+
+// Icon URL from label: "heart" → CDN/heart.png
+function iconUrl(label) {
+  if (!label) return null;
+  return ICON_CDN + '/' + label.toLowerCase().replace(/\s+/g, '-') + '.png';
+}
+
+// Preload image, returns Promise<HTMLImageElement|null>
+function loadImg(url) {
+  return new Promise(resolve => {
+    if (!url) { resolve(null); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null); // fail silently
+    img.src = url;
+  });
+}
+
+let allOrders = [], filteredOrders = [], activeFilter = 'all';
+let currentOrder = null;
+let producedSet = new Set(JSON.parse(localStorage.getItem('nt_produced') || '[]'));
+
+async function loadOrders() {
+  setLoading(true);
+  document.getElementById('queueList').innerHTML = '<div style="padding:20px;text-align:center;"><div class="spinner" style="margin:auto;"></div></div>';
+  try {
+    const r = await fetch(PROXY + '/nt-shopify-orders');
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    allOrders = (data.orders || []).map(o => ({
+      ...o,
+      produced: o.produced || producedSet.has(String(o.orderId))
+    }));
+    renderQueue();
+    document.getElementById('queueStats').innerHTML =
+      `<b>${allOrders.length}</b> orders · <b>${allOrders.filter(o=>!o.produced).length}</b> pending`;
+  } catch(e) {
+    document.getElementById('queueList').innerHTML = `<div style="padding:20px;color:#c47a45;font-size:11px;">Error: ${e.message}</div>`;
+    document.getElementById('queueStats').textContent = 'Load failed';
+  }
+  setLoading(false);
+}
+
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.qfbtn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderQueue();
+}
+
+function renderQueue() {
+  filteredOrders = allOrders.filter(o => {
+    if (activeFilter === 'pending')  return !o.produced;
+    if (activeFilter === 'produced') return o.produced;
+    return true;
+  });
+  const el = document.getElementById('queueList');
+  if (!filteredOrders.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mu);font-size:12px;">No orders</div>';
+    return;
+  }
+  el.innerHTML = filteredOrders.map((o, i) => {
+    const isSelected = currentOrder && currentOrder.orderId === o.orderId;
+    const linesPreview = o.lines.filter(Boolean).join(' · ').slice(0, 35);
+    const dateStr = new Date(o.createdAt).toLocaleDateString('en-IN', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    const hasIcon = o.lineOpts.some(lo => lo.iconLabel);
+    return `<div class="ocard${o.produced?' produced':''}${isSelected?' sel':''}" onclick="selectOrder(${i})">
+      <div class="oc-top">
+        <span class="oc-id">${o.orderName}</span>
+        <span class="oc-name">${esc(o.customer)}</span>
+        <span class="oc-badge ${o.produced?'done':'pending'}">${o.produced?'✓ Done':'Pending'}</span>
+      </div>
+      <div class="oc-meta">${dateStr} · ${o.size} · ₹${parseFloat(o.price).toLocaleString('en-IN')}${hasIcon?' · icons':''}</div>
+      <div class="oc-lines">${esc(linesPreview)}</div>
+    </div>`;
+  }).join('');
+}
+
+async function selectOrder(idx) {
+  currentOrder = filteredOrders[idx];
+  renderQueue(); // re-render to show selection
+  document.getElementById('designInfo').innerHTML =
+    `<b>${esc(currentOrder.orderName)}</b> — ${esc(currentOrder.customer)} — ${currentOrder.font} · ${currentOrder.colour} · ${currentOrder.size}`;
+  document.getElementById('btnDesigner').style.display = '';
+  document.getElementById('btnProduced').style.display = '';
+  document.getElementById('ctrlPanel').style.display = '';
+  renderSpecs();
+  renderLineEdits();
+  await renderDesign();
+}
+
+function renderSpecs() {
+  const o = currentOrder;
+  const col = COLOUR_MAP[o.colour] || { fc:'#3d2b1a', bg:'#fdf6f0' };
+  document.getElementById('specRows').innerHTML = [
+    ['Order', o.orderName],
+    ['Customer', o.customer],
+    ['Size', o.size],
+    ['Font', o.font],
+    ['Colour', `<span class="colour-dot" style="background:${col.fc}"></span>${o.colour}`],
+    ['Type', o.type],
+    ['Lines', o.lines.length],
+    ['Qty', o.qty],
+    ['Status', o.produced ? '✓ Produced' : 'Pending'],
+  ].map(([k,v]) => `<div class="spec-row"><span class="spec-key">${k}</span><span class="spec-val">${v}</span></div>`).join('');
+}
+
+function renderLineEdits() {
+  const o = currentOrder;
+  const fontF = (FONT_MAP[o.font] || FONT_MAP['Bold']).family;
+  document.getElementById('lineEdits').innerHTML = o.lines.map((line, i) => {
+    const lo = o.lineOpts[i] || {};
+    const iconHtml = lo.iconLabel
+      ? `<span class="icon-chip"><img src="${iconUrl(lo.iconLabel)}" onerror="this.style.display='none'"> ${lo.iconLabel} (${lo.iconSide})</span>`
+      : '';
+    return `<div class="line-edit-row">
+      <div class="line-edit-label">Line ${i+1} ${iconHtml}</div>
+      <input class="ctrl-input" id="lineInput_${i}" value="${esc(line)}"
+        style="font-family:'${fontF}',sans-serif;"
+        oninput="updateLine(${i},this.value)">
+    </div>`;
+  }).join('');
+}
+
+function updateLine(idx, val) {
+  currentOrder.lines[idx] = val;
+  renderDesign();
+}
+
+// ── Main canvas renderer ──
+const CANVAS_W = 800;
+const ICON_GAP = 12; // px gap between text and icon
+
+async function renderDesign() {
+  const o = currentOrder;
+  if (!o) return;
+
+  const wrap = document.getElementById('canvasWrap');
+  let canvas = document.getElementById('designCanvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'designCanvas';
+    wrap.innerHTML = '';
+    wrap.appendChild(canvas);
+  }
+
+  const col   = COLOUR_MAP[o.colour] || { fc:'#3d2b1a', bg:'#fdf6f0' };
+  const fontSpec = FONT_MAP[o.font] || FONT_MAP['Bold'];
+  const lines = o.lines.filter(Boolean);
+  const numLines = lines.length;
+
+  // Sizing
+  const PAD_X = 60, PAD_Y = 60;
+  const LINE_H = numLines <= 2 ? 110 : numLines <= 4 ? 90 : 72;
+  const BASE_FS = numLines <= 2 ? 80 : numLines <= 4 ? 64 : 52;
+  const CANVAS_H = PAD_Y * 2 + numLines * LINE_H;
+
+  const scale = 2; // retina
+  canvas.width  = CANVAS_W * scale;
+  canvas.height = CANVAS_H * scale;
+  canvas.style.width  = CANVAS_W + 'px';
+  canvas.style.height = CANVAS_H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  // Background
+  ctx.fillStyle = col.bg;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Subtle wood-grain overlay
+  ctx.globalAlpha = 0.015;
+  for (let y = 0; y < CANVAS_H; y += 3) {
+    ctx.fillStyle = y % 6 === 0 ? '#000' : '#fff';
+    ctx.fillRect(0, y, CANVAS_W, 1);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle  = col.fc;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign    = 'center';
+
+  // Preload all icons
+  const iconImgs = await Promise.all(
+    o.lineOpts.map(lo => loadImg(lo.iconLabel ? iconUrl(lo.iconLabel) : null))
+  );
+
+  // Render each line
+  for (let i = 0; i < numLines; i++) {
+    const text = (o.lines[i] || '').trim();
+    if (!text) continue;
+
+    const lo    = o.lineOpts[i] || {};
+    const iconI = iconImgs[i];
+    const y     = PAD_Y + i * LINE_H + LINE_H / 2;
+    const maxW  = CANVAS_W - PAD_X * 2 - (iconI ? LINE_H * 0.85 + ICON_GAP : 0);
+
+    // Calculate font size to fit
+    let fs = BASE_FS;
+    ctx.font = `${fontSpec.style === 'italic' ? 'italic ' : ''}${fontSpec.weight} ${fs}px '${fontSpec.family}', sans-serif`;
+    let measured = ctx.measureText(text).width;
+    if (measured > maxW) {
+      fs = Math.floor(fs * maxW / measured);
+      fs = Math.max(fs, 16);
+      ctx.font = `${fontSpec.style === 'italic' ? 'italic ' : ''}${fontSpec.weight} ${fs}px '${fontSpec.family}', sans-serif`;
+    }
+
+    const iconSize = Math.min(fs * 1.1, LINE_H * 0.85);
+    const textW    = ctx.measureText(text).width;
+    const totalW   = iconI ? textW + iconSize + ICON_GAP : textW;
+    const startX   = (CANVAS_W - totalW) / 2;
+
+    if (iconI && lo.iconSide === 'left') {
+      // Icon LEFT of text
+      const ix = startX;
+      const iy = y - iconSize / 2;
+      ctx.drawImage(iconI, ix, iy, iconSize, iconSize);
+      // Tint icon to match text colour
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = col.fc;
+      ctx.fillRect(ix, iy, iconSize, iconSize);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = col.fc;
+      ctx.textAlign = 'left';
+      ctx.fillText(text, startX + iconSize + ICON_GAP, y);
+    } else if (iconI && lo.iconSide === 'right') {
+      // Icon RIGHT of text
+      ctx.textAlign = 'left';
+      ctx.fillStyle = col.fc;
+      ctx.fillText(text, startX, y);
+      const ix = startX + textW + ICON_GAP;
+      const iy = y - iconSize / 2;
+      ctx.drawImage(iconI, ix, iy, iconSize, iconSize);
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = col.fc;
+      ctx.fillRect(ix, iy, iconSize, iconSize);
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      // Text only, centered
+      ctx.textAlign = 'center';
+      ctx.fillStyle = col.fc;
+      ctx.fillText(text, CANVAS_W / 2, y);
+    }
+    ctx.textAlign = 'center'; // reset
+  }
+
+  // Size label bottom right
+  ctx.font = `600 11px 'DM Sans', sans-serif`;
+  ctx.fillStyle = col.fc + '60';
+  ctx.textAlign = 'right';
+  ctx.fillText(o.size + ' · ' + o.orderName, CANVAS_W - 16, CANVAS_H - 14);
+}
+
+function downloadPNG() {
+  const canvas = document.getElementById('designCanvas');
+  if (!canvas) return;
+  const a = document.createElement('a');
+  a.download = `NT-${currentOrder.orderName.replace('#','')}-${currentOrder.lines.filter(Boolean).join('-').slice(0,20)}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+function downloadSVG() {
+  if (!currentOrder) return;
+  // Basic SVG export — text as positioned elements (not paths)
+  const o = currentOrder;
+  const col = COLOUR_MAP[o.colour] || { fc:'#3d2b1a', bg:'#fdf6f0' };
+  const fontSpec = FONT_MAP[o.font] || FONT_MAP['Bold'];
+  const lines = o.lines.filter(Boolean);
+  const numLines = lines.length;
+  const PAD_Y = 60, LINE_H = numLines <= 2 ? 110 : numLines <= 4 ? 90 : 72;
+  const BASE_FS = numLines <= 2 ? 80 : numLines <= 4 ? 64 : 52;
+  const H = PAD_Y * 2 + numLines * LINE_H;
+  const lineEls = lines.map((t,i) => {
+    const lo = o.lineOpts[i] || {};
+    const y = PAD_Y + i * LINE_H + LINE_H / 2;
+    let el = `<text x="400" y="${y}" text-anchor="middle" dominant-baseline="middle"
+      font-family="${fontSpec.family}, sans-serif" font-weight="${fontSpec.weight}"
+      font-size="${BASE_FS}" fill="${col.fc}">${t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</text>`;
+    if (lo.iconLabel) el += `<!-- icon: ${lo.iconLabel} (${lo.iconSide}) -->`;
+    return el;
+  }).join('\n');
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="${H}" viewBox="0 0 800 ${H}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="${H}" fill="${col.bg}"/>
+  ${lineEls}
+</svg>`;
+  const a = document.createElement('a');
+  a.download = `NT-${o.orderName.replace('#','')}.svg`;
+  a.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  a.click();
+}
+
+function openInDesigner() {
+  // Open the designer — can pass order data via hash
+  if (!currentOrder) return;
+  const data = encodeURIComponent(JSON.stringify({
+    lines: currentOrder.lines,
+    lineOpts: currentOrder.lineOpts,
+    font: currentOrder.font,
+    colour: currentOrder.colour,
+    size: currentOrder.size,
+    orderName: currentOrder.orderName,
+  }));
+  window.open(`/nukkad-designer-v32.html#order=${data}`, '_blank');
+}
+
+function markProduced() {
+  if (!currentOrder) return;
+  currentOrder.produced = !currentOrder.produced;
+  const id = String(currentOrder.orderId);
+  if (currentOrder.produced) producedSet.add(id);
+  else producedSet.delete(id);
+  localStorage.setItem('nt_produced', JSON.stringify([...producedSet]));
+  // Update in allOrders
+  const idx = allOrders.findIndex(o => o.orderId === currentOrder.orderId);
+  if (idx >= 0) allOrders[idx].produced = currentOrder.produced;
+  // Update UI
+  document.getElementById('btnProduced').textContent = currentOrder.produced ? '↩ Unmark' : '✓ Mark Produced';
+  document.getElementById('ctrlProduced').textContent = currentOrder.produced ? '↩ Unmark Produced' : '✓ Mark Produced';
+  document.getElementById('ctrlProduced').className = 'ctrl-btn ' + (currentOrder.produced ? 'secondary' : 'success');
+  renderQueue();
+  renderSpecs();
+}
+
+function setLoading(on) {
+  const bar = document.getElementById('loadingBar');
+  bar.style.width = on ? '60%' : '0';
+  setTimeout(() => { if (!on) bar.style.width = '0'; }, 400);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Boot
+loadOrders();
+</script>
+</body>
+</html>
