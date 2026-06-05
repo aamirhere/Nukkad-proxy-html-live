@@ -1,0 +1,32 @@
+[build]
+  publish = "."
+
+# ── Admin HTML files — password protected (Netlify Pro) ─
+# Change the password here and redeploy to rotate it
+
+[[headers]]
+  for = "/nt-catalog-manager.html"
+  [headers.values]
+    Basic-Auth = "admin:REPLACE_WITH_STRONG_PASSWORD"
+
+[[headers]]
+  for = "/nt-designs-dashboard.html"
+  [headers.values]
+    Basic-Auth = "admin:REPLACE_WITH_STRONG_PASSWORD"
+
+[[headers]]
+  for = "/nt-production-queue.html"
+  [headers.values]
+    Basic-Auth = "admin:REPLACE_WITH_STRONG_PASSWORD"
+
+[[headers]]
+  for = "/nukkad-v2.html"
+  [headers.values]
+    Basic-Auth = "admin:REPLACE_WITH_STRONG_PASSWORD"
+
+[[headers]]
+  for = "/nt-insights-2026.html"
+  [headers.values]
+    Basic-Auth = "admin:REPLACE_WITH_STRONG_PASSWORD"
+
+# Add any other admin HTML files here with the same pattern
