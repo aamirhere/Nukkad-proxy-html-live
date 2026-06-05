@@ -530,7 +530,7 @@ async function loadDiff(forceRefresh){
   if(cached && !forceRefresh){
     try{
       const data = JSON.parse(cached);
-      results.new = (data.products||[]).map(p=>({...p,status:'new',_ts:Date.now()}));
+      results.new = (data.products||[]).map(p=>({...p,status:'new',ts:new Date().toISOString()}));
       updateStats(data);
       setFilter('new');
       const ageMin = Math.floor((Date.now()-new Date(data.synced_at).getTime())/60000);
@@ -567,7 +567,7 @@ async function pollSyncProgress(){
         const result = resultRes.value;
         if(result){
           const data2 = typeof result === 'string' ? JSON.parse(result) : result;
-          results.new = (data2.products||[]).map(p=>({...p,status:'new',_ts:Date.now()}));
+          results.new = (data2.products||[]).map(p=>({...p,status:'new',ts:new Date().toISOString()}));
           updateStats(data2);
           setFilter('new');
           // Cache result
@@ -743,7 +743,7 @@ function getSorted(list){
 // surface for image generation even though they have 0 sales and no rank.
 const NEW_WINDOW_DAYS = 14;
 function isNewItem(p){
-  const t = p.approved_at || p.ts || p.added_at;
+  const t = p.approved_at || p.ts || p.added_at || p._ts;
   if(!t) return false;
   const ageDays = (Date.now() - new Date(t).getTime())/86400000;
   if(isNaN(ageDays)) return false;
