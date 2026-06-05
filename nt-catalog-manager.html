@@ -1786,7 +1786,7 @@ function toast(msg,err){
   // ── load from Redis ───────────────────────────────────
   window.talesLoad = async function(force = false) {
     try {
-      const res = await (NT_TOKEN ? authFetch(TALES_URL) : fetch(TALES_URL));
+      const res = await fetch(TALES_URL);
       const raw = await res.json();
       const parsed = raw.length ? raw : SEED_TALES;
       TALES = parsed.map((t, i) => ({
@@ -1809,7 +1809,7 @@ function toast(msg,err){
   window.talesSave = async function() {
     try {
       TALES.forEach((t, i) => t.priority = i + 1);
-      const res = await fetch(TALES_URL, {
+      const res = await authFetch(TALES_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save', tales: TALES }),
