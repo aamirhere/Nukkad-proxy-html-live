@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NukkadTales · Catalog Manager</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -82,6 +83,76 @@
 </style>
 </head>
 <body>
+
+<!-- ── Google Auth Gate ─────────────────────────────── -->
+<div id="authGate" style="display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#fdf6f0,#f5e6d0);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:20px;padding:40px 32px;width:340px;box-shadow:0 20px 60px rgba(139,69,19,.15);text-align:center;">
+    <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:#6b3a1f;margin-bottom:4px;">🪵 Catalog Manager</div>
+    <div style="font-size:12px;color:#a07a52;margin-bottom:28px;">NukkadTales internal tool</div>
+    <div id="g_signin_btn"></div>
+    <div id="authErr" style="font-size:11px;color:#e53;min-height:16px;margin-top:12px;"></div>
+  </div>
+</div>
+
+<script>
+// ── Google OAuth ──────────────────────────────────────
+const ALLOWED_EMAILS = ['nukkadtales@gmail.com'];
+const G_CLIENT_ID    = '13261547491-sskesnl10qku3cth47o1ukgkuddlsd7q.apps.googleusercontent.com';
+let NT_TOKEN = ''; // Google credential JWT — used as Bearer for write calls
+
+function decodeJWT(token) {
+  try { return JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }
+  catch(e) { return null; }
+}
+
+function onGoogleSignIn(response) {
+  const payload = decodeJWT(response.credential);
+  if (!payload) { document.getElementById('authErr').textContent = 'Sign-in failed. Try again.'; return; }
+  if (!ALLOWED_EMAILS.includes(payload.email)) {
+    document.getElementById('authErr').textContent = payload.email + ' is not authorised.';
+    return;
+  }
+  // Store with 1hr expiry (Google JWT lifetime)
+  sessionStorage.setItem('nt_google_session', JSON.stringify({
+    email: payload.email, exp: payload.exp, credential: response.credential
+  }));
+  NT_TOKEN = response.credential;
+  document.getElementById('authGate').style.display = 'none';
+  console.log('Signed in as', payload.email);
+}
+
+function authFetch(url, opts = {}) {
+  opts.headers = opts.headers || {};
+  opts.headers['Authorization'] = 'Bearer ' + NT_TOKEN;
+  return fetch(url, opts);
+}
+
+// Check stored session on load
+(function() {
+  const stored = JSON.parse(sessionStorage.getItem('nt_google_session') || 'null');
+  if (stored && stored.exp * 1000 > Date.now() && ALLOWED_EMAILS.includes(stored.email)) {
+    NT_TOKEN = stored.credential;
+    document.getElementById('authGate').style.display = 'none';
+    return;
+  }
+  // Show Google Sign-In button
+  window.addEventListener('load', () => {
+    if (typeof google === 'undefined') return;
+    google.accounts.id.initialize({
+      client_id: G_CLIENT_ID,
+      callback: onGoogleSignIn,
+      auto_select: true,
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('g_signin_btn'),
+      { theme: 'outline', size: 'large', width: 276, text: 'signin_with' }
+    );
+    google.accounts.id.prompt();
+  });
+})();
+</script>
+
+
 <header>
   <h1>🪵 Catalog Manager</h1>
   <div style="display:flex;align-items:center;gap:10px;">
@@ -378,7 +449,7 @@ async function pushAllMetafields(){
   btn.textContent='Pushing…';btn.disabled=true;
   document.getElementById('progressMsg').textContent='Pushing metafields to Shopify in background…';
   try{
-    await fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-metafields-background',{
+    await authFetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-metafields-background',{
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'push_all'})
     });
     document.getElementById('progressMsg').textContent='Metafields running in background — Shopify will update within 2-3 minutes';
@@ -400,7 +471,7 @@ async function buildRanks(days){
   document.getElementById('progressMsg').textContent = d===0 ? 'Fetching ALL-TIME orders…' : `Fetching ${d} days of orders…`;
   try{
     // Background function — fires async, returns 202 immediately. days:0 = all time (no date filter)
-    await fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-catalog-rank-background',{
+    await authFetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-catalog-rank-background',{
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'build', days:d})
     });
     document.getElementById('progressMsg').textContent =
@@ -470,7 +541,7 @@ async function loadDiff(forceRefresh){
   }
   showActivityBar('Syncing Shopify', 'Fetching latest products in background…', true);
   try{
-    fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-catalog-sync-background',{
+    authFetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-catalog-sync-background',{
       method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
     });
     pollSyncProgress();
@@ -1178,7 +1249,7 @@ async function startBulkGen(){
   document.getElementById('bulkGenStatusText').textContent = 'Firing background job…';
 
   try {
-    await fetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-imagen-background', {
+    await authFetch('https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-imagen-background', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ handles: _bulkHandles, mode, pushToShopify: push })
     });
@@ -1626,7 +1697,62 @@ function toast(msg,err){
   const TALES_URL = PROXY + '/nt-tales';
   const CATS = ['All','Papa / Maa','Dadi / Family','Marriage','Friendship',
     'Chai & Food','Nukkad Life','Faith & Shukr','For the Desk','Just True'];
-  let TALES = [];
+  const SEED_TALES = [
+    {id:'t001',cat:'Papa / Maa',active:true,priority:1,text:"One papa doesn't say much. But every time you leave the house, he comes to the door. Stands there till the auto turns the corner. Every time."},
+    {id:'t002',cat:'Papa / Maa',active:true,priority:2,text:"A maa who has never once eaten before her children. Not in thirty years. Not even when they're grown and gone. She still waits."},
+    {id:'t003',cat:'Papa / Maa',active:true,priority:3,text:"One papa found out his son got the job. Didn't say anything. Called the panditji that evening. Booked a puja. That's how the son found out his father was proud."},
+    {id:'t004',cat:'Papa / Maa',active:true,priority:4,text:"One papa's way of saying I missed you is to find something broken in your house and fix it without telling you. You come home and the fan works again."},
+    {id:'t005',cat:'Papa / Maa',active:true,priority:5,text:"A maa learns one new thing on the phone every time her child visits. Last time it was screenshot. This time it is Google Maps. She is unstoppable now, slowly."},
+    {id:'t006',cat:'Papa / Maa',active:true,priority:6,text:"One father irons his children's clothes on exam day. They are adults. He still irons. Nobody has told him to stop. Nobody will."},
+    {id:'t007',cat:'Papa / Maa',active:true,priority:7,text:"One papa's entire vocabulary of affection is — khaya? Same question, morning and night, on call and in person. You know what it means. You've always known."},
+    {id:'t008',cat:'Papa / Maa',active:true,priority:8,text:"A maa whose child moved to another city cooks that child's favourite sabzi every Friday. Puts it in the fridge. Eats it alone on Saturday. Says it tastes different when you cook it for someone."},
+    {id:'t009',cat:'Papa / Maa',active:true,priority:9,text:"One papa refills your water bottle before every trip. Every single time. You have never once asked him to. He has never once not done it."},
+    {id:'t010',cat:'Papa / Maa',active:true,priority:10,text:"A maa memorised her child's new address in three days. Wrote it on a piece of paper. Keeps it in her purse. Just in case she needs to come."},
+    {id:'t011',cat:'Dadi / Family',active:true,priority:11,text:"One dadi keeps a small box of cash in the rice dabba for emergencies. The whole family knows. Nobody has ever taken it. Everyone sleeps a little better knowing it's there."},
+    {id:'t012',cat:'Dadi / Family',active:true,priority:12,text:"A nana who never shows emotion saves the newspaper for his grandchildren's visit so they can read together. Has done this for nine years. They are now on their phones. He still saves the paper."},
+    {id:'t013',cat:'Dadi / Family',active:true,priority:13,text:"One dadi prays for each person in the house by name, in order, every morning. If you are added to the family — by birth, by marriage, by just being around long enough — you get added to the list."},
+    {id:'t014',cat:'Dadi / Family',active:true,priority:14,text:"One house has four generations under one roof. The youngest asks the oldest for a story every night. The oldest never says she is tired. She is always tired. She never says it."},
+    {id:'t015',cat:'Dadi / Family',active:true,priority:15,text:"One joint family has argued about the same topic — who makes better chai, maa or bhabhi — for twelve years. The argument has no answer. The argument is the point."},
+    {id:'t016',cat:'Marriage',active:true,priority:16,text:"One couple has been married forty years and still sleeps on the same sides of the bed they chose on the first night. Nobody decided this. It just stayed."},
+    {id:'t017',cat:'Marriage',active:true,priority:17,text:"A husband who travels for work calls from every new city to say he reached. His wife always says haan haan like she wasn't waiting. She was waiting."},
+    {id:'t018',cat:'Marriage',active:true,priority:18,text:"One wife packs her husband's bag because he will forget something important. In twenty-three years of marriage he has packed it himself exactly twice. She doesn't mention this."},
+    {id:'t019',cat:'Marriage',active:true,priority:19,text:"One couple fights loudly. Makes up quietly. No announcement, no sorry-sorry. One person just makes chai. The other one drinks it. This is the whole process."},
+    {id:'t020',cat:'Marriage',active:true,priority:20,text:"One husband's job at every family function is to find his wife in the crowd and stay near her. She doesn't ask him to. He just appears. She pretends not to notice. She always notices."},
+    {id:'t021',cat:'Marriage',active:true,priority:21,text:"One couple has never once said I love you to each other. Have been married thirty-eight years. Their children have never once doubted it."},
+    {id:'t022',cat:'Friendship',active:true,priority:22,text:"One best friend calls on the bad anniversaries. Not the good ones — everyone calls on those. She calls on the day you lost something. Just to say — I remembered."},
+    {id:'t023',cat:'Friendship',active:true,priority:23,text:"A friend group has a WhatsApp chat from 2014. Someone sends a meme at 2am. Everyone is there within three minutes. This is their fastest communication. Nothing else gets this response time."},
+    {id:'t024',cat:'Friendship',active:true,priority:24,text:"One friend took a train twelve hours to be at your function. Didn't tell you she was coming. Just appeared. Said — arre, itna bhi kya. Like it was nothing. It was everything."},
+    {id:'t025',cat:'Friendship',active:true,priority:25,text:"Two friends who haven't lived in the same city in eight years still know each other's moods by the speed of the reply. Fast reply — she's okay. Late reply — something happened. No reply — call immediately."},
+    {id:'t026',cat:'Friendship',active:true,priority:26,text:"One yaar shows love by roasting you in front of everyone and defending you behind your back. This is confusing to outsiders. To you it is the clearest thing in the world."},
+    {id:'t027',cat:'Chai & Food',active:true,priority:27,text:"One household runs entirely on chai. Good news — chai. Bad news — chai. Guest comes — chai. Guest takes too long to leave — one more chai. The chai is never the point. The chai is always the point."},
+    {id:'t028',cat:'Chai & Food',active:true,priority:28,text:"A dabba from home reaches office with exactly the right amount of everything. Not because it was calculated. Because the person who packed it has watched you eat for twenty years and knows."},
+    {id:'t029',cat:'Chai & Food',active:true,priority:29,text:"One family's Sunday smells the same as it has for thirty years. Slow-cooked, early morning, before anyone is awake. You wake up and you know immediately — it's Sunday, you're home."},
+    {id:'t030',cat:'Chai & Food',active:true,priority:30,text:"A nani's hands make the same atta every morning. Same movement, same pressure, same time. If you close your eyes it sounds like childhood. It always will."},
+    {id:'t031',cat:'Chai & Food',active:true,priority:31,text:"One neighbourhood aunty brings food when someone is sick — without being asked, without calling ahead. She just appears at the door with a tiffin. Everyone in the colony knows. Nobody knows how she finds out."},
+    {id:'t032',cat:'Nukkad Life',active:true,priority:32,text:"A chai wala near the old bus stand knows three hundred orders by face. No names needed. You sit, he looks at you once, it comes. This has taken him fifteen years to learn. He considers it nothing special."},
+    {id:'t033',cat:'Nukkad Life',active:true,priority:33,text:"One building's watchman knows who is going through a hard time by how they walk to the gate. He says nothing. Just nods a little slower that day. His regulars know what the slow nod means."},
+    {id:'t034',cat:'Nukkad Life',active:true,priority:34,text:"A kirana bhaiya knows your ration without a list. Has known it for eight years. Packs it before you finish saying hello. A stranger has paid this much attention to your life."},
+    {id:'t035',cat:'Nukkad Life',active:true,priority:35,text:"One autowaala plays old film songs and drives slower near hospitals. Nobody asked him to. He started doing it one day and never stopped. He thinks nobody notices. His repeat passengers notice."},
+    {id:'t036',cat:'Nukkad Life',active:true,priority:36,text:"A sabziwala gives an extra handful of dhania to regulars who have bought from him for more than five years. He has never announced this policy. They have never mentioned it. Both parties understand."},
+    {id:'t037',cat:'Faith & Shukr',active:true,priority:37,text:"One dadi does her puja at the same time every morning. Has done this for fifty-one years. The gods in the mandir corner are small and old and the vermilion is never missing. The house has been built around this ritual."},
+    {id:'t038',cat:'Faith & Shukr',active:true,priority:38,text:"A family has a tulsi plant in the courtyard that has been there since before the youngest child was born. Every morning the maa waters it before she does anything else. Before chai, before conversation, before the day begins."},
+    {id:'t039',cat:'Faith & Shukr',active:true,priority:39,text:"One nana goes to the Gurudwara every morning before the rest of the house wakes up. Comes back with a small piece of karah prasad wrapped in a cloth. Leaves it on the kitchen counter. Nobody has ever asked him to. It is simply there."},
+    {id:'t040',cat:'Faith & Shukr',active:true,priority:40,text:"A dadi fasts on certain days — has done so for sixty years. Her children said she doesn't need to anymore. She looked at them the way you look at someone who has missed the point entirely."},
+    {id:'t041',cat:'Faith & Shukr',active:true,priority:41,text:"One family lights a diya at the mandir corner every evening without fail. Not for any festival. Not for any occasion. Because the evening came and the day needed to be marked. That's all."},
+    {id:'t042',cat:'Faith & Shukr',active:true,priority:42,text:"A Sikh grandfather touches his kara before every difficult conversation. Has done this his whole life. His grandchildren noticed. Now they touch his kara too, before exams, before results, before anything that matters."},
+    {id:'t043',cat:'Faith & Shukr',active:true,priority:43,text:"One woman who had a very hard year kept one small tulsi plant alive through all of it. She considers this her proof that she managed. It is proof."},
+    {id:'t044',cat:'Faith & Shukr',active:true,priority:44,text:"A man who rebuilt his shop after the flood put the same name on the new board. His son asked why the same name. He said — the name was never in the flood."},
+    {id:'t045',cat:'Faith & Shukr',active:true,priority:45,text:"One nani ends every phone call with khush raho. Not bye, not take care. Just — be happy. Like it's an instruction. Like she is certain you can follow it if you try."},
+    {id:'t046',cat:'For the Desk',active:true,priority:46,text:"A doctor has been practicing for thirty years and still reads up on every complicated case the night before. Her residents think she just knows everything. She does not just know everything."},
+    {id:'t047',cat:'For the Desk',active:true,priority:47,text:"One teacher writes one kind word on every paper she returns. Has done this for twenty-four years. Some of those students are teachers now. They do the same thing. They didn't decide to. It just felt right."},
+    {id:'t048',cat:'For the Desk',active:true,priority:48,text:"A man started his business in one small room. The room is now a floor. The desk is still in the corner. He hasn't moved it. Everyone has learned not to ask why."},
+    {id:'t049',cat:'Just True',active:true,priority:49,text:"One papa dropped his daughter to the airport. Waited outside till she went through security. Drove home alone. Called her when he reached to ask pahunch gayi? She had just left two hours ago. He knows. He called anyway."},
+    {id:'t050',cat:'Just True',active:true,priority:50,text:"A child's drawing of the family puts the dog in the centre. The family agreed this was correct."},
+    {id:'t051',cat:'Just True',active:true,priority:51,text:"A family WhatsApp group has forty-nine members. Twelve are arguing, seven are sharing recipes, four are sending good morning photos, three are asking for prayers. This is all happening at the same time. This is a family."},
+    {id:'t052',cat:'Just True',active:true,priority:52,text:"One boy made a welcome home banner when his maa came back from the hospital. Made it himself with chart paper and sketch pens. Cried while making it. Made sure to finish before she arrived."},
+    {id:'t053',cat:'Just True',active:true,priority:53,text:"A maa learns her child's new city by Google Maps. Looks at the satellite view of the building. Zooms in. This is how she visits."},
+  ];
+  let TALES = [...SEED_TALES];
   let filterCat = 'All';
   let dirty = false;
   let dragSrc = null;
@@ -1660,15 +1786,17 @@ function toast(msg,err){
   // ── load from Redis ───────────────────────────────────
   window.talesLoad = async function(force = false) {
     try {
-      const res = await fetch(TALES_URL);
+      const res = await (NT_TOKEN ? authFetch(TALES_URL) : fetch(TALES_URL));
       const raw = await res.json();
-      TALES = raw.map((t, i) => ({
+      const parsed = raw.length ? raw : SEED_TALES;
+      TALES = parsed.map((t, i) => ({
         id:       t.id       || Date.now().toString(36) + i,
         cat:      t.cat      || 'Just True',
         text:     typeof t === 'string' ? t : (t.text || ''),
         active:   t.active   !== false,
         priority: t.priority || i + 1,
       })).sort((a, b) => a.priority - b.priority);
+      if (!raw.length) setDirty(true); // seed not yet pushed
       setDirty(false);
       renderTales();
       if (force) toast('Tales loaded — ' + TALES.length + ' stories');
