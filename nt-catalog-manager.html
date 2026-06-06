@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NukkadTales · Catalog Manager</title>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -84,41 +83,31 @@
 </head>
 <body>
 
-<!-- ── Google Auth Gate ─────────────────────────────── -->
+<!-- ── Auth Gate ─────────────────────────────────── -->
 <div id="authGate" style="display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#fdf6f0,#f5e6d0);z-index:99999;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:20px;padding:40px 32px;width:340px;box-shadow:0 20px 60px rgba(139,69,19,.15);text-align:center;">
     <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:#6b3a1f;margin-bottom:4px;">🪵 Catalog Manager</div>
     <div style="font-size:12px;color:#a07a52;margin-bottom:28px;">NukkadTales internal tool</div>
-    <div id="g_signin_btn"></div>
-    <div id="authErr" style="font-size:11px;color:#e53;min-height:16px;margin-top:12px;"></div>
+    <input id="authInput" type="password" placeholder="Enter admin token"
+      style="width:100%;border:1.5px solid #e5d0b8;border-radius:10px;padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;outline:none;margin-bottom:10px;"
+      onkeydown="if(event.key==='Enter')checkAuth()">
+    <div id="authErr" style="font-size:11px;color:#e53;min-height:16px;margin-bottom:10px;"></div>
+    <button onclick="checkAuth()"
+      style="width:100%;background:#8B4513;color:#fff;border:none;border-radius:10px;padding:12px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
+      Enter
+    </button>
   </div>
 </div>
-
 <script>
-// ── Google OAuth ──────────────────────────────────────
-const ALLOWED_EMAILS = ['nukkadtales@gmail.com'];
-const G_CLIENT_ID    = '13261547491-sskesnl10qku3cth47o1ukgkuddlsd7q.apps.googleusercontent.com';
-let NT_TOKEN = ''; // Google credential JWT — used as Bearer for write calls
+// ── Auth ─────────────────────────────────────────────
+let NT_TOKEN = sessionStorage.getItem('nt_admin_token') || '';
 
-function decodeJWT(token) {
-  try { return JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }
-  catch(e) { return null; }
-}
-
-function onGoogleSignIn(response) {
-  const payload = decodeJWT(response.credential);
-  if (!payload) { document.getElementById('authErr').textContent = 'Sign-in failed. Try again.'; return; }
-  if (!ALLOWED_EMAILS.includes(payload.email)) {
-    document.getElementById('authErr').textContent = payload.email + ' is not authorised.';
-    return;
-  }
-  // Store with 1hr expiry (Google JWT lifetime)
-  sessionStorage.setItem('nt_google_session', JSON.stringify({
-    email: payload.email, exp: payload.exp, credential: response.credential
-  }));
-  NT_TOKEN = response.credential;
+function checkAuth() {
+  const val = document.getElementById('authInput').value.trim();
+  if (!val) return;
+  NT_TOKEN = val;
+  sessionStorage.setItem('nt_admin_token', val);
   document.getElementById('authGate').style.display = 'none';
-  console.log('Signed in as', payload.email);
 }
 
 function authFetch(url, opts = {}) {
@@ -127,30 +116,14 @@ function authFetch(url, opts = {}) {
   return fetch(url, opts);
 }
 
-// Check stored session on load
+// Check stored token on load
 (function() {
-  const stored = JSON.parse(sessionStorage.getItem('nt_google_session') || 'null');
-  if (stored && stored.exp * 1000 > Date.now() && ALLOWED_EMAILS.includes(stored.email)) {
-    NT_TOKEN = stored.credential;
+  if (NT_TOKEN) {
     document.getElementById('authGate').style.display = 'none';
-    return;
   }
-  // Show Google Sign-In button
-  window.addEventListener('load', () => {
-    if (typeof google === 'undefined') return;
-    google.accounts.id.initialize({
-      client_id: G_CLIENT_ID,
-      callback: onGoogleSignIn,
-      auto_select: true,
-    });
-    google.accounts.id.renderButton(
-      document.getElementById('g_signin_btn'),
-      { theme: 'outline', size: 'large', width: 276, text: 'signin_with' }
-    );
-    google.accounts.id.prompt();
-  });
 })();
 </script>
+
 
 
 <header>
@@ -515,7 +488,7 @@ async function loadSavedLists(){
 }
 
 async function api(fn,method,body){
-  const r=await fetch(`${PROXY}/${fn}`,{
+  const r=await authFetch(`${PROXY}/${fn}`,{
     method:method||'GET',
     headers:{'Content-Type':'application/json'},
     body:body?JSON.stringify(body):undefined
@@ -530,7 +503,7 @@ async function loadDiff(forceRefresh){
   if(cached && !forceRefresh){
     try{
       const data = JSON.parse(cached);
-      results.new = (data.products||[]).map(p=>({...p,status:'new',ts:new Date().toISOString()}));
+      results.new = (data.products||[]).map(p=>({...p,status:'new',_ts:Date.now()}));
       updateStats(data);
       setFilter('new');
       const ageMin = Math.floor((Date.now()-new Date(data.synced_at).getTime())/60000);
@@ -567,7 +540,7 @@ async function pollSyncProgress(){
         const result = resultRes.value;
         if(result){
           const data2 = typeof result === 'string' ? JSON.parse(result) : result;
-          results.new = (data2.products||[]).map(p=>({...p,status:'new',ts:new Date().toISOString()}));
+          results.new = (data2.products||[]).map(p=>({...p,status:'new',_ts:Date.now()}));
           updateStats(data2);
           setFilter('new');
           // Cache result
@@ -743,7 +716,7 @@ function getSorted(list){
 // surface for image generation even though they have 0 sales and no rank.
 const NEW_WINDOW_DAYS = 14;
 function isNewItem(p){
-  const t = p.approved_at || p.ts || p.added_at || p._ts;
+  const t = p.approved_at || p.ts || p.added_at;
   if(!t) return false;
   const ageDays = (Date.now() - new Date(t).getTime())/86400000;
   if(isNaN(ageDays)) return false;
@@ -1014,7 +987,7 @@ async function bulkApproveAll(){
 
 async function exportCatalog(){
   try{
-    const r=await fetch(`${PROXY}/nt-catalog-approve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'export'})});
+    const r=await authFetch(`${PROXY}/nt-catalog-approve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'export'})});
     const data=await r.json();
     const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
