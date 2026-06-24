@@ -127,6 +127,8 @@ async function checkAuth() {
     NT_TOKEN = data.token;
     sessionStorage.setItem('nt_admin_token', NT_TOKEN);
     document.getElementById('authGate').style.display = 'none';
+    loadDiff();
+    loadSavedLists();
   } catch(e) {
     errEl.textContent = 'Network error — try again';
     btn.textContent = 'Enter';
@@ -439,7 +441,7 @@ let results={new:[],approved:[],rejected:[],auto:[]};
 let currentFilter='new';
 const pushMf=()=>false; // Push metafields manually via Push Metafields button
 
-window.onload=()=>{loadDiff();loadSavedLists();};
+window.onload=()=>{ if(NT_TOKEN){ loadDiff(); loadSavedLists(); } };
 
 async function pushAllMetafields(){
   const btn=document.getElementById('pushAllBtn');
