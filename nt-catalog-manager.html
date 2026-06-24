@@ -504,6 +504,9 @@ async function loadSavedLists(){
     const rejHandles=rejRes.rejected||[];
     results.rejected=rejHandles.map(h=>({handle:h,title:h,status:'rejected',tags:'',price:''}));
     results.auto=(autoRes.log||[]).map(p=>({...p,handle:p.handle,title:p.title,status:'auto',tagged:p.tagged}));
+    // Remove from new list any handles already approved or rejected
+    const doneHandles=new Set([...results.approved.map(p=>p.handle||p.h),...rejHandles]);
+    results.new=results.new.filter(p=>!doneHandles.has(p.handle));
     // Update stat counts
     const autoEl=document.querySelectorAll('.stat')[3];if(autoEl){autoEl.querySelector('.stat-n').textContent=results.auto.length;}
     const apEl=document.querySelectorAll('.stat')[1];
