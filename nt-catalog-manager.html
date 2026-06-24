@@ -550,8 +550,12 @@ async function loadDiff(forceRefresh){
 function manualSync(){ loadDiff(true); }
 
 let _syncPollInterval = null;
+let _syncStartedAt = 0;
+let _syncSeenRunning = false;
 async function pollSyncProgress(){
   if(_syncPollInterval)clearInterval(_syncPollInterval);
+  _syncStartedAt = Date.now();
+  _syncSeenRunning = false;
   _syncPollInterval = setInterval(async ()=>{
     try{
       const res = await api('nt-catalog-approve','POST',{action:'get_key',key:'nt:catalog:sync_progress'});
@@ -559,6 +563,11 @@ async function pollSyncProgress(){
       if(!p) return;
       const data = typeof p === 'string' ? JSON.parse(p) : p;
       updateActivityBar(data.message || data.step, data.done, data.total);
+      if(data.status === 'running') _syncSeenRunning = true;
+      // Ignore a stale 'done' from a previous run — wait until the background function
+      // has had a chance to write 'running' first, or at least 5s have elapsed.
+      const elapsed = Date.now() - _syncStartedAt;
+      if(data.status === 'done' && !_syncSeenRunning && elapsed < 8000) return;
       if(data.status === 'done'){
         clearInterval(_syncPollInterval);
         // Load result
