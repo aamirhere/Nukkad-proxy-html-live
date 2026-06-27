@@ -156,6 +156,24 @@ function api(url, body) {
   <input type="text" id="searchInp" placeholder="Search by title or handle…" oninput="onSearch()">
 </div>
 
+<!-- ── Activity bar ───────────────────────────────────────── -->
+<div id="activityBar" style="display:none;background:linear-gradient(135deg,#fff8f0,#fdf6f0);border-bottom:1px solid var(--border);padding:10px 20px;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="spinner-mini dark"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:11px;font-weight:700;color:var(--brown);" id="actTitle">Working…</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="actMsg"></div>
+    </div>
+    <div style="min-width:120px;text-align:right;">
+      <div style="font-size:10px;font-weight:700;color:var(--orange);margin-bottom:4px;" id="actCount"></div>
+      <div style="background:#f5ede0;border-radius:8px;overflow:hidden;height:5px;">
+        <div id="actProgress" style="background:var(--orange);height:100%;width:0%;transition:width .3s;"></div>
+      </div>
+    </div>
+    <button onclick="cancelFetch()" id="btnCancel" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;">✕ Stop</button>
+  </div>
+</div>
+
 <!-- ── Stats ─────────────────────────────────────────────── -->
 <div class="stats" id="statsRow">
   <div class="stat"><div class="stat-n" id="statTotal">—</div><div class="stat-l">Total</div></div>
@@ -194,11 +212,17 @@ function updateStats() {
 
 function setHeaderBusy(msg) {
   document.getElementById('headerStatus').innerHTML =
-    `<span class="status-dot"></span><span style="color:rgba(255,255,255,.75);font-size:10px;">${msg}</span>`;
+    `<span class="status-dot"></span><span style="color:rgba(255,255,255,.75);font-size:10px;">${esc(msg)}</span>`;
 }
 
-function clearHeaderBusy() {
-  updateStats();
+function clearHeaderBusy() { updateStats(); }
+
+function updateCardInPlace(p) {
+  const handle = p.handle || p.h;
+  const cardId = 'card-' + handle.replace(/[^a-z0-9]/g, '-');
+  const el = document.getElementById(cardId);
+  if (!el) return;
+  el.outerHTML = cardHTML(p);
 }
 
 // ── Init ─────────────────────────────────────────────────
@@ -300,30 +324,80 @@ function fmtDate(iso) {
   } catch { return iso; }
 }
 
-// ── Fetch all ────────────────────────────────────────────
+// ── Fetch all — one product at a time with live progress ──
+let _fetchCancelled = false;
+
+function cancelFetch() {
+  _fetchCancelled = true;
+  document.getElementById('btnCancel').textContent = 'Stopping…';
+}
+
+function showActivityBar(title, msg, done, total) {
+  document.getElementById('activityBar').style.display = 'block';
+  document.getElementById('actTitle').textContent = title;
+  document.getElementById('actMsg').textContent   = msg;
+  document.getElementById('actCount').textContent = total ? `${done} / ${total}` : '';
+  document.getElementById('actProgress').style.width = total ? Math.round(done/total*100)+'%' : '0%';
+}
+
+function hideActivityBar() {
+  document.getElementById('activityBar').style.display = 'none';
+}
+
 async function fetchAll() {
   if (isFetching) return;
+  // Only fetch products that are still pending
+  const pending = allProducts.filter(p => !matchedData[p.handle || p.h]);
+  if (!pending.length) { toast('All products already matched!'); return; }
+
   isFetching = true;
+  _fetchCancelled = false;
   const btn = document.getElementById('btnFetch');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-mini"></span> Fetching…';
-  setHeaderBusy('Fetching AI matches — this may take a while…');
-  try {
-    const res = await api(RELATE_URL, { action: 'fetch_related' });
-    if (res.ok) {
-      toast(`✓ Matched ${res.matched} products`);
-      await reload();
-    } else {
-      toast('Fetch failed: ' + (res.error || JSON.stringify(res)), true);
+  setHeaderBusy('Fetching AI matches in background…');
+
+  let done = 0, errors = 0;
+  const total = pending.length;
+
+  showActivityBar('Fetching AI matches', `Starting… (${total} pending products)`, 0, total);
+
+  for (const p of pending) {
+    if (_fetchCancelled) break;
+    const handle = p.handle || p.h;
+    const title  = p.title  || p.t || handle;
+    showActivityBar(
+      'Fetching AI matches — running in background',
+      `⚡ ${title}  (${errors ? errors+' errors · ' : ''}${total - done} remaining)`,
+      done, total
+    );
+    try {
+      const res = await api(RELATE_URL, { action: 'fetch_related', handles: [handle] });
+      if (res.ok) {
+        // Merge result into local state and update that card immediately
+        const relRes = await api(RELATE_URL, { action: 'load' });
+        matchedData = relRes.data || {};
+        updateCardInPlace(p);
+        updateStats();
+      } else {
+        errors++;
+      }
+    } catch(e) {
+      errors++;
     }
-  } catch(e) {
-    toast('Error: ' + e.message, true);
-  } finally {
-    isFetching = false;
-    btn.disabled = false;
-    btn.innerHTML = '⚡ Fetch AI Matches';
-    clearHeaderBusy();
+    done++;
   }
+
+  isFetching = false;
+  btn.disabled = false;
+  btn.innerHTML = '⚡ Fetch AI Matches';
+  clearHeaderBusy();
+  hideActivityBar();
+  toast(_fetchCancelled
+    ? `Stopped after ${done} products (${errors} errors)`
+    : `✓ Done — ${done - errors} matched, ${errors} errors`
+  , errors > 0);
+  render();
 }
 
 // ── Fetch one ────────────────────────────────────────────
