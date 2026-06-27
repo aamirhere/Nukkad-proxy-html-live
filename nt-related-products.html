@@ -152,10 +152,11 @@ function api(url, body) {
 
 <!-- ── Toolbar ───────────────────────────────────────────── -->
 <div class="toolbar">
-  <button class="btn btn-primary" id="btnFetch" onclick="fetchAll(false)">⚡ Fetch Pending</button>
-  <button class="btn btn-ghost"   id="btnRefetchAll" onclick="fetchAll(true)" style="border:1.5px solid var(--orange);color:var(--orange);">↺ Re-fetch All</button>
-  <button class="btn btn-green"   id="btnPush"  onclick="pushAll()">📤 Send to Shopify</button>
-  <button class="btn btn-ghost"   id="btnReload" onclick="init()">↻ Reload</button>
+  <button class="btn btn-primary"  id="btnClassify"    onclick="classifyAll(false)" title="Step 1: AI reads each product and assigns taxonomy tags (professions, vibes, occasions). Do this first.">🏷 Classify Pending</button>
+  <button class="btn btn-primary"  id="btnFetch"       onclick="fetchAll(false)" style="background:#7c3aed;" title="Step 2: Match products using taxonomy. Fast — no AI needed.">⚡ Match Pending</button>
+  <button class="btn btn-ghost"    id="btnRefetchAll"  onclick="fetchAll(true)"  style="border:1.5px solid #7c3aed;color:#7c3aed;">↺ Re-match All</button>
+  <button class="btn btn-green"    id="btnPush"        onclick="pushAll()">📤 Send to Shopify</button>
+  <button class="btn btn-ghost"    id="btnReload"      onclick="init()">↻ Reload</button>
   <input type="text" id="searchInp" placeholder="Search by title or handle…" oninput="onSearch()">
 </div>
 
@@ -180,6 +181,7 @@ function api(url, body) {
 <!-- ── Stats ─────────────────────────────────────────────── -->
 <div class="stats" id="statsRow">
   <div class="stat"><div class="stat-n" id="statTotal">—</div><div class="stat-l">Total</div></div>
+  <div class="stat"><div class="stat-n" id="statClassified" style="color:#7c3aed">—</div><div class="stat-l">Classified</div></div>
   <div class="stat"><div class="stat-n" id="statMatched" style="color:var(--green)">—</div><div class="stat-l">Matched</div></div>
   <div class="stat"><div class="stat-n" id="statPending" style="color:var(--orange)">—</div><div class="stat-l">Pending</div></div>
 </div>
@@ -204,13 +206,17 @@ function toast(msg, isErr = false) {
 }
 
 // ── Stats & status ────────────────────────────────────────
+let taxonomyData = {}; // loaded alongside matchedData
+
 function updateStats() {
-  const total   = allProducts.length;
-  const matched = allProducts.filter(p => matchedData[(p.handle || p.h)]).length;
-  document.getElementById('statTotal').textContent   = total;
-  document.getElementById('statMatched').textContent = matched;
-  document.getElementById('statPending').textContent = total - matched;
-  document.getElementById('headerStatus').textContent = `${matched}/${total} matched`;
+  const total      = allProducts.length;
+  const classified = allProducts.filter(p => taxonomyData[(p.handle || p.h)]).length;
+  const matched    = allProducts.filter(p => matchedData[(p.handle || p.h)]).length;
+  document.getElementById('statTotal').textContent      = total;
+  document.getElementById('statClassified').textContent = classified;
+  document.getElementById('statMatched').textContent    = matched;
+  document.getElementById('statPending').textContent    = total - matched;
+  document.getElementById('headerStatus').textContent   = `${matched}/${total} matched`;
 }
 
 function setHeaderBusy(msg) {
@@ -233,12 +239,14 @@ async function init() {
   document.getElementById('productsWrap').innerHTML =
     '<div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;"></div><p>Loading…</p></div>';
   try {
-    const [catRes, relRes] = await Promise.all([
+    const [catRes, relRes, taxRes] = await Promise.all([
       api(CATALOG_URL, { action: 'load_approved' }),
-      api(RELATE_URL,  { action: 'load' })
+      api(RELATE_URL,  { action: 'load' }),
+      api(RELATE_URL,  { action: 'load_taxonomy' })
     ]);
-    allProducts = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
-    matchedData = relRes.data || {};
+    allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
+    matchedData  = relRes.data || {};
+    taxonomyData = taxRes.data || {};
     updateStats();
     render();
   } catch(e) {
@@ -331,6 +339,65 @@ function fmtDate(iso) {
     const d = new Date(iso);
     return d.toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hour12:true });
   } catch { return iso; }
+}
+
+// ── Classify all — Step 1, one product at a time ─────────
+let _classifyCancelled = false;
+let isClassifying = false;
+
+async function classifyAll(reclassifyAll = false) {
+  if (isClassifying) return;
+  // Load existing taxonomy to know which are already done
+  let existingTax = {};
+  try {
+    const tx = await api(RELATE_URL, { action: 'load_taxonomy' });
+    existingTax = tx.data || {};
+  } catch(e) {}
+
+  const pending = reclassifyAll
+    ? allProducts
+    : allProducts.filter(p => !existingTax[p.handle || p.h]);
+
+  if (!pending.length) { toast('All products already classified! Run ⚡ Match now.'); return; }
+
+  isClassifying = true;
+  _classifyCancelled = false;
+  const btn = document.getElementById('btnClassify');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-mini"></span> Classifying…';
+  setHeaderBusy('Classifying products with AI…');
+
+  let done = 0, errors = 0;
+  const total = pending.length;
+  showActivityBar('🏷 Step 1 — Classifying products', `Starting… (${total} to classify)`, 0, total);
+
+  // Send in batches of 10 to the classify action
+  const BATCH = 10;
+  for (let i = 0; i < pending.length; i += BATCH) {
+    if (_classifyCancelled) break;
+    const batch = pending.slice(i, i + BATCH);
+    const handles = batch.map(p => p.handle || p.h);
+    showActivityBar(
+      '🏷 Step 1 — Classifying products (AI tags professions, vibes, occasions)',
+      `Batch ${Math.floor(i/BATCH)+1} of ${Math.ceil(total/BATCH)}  · ${total - done} remaining`,
+      done, total
+    );
+    try {
+      const res = await api(RELATE_URL, { action: 'classify', handles });
+      if (res.ok) done += Object.keys(res.results || {}).length;
+      else errors++;
+    } catch(e) { errors++; }
+  }
+
+  isClassifying = false;
+  btn.disabled = false;
+  btn.innerHTML = '🏷 Classify Pending';
+  clearHeaderBusy();
+  hideActivityBar();
+  toast(_classifyCancelled
+    ? `Stopped — ${done} classified`
+    : `✓ Classification done — ${done} products tagged. Now run ⚡ Match.`
+  , errors > 0);
 }
 
 // ── Fetch all — one product at a time with live progress ──
@@ -474,12 +541,14 @@ async function pushOne(handle) {
 
 // ── Reload data without full spinner ────────────────────
 async function reload() {
-  const [catRes, relRes] = await Promise.all([
+  const [catRes, relRes, taxRes] = await Promise.all([
     api(CATALOG_URL, { action: 'load_approved' }),
-    api(RELATE_URL,  { action: 'load' })
+    api(RELATE_URL,  { action: 'load' }),
+    api(RELATE_URL,  { action: 'load_taxonomy' })
   ]);
-  allProducts = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
-  matchedData = relRes.data || {};
+  allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
+  matchedData  = relRes.data || {};
+  taxonomyData = taxRes.data || {};
   updateStats();
   render();
 }
