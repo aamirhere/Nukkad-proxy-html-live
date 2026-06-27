@@ -291,6 +291,13 @@ function cardHTML(p) {
     ? `<span class="badge badge-matched">✓ matched</span>`
     : `<span class="badge badge-pending">pending</span>`;
 
+  const tax = taxonomyData[handle];
+  const taxHTML = tax ? `<div class="related-chips" style="margin-top:4px;">
+    ${(tax.professions||[]).map(n => `<span class="related-chip" style="background:#f0fdf4;border-color:#86efac;color:#15803d;">${n.replace('prof.','')}</span>`).join('')}
+    ${(tax.vibes||[]).map(n => `<span class="related-chip" style="background:#fdf4ff;border-color:#e9d5ff;color:#7c3aed;">${n.replace('vibe.','')}</span>`).join('')}
+    ${(tax.occasions||[]).map(n => `<span class="related-chip" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;">${n.replace('occ.','')}</span>`).join('')}
+  </div>` : '';
+
   const chipsHTML = matched
     ? `<div class="related-chips">${(matched.related || []).map(h =>
         `<span class="related-chip">${h}</span>`).join('')}</div>`
@@ -319,6 +326,7 @@ function cardHTML(p) {
           ${badgeHTML}
         </div>
         <div class="product-handle">${esc(handle)}</div>
+        ${taxHTML}
         ${chipsHTML}
         ${timeHTML}
       </div>
