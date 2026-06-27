@@ -239,15 +239,13 @@ async function init() {
   document.getElementById('productsWrap').innerHTML =
     '<div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;"></div><p>Loading…</p></div>';
   try {
-    const [catRes, relRes, taxRes] = await Promise.all([
+    const [catRes, relRes] = await Promise.all([
       api(CATALOG_URL, { action: 'load_approved' }),
-      api(RELATE_URL,  { action: 'load' }),
-      api(RELATE_URL,  { action: 'load_taxonomy' })
+      api(RELATE_URL,  { action: 'load' })
     ]);
     allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
     matchedData  = relRes.data || {};
-    taxonomyData = taxRes.data || {};
-    console.log('taxonomy keys:', Object.keys(taxonomyData).length, 'taxRes.ok:', taxRes.ok, 'sample:', JSON.stringify(Object.values(taxonomyData)[0]));
+    taxonomyData = relRes.taxonomy || {};
     updateStats();
     render();
   } catch(e) {
@@ -552,17 +550,13 @@ async function pushOne(handle) {
 
 // ── Reload data without full spinner ────────────────────
 async function reload() {
-  const [catRes, relRes, taxRes] = await Promise.all([
+  const [catRes, relRes] = await Promise.all([
     api(CATALOG_URL, { action: 'load_approved' }),
-    api(RELATE_URL,  { action: 'load' }),
-    api(RELATE_URL,  { action: 'load_taxonomy' })
+    api(RELATE_URL,  { action: 'load' })
   ]);
   allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
   matchedData  = relRes.data || {};
-  taxonomyData = taxRes.data || {};
-  console.log('taxonomy first key:', Object.keys(taxonomyData)[0]);
-  console.log('allProducts first handle:', allProducts[0]?.handle, '| h:', allProducts[0]?.h);
-  console.log('rab-rakha in taxonomy?', !!taxonomyData['rab-rakha']);
+  taxonomyData = relRes.taxonomy || {};
   updateStats();
   render();
 }
