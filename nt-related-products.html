@@ -390,9 +390,10 @@ async function classifyAll(reclassifyAll = false) {
     if (_classifyCancelled) break;
     const batch = pending.slice(i, i + BATCH);
     const handles = batch.map(p => p.handle || p.h);
+    const batchTitles = batch.map(p => p.title || p.t || p.handle || p.h).join(' · ');
     showActivityBar(
-      '🏷 Step 1 — Classifying products (AI tags professions, vibes, occasions)',
-      `Batch ${Math.floor(i/BATCH)+1} of ${Math.ceil(total/BATCH)}  · ${total - done} remaining`,
+      '🏷 Classifying products',
+      `${batchTitles}  · ${total - done} remaining`,
       done, total
     );
     try {
