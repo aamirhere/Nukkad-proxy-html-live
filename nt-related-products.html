@@ -560,7 +560,9 @@ async function reload() {
   allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
   matchedData  = relRes.data || {};
   taxonomyData = taxRes.data || {};
-  console.log('reload taxonomy keys:', Object.keys(taxonomyData).length, 'sample:', JSON.stringify(Object.values(taxonomyData)[0]));
+  console.log('taxonomy first key:', Object.keys(taxonomyData)[0]);
+  console.log('allProducts first handle:', allProducts[0]?.handle, '| h:', allProducts[0]?.h);
+  console.log('rab-rakha in taxonomy?', !!taxonomyData['rab-rakha']);
   updateStats();
   render();
 }
