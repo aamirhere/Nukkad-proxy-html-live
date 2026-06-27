@@ -402,6 +402,8 @@ async function classifyAll(reclassifyAll = false) {
   btn.innerHTML = '🏷 Classify Pending';
   clearHeaderBusy();
   hideActivityBar();
+  // Refresh taxonomy data and re-render so tags appear on cards
+  await reload();
   toast(_classifyCancelled
     ? `Stopped — ${done} classified`
     : `✓ Classification done — ${done} products tagged. Now run ⚡ Match.`
