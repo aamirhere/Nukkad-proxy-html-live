@@ -490,7 +490,6 @@ function cardHTML(p) {
     </div>
   </div>
   <div class="ad-panel" id="panel-${cssId(handle)}">
-    ${adPanelHTML(p)}
   </div>
 </div>`;
 }
@@ -629,8 +628,14 @@ async function togglePanel(handle) {
   } else {
     // close others
     document.querySelectorAll('.ad-panel.open').forEach(el => el.classList.remove('open'));
-    panelEl.classList.add('open');
     openPanel = handle;
+    // render panel HTML lazily on first open
+    if (!panelEl.dataset.rendered) {
+      const p = allProducts.find(x => (x.handle||x.h) === handle);
+      if (p) panelEl.innerHTML = adPanelHTML(p);
+      panelEl.dataset.rendered = '1';
+    }
+    panelEl.classList.add('open');
     // lazy-load images if not yet fetched
     if (!imageCache[handle]) {
       await loadImages(handle);
