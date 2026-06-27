@@ -786,7 +786,7 @@ async function deleteImage(handle, idx) {
   if (!imgs) return;
   const img = imgs[idx];
   try {
-    await api(AD_URL, { action: 'delete_image', handle, imageUrl: img.url });
+    await api(AD_URL, { action: 'delete_image', handle, image_id: img.id });
   } catch(e) { /* ignore backend error, update local anyway */ }
   imgs.splice(idx, 1);
   refreshPanel(handle);
