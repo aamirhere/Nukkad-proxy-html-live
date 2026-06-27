@@ -152,7 +152,8 @@ function api(url, body) {
 
 <!-- ── Toolbar ───────────────────────────────────────────── -->
 <div class="toolbar">
-  <button class="btn btn-primary" id="btnFetch" onclick="fetchAll()">⚡ Fetch AI Matches</button>
+  <button class="btn btn-primary" id="btnFetch" onclick="fetchAll(false)">⚡ Fetch Pending</button>
+  <button class="btn btn-ghost"   id="btnRefetchAll" onclick="fetchAll(true)" style="border:1.5px solid var(--orange);color:var(--orange);">↺ Re-fetch All</button>
   <button class="btn btn-green"   id="btnPush"  onclick="pushAll()">📤 Send to Shopify</button>
   <button class="btn btn-ghost"   id="btnReload" onclick="init()">↻ Reload</button>
   <input type="text" id="searchInp" placeholder="Search by title or handle…" oninput="onSearch()">
@@ -352,17 +353,16 @@ function hideActivityBar() {
   document.getElementById('activityBar').style.display = 'none';
 }
 
-async function fetchAll() {
+async function fetchAll(refetchAll = false) {
   if (isFetching) return;
-  // Only fetch products that are still pending
-  const pending = allProducts.filter(p => !matchedData[p.handle || p.h]);
+  const pending = refetchAll ? allProducts : allProducts.filter(p => !matchedData[p.handle || p.h]);
   if (!pending.length) { toast('All products already matched!'); return; }
 
   isFetching = true;
   _fetchCancelled = false;
-  const btn = document.getElementById('btnFetch');
+  const btn = document.getElementById(refetchAll ? 'btnRefetchAll' : 'btnFetch');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-mini"></span> Fetching…';
+  btn.innerHTML = '<span class="spinner-mini' + (refetchAll ? ' dark' : '') + '"></span> ' + (refetchAll ? 'Re-fetching…' : 'Fetching…');
   setHeaderBusy('Fetching AI matches in background…');
 
   let done = 0, errors = 0;
@@ -398,7 +398,7 @@ async function fetchAll() {
 
   isFetching = false;
   btn.disabled = false;
-  btn.innerHTML = '⚡ Fetch AI Matches';
+  btn.innerHTML = refetchAll ? '↺ Re-fetch All' : '⚡ Fetch Pending';
   clearHeaderBusy();
   hideActivityBar();
   toast(_fetchCancelled
