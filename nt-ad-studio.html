@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NukkadTales · Ad Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--cream:#fdf6f0;--brown:#3d2b1a;--orange:#c47a45;--muted:#8c7b6e;--border:#e8d5c0;--sand:#f5ede0;--green:#2d7d46;--red:#c0392b;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--cream);font-family:'DM Sans',sans-serif;color:var(--brown);min-height:100vh;}
+  header{background:var(--brown);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  header h1{font-family:'Poppins',sans-serif;font-weight:900;font-size:16px;color:#fff;}
+  .toolbar{background:var(--sand);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:45px;z-index:99;}
+  .toolbar input[type=text]{flex:1;min-width:180px;border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-family:'DM Sans',sans-serif;font-size:12px;background:#fff;color:var(--brown);}
+  .toolbar input[type=text]:focus{outline:none;border-color:var(--orange);}
+  .toolbar select{border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-family:'DM Sans',sans-serif;font-size:12px;background:#fff;color:var(--brown);cursor:pointer;}
+  .toolbar select:focus{outline:none;border-color:var(--orange);}
+  .btn{border:none;border-radius:8px;padding:7px 13px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:opacity .15s;}
+  .btn:hover{opacity:.85;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-primary{background:var(--orange);color:#fff;}
+  .btn-green{background:var(--green);color:#fff;}
+  .btn-ghost{background:rgba(61,43,26,.08);color:var(--brown);}
+  .btn-blue{background:#2563eb;color:#fff;}
+  .btn-purple{background:#7c3aed;color:#fff;}
+  .btn-sm{padding:4px 10px;font-size:10px;}
+  .stats{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
+  .stat-n{font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:var(--brown);}
+  .stat-l{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
+  .list-meta{padding:6px 20px 4px;font-size:11px;color:var(--muted);font-weight:600;}
+  .products-wrap{padding:12px 20px 40px;}
+  .product-card{background:#fff;border:1.5px solid var(--border);border-radius:12px;margin-bottom:8px;transition:border-color .15s;overflow:hidden;}
+  .product-card.has-images{border-color:#b8dfc8;}
+  .product-card.loading{opacity:.6;pointer-events:none;}
+  .card-main{padding:12px 14px;display:flex;align-items:flex-start;gap:10px;}
+  .product-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--sand);border:1px solid var(--border);}
+  .product-thumb-placeholder{width:52px;height:52px;border-radius:8px;flex-shrink:0;background:var(--sand);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--border);}
+  .product-title{font-weight:700;font-size:13px;margin-bottom:2px;}
+  .product-handle{font-size:9px;color:var(--muted);font-family:monospace;}
+  .badge{font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;text-transform:uppercase;display:inline-block;}
+  .badge-has-images{background:#e8f5ec;color:var(--green);}
+  .badge-pending{background:#fff3e0;color:var(--orange);}
+  .related-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+  .related-chip{font-family:monospace;font-size:9px;background:#f0f4ff;border:1px solid #c7d7fb;color:#2563eb;border-radius:6px;padding:2px 7px;white-space:nowrap;}
+  .chip-prof{background:#f0fdf4;border-color:#86efac;color:#15803d;}
+  .chip-vibe{background:#fdf4ff;border-color:#e9d5ff;color:#7c3aed;}
+  .chip-occ{background:#fff7ed;border-color:#fed7aa;color:#c2410c;}
+  .card-body{flex:1;min-width:0;}
+  .card-actions{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+  .empty{text-align:center;padding:48px 20px;color:var(--muted);}
+  .empty h3{font-family:'Poppins',sans-serif;font-weight:700;margin-bottom:6px;color:var(--brown);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--brown);color:#fff;padding:8px 18px;border-radius:20px;font-size:11px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;}
+  .toast.show{opacity:1;}
+  .toast.error{background:#c0392b;}
+  .spinner-mini{width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;display:inline-block;}
+  .spinner-mini.dark{border-color:var(--border);border-top-color:var(--orange);}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--orange);animation:pulse 1.4s ease-in-out infinite;display:inline-block;margin-right:5px;flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+  /* Ad Panel */
+  .ad-panel{display:none;border-top:1.5px solid var(--border);background:var(--cream);}
+  .ad-panel.open{display:flex;}
+  .ad-panel-left{width:40%;padding:16px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:12px;}
+  .ad-panel-right{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;}
+  .panel-section-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+  .product-img-large{width:100%;max-width:180px;height:180px;object-fit:cover;border-radius:10px;border:1.5px solid var(--border);display:block;}
+  .product-img-placeholder{width:180px;height:180px;border-radius:10px;border:1.5px solid var(--border);background:var(--sand);display:flex;align-items:center;justify-content:center;font-size:36px;color:var(--border);}
+
+  /* Scene selector */
+  .scene-chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .scene-chip{font-size:10px;font-weight:600;border:1.5px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer;background:#fff;color:var(--brown);transition:all .15s;}
+  .scene-chip:hover{border-color:var(--orange);color:var(--orange);}
+  .scene-chip.active{background:var(--orange);border-color:var(--orange);color:#fff;}
+
+  /* Prompt area */
+  .prompt-textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--brown);background:#fff;resize:vertical;min-height:80px;line-height:1.5;}
+  .prompt-textarea:focus{outline:none;border-color:var(--orange);}
+
+  /* Taglines */
+  .tagline-list{display:flex;flex-direction:column;gap:5px;}
+  .tagline-item{font-size:11px;padding:6px 10px;background:#fff;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:border-color .15s;line-height:1.4;}
+  .tagline-item:hover{border-color:var(--orange);color:var(--orange);}
+  .tagline-item.selected{border-color:var(--orange);background:#fff8f3;color:var(--brown);}
+
+  /* Image grid */
+  .image-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .image-cell{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--sand);border:1.5px solid var(--border);}
+  .image-cell.empty{border-style:dashed;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;color:var(--muted);font-size:10px;cursor:default;}
+  .image-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+  .image-cell .cell-overlay{position:absolute;inset:0;background:rgba(61,43,26,.6);opacity:0;transition:opacity .2s;display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap;padding:6px;}
+  .image-cell:hover .cell-overlay{opacity:1;}
+  .cell-label{position:absolute;bottom:0;left:0;right:0;background:rgba(61,43,26,.6);color:#fff;font-size:9px;font-weight:600;padding:3px 6px;text-align:center;}
+  .cell-btn{background:rgba(255,255,255,.9);border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;color:var(--brown);}
+  .cell-btn:hover{background:#fff;}
+  .cell-spinner{width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite;}
+
+  /* Carousel */
+  .carousel-strip{display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:thin;}
+  .carousel-strip::-webkit-scrollbar{height:4px;}
+  .carousel-strip::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+  .carousel-item{flex-shrink:0;position:relative;width:90px;height:90px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color .15s;}
+  .carousel-item.active{border-color:var(--orange);}
+  .carousel-item img{width:100%;height:100%;object-fit:cover;}
+  .carousel-tagline{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:#fff;font-size:8px;padding:3px 4px;line-height:1.3;}
+
+  /* Modal backdrop */
+  .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;}
+  .modal-backdrop.open{display:flex;}
+  .modal-box{background:#fff;border-radius:16px;padding:24px;max-width:600px;width:90vw;max-height:90vh;overflow-y:auto;position:relative;}
+  .modal-box.wide{max-width:700px;}
+  .modal-close{position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);}
+  .modal-title{font-family:'Poppins',sans-serif;font-weight:700;font-size:16px;color:var(--brown);margin-bottom:16px;}
+
+  /* Preview modal */
+  .preview-img{width:100%;max-height:420px;object-fit:contain;border-radius:10px;border:1px solid var(--border);}
+  .preview-tagline-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .preview-tagline-btn{font-size:11px;padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;background:#fff;color:var(--brown);font-family:'DM Sans',sans-serif;font-weight:600;}
+  .preview-tagline-btn.active{background:var(--orange);border-color:var(--orange);color:#fff;}
+
+  /* Progress bar */
+  .progress-bar-wrap{background:var(--sand);border-radius:20px;height:6px;overflow:hidden;margin-top:8px;}
+  .progress-bar{height:100%;background:var(--orange);border-radius:20px;transition:width .3s;}
+
+  /* Checkbox */
+  .card-check{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border);appearance:none;-webkit-appearance:none;cursor:pointer;flex-shrink:0;position:relative;}
+  .card-check:checked{background:var(--orange);border-color:var(--orange);}
+  .card-check:checked::after{content:'✓';position:absolute;top:-1px;left:2px;color:#fff;font-size:11px;font-weight:700;}
+
+  /* Divider */
+  .divider{border:none;border-top:1px solid var(--border);margin:4px 0;}
+
+  /* Bulk modal selected list */
+  .bulk-product-list{max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;}
+  .bulk-product-item{font-size:11px;padding:3px 0;display:flex;align-items:center;gap:6px;}
+  .bulk-product-item .product-handle{font-size:9px;}
+
+  /* Image count badge */
+  .img-count-badge{display:inline-block;background:#7c3aed;color:#fff;border-radius:20px;padding:1px 7px;font-size:9px;font-weight:700;}
+
+  /* Tagline loading spinner */
+  .tagline-loading{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;}
+</style>
+</head>
+<body>
+
+<!-- ── Auth Gate ─────────────────────────────────── -->
+<div id="authGate" style="display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#fdf6f0,#f5e6d0);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:20px;padding:40px 32px;width:340px;box-shadow:0 20px 60px rgba(139,69,19,.15);text-align:center;">
+    <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:#6b3a1f;margin-bottom:4px;">🎨 Ad Studio</div>
+    <div style="font-size:12px;color:#a07a52;margin-bottom:28px;">NukkadTales internal tool</div>
+    <input id="authInput" type="password" placeholder="Enter password"
+      style="width:100%;border:1.5px solid #e5d0b8;border-radius:10px;padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;outline:none;margin-bottom:10px;"
+      onkeydown="if(event.key==='Enter')checkAuth()">
+    <div id="authErr" style="font-size:11px;color:#e53;min-height:16px;margin-bottom:10px;"></div>
+    <button id="authBtn" onclick="checkAuth()"
+      style="width:100%;background:#8B4513;color:#fff;border:none;border-radius:10px;padding:12px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
+      Enter
+    </button>
+  </div>
+</div>
+
+<!-- ── Header ─────────────────────────────────────────── -->
+<header>
+  <h1>🎨 Ad Studio</h1>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span id="headerStatus" style="font-size:10px;color:rgba(255,255,255,.55);font-weight:500;">Loading…</span>
+  </div>
+</header>
+
+<!-- ── Toolbar ─────────────────────────────────────────── -->
+<div class="toolbar">
+  <input type="text" id="searchInp" placeholder="Search by title or handle…" oninput="onSearch()">
+  <select id="filterSel" onchange="onFilter()">
+    <option value="">All Products</option>
+    <option value="occasion">By Occasion</option>
+    <option value="vibe">By Vibe</option>
+    <option value="profession">By Profession</option>
+  </select>
+  <button class="btn btn-purple" id="btnBulk" onclick="openBulkModal()">⚡ Bulk Generate</button>
+  <button class="btn btn-ghost" onclick="init()">↻ Reload</button>
+</div>
+
+<!-- ── Stats ───────────────────────────────────────────── -->
+<div class="stats">
+  <div class="stat"><div class="stat-n" id="statTotal">–</div><div class="stat-l">Products</div></div>
+  <div class="stat"><div class="stat-n" id="statImgs">–</div><div class="stat-l">Images Generated</div></div>
+  <div class="stat"><div class="stat-n" id="statSelected">0</div><div class="stat-l">Selected</div></div>
+</div>
+
+<!-- ── Product List ─────────────────────────────────────── -->
+<div class="list-meta" id="listMeta"></div>
+<div class="products-wrap" id="productsWrap">
+  <div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;width:24px;height:24px;border-width:3px;"></div><p>Loading…</p></div>
+</div>
+
+<!-- ── Toast ───────────────────────────────────────────── -->
+<div id="toast" class="toast"></div>
+
+<!-- ── Bulk Modal ──────────────────────────────────────── -->
+<div id="bulkModal" class="modal-backdrop">
+  <div class="modal-box wide">
+    <button class="modal-close" onclick="closeBulkModal()">✕</button>
+    <div class="modal-title">⚡ Bulk Generate</div>
+    <div style="margin-bottom:12px;">
+      <div class="panel-section-label">Selected Products (<span id="bulkCount">0</span>)</div>
+      <div id="bulkProductList" class="bulk-product-list"></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="panel-section-label">Scene Type</div>
+      <div class="scene-chips" id="bulkSceneChips">
+        <span class="scene-chip active" data-scene="Desk" onclick="selectBulkScene(this)">Desk</span>
+        <span class="scene-chip" data-scene="Shelf" onclick="selectBulkScene(this)">Shelf</span>
+        <span class="scene-chip" data-scene="Gifting" onclick="selectBulkScene(this)">Gifting</span>
+        <span class="scene-chip" data-scene="Cozy Home" onclick="selectBulkScene(this)">Cozy Home</span>
+        <span class="scene-chip" data-scene="Workspace" onclick="selectBulkScene(this)">Workspace</span>
+        <span class="scene-chip" data-scene="Festive" onclick="selectBulkScene(this)">Festive</span>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="panel-section-label">Brain Prompt (shared style applied to all)</div>
+      <textarea id="bulkBrainPrompt" class="prompt-textarea" placeholder="e.g. warm golden hour lighting, cozy Indian home aesthetic, shallow depth of field…"></textarea>
+    </div>
+    <div id="bulkProgressWrap" style="display:none;margin-bottom:12px;">
+      <div style="font-size:11px;color:var(--muted);" id="bulkProgressMsg">Generating…</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="bulkProgressBar" style="width:0%"></div></div>
+    </div>
+    <button class="btn btn-primary" id="btnBulkGenerate" onclick="runBulkGenerate()" style="width:100%;justify-content:center;padding:11px;">🚀 Generate for All</button>
+  </div>
+</div>
+
+<!-- ── Preview Modal ───────────────────────────────────── -->
+<div id="previewModal" class="modal-backdrop">
+  <div class="modal-box wide">
+    <button class="modal-close" onclick="closePreviewModal()">✕</button>
+    <div class="modal-title" id="previewTitle">Image Preview</div>
+    <div style="position:relative;">
+      <img id="previewImg" class="preview-img" src="" alt="">
+      <div id="previewOverlayBar" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.62);color:#fff;font-size:13px;font-weight:600;padding:10px 14px;border-radius:0 0 10px 10px;line-height:1.4;" id="previewOverlayText"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="togglePreviewOverlay()" id="btnToggleOverlay">Show Text Overlay</button>
+      <button class="btn btn-green btn-sm" onclick="downloadPreviewImage()">📥 Download</button>
+    </div>
+    <div id="previewTaglineBtns" class="preview-tagline-btns"></div>
+  </div>
+</div>
+
+<script>
+// ── Config ───────────────────────────────────────────────────
+const PROXY_BASE  = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
+const AD_URL      = PROXY_BASE + '/nt-ad-studio';
+const RELATE_URL  = PROXY_BASE + '/nt-relate-products';
+const CATALOG_CDN = 'https://nukkadtales.myshopify.com/cdn/shop/t/43/assets/nukkad-catalog.json';
+let NT_TOKEN      = sessionStorage.getItem('nt_admin_token') || '';
+
+// State
+let allProducts  = [];
+let taxonomyData = {};
+let imageCache   = {}; // handle → { images: [...] }
+let taglineCache = {}; // handle → [taglines]
+let openPanel    = null; // currently open handle
+let checkedSet   = new Set();
+let searchQ      = '';
+let filterMode   = '';
+let totalImages  = 0;
+let selectedTaglines = {}; // handle → selected tagline index
+let previewState = { url: '', taglines: [], selectedIdx: 0, overlayOn: false, handle: '' };
+let bulkScene    = 'Desk';
+
+const SCENES = ['Desk','Shelf','Gifting','Cozy Home','Workspace','Festive'];
+
+// ── Auth ─────────────────────────────────────────────────────
+async function checkAuth() {
+  const val   = document.getElementById('authInput').value.trim();
+  if (!val) return;
+  const errEl = document.getElementById('authErr');
+  const btn   = document.getElementById('authBtn');
+  errEl.textContent = '';
+  btn.textContent   = 'Checking…';
+  btn.disabled      = true;
+  try {
+    const res  = await fetch(`${PROXY_BASE}/nt-admin-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: val })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.token) {
+      errEl.textContent = data.error || 'Wrong password';
+      btn.textContent   = 'Enter';
+      btn.disabled      = false;
+      return;
+    }
+    NT_TOKEN = data.token;
+    sessionStorage.setItem('nt_admin_token', NT_TOKEN);
+    document.getElementById('authGate').style.display = 'none';
+    init();
+  } catch(e) {
+    errEl.textContent = 'Network error — try again';
+    btn.textContent   = 'Enter';
+    btn.disabled      = false;
+  }
+}
+
+function authFetch(url, opts = {}) {
+  opts.headers = opts.headers || {};
+  opts.headers['Authorization'] = 'Bearer ' + NT_TOKEN;
+  return fetch(url, opts);
+}
+
+function api(url, body) {
+  return authFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(r => r.json());
+}
+
+(function() {
+  if (NT_TOKEN) {
+    document.getElementById('authGate').style.display = 'none';
+  }
+})();
+
+// ── Toast ────────────────────────────────────────────────────
+let _toastTimer;
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'toast show' + (isErr ? ' error' : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildPrompt(p, scene, extraBrain = '') {
+  const tax = taxonomyData[p.handle || p.h] || {};
+  const professions = (tax.professions||[]).map(x => x.replace('prof.','')).join(', ');
+  const vibes = (tax.vibes||[]).map(x => x.replace('vibe.','')).join(', ');
+  const occasions = (tax.occasions||[]).map(x => x.replace('occ.','')).join(', ');
+  const title = p.title || p.t || '';
+  let prompt = `Product photography of a handmade wooden quote piece titled "${title}". `;
+  prompt += `Scene: ${scene} setting. `;
+  if (professions) prompt += `Intended for: ${professions}. `;
+  if (vibes) prompt += `Mood/vibe: ${vibes}. `;
+  if (occasions) prompt += `Occasion: ${occasions}. `;
+  prompt += `Warm, inviting lighting. Shallow depth of field. Lifestyle product photography style. NukkadTales brand aesthetic.`;
+  if (extraBrain) prompt += ' ' + extraBrain;
+  return prompt;
+}
+
+// ── Init ──────────────────────────────────────────────────────
+async function init() {
+  document.getElementById('productsWrap').innerHTML =
+    '<div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;width:24px;height:24px;border-width:3px;"></div><p>Loading products…</p></div>';
+  document.getElementById('headerStatus').textContent = 'Loading…';
+  try {
+    const [catalogRes, relRes] = await Promise.all([
+      fetch(CATALOG_CDN).then(r => r.json()),
+      api(RELATE_URL, { action: 'load' })
+    ]);
+
+    // catalog can be array or { approved: [...] }
+    if (Array.isArray(catalogRes)) {
+      allProducts = catalogRes;
+    } else if (catalogRes.approved) {
+      allProducts = catalogRes.approved;
+    } else {
+      allProducts = Object.values(catalogRes);
+    }
+    allProducts = allProducts.map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
+
+    taxonomyData = relRes.taxonomy || {};
+
+    // count total images from cache
+    totalImages = 0;
+    render();
+    document.getElementById('headerStatus').textContent = allProducts.length + ' products loaded';
+    document.getElementById('statTotal').textContent = allProducts.length;
+    document.getElementById('statImgs').textContent = '–';
+  } catch(e) {
+    document.getElementById('productsWrap').innerHTML =
+      `<div class="empty"><h3>Error</h3><p>${esc(e.message)}</p></div>`;
+    toast('Failed to load: ' + e.message, true);
+    document.getElementById('headerStatus').textContent = 'Error';
+  }
+}
+
+// ── Filter / Search ───────────────────────────────────────────
+function onSearch() {
+  searchQ = document.getElementById('searchInp').value.trim().toLowerCase();
+  render();
+}
+
+function onFilter() {
+  filterMode = document.getElementById('filterSel').value;
+  render();
+}
+
+function filtered() {
+  return allProducts.filter(p => {
+    const handle = p.handle || '';
+    const title  = p.title  || '';
+    if (searchQ && !title.toLowerCase().includes(searchQ) && !handle.toLowerCase().includes(searchQ)) return false;
+    if (filterMode) {
+      const tax = taxonomyData[handle] || {};
+      if (filterMode === 'occasion' && !(tax.occasions && tax.occasions.length)) return false;
+      if (filterMode === 'vibe'     && !(tax.vibes && tax.vibes.length)) return false;
+      if (filterMode === 'profession' && !(tax.professions && tax.professions.length)) return false;
+    }
+    return true;
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────
+function render() {
+  const list = filtered();
+  const wrap = document.getElementById('productsWrap');
+  document.getElementById('listMeta').textContent = `Showing ${list.length} of ${allProducts.length} products`;
+
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty"><h3>No products</h3><p>Try a different search or filter.</p></div>';
+    return;
+  }
+
+  wrap.innerHTML = list.map(p => cardHTML(p)).join('');
+
+  // restore open panel
+  if (openPanel) {
+    const cardEl = document.getElementById('card-' + cssId(openPanel));
+    if (cardEl) {
+      const panel = cardEl.querySelector('.ad-panel');
+      if (panel) panel.classList.add('open');
+    }
+  }
+
+  updateSelected();
+}
+
+function cssId(handle) {
+  return handle.replace(/[^a-z0-9]/g, '-');
+}
+
+function cardHTML(p) {
+  const handle  = p.handle || '';
+  const title   = p.title  || handle;
+  const cardId  = 'card-' + cssId(handle);
+  const tax     = taxonomyData[handle] || {};
+  const imgs    = (imageCache[handle] && imageCache[handle].images) || [];
+  const hasImgs = imgs.length > 0;
+  const checked = checkedSet.has(handle);
+
+  const badgeHTML = hasImgs
+    ? `<span class="badge badge-has-images">✓ ${imgs.length} image${imgs.length===1?'':'s'}</span>`
+    : `<span class="badge badge-pending">no images</span>`;
+
+  const taxChips = [
+    ...(tax.professions||[]).map(n => `<span class="related-chip chip-prof">${n.replace('prof.','')}</span>`),
+    ...(tax.vibes||[]).map(n => `<span class="related-chip chip-vibe">${n.replace('vibe.','')}</span>`),
+    ...(tax.occasions||[]).map(n => `<span class="related-chip chip-occ">${n.replace('occ.','')}</span>`),
+  ].join('');
+
+  const img = p.shopifyImage || p.featuredImage || null;
+  const thumbHTML = img
+    ? `<img class="product-thumb" src="${esc(img)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : `<div class="product-thumb-placeholder">🪵</div>`;
+
+  return `
+<div class="product-card ${hasImgs?'has-images':''}" id="${cardId}">
+  <div class="card-main">
+    <input type="checkbox" class="card-check" ${checked?'checked':''} onchange="toggleCheck('${handle}',this.checked)" title="Select for bulk">
+    ${thumbHTML}
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap;">
+        <span class="product-title">${esc(title)}</span>
+        ${badgeHTML}
+      </div>
+      <div class="product-handle">${esc(handle)}</div>
+      ${taxChips ? `<div class="related-chips">${taxChips}</div>` : ''}
+    </div>
+    <div class="card-actions">
+      <button class="btn btn-primary btn-sm" onclick="togglePanel('${handle}')">🎨 Open Studio</button>
+    </div>
+  </div>
+  <div class="ad-panel" id="panel-${cssId(handle)}">
+    ${adPanelHTML(p)}
+  </div>
+</div>`;
+}
+
+function adPanelHTML(p) {
+  const handle = p.handle || '';
+  const title  = p.title  || handle;
+  const tax    = taxonomyData[handle] || {};
+  const img    = p.shopifyImage || p.featuredImage || null;
+  const quote  = p.quote || p.tagline || '';
+  const taglines = taglineCache[handle] || [];
+  const selScene = 'Desk';
+  const prompt   = buildPrompt(p, selScene);
+
+  const taxChips = [
+    ...(tax.professions||[]).map(n => `<span class="related-chip chip-prof">${n.replace('prof.','')}</span>`),
+    ...(tax.vibes||[]).map(n => `<span class="related-chip chip-vibe">${n.replace('vibe.','')}</span>`),
+    ...(tax.occasions||[]).map(n => `<span class="related-chip chip-occ">${n.replace('occ.','')}</span>`),
+  ].join('');
+
+  const imgHTML = img
+    ? `<img class="product-img-large" src="${esc(img)}" alt="" onerror="this.style.display='none'">`
+    : `<div class="product-img-placeholder">🪵</div>`;
+
+  const sceneChipsHTML = SCENES.map(s =>
+    `<span class="scene-chip ${s===selScene?'active':''}" data-scene="${s}" onclick="selectScene('${handle}',this)">${s}</span>`
+  ).join('');
+
+  const taglineHTML = taglines.length
+    ? taglines.map((tl, i) =>
+        `<div class="tagline-item ${i===0?'selected':''}" onclick="selectTagline('${handle}',${i},this)">${esc(tl)}</div>`
+      ).join('')
+    : '';
+
+  return `
+<div class="ad-panel-left">
+  <div>
+    ${imgHTML}
+    <div style="font-weight:700;font-size:13px;margin-top:10px;">${esc(title)}</div>
+    ${quote ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;font-style:italic;">"${esc(quote)}"</div>` : ''}
+  </div>
+  ${taxChips ? `<div><div class="panel-section-label">Tags</div><div class="related-chips">${taxChips}</div></div>` : ''}
+  <div>
+    <div class="panel-section-label">Scene</div>
+    <div class="scene-chips" id="scenes-${cssId(handle)}">${sceneChipsHTML}</div>
+  </div>
+  <div>
+    <div class="panel-section-label">Prompt (editable)</div>
+    <textarea class="prompt-textarea" id="prompt-${cssId(handle)}">${esc(prompt)}</textarea>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <button class="btn btn-primary" onclick="generateImage('${handle}')">✨ Generate Image</button>
+  </div>
+  <hr class="divider">
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div class="panel-section-label" style="margin:0;">Taglines</div>
+      <button class="btn btn-ghost btn-sm" onclick="getTaglines('${handle}')">💡 Get Taglines</button>
+    </div>
+    <div id="taglines-${cssId(handle)}">
+      ${taglineHTML || '<div style="font-size:11px;color:var(--muted);">Click "Get Taglines" to generate 4 suggestions.</div>'}
+    </div>
+  </div>
+</div>
+<div class="ad-panel-right">
+  <div>
+    <div class="panel-section-label">Generated Images</div>
+    <div class="image-grid" id="grid-${cssId(handle)}">
+      ${imageGridHTML(handle)}
+    </div>
+  </div>
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div class="panel-section-label" style="margin:0;">Preview Strip</div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadAllImages('${handle}')">📥 Download All</button>
+    </div>
+    <div class="carousel-strip" id="carousel-${cssId(handle)}">
+      ${carouselHTML(handle)}
+    </div>
+  </div>
+</div>`;
+}
+
+function imageGridHTML(handle) {
+  const imgs = (imageCache[handle] && imageCache[handle].images) || [];
+  const cells = [];
+  for (let i = 0; i < 9; i++) {
+    if (i < imgs.length) {
+      const img = imgs[i];
+      const id = cssId(handle);
+      cells.push(`
+<div class="image-cell" id="imgcell-${id}-${i}">
+  <img src="${esc(img.url)}" alt="${esc(img.scene||img.type||'')}" loading="lazy">
+  <div class="cell-overlay">
+    <button class="cell-btn" onclick="downloadSingleImage('${esc(img.url)}','${handle}',${i})">📥</button>
+    <button class="cell-btn" onclick="openPreview('${handle}',${i})">🔍</button>
+    <button class="cell-btn" onclick="deleteImage('${handle}',${i})" style="color:var(--red);">🗑</button>
+    <button class="cell-btn" onclick="regenerateImage('${handle}',${i})">🔄</button>
+  </div>
+  <div class="cell-label">${esc(img.scene || img.type || 'Generated')}</div>
+</div>`);
+    } else if (i === imgs.length) {
+      cells.push(`
+<div class="image-cell empty" id="imgcell-${cssId(handle)}-${i}">
+  <div style="font-size:20px;color:var(--border);">📷</div>
+  <div>Generate an image →</div>
+</div>`);
+    } else {
+      cells.push(`<div class="image-cell empty" style="border-color:transparent;"></div>`);
+    }
+  }
+  return cells.join('');
+}
+
+function carouselHTML(handle) {
+  const imgs = (imageCache[handle] && imageCache[handle].images) || [];
+  const taglines = taglineCache[handle] || [];
+  const selIdx = selectedTaglines[handle] || 0;
+  const tagline = taglines[selIdx] || '';
+  if (!imgs.length) return '<div style="font-size:11px;color:var(--muted);padding:8px 0;">No images yet — generate some above.</div>';
+  return imgs.map((img, i) => `
+<div class="carousel-item" onclick="openPreview('${handle}',${i})" id="ci-${cssId(handle)}-${i}">
+  <img src="${esc(img.url)}" alt="">
+  ${tagline ? `<div class="carousel-tagline">${esc(tagline)}</div>` : ''}
+</div>`).join('');
+}
+
+// ── Panel toggle ──────────────────────────────────────────────
+async function togglePanel(handle) {
+  const panelEl = document.getElementById('panel-' + cssId(handle));
+  if (!panelEl) return;
+  const isOpen = panelEl.classList.contains('open');
+  if (isOpen) {
+    panelEl.classList.remove('open');
+    openPanel = null;
+  } else {
+    // close others
+    document.querySelectorAll('.ad-panel.open').forEach(el => el.classList.remove('open'));
+    panelEl.classList.add('open');
+    openPanel = handle;
+    // lazy-load images if not yet fetched
+    if (!imageCache[handle]) {
+      await loadImages(handle);
+    }
+  }
+}
+
+async function loadImages(handle) {
+  try {
+    const res = await fetch(AD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_images', handle })
+    }).then(r => r.json());
+    imageCache[handle] = { images: res.images || [] };
+    refreshPanel(handle);
+    updateImageStats();
+  } catch(e) {
+    // silently ignore — panel will show empty grid
+    imageCache[handle] = { images: [] };
+  }
+}
+
+function refreshPanel(handle) {
+  const gridEl = document.getElementById('grid-' + cssId(handle));
+  if (gridEl) gridEl.innerHTML = imageGridHTML(handle);
+  const carEl = document.getElementById('carousel-' + cssId(handle));
+  if (carEl) carEl.innerHTML = carouselHTML(handle);
+  // update card badge
+  const cardEl = document.getElementById('card-' + cssId(handle));
+  if (cardEl) {
+    const imgs = (imageCache[handle] && imageCache[handle].images) || [];
+    const badge = cardEl.querySelector('.badge');
+    if (badge) {
+      if (imgs.length) {
+        badge.className = 'badge badge-has-images';
+        badge.textContent = `✓ ${imgs.length} image${imgs.length===1?'':'s'}`;
+        cardEl.classList.add('has-images');
+      } else {
+        badge.className = 'badge badge-pending';
+        badge.textContent = 'no images';
+        cardEl.classList.remove('has-images');
+      }
+    }
+  }
+}
+
+function updateImageStats() {
+  let total = 0;
+  for (const h in imageCache) {
+    total += (imageCache[h].images || []).length;
+  }
+  totalImages = total;
+  document.getElementById('statImgs').textContent = total;
+}
+
+// ── Scene selection ───────────────────────────────────────────
+function selectScene(handle, el) {
+  const container = document.getElementById('scenes-' + cssId(handle));
+  if (container) container.querySelectorAll('.scene-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  // rebuild prompt
+  const p = allProducts.find(x => (x.handle || x.h) === handle);
+  if (!p) return;
+  const scene = el.dataset.scene;
+  const promptEl = document.getElementById('prompt-' + cssId(handle));
+  if (promptEl) promptEl.value = buildPrompt(p, scene);
+}
+
+function selectBulkScene(el) {
+  document.querySelectorAll('#bulkSceneChips .scene-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  bulkScene = el.dataset.scene;
+}
+
+// ── Generate image ────────────────────────────────────────────
+async function generateImage(handle) {
+  const promptEl = document.getElementById('prompt-' + cssId(handle));
+  if (!promptEl) return;
+  const prompt = promptEl.value.trim();
+  if (!prompt) { toast('Prompt is empty', true); return; }
+
+  const p    = allProducts.find(x => x.handle === handle);
+  const title = p ? p.title : handle;
+  const imgs  = (imageCache[handle] && imageCache[handle].images) || [];
+  const slotIdx = imgs.length;
+
+  // show spinner in next empty slot
+  const cellId = `imgcell-${cssId(handle)}-${slotIdx}`;
+  const cellEl = document.getElementById(cellId);
+  if (cellEl) {
+    cellEl.innerHTML = `<div class="cell-spinner"></div>`;
+    cellEl.classList.remove('empty');
+  }
+
+  // get active scene
+  const sceneContainer = document.getElementById('scenes-' + cssId(handle));
+  let scene = 'Desk';
+  if (sceneContainer) {
+    const activeChip = sceneContainer.querySelector('.scene-chip.active');
+    if (activeChip) scene = activeChip.dataset.scene;
+  }
+
+  try {
+    const res = await api(AD_URL, {
+      action: 'generate_image',
+      handle,
+      title,
+      prompt,
+      scene
+    });
+    if (res.error) throw new Error(res.error);
+    if (!imageCache[handle]) imageCache[handle] = { images: [] };
+    imageCache[handle].images.push({ url: res.url, scene, type: scene });
+    refreshPanel(handle);
+    updateImageStats();
+    toast('Image generated!');
+  } catch(e) {
+    if (cellEl) {
+      cellEl.innerHTML = `<div style="font-size:20px;color:var(--border);">📷</div><div>Generate an image →</div>`;
+      cellEl.classList.add('empty');
+    }
+    toast('Generate failed: ' + e.message, true);
+  }
+}
+
+async function regenerateImage(handle, idx) {
+  const p    = allProducts.find(x => x.handle === handle);
+  const title = p ? p.title : handle;
+  const promptEl = document.getElementById('prompt-' + cssId(handle));
+  const prompt = promptEl ? promptEl.value.trim() : buildPrompt(p || { handle, title }, 'Desk');
+  const imgs = (imageCache[handle] && imageCache[handle].images) || [];
+  const scene = (imgs[idx] && imgs[idx].scene) || 'Desk';
+
+  const cellEl = document.getElementById(`imgcell-${cssId(handle)}-${idx}`);
+  if (cellEl) cellEl.innerHTML = `<div class="cell-spinner"></div>`;
+
+  try {
+    const res = await api(AD_URL, { action: 'generate_image', handle, title, prompt, scene });
+    if (res.error) throw new Error(res.error);
+    imageCache[handle].images[idx] = { url: res.url, scene, type: scene };
+    refreshPanel(handle);
+    toast('Regenerated!');
+  } catch(e) {
+    refreshPanel(handle);
+    toast('Regen failed: ' + e.message, true);
+  }
+}
+
+async function deleteImage(handle, idx) {
+  if (!confirm('Delete this image?')) return;
+  const imgs = imageCache[handle] && imageCache[handle].images;
+  if (!imgs) return;
+  const img = imgs[idx];
+  try {
+    await api(AD_URL, { action: 'delete_image', handle, imageUrl: img.url });
+  } catch(e) { /* ignore backend error, update local anyway */ }
+  imgs.splice(idx, 1);
+  refreshPanel(handle);
+  updateImageStats();
+  toast('Deleted');
+}
+
+// ── Taglines ──────────────────────────────────────────────────
+async function getTaglines(handle) {
+  const container = document.getElementById('taglines-' + cssId(handle));
+  if (!container) return;
+  container.innerHTML = `<div class="tagline-loading"><div class="spinner-mini dark"></div> Generating taglines…</div>`;
+  const p = allProducts.find(x => x.handle === handle);
+  const title = p ? p.title : handle;
+  const tax = taxonomyData[handle] || {};
+  try {
+    const res = await api(AD_URL, { action: 'get_taglines', handle, title, taxonomy: tax });
+    if (res.error) throw new Error(res.error);
+    const taglines = res.taglines || [];
+    taglineCache[handle] = taglines;
+    selectedTaglines[handle] = 0;
+    container.innerHTML = taglines.length
+      ? taglines.map((tl, i) =>
+          `<div class="tagline-item ${i===0?'selected':''}" onclick="selectTagline('${handle}',${i},this)">${esc(tl)}</div>`
+        ).join('')
+      : '<div style="font-size:11px;color:var(--muted);">No taglines returned.</div>';
+    // update carousel overlay
+    const carEl = document.getElementById('carousel-' + cssId(handle));
+    if (carEl) carEl.innerHTML = carouselHTML(handle);
+    toast('Taglines ready!');
+  } catch(e) {
+    container.innerHTML = `<div style="font-size:11px;color:var(--red);">Error: ${esc(e.message)}</div>`;
+    toast('Tagline failed: ' + e.message, true);
+  }
+}
+
+function selectTagline(handle, idx, el) {
+  // copy to clipboard
+  const tl = taglineCache[handle] && taglineCache[handle][idx];
+  if (!tl) return;
+  navigator.clipboard.writeText(tl).catch(()=>{});
+  toast('Copied: ' + tl.substring(0,40) + (tl.length>40?'…':''));
+  // mark selected
+  const container = document.getElementById('taglines-' + cssId(handle));
+  if (container) container.querySelectorAll('.tagline-item').forEach(x => x.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedTaglines[handle] = idx;
+  // update carousel
+  const carEl = document.getElementById('carousel-' + cssId(handle));
+  if (carEl) carEl.innerHTML = carouselHTML(handle);
+}
+
+// ── Download ──────────────────────────────────────────────────
+function downloadSingleImage(url, handle, idx) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = handle + '-ad-' + idx + '.png';
+  a.target = '_blank';
+  a.click();
+}
+
+function downloadAllImages(handle) {
+  const imgs = (imageCache[handle] && imageCache[handle].images) || [];
+  if (!imgs.length) { toast('No images to download', true); return; }
+  imgs.forEach((img, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = img.url;
+      a.download = handle + '-ad-' + i + '.png';
+      a.target = '_blank';
+      a.click();
+    }, i * 300);
+  });
+}
+
+// ── Preview Modal ─────────────────────────────────────────────
+function openPreview(handle, idx) {
+  const imgs = (imageCache[handle] && imageCache[handle].images) || [];
+  const img = imgs[idx];
+  if (!img) return;
+  const taglines = taglineCache[handle] || [];
+  previewState = { url: img.url, taglines, selectedIdx: selectedTaglines[handle] || 0, overlayOn: false, handle, imgIdx: idx };
+
+  document.getElementById('previewImg').src = img.url;
+  document.getElementById('previewTitle').textContent = img.scene || img.type || 'Image Preview';
+  document.getElementById('previewOverlayBar').style.display = 'none';
+  document.getElementById('btnToggleOverlay').textContent = 'Show Text Overlay';
+
+  const btnsEl = document.getElementById('previewTaglineBtns');
+  btnsEl.innerHTML = taglines.length
+    ? taglines.map((tl, i) =>
+        `<button class="preview-tagline-btn ${i===previewState.selectedIdx?'active':''}" onclick="setPreviewTagline(${i},this)">${esc(tl)}</button>`
+      ).join('')
+    : '<div style="font-size:11px;color:var(--muted);">No taglines — click "Get Taglines" first.</div>';
+
+  document.getElementById('previewModal').classList.add('open');
+}
+
+function closePreviewModal() {
+  document.getElementById('previewModal').classList.remove('open');
+}
+
+function setPreviewTagline(idx, el) {
+  previewState.selectedIdx = idx;
+  document.querySelectorAll('.preview-tagline-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const tl = previewState.taglines[idx] || '';
+  const bar = document.getElementById('previewOverlayBar');
+  bar.textContent = tl;
+  if (previewState.overlayOn) bar.style.display = 'block';
+}
+
+function togglePreviewOverlay() {
+  previewState.overlayOn = !previewState.overlayOn;
+  const bar = document.getElementById('previewOverlayBar');
+  const btn = document.getElementById('btnToggleOverlay');
+  if (previewState.overlayOn) {
+    const tl = previewState.taglines[previewState.selectedIdx] || '';
+    bar.textContent = tl;
+    bar.style.display = tl ? 'block' : 'none';
+    btn.textContent = 'Hide Text Overlay';
+  } else {
+    bar.style.display = 'none';
+    btn.textContent = 'Show Text Overlay';
+  }
+}
+
+function downloadPreviewImage() {
+  const a = document.createElement('a');
+  a.href = previewState.url;
+  a.download = previewState.handle + '-ad-preview.png';
+  a.target = '_blank';
+  a.click();
+}
+
+// ── Bulk ──────────────────────────────────────────────────────
+function toggleCheck(handle, val) {
+  if (val) checkedSet.add(handle); else checkedSet.delete(handle);
+  updateSelected();
+}
+
+function updateSelected() {
+  document.getElementById('statSelected').textContent = checkedSet.size;
+}
+
+function openBulkModal() {
+  if (!checkedSet.size) { toast('Select products first (use checkboxes)', true); return; }
+  document.getElementById('bulkCount').textContent = checkedSet.size;
+  const listEl = document.getElementById('bulkProductList');
+  listEl.innerHTML = [...checkedSet].map(h => {
+    const p = allProducts.find(x => x.handle === h);
+    const title = p ? p.title : h;
+    return `<div class="bulk-product-item"><span>${esc(title)}</span><span class="product-handle">${esc(h)}</span></div>`;
+  }).join('');
+  document.getElementById('bulkProgressWrap').style.display = 'none';
+  document.getElementById('btnBulkGenerate').disabled = false;
+  document.getElementById('bulkModal').classList.add('open');
+}
+
+function closeBulkModal() {
+  document.getElementById('bulkModal').classList.remove('open');
+}
+
+async function runBulkGenerate() {
+  const handles = [...checkedSet];
+  if (!handles.length) return;
+  const brain = document.getElementById('bulkBrainPrompt').value.trim();
+  const scene  = bulkScene;
+  const total  = handles.length;
+  let done = 0;
+
+  document.getElementById('btnBulkGenerate').disabled = true;
+  document.getElementById('bulkProgressWrap').style.display = 'block';
+  document.getElementById('bulkProgressBar').style.width = '0%';
+
+  for (const handle of handles) {
+    const p = allProducts.find(x => x.handle === handle);
+    const title = p ? p.title : handle;
+    const prompt = buildPrompt(p || { handle, title }, scene, brain);
+    document.getElementById('bulkProgressMsg').textContent = `Generating for: ${title} (${done+1} / ${total})`;
+
+    try {
+      const res = await api(AD_URL, { action: 'generate_image', handle, title, prompt, scene });
+      if (!res.error) {
+        if (!imageCache[handle]) imageCache[handle] = { images: [] };
+        imageCache[handle].images.push({ url: res.url, scene, type: scene });
+        if (openPanel === handle) refreshPanel(handle);
+      }
+    } catch(e) { /* continue */ }
+
+    done++;
+    document.getElementById('bulkProgressBar').style.width = Math.round(done/total*100) + '%';
+  }
+
+  document.getElementById('bulkProgressMsg').textContent = `Done! Generated for ${done} products.`;
+  updateImageStats();
+  toast('Bulk generate complete!');
+  render();
+}
+
+// ── Window load ───────────────────────────────────────────────
+window.onload = () => { if (NT_TOKEN) init(); };
+</script>
+</body>
+</html>
