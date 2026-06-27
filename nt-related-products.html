@@ -385,7 +385,7 @@ async function classifyAll(reclassifyAll = false) {
   showActivityBar('🏷 Step 1 — Classifying products', `Starting… (${total} to classify)`, 0, total);
 
   // Send in batches of 10 to the classify action
-  const BATCH = 10;
+  const BATCH = 4;
   for (let i = 0; i < pending.length; i += BATCH) {
     if (_classifyCancelled) break;
     const batch = pending.slice(i, i + BATCH);
