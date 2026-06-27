@@ -584,8 +584,9 @@ function openStudio(handle) {
   el.innerHTML = studioHTML(handle, p.title||handle, img, quote, tax, s);
   el.style.display = 'block';
 
-  // lazy load existing images
-  loadStudioImages(handle);
+  // load images for this product + all its related products
+  const relatedHandles = (matchedData[handle]?.related || []);
+  [handle, ...relatedHandles].forEach(h => loadStudioImages(h));
 }
 
 function studioHTML(handle, title, img, quote, tax, s) {
@@ -601,6 +602,30 @@ function studioHTML(handle, title, img, quote, tax, s) {
   ].join(' ');
 
   const builtPrompt = buildStudioPrompt(quote, s.scene, tax);
+
+  const relatedHandles = (matchedData[handle]?.related || []);
+  const relatedSection = relatedHandles.length ? `
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Related Products — Ad Cluster (${relatedHandles.length})</div>
+        <button class="btn btn-sm btn-gen-all" style="background:#7c3aed;color:#fff;" onclick="generateForAll('${handle}')">⚡ Generate for All</button>
+      </div>
+      <div id="strelated-${handle}" style="display:flex;flex-direction:column;gap:8px;">
+        ${relatedHandles.map(rh => {
+          const rp = allProducts.find(x=>(x.handle||x.h)===rh);
+          const rimg = rp?.shopifyImage || rp?.featuredImage || '';
+          const rtitle = rp?.title || rh;
+          return `<div style="display:flex;align-items:flex-start;gap:8px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px;">
+            ${rimg?`<img src="${esc(rimg)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:``}
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;font-weight:700;color:var(--brown);margin-bottom:4px;">${esc(rtitle)}</div>
+              <div id="stimages-${rh}" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+            </div>
+            <button class="btn btn-sm" style="background:#7c3aed;color:#fff;flex-shrink:0;" onclick="generateStudioImage('${rh}','${handle}')">✨</button>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
 
   return `<div style="border-top:2px solid #7c3aed;background:#faf5ff;border-radius:0 0 12px 12px;padding:14px;">
   <div style="display:flex;gap:14px;flex-wrap:wrap;">
@@ -622,6 +647,7 @@ function studioHTML(handle, title, img, quote, tax, s) {
     </div>
   </div>
   <div id="stimages-${handle}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
+  ${relatedSection}
 </div>`;
 }
 
@@ -718,6 +744,38 @@ async function getStudioTaglines(handle) {
       ).join('');
     }
   } catch(e) { if(el) el.innerHTML=''; toast('Tagline error',true); }
+}
+
+async function generateForAll(parentHandle) {
+  const scene = (studioState[parentHandle]||{}).scene||'desk';
+  const relatedHandles = (matchedData[parentHandle]?.related || []);
+  if (!relatedHandles.length) { toast('No related products found', true); return; }
+  const btn = document.querySelector(`#studio-${parentHandle} .btn-gen-all`);
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Generating…'; }
+  let done = 0;
+  for (const rh of relatedHandles) {
+    const rp = allProducts.find(x=>(x.handle||x.h)===rh);
+    if (!rp) continue;
+    const tax = taxonomyData[rh]||{};
+    const quote = rp.tagline||rp.tl||rp.title||'';
+    const imgEl = document.getElementById('stimages-'+rh);
+    if (imgEl) imgEl.innerHTML = '<div style="font-size:10px;color:var(--muted);">Generating…</div>';
+    try {
+      const res = await api(AD_URL, {action:'generate_image', handle:rh, quote, scene_type:scene, taxonomy:tax});
+      if (res.ok && res.image) {
+        if (!studioState[rh]) studioState[rh]={scene,images:[],taglines:[]};
+        studioState[rh].images.push(res.image);
+        renderStudioImages(rh);
+        done++;
+      } else {
+        if (imgEl) imgEl.innerHTML = '<div style="font-size:10px;color:#b91c1c;">Failed</div>';
+      }
+    } catch(e) {
+      if (imgEl) imgEl.innerHTML = '<div style="font-size:10px;color:#b91c1c;">Error</div>';
+    }
+  }
+  if (btn) { btn.disabled=false; btn.textContent='⚡ Generate for All'; }
+  toast(`✓ Generated ${done}/${relatedHandles.length} images`);
 }
 
 // ── Reload data without full spinner ────────────────────
