@@ -333,8 +333,10 @@ function cardHTML(p) {
       <div class="card-actions">
         <button class="btn btn-ghost btn-sm" onclick="fetchOne('${handle}')" id="refetch-${handle}">↺ Re-fetch</button>
         ${pushBtn}
+        <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="openStudio('${handle}')">🎨</button>
       </div>
     </div>
+    <div id="studio-${handle}" style="display:none;"></div>
   </div>`;
 }
 
@@ -553,6 +555,169 @@ async function pushOne(handle) {
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '↑ Push'; }
   }
+}
+
+// ── Ad Studio ────────────────────────────────────────────
+const AD_URL = PROXY_BASE + '/nt-ad-studio';
+const SCENES = ['desk','shelf','gifting','cozy_home','workspace','festive'];
+const SCENE_LABELS = {desk:'Desk',shelf:'Shelf',gifting:'Gifting',cozy_home:'Cozy Home',workspace:'Workspace',festive:'Festive'};
+let studioState = {}; // handle → { scene, prompt, images, taglines }
+
+function openStudio(handle) {
+  // close any other open studio
+  document.querySelectorAll('[id^="studio-"]').forEach(el => {
+    if (el.id !== 'studio-' + handle) { el.style.display = 'none'; el.innerHTML = ''; }
+  });
+  const el = document.getElementById('studio-' + handle);
+  if (!el) return;
+  if (el.style.display === 'block') { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+  const p = allProducts.find(x => (x.handle||x.h) === handle);
+  if (!p) return;
+
+  if (!studioState[handle]) studioState[handle] = { scene: 'desk', images: [], taglines: [] };
+  const s = studioState[handle];
+  const tax = taxonomyData[handle] || {};
+  const img = p.shopifyImage || p.featuredImage || '';
+  const quote = p.tagline || p.tl || p.title || '';
+
+  el.innerHTML = studioHTML(handle, p.title||handle, img, quote, tax, s);
+  el.style.display = 'block';
+
+  // lazy load existing images
+  loadStudioImages(handle);
+}
+
+function studioHTML(handle, title, img, quote, tax, s) {
+  const sceneChips = SCENES.map(sc =>
+    `<button onclick="setScene('${handle}','${sc}')" id="sc-${handle}-${sc}"
+      style="border:1.5px solid ${s.scene===sc?'var(--orange)':'var(--border)'};background:${s.scene===sc?'var(--orange)':'#fff'};color:${s.scene===sc?'#fff':'var(--brown)'};border-radius:20px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
+  ).join('');
+
+  const taxChips = [
+    ...(tax.professions||[]).map(n=>`<span style="background:#f0fdf4;border:1px solid #86efac;color:#15803d;border-radius:6px;padding:2px 7px;font-size:9px;font-family:monospace;">${n.replace('prof.','')}</span>`),
+    ...(tax.vibes||[]).map(n=>`<span style="background:#fdf4ff;border:1px solid #e9d5ff;color:#7c3aed;border-radius:6px;padding:2px 7px;font-size:9px;font-family:monospace;">${n.replace('vibe.','')}</span>`),
+    ...(tax.occasions||[]).map(n=>`<span style="background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;border-radius:6px;padding:2px 7px;font-size:9px;font-family:monospace;">${n.replace('occ.','')}</span>`),
+  ].join(' ');
+
+  const builtPrompt = buildStudioPrompt(quote, s.scene, tax);
+
+  return `<div style="border-top:2px solid #7c3aed;background:#faf5ff;border-radius:0 0 12px 12px;padding:14px;">
+  <div style="display:flex;gap:14px;flex-wrap:wrap;">
+    <div style="flex:0 0 150px;">
+      ${img ? `<img src="${esc(img)}" style="width:150px;height:150px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">` : ''}
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic;">"${esc(quote)}"</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:6px;">${taxChips}</div>
+    </div>
+    <div style="flex:1;min-width:200px;">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Scene</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;">Prompt</div>
+      <textarea id="stprompt-${handle}" style="width:100%;height:70px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;font-family:'DM Sans',sans-serif;resize:vertical;">${esc(builtPrompt)}</textarea>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="generateStudioImage('${handle}')">✨ Generate Image</button>
+        <button class="btn btn-ghost btn-sm" onclick="getStudioTaglines('${handle}')">💡 Taglines</button>
+      </div>
+      <div id="sttaglines-${handle}" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;"></div>
+    </div>
+  </div>
+  <div id="stimages-${handle}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
+</div>`;
+}
+
+function buildStudioPrompt(quote, scene, tax) {
+  const placement = {desk:'on a wooden desk with stationery and a warm cup of chai',shelf:'on a curated wooden shelf with books and small plants',gifting:'beside a gift box with tissue paper and ribbon',cozy_home:'on a side table next to fairy lights and a cozy blanket',workspace:'in a professional workspace with minimal decor',festive:'surrounded by marigolds and diyas'}[scene]||'on a shelf';
+  let p = `Product lifestyle photography for an Indian gifting brand. Hero product: handmade wooden engraved piece with quote '${quote}'. Keep product sharp and realistic, no distortion. Placed ${placement}. Warm editorial lighting. Indian home aesthetic. High-converting ad quality.`;
+  if ((tax.professions||[]).length) p += ` Scene subtly reflects a ${tax.professions[0].replace('prof.','')} recipient's world.`;
+  return p;
+}
+
+function setScene(handle, scene) {
+  if (!studioState[handle]) studioState[handle] = { scene, images:[], taglines:[] };
+  studioState[handle].scene = scene;
+  SCENES.forEach(sc => {
+    const btn = document.getElementById(`sc-${handle}-${sc}`);
+    if (!btn) return;
+    const active = sc === scene;
+    btn.style.borderColor = active ? 'var(--orange)' : 'var(--border)';
+    btn.style.background  = active ? 'var(--orange)' : '#fff';
+    btn.style.color       = active ? '#fff' : 'var(--brown)';
+  });
+  const ta = document.getElementById('stprompt-' + handle);
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  if (ta && p) {
+    const tax = taxonomyData[handle]||{};
+    ta.value = buildStudioPrompt(p.tagline||p.tl||p.title||'', scene, tax);
+  }
+}
+
+async function loadStudioImages(handle) {
+  try {
+    const res = await fetch(AD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'get_images',handle}) }).then(r=>r.json());
+    if (!studioState[handle]) studioState[handle]={scene:'desk',images:[],taglines:[]};
+    studioState[handle].images = res.images||[];
+    renderStudioImages(handle);
+  } catch{}
+}
+
+function renderStudioImages(handle) {
+  const el = document.getElementById('stimages-' + handle);
+  if (!el) return;
+  const images = (studioState[handle]||{}).images||[];
+  if (!images.length) { el.innerHTML = '<div style="font-size:11px;color:var(--muted);">No images yet — generate one above.</div>'; return; }
+  el.innerHTML = images.map((img,i) => `
+    <div style="position:relative;display:inline-block;">
+      <img src="${esc(img.url)}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+      <div style="font-size:9px;color:var(--muted);text-align:center;margin-top:2px;">${img.scene_type||''}</div>
+      <div style="display:flex;gap:3px;margin-top:3px;">
+        <a href="${esc(img.url)}" download="${handle}-${img.id}.png" style="font-size:9px;padding:2px 6px;background:var(--sand);border:1px solid var(--border);border-radius:4px;color:var(--brown);text-decoration:none;">📥</a>
+        <button onclick="deleteStudioImage('${handle}','${img.id}')" style="font-size:9px;padding:2px 6px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;color:#b91c1c;cursor:pointer;">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+async function generateStudioImage(handle) {
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  if (!p) return;
+  const prompt = document.getElementById('stprompt-'+handle)?.value || '';
+  const scene  = (studioState[handle]||{}).scene||'desk';
+  const tax    = taxonomyData[handle]||{};
+  const btn    = document.querySelector(`#studio-${handle} .btn-primary`);
+  if (btn) { btn.disabled=true; btn.innerHTML='<span class="spinner-mini"></span> Generating…'; }
+  const imgEl  = document.getElementById('stimages-'+handle);
+  if (imgEl) imgEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">Generating… ~15s</div>';
+  try {
+    const res = await api(AD_URL, { action:'generate_image', handle, quote: p.tagline||p.tl||p.title||'', scene_type:scene, taxonomy:tax, custom_prompt:prompt });
+    if (res.ok && res.image) {
+      if (!studioState[handle]) studioState[handle]={scene,images:[],taglines:[]};
+      studioState[handle].images.push(res.image);
+      renderStudioImages(handle);
+      toast('✓ Image generated');
+    } else { toast(res.error||'Generation failed', true); }
+  } catch(e) { toast('Error: '+e.message, true); }
+  finally { if (btn) { btn.disabled=false; btn.innerHTML='✨ Generate Image'; } }
+}
+
+async function deleteStudioImage(handle, imageId) {
+  await api(AD_URL, {action:'delete_image', handle, image_id: imageId}).catch(()=>{});
+  if (studioState[handle]) studioState[handle].images = studioState[handle].images.filter(x=>x.id!==imageId);
+  renderStudioImages(handle);
+}
+
+async function getStudioTaglines(handle) {
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  if (!p) return;
+  const el = document.getElementById('sttaglines-'+handle);
+  if (el) el.innerHTML = '<span style="font-size:10px;color:var(--muted);">Generating taglines…</span>';
+  try {
+    const res = await api(AD_URL, {action:'generate_taglines', handle, product_title:p.title||handle, quote:p.tagline||p.tl||p.title||'', taxonomy:taxonomyData[handle]||{}});
+    if (res.ok && el) {
+      el.innerHTML = (res.taglines||[]).map(tl =>
+        `<span onclick="navigator.clipboard.writeText(this.dataset.t);toast('Copied!')" data-t="${esc(tl)}"
+          style="background:#fff;border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:10px;cursor:pointer;color:var(--brown);">${esc(tl)}</span>`
+      ).join('');
+    }
+  } catch(e) { if(el) el.innerHTML=''; toast('Tagline error',true); }
 }
 
 // ── Reload data without full spinner ────────────────────
