@@ -384,8 +384,8 @@ async function classifyAll(reclassifyAll = false) {
   const total = pending.length;
   showActivityBar('🏷 Step 1 — Classifying products', `Starting… (${total} to classify)`, 0, total);
 
-  // Send in batches of 10 to the classify action
-  const BATCH = 4;
+  // Batch of 2 — keeps Gemini calls under Netlify's 10s timeout
+  const BATCH = 2;
   for (let i = 0; i < pending.length; i += BATCH) {
     if (_classifyCancelled) break;
     const batch = pending.slice(i, i + BATCH);
