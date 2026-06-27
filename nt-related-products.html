@@ -152,7 +152,8 @@ function api(url, body) {
 
 <!-- ── Toolbar ───────────────────────────────────────────── -->
 <div class="toolbar">
-  <button class="btn btn-primary"  id="btnClassify"    onclick="classifyAll(false)" title="Step 1: AI reads each product and assigns taxonomy tags (professions, vibes, occasions). Do this first.">🏷 Classify Pending</button>
+  <button class="btn btn-primary"  id="btnClassify"    onclick="classifyAll(false)" title="Classify only unclassified products">🏷 Classify Pending</button>
+  <button class="btn btn-ghost"    id="btnReclassify"  onclick="classifyAll(true)"  style="border:1.5px solid var(--orange);color:var(--orange);" title="Re-classify ALL products (adds cultural_register to existing)">↺ Re-classify All</button>
   <button class="btn btn-primary"  id="btnFetch"       onclick="fetchAll(false)" style="background:#7c3aed;" title="Step 2: Match products using taxonomy. Fast — no AI needed.">⚡ Match Pending</button>
   <button class="btn btn-ghost"    id="btnRefetchAll"  onclick="fetchAll(true)"  style="border:1.5px solid #7c3aed;color:#7c3aed;">↺ Re-match All</button>
   <button class="btn btn-green"    id="btnPush"        onclick="pushAll()">📤 Send to Shopify</button>
@@ -361,17 +362,22 @@ async function classifyAll(reclassifyAll = false) {
     existingTax = tx.data || {};
   } catch(e) {}
 
+  // When re-classifying all, include everything (ignores existing)
+  // When classifying pending, skip already-classified that already have cultural_register
   const pending = reclassifyAll
     ? allProducts
-    : allProducts.filter(p => !existingTax[p.handle || p.h]);
+    : allProducts.filter(p => {
+        const t = existingTax[p.handle || p.h];
+        return !t || !t.cultural_register; // redo if missing cultural_register
+      });
 
   if (!pending.length) { toast('All products already classified! Run ⚡ Match now.'); return; }
 
   isClassifying = true;
   _classifyCancelled = false;
-  const btn = document.getElementById('btnClassify');
+  const btn = document.getElementById(reclassifyAll ? 'btnReclassify' : 'btnClassify');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-mini"></span> Classifying…';
+  btn.innerHTML = '<span class="spinner-mini' + (reclassifyAll ? ' dark' : '') + '"></span> Classifying…';
   setHeaderBusy('Classifying products with AI…');
 
   let done = 0, errors = 0;
@@ -398,7 +404,7 @@ async function classifyAll(reclassifyAll = false) {
 
   isClassifying = false;
   btn.disabled = false;
-  btn.innerHTML = '🏷 Classify Pending';
+  btn.innerHTML = reclassifyAll ? '↺ Re-classify All' : '🏷 Classify Pending';
   clearHeaderBusy();
   hideActivityBar();
   // Refresh taxonomy data and re-render so tags appear on cards
