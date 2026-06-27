@@ -250,10 +250,10 @@
 
 <script>
 // ── Config ───────────────────────────────────────────────────
-const PROXY_BASE  = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
-const AD_URL      = PROXY_BASE + '/nt-ad-studio';
-const RELATE_URL  = PROXY_BASE + '/nt-relate-products';
-const CATALOG_CDN = 'https://nukkadtales.myshopify.com/cdn/shop/t/43/assets/nukkad-catalog.json';
+const PROXY_BASE   = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
+const AD_URL       = PROXY_BASE + '/nt-ad-studio';
+const RELATE_URL   = PROXY_BASE + '/nt-relate-products';
+const CATALOG_URL  = PROXY_BASE + '/nt-catalog-approve';
 let NT_TOKEN      = sessionStorage.getItem('nt_admin_token') || '';
 
 // State
@@ -362,21 +362,11 @@ async function init() {
     '<div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;width:24px;height:24px;border-width:3px;"></div><p>Loading products…</p></div>';
   document.getElementById('headerStatus').textContent = 'Loading…';
   try {
-    const [catalogRes, relRes] = await Promise.all([
-      fetch(CATALOG_CDN).then(r => r.json()),
-      api(RELATE_URL, { action: 'load' })
+    const [catRes, relRes] = await Promise.all([
+      api(CATALOG_URL, { action: 'load_approved' }),
+      api(RELATE_URL,  { action: 'load' })
     ]);
-
-    // catalog can be array or { approved: [...] }
-    if (Array.isArray(catalogRes)) {
-      allProducts = catalogRes;
-    } else if (catalogRes.approved) {
-      allProducts = catalogRes.approved;
-    } else {
-      allProducts = Object.values(catalogRes);
-    }
-    allProducts = allProducts.map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
-
+    allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
     taxonomyData = relRes.taxonomy || {};
 
     // count total images from cache
