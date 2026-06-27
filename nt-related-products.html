@@ -31,6 +31,8 @@
   .product-card{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;transition:border-color .15s;}
   .product-card.matched{border-color:#b8dfc8;}
   .product-card.loading{opacity:.6;pointer-events:none;}
+  .product-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--sand);border:1px solid var(--border);}
+  .product-thumb-placeholder{width:52px;height:52px;border-radius:8px;flex-shrink:0;background:var(--sand);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--border);}
   .product-title{font-weight:700;font-size:13px;margin-bottom:2px;}
   .product-handle{font-size:9px;color:var(--muted);font-family:monospace;}
   .badge{font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;text-transform:uppercase;display:inline-block;}
@@ -293,9 +295,15 @@ function cardHTML(p) {
     ? `<button class="btn btn-blue btn-sm" onclick="pushOne('${handle}')" id="push-${handle}">↑ Push</button>`
     : '';
 
+  const img = p.shopifyImage || p.featuredImage || null;
+  const thumbHTML = img
+    ? `<img class="product-thumb" src="${esc(img)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : `<div class="product-thumb-placeholder">🪵</div>`;
+
   return `
   <div class="product-card ${matched ? 'matched' : ''}" id="${cardId}">
     <div class="card-row">
+      ${thumbHTML}
       <div class="card-body">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
           <span class="product-title">${esc(title)}</span>
