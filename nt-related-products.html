@@ -247,6 +247,7 @@ async function init() {
     allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
     matchedData  = relRes.data || {};
     taxonomyData = taxRes.data || {};
+    console.log('taxonomy keys:', Object.keys(taxonomyData).length, 'taxRes.ok:', taxRes.ok, 'sample:', JSON.stringify(Object.values(taxonomyData)[0]));
     updateStats();
     render();
   } catch(e) {
@@ -559,6 +560,7 @@ async function reload() {
   allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
   matchedData  = relRes.data || {};
   taxonomyData = taxRes.data || {};
+  console.log('reload taxonomy keys:', Object.keys(taxonomyData).length, 'sample:', JSON.stringify(Object.values(taxonomyData)[0]));
   updateStats();
   render();
 }
