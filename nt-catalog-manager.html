@@ -255,6 +255,7 @@ function authFetch(url, opts = {}) {
       <button class="dropdown-item" onclick="openBulkImageGen();closeMore()">🖼 Generate images (bulk)</button>
       <button class="dropdown-item" onclick="openBulkDownload();closeMore()">⬇ Bulk download images</button>
       <button class="dropdown-item" onclick="pushAllMetafields();closeMore()" id="pushAllBtn">⬆ Push metafields to Shopify</button>
+      <button class="dropdown-item" onclick="pushAllTags();closeMore()" id="pushTagsBtn">🏷 Replace tags on Shopify (clean)</button>
       <div style="height:1px;background:var(--border);margin:3px 0;"></div>
       <button class="dropdown-item" onclick="buildRanksWithDates();closeMore()" id="rankBtn">📊 Rebuild rankings</button>
       <button class="dropdown-item" onclick="exportCatalog();closeMore()">⬇ Export catalog JSON</button>
@@ -442,6 +443,23 @@ let currentFilter='new';
 const pushMf=()=>false; // Push metafields manually via Push Metafields button
 
 window.onload=()=>{ if(NT_TOKEN){ loadDiff(); loadSavedLists(); } };
+
+async function pushAllTags(){
+  const btn=document.getElementById('pushTagsBtn');
+  if(!confirm('This will REPLACE all Shopify tags on every approved product with clean catalog tags (category, occasion, who-for, vibe). Old tags will be deleted. Continue?')) return;
+  btn.textContent='Pushing…'; btn.disabled=true;
+  document.getElementById('progressMsg').textContent='Replacing Shopify tags with clean catalog tags…';
+  try {
+    const res = await api('nt-catalog-approve','POST',{ action:'push_tags' });
+    if(res.ok){
+      document.getElementById('progressMsg').textContent=`✓ Tags replaced on ${res.pushed} products (${(res.errors||[]).length} errors)`;
+      toast(`✓ Tags replaced on ${res.pushed} products`);
+    } else {
+      toast('Failed: '+(res.error||'unknown'),true);
+    }
+  } catch(e){ toast('Error: '+e.message,true); }
+  finally{ btn.textContent='🏷 Replace tags on Shopify (clean)'; btn.disabled=false; }
+}
 
 async function pushAllMetafields(){
   const btn=document.getElementById('pushAllBtn');
