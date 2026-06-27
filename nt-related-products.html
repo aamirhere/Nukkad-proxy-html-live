@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NukkadTales · Related Products</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--cream:#fdf6f0;--brown:#3d2b1a;--orange:#c47a45;--muted:#8c7b6e;--border:#e8d5c0;--sand:#f5ede0;--green:#2d7d46;--red:#c0392b;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--cream);font-family:'DM Sans',sans-serif;color:var(--brown);min-height:100vh;}
+  header{background:var(--brown);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  header h1{font-family:'Poppins',sans-serif;font-weight:900;font-size:16px;color:#fff;}
+  .toolbar{background:var(--sand);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:45px;z-index:99;}
+  .toolbar input[type=text]{flex:1;min-width:180px;border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-family:'DM Sans',sans-serif;font-size:12px;background:#fff;color:var(--brown);}
+  .toolbar input[type=text]:focus{outline:none;border-color:var(--orange);}
+  .btn{border:none;border-radius:8px;padding:7px 13px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:opacity .15s;}
+  .btn:hover{opacity:.85;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-primary{background:var(--orange);color:#fff;}
+  .btn-green{background:var(--green);color:#fff;}
+  .btn-ghost{background:rgba(61,43,26,.08);color:var(--brown);}
+  .btn-blue{background:#2563eb;color:#fff;}
+  .btn-sm{padding:4px 10px;font-size:10px;}
+  .stats{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
+  .stat-n{font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:var(--brown);}
+  .stat-l{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
+  .list-meta{padding:6px 20px 4px;font-size:11px;color:var(--muted);font-weight:600;}
+  .products-wrap{padding:12px 20px 40px;}
+  .product-card{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;transition:border-color .15s;}
+  .product-card.matched{border-color:#b8dfc8;}
+  .product-card.loading{opacity:.6;pointer-events:none;}
+  .product-title{font-weight:700;font-size:13px;margin-bottom:2px;}
+  .product-handle{font-size:9px;color:var(--muted);font-family:monospace;}
+  .badge{font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;text-transform:uppercase;display:inline-block;}
+  .badge-matched{background:#e8f5ec;color:var(--green);}
+  .badge-pending{background:#fff3e0;color:var(--orange);}
+  .related-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+  .related-chip{font-family:monospace;font-size:9px;background:#f0f4ff;border:1px solid #c7d7fb;color:#2563eb;border-radius:6px;padding:2px 7px;white-space:nowrap;}
+  .matched-at{font-size:9px;color:var(--muted);margin-top:5px;}
+  .card-row{display:flex;align-items:flex-start;gap:10px;}
+  .card-body{flex:1;min-width:0;}
+  .card-actions{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+  .empty{text-align:center;padding:48px 20px;color:var(--muted);}
+  .empty h3{font-family:'Poppins',sans-serif;font-weight:700;margin-bottom:6px;color:var(--brown);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--brown);color:#fff;padding:8px 18px;border-radius:20px;font-size:11px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;}
+  .toast.show{opacity:1;}
+  .toast.error{background:#c0392b;}
+  .spinner-mini{width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;display:inline-block;}
+  .spinner-mini.dark{border-color:var(--border);border-top-color:var(--orange);}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--orange);animation:pulse 1.4s ease-in-out infinite;display:inline-block;margin-right:5px;flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+</style>
+</head>
+<body>
+
+<!-- ── Auth Gate ─────────────────────────────────── -->
+<div id="authGate" style="display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#fdf6f0,#f5e6d0);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:20px;padding:40px 32px;width:340px;box-shadow:0 20px 60px rgba(139,69,19,.15);text-align:center;">
+    <div style="font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:#6b3a1f;margin-bottom:4px;">🔗 Related Products</div>
+    <div style="font-size:12px;color:#a07a52;margin-bottom:28px;">NukkadTales internal tool</div>
+    <input id="authInput" type="password" placeholder="Enter password"
+      style="width:100%;border:1.5px solid #e5d0b8;border-radius:10px;padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;outline:none;margin-bottom:10px;"
+      onkeydown="if(event.key==='Enter')checkAuth()">
+    <div id="authErr" style="font-size:11px;color:#e53;min-height:16px;margin-bottom:10px;"></div>
+    <button id="authBtn" onclick="checkAuth()"
+      style="width:100%;background:#8B4513;color:#fff;border:none;border-radius:10px;padding:12px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
+      Enter
+    </button>
+  </div>
+</div>
+
+<script>
+// ── Config ───────────────────────────────────────────────────
+const PROXY_BASE    = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
+const RELATE_URL    = PROXY_BASE + '/nt-relate-products';
+const CATALOG_URL   = PROXY_BASE + '/nt-catalog-approve';
+let NT_TOKEN        = sessionStorage.getItem('nt_admin_token') || '';
+
+// State
+let allProducts  = [];   // from catalog (approved list)
+let matchedData  = {};   // { handle: { handle, title, related: [...], matched_at } }
+let isFetching   = false;
+let isPushing    = false;
+let searchQ      = '';
+
+// ── Auth ─────────────────────────────────────────────────────
+async function checkAuth() {
+  const val   = document.getElementById('authInput').value.trim();
+  if (!val) return;
+  const errEl = document.getElementById('authErr');
+  const btn   = document.getElementById('authBtn');
+  errEl.textContent = '';
+  btn.textContent   = 'Checking…';
+  btn.disabled      = true;
+  try {
+    const res  = await fetch(`${PROXY_BASE}/nt-admin-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: val })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.token) {
+      errEl.textContent = data.error || 'Wrong password';
+      btn.textContent   = 'Enter';
+      btn.disabled      = false;
+      return;
+    }
+    NT_TOKEN = data.token;
+    sessionStorage.setItem('nt_admin_token', NT_TOKEN);
+    document.getElementById('authGate').style.display = 'none';
+    init();
+  } catch(e) {
+    errEl.textContent = 'Network error — try again';
+    btn.textContent   = 'Enter';
+    btn.disabled      = false;
+  }
+}
+
+function authFetch(url, opts = {}) {
+  opts.headers = opts.headers || {};
+  opts.headers['Authorization'] = 'Bearer ' + NT_TOKEN;
+  return fetch(url, opts);
+}
+
+function api(url, body) {
+  return authFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(r => r.json());
+}
+
+(function() {
+  if (NT_TOKEN) {
+    document.getElementById('authGate').style.display = 'none';
+  }
+})();
+</script>
+
+<!-- ── Header ────────────────────────────────────────────── -->
+<header>
+  <h1>🔗 Related Products</h1>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span id="headerStatus" style="font-size:10px;color:rgba(255,255,255,.55);font-weight:500;">Loading…</span>
+  </div>
+</header>
+
+<!-- ── Toolbar ───────────────────────────────────────────── -->
+<div class="toolbar">
+  <button class="btn btn-primary" id="btnFetch" onclick="fetchAll()">⚡ Fetch AI Matches</button>
+  <button class="btn btn-green"   id="btnPush"  onclick="pushAll()">📤 Send to Shopify</button>
+  <button class="btn btn-ghost"   id="btnReload" onclick="init()">↻ Reload</button>
+  <input type="text" id="searchInp" placeholder="Search by title or handle…" oninput="onSearch()">
+</div>
+
+<!-- ── Stats ─────────────────────────────────────────────── -->
+<div class="stats" id="statsRow">
+  <div class="stat"><div class="stat-n" id="statTotal">—</div><div class="stat-l">Total</div></div>
+  <div class="stat"><div class="stat-n" id="statMatched" style="color:var(--green)">—</div><div class="stat-l">Matched</div></div>
+  <div class="stat"><div class="stat-n" id="statPending" style="color:var(--orange)">—</div><div class="stat-l">Pending</div></div>
+</div>
+
+<div class="list-meta" id="listMeta"></div>
+<div class="products-wrap" id="productsWrap">
+  <div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;"></div><p>Loading catalogue…</p></div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Toast ─────────────────────────────────────────────────
+let _toastTimer;
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'toast show' + (isErr ? ' error' : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+// ── Stats & status ────────────────────────────────────────
+function updateStats() {
+  const total   = allProducts.length;
+  const matched = allProducts.filter(p => matchedData[(p.handle || p.h)]).length;
+  document.getElementById('statTotal').textContent   = total;
+  document.getElementById('statMatched').textContent = matched;
+  document.getElementById('statPending').textContent = total - matched;
+  document.getElementById('headerStatus').textContent = `${matched}/${total} matched`;
+}
+
+function setHeaderBusy(msg) {
+  document.getElementById('headerStatus').innerHTML =
+    `<span class="status-dot"></span><span style="color:rgba(255,255,255,.75);font-size:10px;">${msg}</span>`;
+}
+
+function clearHeaderBusy() {
+  updateStats();
+}
+
+// ── Init ─────────────────────────────────────────────────
+async function init() {
+  document.getElementById('productsWrap').innerHTML =
+    '<div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;"></div><p>Loading…</p></div>';
+  try {
+    const [catRes, relRes] = await Promise.all([
+      api(CATALOG_URL, { action: 'load_approved' }),
+      api(RELATE_URL,  { action: 'load' })
+    ]);
+    allProducts = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
+    matchedData = relRes.data || {};
+    updateStats();
+    render();
+  } catch(e) {
+    document.getElementById('productsWrap').innerHTML =
+      `<div class="empty"><h3>Error</h3><p>${e.message}</p></div>`;
+    toast('Failed to load: ' + e.message, true);
+  }
+}
+
+window.onload = () => { if (NT_TOKEN) init(); };
+
+// ── Search ───────────────────────────────────────────────
+function onSearch() {
+  searchQ = document.getElementById('searchInp').value.toLowerCase();
+  render();
+}
+
+// ── Render ───────────────────────────────────────────────
+function render() {
+  const list = searchQ
+    ? allProducts.filter(p => (p.title || '').toLowerCase().includes(searchQ) || (p.handle || '').includes(searchQ))
+    : allProducts;
+
+  document.getElementById('listMeta').textContent = `${list.length} products`;
+
+  if (!list.length) {
+    document.getElementById('productsWrap').innerHTML =
+      '<div class="empty"><h3>Nothing here</h3><p>No products match your search.</p></div>';
+    return;
+  }
+
+  document.getElementById('productsWrap').innerHTML = list.map(p => cardHTML(p)).join('');
+}
+
+function cardHTML(p) {
+  const handle  = p.handle || p.h || '';
+  const title   = p.title  || p.t || handle;
+  const matched = matchedData[handle];
+  const cardId  = 'card-' + handle.replace(/[^a-z0-9]/g, '-');
+
+  const badgeHTML = matched
+    ? `<span class="badge badge-matched">✓ matched</span>`
+    : `<span class="badge badge-pending">pending</span>`;
+
+  const chipsHTML = matched
+    ? `<div class="related-chips">${(matched.related || []).map(h =>
+        `<span class="related-chip">${h}</span>`).join('')}</div>`
+    : '';
+
+  const timeHTML = matched && matched.matched_at
+    ? `<div class="matched-at">Matched ${fmtDate(matched.matched_at)}</div>`
+    : '';
+
+  const pushBtn = matched
+    ? `<button class="btn btn-blue btn-sm" onclick="pushOne('${handle}')" id="push-${handle}">↑ Push</button>`
+    : '';
+
+  return `
+  <div class="product-card ${matched ? 'matched' : ''}" id="${cardId}">
+    <div class="card-row">
+      <div class="card-body">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span class="product-title">${esc(title)}</span>
+          ${badgeHTML}
+        </div>
+        <div class="product-handle">${esc(handle)}</div>
+        ${chipsHTML}
+        ${timeHTML}
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-ghost btn-sm" onclick="fetchOne('${handle}')" id="refetch-${handle}">↺ Re-fetch</button>
+        ${pushBtn}
+      </div>
+    </div>
+  </div>`;
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hour12:true });
+  } catch { return iso; }
+}
+
+// ── Fetch all ────────────────────────────────────────────
+async function fetchAll() {
+  if (isFetching) return;
+  isFetching = true;
+  const btn = document.getElementById('btnFetch');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-mini"></span> Fetching…';
+  setHeaderBusy('Fetching AI matches — this may take a while…');
+  try {
+    const res = await api(RELATE_URL, { action: 'fetch_related' });
+    if (res.ok) {
+      toast(`✓ Matched ${res.matched} products`);
+      await reload();
+    } else {
+      toast('Fetch failed: ' + (res.error || JSON.stringify(res)), true);
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  } finally {
+    isFetching = false;
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Fetch AI Matches';
+    clearHeaderBusy();
+  }
+}
+
+// ── Fetch one ────────────────────────────────────────────
+async function fetchOne(handle) {
+  const btn = document.getElementById('refetch-' + handle);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-mini dark"></span>'; }
+  const cardEl = document.getElementById('card-' + handle.replace(/[^a-z0-9]/g, '-'));
+  if (cardEl) cardEl.classList.add('loading');
+  try {
+    const res = await api(RELATE_URL, { action: 'fetch_related', handles: [handle] });
+    if (res.ok) {
+      toast('✓ Matched ' + handle);
+      await reload();
+    } else {
+      toast('Failed: ' + (res.error || ''), true);
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '↺ Re-fetch'; }
+    if (cardEl) cardEl.classList.remove('loading');
+  }
+}
+
+// ── Push all ─────────────────────────────────────────────
+async function pushAll() {
+  if (isPushing) return;
+  isPushing = true;
+  const btn = document.getElementById('btnPush');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-mini"></span> Pushing…';
+  try {
+    const res = await api(RELATE_URL, { action: 'push_related' });
+    if (res.ok) {
+      toast(`✓ Pushed ${res.pushed} products to Shopify`);
+      if (res.errors && res.errors.length) toast(`${res.errors.length} errors`, true);
+    } else {
+      toast('Push failed: ' + (res.error || ''), true);
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  } finally {
+    isPushing = false;
+    btn.disabled = false;
+    btn.innerHTML = '📤 Send to Shopify';
+  }
+}
+
+// ── Push one ─────────────────────────────────────────────
+async function pushOne(handle) {
+  const btn = document.getElementById('push-' + handle);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-mini"></span>'; }
+  try {
+    const res = await api(RELATE_URL, { action: 'push_related', handles: [handle] });
+    if (res.ok) {
+      toast('✓ Pushed ' + handle + ' to Shopify');
+    } else {
+      toast('Push failed: ' + (res.error || ''), true);
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '↑ Push'; }
+  }
+}
+
+// ── Reload data without full spinner ────────────────────
+async function reload() {
+  const [catRes, relRes] = await Promise.all([
+    api(CATALOG_URL, { action: 'load_approved' }),
+    api(RELATE_URL,  { action: 'load' })
+  ]);
+  allProducts = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
+  matchedData = relRes.data || {};
+  updateStats();
+  render();
+}
+</script>
+</body>
+</html>
