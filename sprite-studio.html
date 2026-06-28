@@ -568,8 +568,10 @@ function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 // Start a background generation job, then poll for the result (no 26s limit).
 async function generateSheet(payload, onWait){
   const jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
-  try{ await fetch(START_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({jobId},payload))}); }
-  catch(e){ /* job may still have started server-side; poll anyway */ }
+  // text/plain keeps this a CORS "simple request" — no OPTIONS preflight, which Netlify
+  // background functions answer with a bare 202 (no CORS headers) and would block the POST.
+  try{ await fetch(START_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({jobId},payload))}); }
+  catch(e){ /* response may be unreadable cross-origin, but the job has started; poll anyway */ }
   const deadline=Date.now()+240000; let waited=0;
   while(Date.now()<deadline){
     await sleep(3000); waited+=3; if(onWait) onWait(waited);
