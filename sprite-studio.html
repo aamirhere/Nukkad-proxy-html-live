@@ -187,7 +187,8 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 <script>
 /* ===== config ===== */
 const FN_BASE = (localStorage.getItem('nt_fn_base') || 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions');
-const SPRITE_URL = FN_BASE + '/nt-sprite';
+const START_URL = FN_BASE + '/nt-sprite-background';
+const RESULT_URL = FN_BASE + '/nt-sprite-result';
 const DIRECTOR_URL = FN_BASE + '/nt-sprite-director';
 const LS_KEY = 'nt_sprite_studio_v3';
 const ALPHA_THRESHOLD = 12;
@@ -423,14 +424,10 @@ async function generateScene(sc, idx, st, btn){
       if(sc.refImage) payload.sceneImage=sc.refImage;
       if(sc.pin) payload.sceneNote='Place Gul '+placementWords(sc.pin)+' of the framing, facing the action.';
       const seed=lastFrameBefore(idx,si); if(seed) payload.prevFrame=seed;
-      let data=null, lastErr='';
-      for(let attempt=1; attempt<=2 && !data; attempt++){
-        if(attempt===2){ st.innerHTML='<span class="spinner"></span>Beat '+(si+1)+' timed out — retrying…'; }
-        try{ const res=await fetch(SPRITE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); data=await res.json(); }
-        catch(err){ lastErr=err.message; }
-      }
-      if(!data){ st.innerHTML='✕ Beat '+(si+1)+': '+lastErr+' — the image took too long (try Low quality / fewer frames per sheet).'; st.className='status err'; btn.disabled=false; return; }
-      if(data.error){ st.innerHTML='✕ Beat '+(si+1)+': '+data.error; st.className='status err'; btn.disabled=false; return; }
+      let data;
+      try{
+        data=await generateSheet(payload, sec=>{ st.innerHTML='<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s'; st.className='status run'; });
+      }catch(e){ st.innerHTML='✕ Beat '+(si+1)+': '+e.message; st.className='status err'; btn.disabled=false; return; }
       sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, s.trim);
       persist();
     }
@@ -501,6 +498,21 @@ $('dlAll').onclick=async()=>{
 };
 
 /* ===== helpers ===== */
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+// Start a background generation job, then poll for the result (no 26s limit).
+async function generateSheet(payload, onWait){
+  const jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
+  try{ await fetch(START_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({jobId},payload))}); }
+  catch(e){ /* job may still have started server-side; poll anyway */ }
+  const deadline=Date.now()+240000; let waited=0;
+  while(Date.now()<deadline){
+    await sleep(3000); waited+=3; if(onWait) onWait(waited);
+    let d=null; try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); d=await r.json(); }catch(e){ continue; }
+    if(d && d.status==='done') return d;
+    if(d && d.status==='error') throw new Error(d.error||'generation failed');
+  }
+  throw new Error('timed out after 4 min — try Low quality / fewer frames');
+}
 function fileToDataURL(f,cb){ if(!f)return; const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(f); }
 function downscaleDataURL(f,maxDim,cb){ fileToDataURL(f,d=>{ const im=new Image(); im.onload=()=>{ const sc=Math.min(maxDim/im.width,maxDim/im.height,1); if(sc>=1)return cb(d); const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext('2d').drawImage(im,0,0,c.width,c.height); cb(c.toDataURL('image/jpeg',0.85)); }; im.src=d; }); }
 function downloadDataUrl(d,name){ const a=document.createElement('a'); a.href=d; a.download=name; a.click(); }
