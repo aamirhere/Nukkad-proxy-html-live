@@ -457,10 +457,10 @@ function buildSceneCard(sc, idx){
   });
 
   // status + actions
-  const st=document.createElement('div'); st.className='status'; card.appendChild(st);
+  const st=document.createElement('div'); st.className='status'; st.id='st-'+sc.id; card.appendChild(st);
   const actions=document.createElement('div'); actions.className='row'; actions.style.marginTop='10px';
   const genBtn=document.createElement('button'); genBtn.className='btn'; genBtn.style.flex='2';
-  genBtn.textContent= sceneGenerated(sc)?'Regenerate scene':'Generate scene ▸'; genBtn.disabled=!prevApproved;
+  genBtn.textContent= sc._generating?'Generating…':(sceneGenerated(sc)?'Regenerate scene':'Generate scene ▸'); genBtn.disabled=!prevApproved || !!sc._generating;
   actions.appendChild(genBtn);
   card.appendChild(actions);
 
@@ -488,33 +488,37 @@ function buildSceneCard(sc, idx){
     const a=makeAnimator(sc, cv, ()=>cbInput.checked); cbInput.onchange=()=>layout(a);
   }
 
-  genBtn.onclick=()=>generateScene(sc, idx, st, genBtn);
+  genBtn.onclick=()=>generateScene(sc.id, idx);
   return card;
 }
 
-async function generateScene(sc, idx, st, btn){
-  const mascot=curMascot(); if(!mascot){ st.innerHTML='✕ Load a mascot first.'; st.className='status err'; return; }
-  const s=settings(); btn.disabled=true;
+function setSceneStatus(sceneId, html, cls){ const el=document.getElementById('st-'+sceneId); if(el){ el.innerHTML=html; el.className='status '+(cls||''); } }
+
+async function generateScene(sceneId, idx){
+  const p=curProj(); const sc=p&&p.scenes.find(x=>x.id===sceneId); if(!sc) return;
+  const mascot=curMascot(); if(!mascot){ setSceneStatus(sceneId,'✕ Load a mascot first.','err'); return; }
+  const s=settings(); sc._generating=true;
   try{
     for(let si=0; si<sc.sheets.length; si++){
       const sh=sc.sheets[si];
-      st.innerHTML='<span class="spinner"></span>Generating beat '+(si+1)+'/'+sc.sheets.length+'…'; st.className='status run';
-      // Send ONLY the mascot as a reference (small) — that's the fast call that worked first time.
-      // The scene still is NOT sent to the model (extra reference images make gpt-image-1 much slower);
-      // placement/gaze comes from the pin as a text hint instead.
+      if(sh.frames&&sh.frames.length) continue; // already done (e.g. resumed)
+      setSceneStatus(sceneId,'<span class="spinner"></span>Generating beat '+(si+1)+'/'+sc.sheets.length+'…','run');
+      // Only the mascot is sent as a reference (small + fast); placement comes from the pin text hint.
       const payload={ action:(sh.action||sc.summary||'').trim(), mascotRef:await shrinkData(mascot,512,'image/png'), cols:sh.cols, rows:sh.rows, quality:s.quality, size:resolveSize(sh.cols,sh.rows) };
       if(sc.pin) payload.sceneNote='Place Gul '+placementWords(sc.pin)+' of the framing, facing the action.';
       const seed=lastFrameBefore(idx,si); if(seed) payload.prevFrame=seed;
       let data;
       try{
-        data=await generateSheet(payload, sh, sec=>{ st.innerHTML='<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s'; st.className='status run'; });
-      }catch(e){ st.innerHTML='✕ Beat '+(si+1)+': '+e.message; st.className='status err'; btn.disabled=false; return; }
+        data=await generateSheet(payload, sh, sec=>setSceneStatus(sceneId,'<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s','run'));
+      }catch(e){ sc._generating=false; setSceneStatus(sceneId,'✕ Beat '+(si+1)+': '+e.message,'err'); renderAll(); return; }
       sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, s.trim);
       persist(); scheduleSave();
+      renderAll(); // show THIS beat's frames right away
     }
-    st.innerHTML='✓ Scene generated.'; st.className='status ok';
+    sc._generating=false;
+    setSceneStatus(sceneId,'✓ Scene generated.','ok');
     renderAll(); scheduleSave();
-  }catch(e){ st.innerHTML='✕ '+e.message; st.className='status err'; btn.disabled=false; }
+  }catch(e){ sc._generating=false; setSceneStatus(sceneId,'✕ '+e.message,'err'); renderAll(); }
 }
 
 /* ===== cropping ===== */
@@ -597,9 +601,9 @@ async function pollResult(jobId, deadlineMs){
   return null; // timed out for now — the job keeps running; pendingJob lets us resume later
 }
 async function generateSheet(payload, sh, onWait){
-  let t=0; const timer=setInterval(()=>{ if(onWait) onWait(++t); },1000);
+  let t=0; const timer=setInterval(()=>{ if(onWait) onWait(++t); },1000); let jobId=null;
   try{
-    let jobId=sh.pendingJob;
+    jobId=sh.pendingJob;
     if(!jobId){
       jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
       dbg('START job '+jobId+'  q='+payload.quality+' '+payload.cols+'x'+payload.rows+' size='+payload.size+' refs=mascot'+(payload.prevFrame?'+prev':''));
@@ -611,11 +615,12 @@ async function generateSheet(payload, sh, onWait){
       }catch(e){ dbg('START threw: '+e.message); throw new Error('could not start job: '+e.message); }
       sh.pendingJob=jobId; persist(); scheduleSave();
     } else { dbg('RESUME job '+jobId); }
+    activePolls.add(jobId); // claim it so auto-resume doesn't poll the same job
     const data=await pollResult(jobId, 150000);
     if(!data){ throw new Error('still rendering (~1–2 min) — it will appear automatically; you can leave & come back'); }
     delete sh.pendingJob;
     return data;
-  } finally { clearInterval(timer); }
+  } finally { clearInterval(timer); if(jobId) activePolls.delete(jobId); }
 }
 // If a beat's job was left mid-render (e.g. phone slept), pick it up from Redis on render.
 const activePolls=new Set();
