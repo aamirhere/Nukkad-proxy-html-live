@@ -587,7 +587,17 @@ function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 // Start a background generation job, then poll for the result (no 26s limit).
 function dbg(m){ const el=$('dbg'); if(el){ const t=new Date().toLocaleTimeString(); el.textContent='['+t+'] '+m+'\n'+el.textContent; const lines=el.textContent.split('\n'); if(lines.length>60) el.textContent=lines.slice(0,60).join('\n'); } try{ console.log('[gul]',m); }catch(e){} }
 $('dbgClear').onclick=()=>{ $('dbg').textContent=''; };
-async function pollResult(jobId, deadlineMs){
+// One poll loop per jobId, shared by every caller (generate + auto-resume), so the
+// log shows a single clean counter instead of two interleaved ones.
+const jobPromises={};
+function pollResult(jobId, deadlineMs){
+  if(jobPromises[jobId]) return jobPromises[jobId];
+  const pr=_poll(jobId, deadlineMs);
+  jobPromises[jobId]=pr;
+  pr.then(()=>{}, ()=>{}).then(()=>{ delete jobPromises[jobId]; });
+  return pr;
+}
+async function _poll(jobId, deadlineMs){
   const deadline=Date.now()+(deadlineMs||150000); let poll=0;
   while(Date.now()<deadline){
     await sleep(3000); poll++;
