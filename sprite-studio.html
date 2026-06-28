@@ -146,7 +146,12 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
           </select>
         </div>
       </div>
-      <label class="chip" style="margin-top:10px"><input type="checkbox" id="setTrim" checked style="margin:0 5px 0 0"> Trim & align frames</label>
+      <label class="f" style="margin-top:10px">Crop</label>
+      <select id="setCrop">
+        <option value="aligned" selected>Aligned (same size — smooth playback)</option>
+        <option value="tight">Tight (each pose cropped to itself)</option>
+        <option value="off">Off (full square cells)</option>
+      </select>
       <small class="note">High quality can hit the 26s function limit on big sheets — prefer Low/Medium.</small>
     </div>
   </div>
@@ -218,14 +223,14 @@ function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catc
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:'low',fps:8,trim:true}, scenes:[] }; }
-function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:'low',fps:8,trim:true}; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"low",fps:8,crop:"aligned"}, scenes:[] }; }
+function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"low",fps:8,crop:"aligned"}; }
 
 /* ===== cloud sync (Netlify Blobs via nt-store) — shared workspace, loads on any device ===== */
 const STORE_URL = FN_BASE + '/nt-store';
 let cloudOn=false, cloudIndex=[], saveTimer=null;
 const synced=new Set();
-function defaults(){ return {framesMax:9,quality:'low',fps:8,trim:true}; }
+function defaults(){ return {framesMax:9,quality:"low",fps:8,crop:"aligned"}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
 async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
@@ -263,7 +268,7 @@ async function loadCloud(id){
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, frames:null };
-      if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); if(beat.sheetImg) beat.frames=await cropSheet(beat.sheetImg, beat.cols, beat.rows, p.settings.trim!==false); }catch(e){} }
+      if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); if(beat.sheetImg) beat.frames=await cropSheet(beat.sheetImg, beat.cols, beat.rows, cropMode(p.settings)); }catch(e){} }
       sc.sheets.push(beat);
     }
     p.scenes.push(sc);
@@ -313,9 +318,10 @@ $('mascotFile').onchange=e=>fileToDataURL(e.target.files[0],d=>{DB.mascot=d;pers
 $('mascotResetBtn').onclick=()=>{DB.mascot=null;persist();renderMascot(); if(cloudOn)cloudDel('mascot');};
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setTrim').checked=s.trim!==false; }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, trim:$('setTrim').checked }; persist(); scheduleSave(); }
-['setFramesMax','setQuality','setFps','setTrim'].forEach(id=>$(id).addEventListener('change', saveSettings));
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setCrop').value=cropMode(s); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, crop:$('setCrop').value }; persist(); scheduleSave(); }
+['setFramesMax','setQuality','setFps'].forEach(id=>$(id).addEventListener('change', saveSettings));
+$('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
 $('uploadShotsBtn').onclick=()=>$('shotFile').click();
@@ -514,7 +520,7 @@ async function generateScene(sceneId, idx){
       try{
         data=await generateSheet(payload, sh, sec=>setSceneStatus(sceneId,'<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s','run'));
       }catch(e){ if(genEpoch!==myEpoch){ sc._generating=false; renderAll(); return; } sc._generating=false; setSceneStatus(sceneId,'✕ Beat '+(si+1)+': '+e.message,'err'); renderAll(); return; }
-      sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, s.trim);
+      sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, cropMode(s));
       persist(); scheduleSave();
       renderAll(); // show THIS beat's frames right away
     }
@@ -525,27 +531,41 @@ async function generateScene(sceneId, idx){
 }
 
 /* ===== cropping ===== */
-function cropSheet(dataUrl, cols, rows, trim){
+function cropMode(s){ s=s||settings(); return s.crop || (s.trim===false?'off':'aligned'); }
+// mode: 'aligned' = one shared box (frames line up for smooth playback)
+//       'tight'   = each pose cropped to its own content
+//       'off'     = full equal cells, no trim
+function cropSheet(dataUrl, cols, rows, mode){
+  mode = mode || 'aligned';
   return new Promise((resolve)=>{
     const img=new Image();
     img.onload=()=>{
       const cw=Math.floor(img.width/cols), ch=Math.floor(img.height/rows);
-      const cells=[]; const c=document.createElement('canvas'); c.width=cw; c.height=ch; const ctx=c.getContext('2d');
-      let gx0=cw,gy0=ch,gx1=0,gy1=0,any=false;
+      const cells=[], boxes=[]; const c=document.createElement('canvas'); c.width=cw; c.height=ch; const ctx=c.getContext('2d');
+      let gx0=cw,gy0=ch,gx1=0,gy1=0,gAny=false;
       for(let r=0;r<rows;r++) for(let col=0;col<cols;col++){
         ctx.clearRect(0,0,cw,ch); ctx.drawImage(img, col*cw,r*ch,cw,ch, 0,0,cw,ch);
-        const id=ctx.getImageData(0,0,cw,ch).data;
-        if(trim){ for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){ if(id[(y*cw+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<gx0)gx0=x; if(x>gx1)gx1=x; if(y<gy0)gy0=y; if(y>gy1)gy1=y; } } }
-        cells.push(c.toDataURL('image/png'));
+        let bx0=cw,by0=ch,bx1=0,by1=0,any=false;
+        if(mode!=='off'){ const id=ctx.getImageData(0,0,cw,ch).data;
+          for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){ if(id[(y*cw+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y; if(x<gx0)gx0=x;if(x>gx1)gx1=x;if(y<gy0)gy0=y;if(y>gy1)gy1=y; gAny=true; } } }
+        cells.push(c.toDataURL('image/png')); boxes.push(any?{x0:bx0,y0:by0,x1:bx1,y1:by1}:null);
       }
-      if(!trim||!any) return resolve(cells);
-      const pad=6; gx0=Math.max(0,gx0-pad); gy0=Math.max(0,gy0-pad); gx1=Math.min(cw-1,gx1+pad); gy1=Math.min(ch-1,gy1+pad);
-      const tw=gx1-gx0+1, th=gy1-gy0+1; const out=[]; let done=0;
-      cells.forEach((u,i)=>{ const im=new Image(); im.onload=()=>{ const tc=document.createElement('canvas'); tc.width=tw; tc.height=th; tc.getContext('2d').drawImage(im,gx0,gy0,tw,th,0,0,tw,th); out[i]=tc.toDataURL('image/png'); if(++done===cells.length)resolve(out); }; im.src=u; });
+      if(mode==='off' || !gAny) return resolve(cells);
+      const pad=6;
+      const clamp=b=>({x0:Math.max(0,b.x0-pad), y0:Math.max(0,b.y0-pad), x1:Math.min(cw-1,b.x1+pad), y1:Math.min(ch-1,b.y1+pad)});
+      const union=clamp({x0:gx0,y0:gy0,x1:gx1,y1:gy1});
+      const out=[]; let done=0;
+      cells.forEach((u,i)=>{ const im=new Image(); im.onload=()=>{
+        const box = mode==='tight' ? (boxes[i]?clamp(boxes[i]):union) : union;
+        const tw=box.x1-box.x0+1, th=box.y1-box.y0+1;
+        const tc=document.createElement('canvas'); tc.width=tw; tc.height=th; tc.getContext('2d').drawImage(im,box.x0,box.y0,tw,th,0,0,tw,th);
+        out[i]=tc.toDataURL('image/png'); if(++done===cells.length)resolve(out);
+      }; im.src=u; });
     };
     img.src=dataUrl;
   });
 }
+async function recropAll(){ const p=curProj(); if(!p)return; const m=cropMode(); for(const sc of (p.scenes||[])) for(const sh of (sc.sheets||[])){ if(sh.sheetImg) sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, m); } persist(); scheduleSave(); renderAll(); }
 
 /* ===== per-scene animation ===== */
 function stopAnimators(){ animators.forEach(a=>{ if(a.timer) clearTimeout(a.timer); }); animators=[]; }
@@ -646,7 +666,7 @@ function maybeResume(){
       const jid=sh.pendingJob; activePolls.add(jid); dbg('auto-resume '+jid);
       pollResult(jid, 150000).then(async data=>{
         activePolls.delete(jid);
-        if(data){ sh.sheetImg=data.image; sh.frames=await cropSheet(data.image,data.cols,data.rows,settings().trim!==false); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }
+        if(data){ sh.sheetImg=data.image; sh.frames=await cropSheet(data.image,data.cols,data.rows,cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }
       }).catch(e=>{ activePolls.delete(jid); dbg('resume err: '+e.message); });
     }
   }));
