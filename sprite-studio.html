@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gul Sprite Studio — NukkadTales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="./gul-mascot-ref.js"></script>
+<style>
+:root{
+  --accent:#d4541f; --ink:#3a2b1d; --ink2:#6f5b46; --muted:#9c8a76; --line:#e9ddca;
+  --ff:Fraunces,Georgia,serif; --fb:Nunito,"Helvetica Neue",sans-serif;
+  --panel:#fffaf3; --ok:#2e7d49; --err:#b3361f;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:var(--fb); color:var(--ink); min-height:100vh; padding-bottom:60px;
+  background:
+    radial-gradient(ellipse 120% 60% at 80% 0%, rgba(240,175,110,.22) 0%, transparent 65%),
+    radial-gradient(ellipse 80% 50% at 10% 100%, rgba(212,84,31,.1) 0%, transparent 60%),
+    linear-gradient(168deg,#fdf5ec 0%,#f8e8d2 42%,#f2d0b0 100%);
+  background-attachment:fixed;
+}
+header.top{
+  border-top:3px solid var(--accent); background:rgba(255,250,243,.85); backdrop-filter:blur(6px);
+  position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line);
+}
+.bar{max-width:1180px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{font-family:var(--ff);font-weight:600;font-size:20px;display:flex;align-items:center;gap:9px}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(212,84,31,.15)}
+.brand small{font-family:var(--fb);font-weight:700;color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.spacer{flex:1}
+.wrap{max-width:1180px;margin:0 auto;padding:18px;display:grid;grid-template-columns:340px 1fr;gap:18px}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 8px 24px -18px rgba(58,43,29,.4)}
+.card h2{font-family:var(--ff);font-weight:600;font-size:16px;margin:0 0 4px}
+.card .hint{color:var(--muted);font-size:12px;margin:0 0 12px;line-height:1.5}
+.col{display:flex;flex-direction:column;gap:18px}
+label.f{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin:0 0 5px;text-transform:uppercase;letter-spacing:.05em}
+input[type=text],textarea,select{
+  width:100%;font-family:var(--fb);font-size:14px;color:var(--ink);background:#fff;
+  border:1px solid var(--line);border-radius:10px;padding:9px 11px;outline:none;
+}
+input[type=text]:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(212,84,31,.12)}
+textarea{resize:vertical;min-height:74px;line-height:1.5}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.btn{
+  font-family:var(--fb);font-weight:800;font-size:14px;cursor:pointer;border:none;border-radius:11px;
+  padding:11px 16px;background:var(--accent);color:#fff;transition:.15s;letter-spacing:.01em;
+}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(1px)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);color:var(--accent);filter:none}
+.btn.sm{padding:7px 11px;font-size:12px;border-radius:9px;font-weight:700}
+.btn.danger{background:#fff;color:var(--err);border:1px solid #eccfc7}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;color:var(--ink2);cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.thumbgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.thumb{position:relative;border:2px solid var(--line);border-radius:10px;overflow:hidden;aspect-ratio:1;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/16px 16px;cursor:pointer}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.thumb.on{border-color:var(--accent);box-shadow:0 0 0 3px rgba(212,84,31,.15)}
+.thumb .x{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(58,43,29,.7);color:#fff;font-size:12px;line-height:18px;text-align:center;border:none;cursor:pointer}
+.mascot-prev{border:2px dashed var(--line);border-radius:12px;padding:8px;background:#fff repeating-conic-gradient(#f4f4f4 0 25%,#fff 0 50%) 0 0/18px 18px;text-align:center}
+.mascot-prev img{max-width:100%;max-height:150px;object-fit:contain}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:22px 8px;border:1px dashed var(--line);border-radius:12px;background:rgba(255,255,255,.4)}
+.status{font-size:13px;font-weight:700;margin-top:10px;min-height:18px}
+.status.run{color:var(--accent)} .status.ok{color:var(--ok)} .status.err{color:var(--err)}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(212,84,31,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.framestrip{display:flex;gap:8px;overflow-x:auto;padding:6px 2px 12px}
+.framestrip .fr{flex:0 0 auto;width:96px}
+.framestrip .fr .box{border:1px solid var(--line);border-radius:9px;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.framestrip .fr .box img{max-width:100%;max-height:100%}
+.framestrip .fr .lab{font-size:10px;color:var(--muted);text-align:center;margin-top:3px;font-weight:700}
+.previewstage{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.anim-box{border:1px solid var(--line);border-radius:14px;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/18px 18px;padding:10px;min-width:240px}
+.anim-box canvas{display:block;max-width:260px;max-height:260px;margin:0 auto}
+.sheet-box img{max-width:100%;border:1px solid var(--line);border-radius:12px;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/18px 18px}
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--ink2)}
+.seqlist{display:flex;flex-direction:column;gap:8px}
+.seqitem{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;padding:8px 10px;background:#fff;cursor:pointer}
+.seqitem.on{border-color:var(--accent);box-shadow:0 0 0 3px rgba(212,84,31,.12)}
+.seqitem .mini{width:42px;height:42px;border-radius:8px;object-fit:contain;background:#faf5ee repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/10px 10px;flex:0 0 auto}
+.seqitem .meta{flex:1;min-width:0}
+.seqitem .meta b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seqitem .meta span{font-size:11px;color:var(--muted)}
+.tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);background:rgba(212,84,31,.1);padding:2px 6px;border-radius:6px}
+.divider{height:1px;background:var(--line);margin:14px 0;border:0}
+.sceneEditor{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;cursor:crosshair}
+.sceneEditor img{width:100%;display:block}
+.pin{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50% 50% 50% 0;background:var(--accent);transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.3);pointer-events:none}
+.pin::after{content:"";position:absolute;inset:7px;background:#fff;border-radius:50%}
+small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-height:1.5}
+.kbd{font-family:var(--fb);font-weight:800;background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:11px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <div class="brand"><span class="dot"></span> Gul Sprite Studio <small>NukkadTales</small></div>
+    <div class="spacer"></div>
+    <select id="projSel" style="width:auto;min-width:170px"></select>
+    <button class="btn sm ghost" id="newProj">+ New video</button>
+    <button class="btn sm ghost" id="exportProj" title="Download this project as a .json backup">Export</button>
+    <button class="btn sm ghost" id="importProj">Import</button>
+    <button class="btn sm danger" id="delProj">Delete</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- LEFT COLUMN -->
+  <div class="col">
+
+    <div class="card">
+      <h2>1 · Gul (the constant)</h2>
+      <p class="hint">This reference goes into <b>every</b> generation so she stays on-model. Swap it only if you have a cleaner mascot sheet.</p>
+      <div class="mascot-prev" id="mascotPrev"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm ghost" id="mascotUploadBtn">Replace</button>
+        <button class="btn sm ghost" id="mascotResetBtn">Reset default</button>
+      </div>
+      <input type="file" id="mascotFile" accept="image/*" hidden>
+    </div>
+
+    <div class="card">
+      <h2>2 · Scene frames <span class="tag">optional</span></h2>
+      <p class="hint">Upload stills from the video you shot. Pick one as the active scene, then click on it to drop a pin where Gul should sit — that becomes a gaze/placement hint. The scene is <b>never</b> drawn into the sprite; only Gul comes out, on transparent.</p>
+      <button class="btn sm ghost" id="sceneUploadBtn">+ Add scene stills</button>
+      <input type="file" id="sceneFile" accept="image/*" multiple hidden>
+      <div class="thumbgrid" id="sceneThumbs" style="margin-top:10px"></div>
+      <div id="sceneEditorWrap" style="margin-top:12px;display:none">
+        <label class="f">Place Gul — click on the still</label>
+        <div class="sceneEditor" id="sceneEditor"><img id="sceneEditorImg" alt=""><div class="pin" id="scenePin" style="display:none"></div></div>
+        <div class="controls">
+          <label class="chip"><input type="checkbox" id="useSceneGaze" checked style="margin:0 4px 0 0"> Send scene for gaze direction</label>
+          <button class="btn sm ghost" id="clearPin">Clear pin</button>
+        </div>
+        <small class="note" id="placementOut"></small>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="col">
+
+    <div class="card">
+      <h2>3 · Describe the action</h2>
+      <p class="hint">One action per sheet, rendered as many in-between frames so the motion is dense. Type it yourself, or tell Claude in plain words and let the director write a richer, beat-by-beat prompt with more expression.</p>
+
+      <label class="f">Tell Claude what you want <span style="font-weight:400;text-transform:none;color:var(--muted)">(plain words)</span></label>
+      <input type="text" id="idea" placeholder="she's listening to someone talk, looks curious and nods">
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm ghost" id="directBtn" style="flex:2">✨ Let Claude direct it →</button>
+        <button class="btn sm ghost" id="depthBtn" style="flex:1" title="Add more expression & smoother in-betweens to the prompt below">✨ Add depth</button>
+      </div>
+      <div class="status" id="dirStatus" style="margin-top:6px"></div>
+
+      <label class="f" style="margin-top:12px">Action prompt <span style="font-weight:400;text-transform:none;color:var(--muted)">(this is what GPT gets — edit freely)</span></label>
+      <textarea id="action" placeholder="Gul tilts her head, blinks slowly and gives a small nod while listening…"></textarea>
+
+      <label class="f" style="margin-top:12px">Director's note <span style="font-weight:400;text-transform:none;color:var(--muted)">(optional — timing, mood, loop)</span></label>
+      <input type="text" id="sceneNote" placeholder="warm and curious; should loop seamlessly back to frame 1">
+
+      <hr class="divider">
+      <div class="row">
+        <div>
+          <label class="f">Frames (grid)</label>
+          <select id="grid">
+            <option value="2x2">4 frames · 2×2</option>
+            <option value="3x2">6 frames · 3×2</option>
+            <option value="3x3">9 frames · 3×3</option>
+            <option value="4x3">12 frames · 4×3</option>
+            <option value="5x3">15 frames · 5×3</option>
+            <option value="4x4">16 frames · 4×4</option>
+            <option value="6x3" selected>18 frames · 6×3 (sweet spot)</option>
+            <option value="5x4">20 frames · 5×4</option>
+            <option value="6x4">24 frames · 6×4 (cheapest)</option>
+          </select>
+        </div>
+        <div>
+          <label class="f">Sheet size</label>
+          <select id="size">
+            <option value="auto" selected>Auto (biggest cells)</option>
+            <option value="1024x1024">Square 1024</option>
+            <option value="1536x1024">Wide 1536×1024</option>
+            <option value="1024x1536">Tall 1024×1536</option>
+          </select>
+        </div>
+        <div>
+          <label class="f">Quality</label>
+          <select id="quality">
+            <option value="low">Low (fast)</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High (slow)</option>
+          </select>
+        </div>
+      </div>
+      <small class="note" id="resHint"></small>
+
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="genBtn" style="flex:2">Generate sprite sheet</button>
+        <button class="btn ghost" id="continueBtn" title="Generate the next sheet starting from the last frame of the selected sequence" disabled>Continue from last frame ▸</button>
+      </div>
+      <div class="status" id="status"></div>
+      <small class="note">Tip: “Continue” feeds the final cropped frame back to GPT so the next action picks up exactly where this one ended — chain several to build a long, dense animation.</small>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0">4 · Result</h2>
+        <span class="tag" id="resultTag"></span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn sm ghost" id="trimToggle">Trim & align: ON</button>
+        <label style="font-size:12px;color:var(--ink2);font-weight:700">Upscale
+          <select id="upscale" style="width:auto;display:inline-block;padding:5px 8px;margin-left:2px">
+            <option value="1">1×</option>
+            <option value="2" selected>2×</option>
+            <option value="4">4×</option>
+          </select>
+        </label>
+        <label class="chip"><input type="checkbox" id="sharpen" checked style="margin:0 4px 0 0"> sharpen</label>
+        <button class="btn sm" id="aiUpBtn" title="Real-ESRGAN (the Upscayl engine) — reconstructs detail. Needs REPLICATE_API_TOKEN.">✨ AI upscale</button>
+        <button class="btn sm ghost" id="dlZip">Download all (.zip)</button>
+      </div>
+      <p class="hint" style="margin-top:8px">Cropped, transparent, ready to drop onto your footage. The loop on the right is how it'll play.</p>
+
+      <div class="previewstage">
+        <div class="anim-box">
+          <canvas id="animCanvas" width="220" height="220"></canvas>
+          <div class="controls">
+            <button class="btn sm" id="playBtn">⏸ Pause</button>
+            <label>fps <input type="range" id="fps" min="1" max="24" value="8" style="vertical-align:middle"></label>
+            <span id="fpsVal" style="font-weight:800">8</span>
+          </div>
+          <div class="controls">
+            <label class="chip"><input type="checkbox" id="compBg" style="margin:0 4px 0 0"> Preview over scene</label>
+            <label>size <input type="range" id="compScale" min="15" max="90" value="45" style="vertical-align:middle;width:80px"></label>
+          </div>
+        </div>
+        <div class="sheet-box" style="flex:1;min-width:240px">
+          <label class="f">Raw sheet from GPT</label>
+          <img id="sheetImg" alt="sprite sheet">
+        </div>
+      </div>
+
+      <label class="f" style="margin-top:14px">Cropped frames — click to download</label>
+      <div class="framestrip" id="frameStrip"></div>
+
+      <hr class="divider">
+      <label class="f">Not happy? Tell Claude what to change, then regenerate</label>
+      <div class="row">
+        <input type="text" id="refineFeedback" placeholder="not smooth — add more in-between frames" style="flex:3">
+        <button class="btn sm" id="refineBtn" style="flex:1">Refine & regenerate ↻</button>
+      </div>
+      <div class="controls" style="margin-top:6px">
+        <span class="chip" onclick="document.getElementById('refineFeedback').value='not smooth — add more in-between frames and ease the motion'">not smooth</span>
+        <span class="chip" onclick="document.getElementById('refineFeedback').value='too stiff — add more expression and secondary motion'">too stiff</span>
+        <span class="chip" onclick="document.getElementById('refineFeedback').value='make her more excited and bouncy'">more excited</span>
+        <span class="chip" onclick="document.getElementById('refineFeedback').value='slower and calmer, gentle movement'">calmer</span>
+      </div>
+      <small class="note">Refine rewrites the action prompt with your note and generates a fresh sheet (same scene & grid).</small>
+    </div>
+
+    <div class="card">
+      <h2>Sequences in this video</h2>
+      <p class="hint">Each generated action is saved here. Select one, then hit “Continue” to extend it.</p>
+      <div class="seqlist" id="seqList"></div>
+    </div>
+
+  </div>
+</div>
+
+<input type="file" id="importFile" accept="application/json" hidden>
+
+<script>
+/* ============================ config ============================ */
+const FN_BASE = (localStorage.getItem('nt_fn_base') || 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions');
+const SPRITE_URL = FN_BASE + '/nt-sprite';
+const DIRECTOR_URL = FN_BASE + '/nt-sprite-director';
+const UPSCALE_URL = FN_BASE + '/nt-upscale';
+const LS_KEY = 'nt_sprite_studio_v1';
+const ALPHA_THRESHOLD = 12;
+
+/* ============================ state ============================ */
+let DB = load();                 // { mascot, projects:[], activeProject }
+let activeSeqId = null;          // currently shown sequence
+let trimOn = true;
+let playing = true;
+
+function blank(){ return { mascot:null, projects:[], activeProject:null }; }
+function load(){
+  try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.projects) return d; }catch(e){}
+  return blank();
+}
+function persist(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
+  catch(e){ setStatus('⚠ Browser storage full — your latest frames are in memory only. Use Export to keep them.', 'err'); }
+}
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject) || null; }
+function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
+
+/* ============================ boot ============================ */
+function boot(){
+  if(!DB.projects.length){
+    DB.projects.push(newProjectObj('My first video'));
+    DB.activeProject = DB.projects[0].id;
+    persist();
+  }
+  if(!DB.activeProject) DB.activeProject = DB.projects[0].id;
+  renderProjects(); renderMascot(); renderScenes(); renderSeqList(); updateResHint();
+  const p = curProj();
+  if(p && p.sequences.length){ showSequence(p.sequences[p.sequences.length-1].id); }
+}
+function newProjectObj(name){ return { id:uid(), name, createdAt:Date.now(), scenes:[], activeScene:null, pin:null, sequences:[] }; }
+
+/* ============================ projects ============================ */
+const $ = id => document.getElementById(id);
+
+function renderProjects(){
+  const sel = $('projSel');
+  sel.innerHTML = '';
+  DB.projects.forEach(p=>{
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name + ' (' + p.sequences.length + ')';
+    if(p.id===DB.activeProject) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+$('projSel').onchange = e => { DB.activeProject = e.target.value; activeSeqId=null; persist(); switchProjectUI(); };
+$('newProj').onclick = () => {
+  const name = prompt('Name this video / shoot:', 'Video ' + (DB.projects.length+1));
+  if(!name) return;
+  const p = newProjectObj(name.trim()); DB.projects.push(p); DB.activeProject=p.id; activeSeqId=null;
+  persist(); switchProjectUI();
+};
+$('delProj').onclick = () => {
+  const p = curProj(); if(!p) return;
+  if(!confirm('Delete "'+p.name+'" and all its sequences? This cannot be undone.')) return;
+  DB.projects = DB.projects.filter(x=>x.id!==p.id);
+  if(!DB.projects.length){ DB.projects.push(newProjectObj('My first video')); }
+  DB.activeProject = DB.projects[0].id; activeSeqId=null; persist(); switchProjectUI();
+};
+function switchProjectUI(){
+  renderProjects(); renderScenes(); renderSeqList();
+  $('resultCard').style.display='none';
+  const p=curProj(); if(p&&p.sequences.length) showSequence(p.sequences[p.sequences.length-1].id);
+  else { activeSeqId=null; $('continueBtn').disabled=true; }
+}
+
+/* export / import */
+$('exportProj').onclick = () => {
+  const p = curProj(); if(!p) return;
+  const blob = new Blob([JSON.stringify({ type:'nt-sprite-project', mascot:curMascot(), project:p }, null, 0)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = slug(p.name)+'.gulproject.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('importProj').onclick = () => $('importFile').click();
+$('importFile').onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      const p = d.project || d;
+      if(!p || !p.sequences){ alert('Not a valid Gul project file.'); return; }
+      p.id = uid();
+      DB.projects.push(p); DB.activeProject = p.id;
+      if(d.mascot && !DB.mascot) DB.mascot = d.mascot;
+      activeSeqId=null; persist(); switchProjectUI(); renderMascot();
+    }catch(err){ alert('Could not read file: '+err.message); }
+  };
+  r.readAsText(f); e.target.value='';
+};
+
+/* ============================ mascot ============================ */
+function renderMascot(){
+  const m = curMascot();
+  $('mascotPrev').innerHTML = m ? '<img src="'+m+'" alt="Gul mascot reference">'
+    : '<div class="empty">No mascot loaded. Click Replace to upload Gul.</div>';
+}
+$('mascotUploadBtn').onclick = ()=>$('mascotFile').click();
+$('mascotFile').onchange = e => fileToDataURL(e.target.files[0], d=>{ DB.mascot=d; persist(); renderMascot(); });
+$('mascotResetBtn').onclick = ()=>{ DB.mascot=null; persist(); renderMascot(); };
+
+/* ============================ scenes ============================ */
+$('sceneUploadBtn').onclick = ()=>$('sceneFile').click();
+$('sceneFile').onchange = e => {
+  const files = [...e.target.files]; const p = curProj(); if(!p) return;
+  let pending = files.length;
+  files.forEach(f=>downscaleDataURL(f, 1280, d=>{
+    p.scenes.push({ id:uid(), data:d });
+    if(p.activeScene===null) p.activeScene=p.scenes[p.scenes.length-1].id;
+    if(--pending===0){ persist(); renderScenes(); }
+  }));
+  e.target.value='';
+};
+function renderScenes(){
+  const p = curProj(); const wrap=$('sceneThumbs'); wrap.innerHTML='';
+  if(!p) return;
+  p.scenes.forEach(s=>{
+    const d = document.createElement('div'); d.className='thumb'+(p.activeScene===s.id?' on':'');
+    d.innerHTML = '<img src="'+s.data+'"><button class="x" title="remove">×</button>';
+    d.querySelector('img').onclick = ()=>{ p.activeScene=s.id; p.pin=null; persist(); renderScenes(); };
+    d.querySelector('.x').onclick = (ev)=>{ ev.stopPropagation(); p.scenes=p.scenes.filter(x=>x.id!==s.id); if(p.activeScene===s.id){p.activeScene=p.scenes[0]?.id||null;p.pin=null;} persist(); renderScenes(); };
+    wrap.appendChild(d);
+  });
+  // editor
+  const ed = $('sceneEditorWrap');
+  const act = p.scenes.find(s=>s.id===p.activeScene);
+  if(act){
+    ed.style.display='block';
+    $('sceneEditorImg').src = act.data;
+    drawPin();
+  } else ed.style.display='none';
+}
+$('sceneEditor').onclick = e => {
+  const p = curProj(); if(!p) return;
+  const r = $('sceneEditorImg').getBoundingClientRect();
+  const x = (e.clientX-r.left)/r.width, y=(e.clientY-r.top)/r.height;
+  p.pin = { x:Math.max(0,Math.min(1,x)), y:Math.max(0,Math.min(1,y)) };
+  persist(); drawPin();
+};
+$('clearPin').onclick = ()=>{ const p=curProj(); if(p){p.pin=null;persist();drawPin();} };
+function drawPin(){
+  const p = curProj(); const pin=$('scenePin');
+  if(p&&p.pin){
+    pin.style.display='block';
+    pin.style.left=(p.pin.x*100)+'%'; pin.style.top=(p.pin.y*100)+'%';
+    $('placementOut').textContent = 'Gul will be placed ' + placementWords(p.pin) + ', oriented toward the centre of the action.';
+  } else { pin.style.display='none'; $('placementOut').textContent=''; }
+}
+function placementWords(pin){
+  const h = pin.x<0.34?'left':pin.x>0.66?'right':'centre';
+  const v = pin.y<0.34?'top':pin.y>0.66?'bottom':'middle';
+  if(h==='centre'&&v==='middle') return 'in the centre';
+  return 'in the '+v+(h==='centre'?'':' '+h);
+}
+
+/* ============================ generation ============================ */
+function gridDims(){ const [c,r]=$('grid').value.split('x').map(Number); return {cols:c,rows:r}; }
+function resolveSize(){
+  const v=$('size').value;
+  if(v!=='auto') return v;
+  // Match sheet aspect to grid aspect so each cell is as large as possible.
+  const {cols,rows}=gridDims(); const ratio=cols/rows;
+  if(ratio>1.25) return '1536x1024';
+  if(ratio<0.8)  return '1024x1536';
+  return '1024x1024';
+}
+function currentUpscale(){ return parseInt($('upscale').value,10)||1; }
+function updateResHint(){
+  const {cols,rows}=gridDims(); const n=cols*rows;
+  const [w,h]=resolveSize().split('x').map(Number);
+  const cw=Math.floor(w/cols), ch=Math.floor(h/rows), m=Math.min(cw,ch), up=currentUpscale();
+  let s='1 image = '+n+' frames · ~'+cw+'×'+ch+'px each';
+  if(up>1) s+=' → '+(cw*up)+'×'+(ch*up)+'px after '+up+'× upscale';
+  if(m<170) s+=' · very small — lean on upscale';
+  $('resHint').textContent=s;
+  $('resHint').style.color = m<170 ? 'var(--err)' : (m<256 ? 'var(--accent)' : 'var(--muted)');
+}
+
+function buildSceneNote(){
+  const p = curProj();
+  const parts = [];
+  const note = $('sceneNote').value.trim();
+  if(note) parts.push(note);
+  if(p && p.pin && $('useSceneGaze').checked) parts.push('Place Gul '+placementWords(p.pin)+' of the framing, looking toward the centre of the action.');
+  return parts.join(' ');
+}
+
+async function generate({ continueFrom=null }={}){
+  const action = $('action').value.trim();
+  if(!action){ setStatus('Describe the action first.', 'err'); return; }
+  const mascot = curMascot();
+  if(!mascot){ setStatus('Load a mascot reference first.', 'err'); return; }
+  const p = curProj();
+
+  const {cols,rows} = gridDims();
+  const payload = {
+    action, sceneNote: buildSceneNote(), mascotRef: mascot,
+    cols, rows, quality:$('quality').value, size:resolveSize(),
+  };
+  if(continueFrom) payload.prevFrame = continueFrom;
+  if($('useSceneGaze').checked && p){
+    const act = p.scenes.find(s=>s.id===p.activeScene);
+    if(act) payload.sceneImage = act.data;
+  }
+
+  $('genBtn').disabled=true; $('continueBtn').disabled=true;
+  setStatus('<span class="spinner"></span>Gul is being drawn… (10–25s, don\'t close the tab)', 'run');
+
+  try{
+    const res = await fetch(SPRITE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const data = await res.json();
+    if(data.error){ setStatus('✕ '+data.error, 'err'); return; }
+
+    const frames = await cropSheet(data.image, data.cols, data.rows, trimOn);
+    const seq = {
+      id:uid(), name:(continueFrom?'↳ ':'')+shortName(action), action,
+      sheet:data.image, frames, cols:data.cols, rows:data.rows,
+      fps:parseInt($('fps').value,10)||8, continued:!!continueFrom, createdAt:Date.now(),
+    };
+    p.sequences.push(seq); persist();
+    renderSeqList(); showSequence(seq.id);
+    setStatus('✓ '+frames.length+' frames cropped & ready.', 'ok');
+  }catch(e){
+    setStatus('✕ Request failed: '+e.message+' (check the function base URL)', 'err');
+  }finally{
+    $('genBtn').disabled=false; $('continueBtn').disabled = !activeSeqId;
+  }
+}
+$('genBtn').onclick = ()=>generate();
+$('continueBtn').onclick = ()=>{
+  const p=curProj(); const seq=p?.sequences.find(s=>s.id===activeSeqId);
+  if(!seq||!seq.frames.length){ setStatus('Select a sequence to continue from.', 'err'); return; }
+  generate({ continueFrom: seq.frames[seq.frames.length-1] });
+};
+
+/* ============================ Claude director ============================ */
+function gridFrames(){ const {cols,rows}=gridDims(); return cols*rows; }
+function setDir(html, cls){ const s=$('dirStatus'); s.innerHTML=html; s.className='status '+(cls||''); }
+
+async function callDirector(payload){
+  const res = await fetch(DIRECTOR_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data; // { prompt, notes }
+}
+
+async function directWrite(source, btn){
+  const idea = (source||'').trim();
+  if(!idea){ setDir('Type what you want Gul to do (or write a rough action) first.', 'err'); return; }
+  const all=[ $('directBtn'), $('depthBtn') ]; all.forEach(b=>b.disabled=true);
+  setDir('<span class="spinner"></span>Claude is directing the action…', 'run');
+  try{
+    const d = await callDirector({ task:'write', idea, frames:gridFrames(), sceneNote: buildSceneNote() });
+    $('action').value = d.prompt;
+    setDir(d.notes ? '✓ '+d.notes : '✓ Prompt written — tweak it or hit Generate.', 'ok');
+  }catch(e){ setDir('✕ '+e.message, 'err'); }
+  finally{ all.forEach(b=>b.disabled=false); }
+}
+$('directBtn').onclick = ()=>directWrite($('idea').value || $('action').value);
+$('depthBtn').onclick  = ()=>directWrite($('action').value || $('idea').value);
+
+$('refineBtn').onclick = async ()=>{
+  const p=curProj(); const seq=p?.sequences.find(s=>s.id===activeSeqId);
+  const base = (seq?.action) || $('action').value.trim();
+  const feedback = $('refineFeedback').value.trim();
+  if(!base){ setStatus('Generate something first, then refine it.', 'err'); return; }
+  if(!feedback){ setStatus('Tell Claude what to change (e.g. "not smooth").', 'err'); return; }
+  $('refineBtn').disabled=true;
+  setStatus('<span class="spinner"></span>Claude is rewriting the prompt…', 'run');
+  try{
+    const d = await callDirector({ task:'refine', currentPrompt:base, feedback, frames:gridFrames(), sceneNote: buildSceneNote() });
+    $('action').value = d.prompt;
+    setStatus('<span class="spinner"></span>Refined — regenerating the sheet…', 'run');
+    await generate();
+  }catch(e){ setStatus('✕ '+e.message, 'err'); $('refineBtn').disabled=false; }
+  finally{ $('refineBtn').disabled=false; }
+};
+
+/* ============================ cropping ============================ */
+function cropSheet(dataUrl, cols, rows, trim){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const cw = Math.floor(img.width/cols), ch = Math.floor(img.height/rows);
+      const cells=[];
+      const c = document.createElement('canvas'); c.width=cw; c.height=ch;
+      const ctx = c.getContext('2d');
+      // union bbox across all cells so frames stay aligned after trimming
+      let gx0=cw, gy0=ch, gx1=0, gy1=0, any=false;
+      for(let r=0;r<rows;r++) for(let col=0;col<cols;col++){
+        ctx.clearRect(0,0,cw,ch);
+        ctx.drawImage(img, col*cw, r*ch, cw, ch, 0,0, cw, ch);
+        const id = ctx.getImageData(0,0,cw,ch).data;
+        if(trim){
+          for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){
+            if(id[(y*cw+x)*4+3] > ALPHA_THRESHOLD){
+              any=true;
+              if(x<gx0)gx0=x; if(x>gx1)gx1=x; if(y<gy0)gy0=y; if(y>gy1)gy1=y;
+            }
+          }
+        }
+        cells.push(c.toDataURL('image/png'));
+      }
+      if(!trim || !any) return resolve(cells);
+      const pad=6;
+      gx0=Math.max(0,gx0-pad); gy0=Math.max(0,gy0-pad); gx1=Math.min(cw-1,gx1+pad); gy1=Math.min(ch-1,gy1+pad);
+      const tw=gx1-gx0+1, th=gy1-gy0+1;
+      // re-crop each cell to the shared bbox
+      const out=[]; let done=0;
+      cells.forEach((cellUrl,i)=>{
+        const im=new Image();
+        im.onload=()=>{
+          const tc=document.createElement('canvas'); tc.width=tw; tc.height=th;
+          tc.getContext('2d').drawImage(im, gx0,gy0,tw,th, 0,0,tw,th);
+          out[i]=tc.toDataURL('image/png');
+          if(++done===cells.length) resolve(out);
+        };
+        im.src=cellUrl;
+      });
+    };
+    img.src=dataUrl;
+  });
+}
+
+$('trimToggle').onclick = async ()=>{
+  trimOn=!trimOn;
+  $('trimToggle').textContent='Trim & align: '+(trimOn?'ON':'OFF');
+  const p=curProj(); const seq=p?.sequences.find(s=>s.id===activeSeqId);
+  if(seq){ seq.frames = await cropSheet(seq.sheet, seq.cols, seq.rows, trimOn); delete aiFrames[seq.id]; persist(); showSequence(seq.id); }
+};
+
+/* ============================ result view + playback ============================ */
+let animTimer=null, animIdx=0, animFrames=[], animImgs=[], compSceneImg=null, animFrameDim={w:220,h:220};
+let aiFrames={}; // seqId -> [AI-upscaled frames], in-memory only (too big for localStorage)
+function framesFor(seq){ return aiFrames[seq.id] || seq.frames; }
+function showSequence(id){
+  const p=curProj(); const seq=p?.sequences.find(s=>s.id===id); if(!seq) return;
+  activeSeqId=id; $('continueBtn').disabled=false;
+  $('resultCard').style.display='block';
+  const frames=framesFor(seq), ai=!!aiFrames[seq.id];
+  $('resultTag').textContent = frames.length+' frames'+(seq.continued?' · continued':'')+(ai?' · ✨ AI-upscaled':'');
+  $('sheetImg').src = seq.sheet;
+  $('fps').value = seq.fps; $('fpsVal').textContent=seq.fps;
+  // frame strip
+  const strip=$('frameStrip'); strip.innerHTML='';
+  frames.forEach((f,i)=>{
+    const d=document.createElement('div'); d.className='fr';
+    d.innerHTML='<div class="box"><img src="'+f+'"></div><div class="lab">#'+(i+1)+'</div>';
+    d.querySelector('.box').onclick=async ()=>{
+      const out = ai ? f : await maybeUpscale(f);
+      const sfx = ai ? '@ai' : (currentUpscale()>1?'@'+currentUpscale()+'x':'');
+      downloadDataUrl(out, slug(p.name)+'_'+slug(seq.name)+'_'+pad3(i+1)+sfx+'.png');
+    };
+    strip.appendChild(d);
+  });
+  renderSeqList();
+  loadCompScene();
+  startAnim(seq);
+}
+$('aiUpBtn').onclick = async ()=>{
+  const p=curProj(); const seq=p?.sequences.find(s=>s.id===activeSeqId); if(!seq) return;
+  const scale = currentUpscale()>1 ? currentUpscale() : 4;
+  $('aiUpBtn').disabled=true; $('dlZip').disabled=true;
+  const done=[];
+  try{
+    for(let i=0;i<seq.frames.length;i++){
+      setStatus('<span class="spinner"></span>AI upscaling frame '+(i+1)+'/'+seq.frames.length+' ('+scale+'×, Real-ESRGAN)…','run');
+      done.push(await aiUpscaleFrame(seq.frames[i], scale));
+    }
+    aiFrames[seq.id]=done;
+    showSequence(seq.id);
+    setStatus('✓ AI-upscaled '+done.length+' frames at '+scale+'×. Downloads now use these.','ok');
+  }catch(e){
+    setStatus('✕ AI upscale: '+e.message,'err');
+  }finally{ $('aiUpBtn').disabled=false; $('dlZip').disabled=false; }
+};
+function loadCompScene(){
+  compSceneImg=null;
+  const p=curProj(); if(!p) return;
+  const act=p.scenes.find(s=>s.id===p.activeScene);
+  if(act){ const im=new Image(); im.onload=()=>{ if($('compBg').checked) layoutCanvas(); }; im.src=act.data; compSceneImg=im; }
+}
+function startAnim(seq){
+  stopAnim(); animFrames=framesFor(seq); animIdx=0; animImgs=[];
+  animFrames.forEach((f,i)=>{ const im=new Image(); im.onload=()=>{ if(i===0){ animFrameDim={w:im.width||220,h:im.height||220}; layoutCanvas(); } }; im.src=f; animImgs[i]=im; });
+  playing=true; $('playBtn').textContent='⏸ Pause';
+  tick();
+}
+function compOn(){ return $('compBg').checked && compSceneImg && compSceneImg.complete; }
+function layoutCanvas(){
+  const cv=$('animCanvas'); const max=300;
+  let w,h;
+  if(compOn()){ w=compSceneImg.width; h=compSceneImg.height; }
+  else { w=animFrameDim.w; h=animFrameDim.h; }
+  const sc=Math.min(max/w, max/h, 1) || 1;
+  cv.width=Math.max(40,Math.round(w*sc)); cv.height=Math.max(40,Math.round(h*sc));
+}
+function tick(){
+  const cv=$('animCanvas'); const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const comp=compOn();
+  if(comp) ctx.drawImage(compSceneImg,0,0,cv.width,cv.height);
+  const im=animImgs[animIdx];
+  if(im&&im.complete){
+    if(comp){
+      const p=curProj(); const pin=(p&&p.pin)?p.pin:{x:0.5,y:0.5};
+      const scale=(parseInt($('compScale').value,10)||45)/100;
+      const fh=cv.height*scale, fw=fh*(animFrameDim.w/animFrameDim.h);
+      ctx.drawImage(im, pin.x*cv.width-fw/2, pin.y*cv.height-fh/2, fw, fh);
+    } else {
+      ctx.drawImage(im,0,0,cv.width,cv.height);
+    }
+  }
+  if(playing) animIdx=(animIdx+1)%Math.max(1,animFrames.length);
+  const fps=parseInt($('fps').value,10)||8;
+  animTimer=setTimeout(()=>requestAnimationFrame(tick), 1000/fps);
+}
+function stopAnim(){ if(animTimer){ clearTimeout(animTimer); animTimer=null; } }
+$('playBtn').onclick=()=>{ playing=!playing; $('playBtn').textContent=playing?'⏸ Pause':'▶ Play'; };
+$('fps').oninput=e=>{ $('fpsVal').textContent=e.target.value; const p=curProj(); const seq=p?.sequences.find(s=>s.id===activeSeqId); if(seq){seq.fps=parseInt(e.target.value,10);persist();} };
+$('compBg').onchange=()=>layoutCanvas();
+['grid','size','upscale','sharpen'].forEach(id=>$(id).addEventListener('change', updateResHint));
+
+/* ============================ sequence list ============================ */
+function renderSeqList(){
+  const p=curProj(); const list=$('seqList'); list.innerHTML='';
+  if(!p||!p.sequences.length){ list.innerHTML='<div class="empty">No sequences yet — generate one above.</div>'; return; }
+  p.sequences.forEach((seq,i)=>{
+    const d=document.createElement('div'); d.className='seqitem'+(seq.id===activeSeqId?' on':'');
+    d.innerHTML='<img class="mini" src="'+(seq.frames[0]||seq.sheet)+'">'+
+      '<div class="meta"><b>'+(i+1)+'. '+escapeHtml(seq.name)+'</b><span>'+seq.frames.length+' frames · '+seq.cols+'×'+seq.rows+(seq.continued?' · ↳ continued':'')+'</span></div>'+
+      '<button class="btn sm danger">Del</button>';
+    d.onclick=()=>showSequence(seq.id);
+    d.querySelector('button').onclick=(ev)=>{ ev.stopPropagation(); if(!confirm('Delete this sequence?'))return; p.sequences=p.sequences.filter(x=>x.id!==seq.id); if(activeSeqId===seq.id){activeSeqId=null;$('resultCard').style.display='none';stopAnim();} persist(); renderSeqList(); };
+    list.appendChild(d);
+  });
+}
+
+/* ============================ download / zip ============================ */
+$('dlZip').onclick = async ()=>{
+  const p=curProj(); const seq=p?.sequences.find(s=>s.id===activeSeqId); if(!seq) return;
+  const ai=aiFrames[seq.id], up=currentUpscale(), sh=$('sharpen').checked;
+  $('dlZip').disabled=true; const label=$('dlZip').textContent; $('dlZip').textContent='Preparing…';
+  try{
+    const frames = ai ? ai : (up>1 ? await Promise.all(seq.frames.map(f=>upscaleDataUrl(f,up,sh))) : seq.frames);
+    const tag = ai ? '_ai' : (up>1?'_'+up+'x':'');
+    if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(seq.name)+'_'+pad3(i+1)+'.png')); return; }
+    const zip=new JSZip(); const folder=zip.folder(slug(p.name)+'_'+slug(seq.name));
+    folder.file('_spritesheet.png', dataUrlBytes(seq.sheet), {base64:true});
+    frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true}));
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_'+slug(seq.name)+tag+'.zip'; a.click(); URL.revokeObjectURL(a.href);
+  } finally { $('dlZip').disabled=false; $('dlZip').textContent=label; }
+};
+
+/* ============================ helpers ============================ */
+function setStatus(html, cls){ const s=$('status'); s.innerHTML=html; s.className='status '+(cls||''); }
+function fileToDataURL(f, cb){ if(!f)return; const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(f); }
+function downscaleDataURL(f, maxDim, cb){
+  fileToDataURL(f, d=>{
+    const im=new Image();
+    im.onload=()=>{
+      const sc=Math.min(maxDim/im.width, maxDim/im.height, 1);
+      if(sc>=1) return cb(d);
+      const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+      cb(c.toDataURL('image/jpeg',0.85));
+    };
+    im.src=d;
+  });
+}
+function downloadDataUrl(d, name){ const a=document.createElement('a'); a.href=d; a.download=name; a.click(); }
+function maybeUpscale(d){ const f=currentUpscale(); return f>1 ? upscaleDataUrl(d, f, $('sharpen').checked) : Promise.resolve(d); }
+function loadImg(src){ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
+async function callUpscale(imageUrl, scale){
+  const res = await fetch(UPSCALE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ image:imageUrl, scale }) });
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data.image;
+}
+// Real-ESRGAN strips alpha, so: composite on white -> AI-upscale RGB -> re-apply the
+// original (canvas-upscaled) alpha channel. Keeps the cutout transparent with AI detail.
+async function aiUpscaleFrame(frameUrl, scale){
+  const orig = await loadImg(frameUrl);
+  const wc=document.createElement('canvas'); wc.width=orig.width; wc.height=orig.height;
+  const wctx=wc.getContext('2d'); wctx.fillStyle='#ffffff'; wctx.fillRect(0,0,wc.width,wc.height); wctx.drawImage(orig,0,0);
+  const rgb = await loadImg(await callUpscale(wc.toDataURL('image/png'), scale));
+  const W=rgb.width, H=rgb.height;
+  const ac=document.createElement('canvas'); ac.width=W; ac.height=H;
+  const actx=ac.getContext('2d'); actx.imageSmoothingEnabled=true; actx.imageSmoothingQuality='high';
+  actx.drawImage(orig,0,0,W,H);
+  const alpha=actx.getImageData(0,0,W,H).data;
+  const oc=document.createElement('canvas'); oc.width=W; oc.height=H;
+  const octx=oc.getContext('2d'); octx.drawImage(rgb,0,0);
+  const out=octx.getImageData(0,0,W,H);
+  for(let i=3;i<out.data.length;i+=4) out.data[i]=alpha[i];
+  octx.putImageData(out,0,0);
+  return oc.toDataURL('image/png');
+}
+function upscaleDataUrl(d, factor, sharpen){
+  return new Promise(res=>{
+    const im=new Image();
+    im.onload=()=>{
+      const c=document.createElement('canvas'); c.width=Math.round(im.width*factor); c.height=Math.round(im.height*factor);
+      const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+      ctx.drawImage(im,0,0,c.width,c.height);
+      if(sharpen) sharpenRGB(ctx,c.width,c.height);
+      res(c.toDataURL('image/png'));
+    };
+    im.src=d;
+  });
+}
+// Unsharp-style 3x3 on RGB only; alpha is copied through untouched so the cutout edge stays clean.
+function sharpenRGB(ctx,w,h){
+  const src=ctx.getImageData(0,0,w,h), out=ctx.createImageData(w,h);
+  const s=src.data, o=out.data, k=[0,-0.5,0,-0.5,3,-0.5,0,-0.5,0];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const i=(y*w+x)*4;
+    if(x===0||y===0||x===w-1||y===h-1){ o[i]=s[i];o[i+1]=s[i+1];o[i+2]=s[i+2];o[i+3]=s[i+3]; continue; }
+    for(let ch=0;ch<3;ch++){
+      let acc=0,ki=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) acc+=s[((y+dy)*w+(x+dx))*4+ch]*k[ki++];
+      o[i+ch]=acc<0?0:acc>255?255:acc;
+    }
+    o[i+3]=s[i+3];
+  }
+  ctx.putImageData(out,0,0);
+}
+function dataUrlBytes(d){ return d.split(',')[1]; } // base64 payload; written via JSZip {base64:true}
+function slug(s){ return (s||'gul').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'gul'; }
+function pad3(n){ return String(n).padStart(3,'0'); }
+function shortName(s){ return s.split(/[.,;\n]/)[0].trim().slice(0,42); }
+function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+boot();
+</script>
+</body>
+</html>
