@@ -507,7 +507,7 @@ async function generateScene(sceneId, idx){
       if(sh.frames&&sh.frames.length) continue; // already done (e.g. resumed)
       setSceneStatus(sceneId,'<span class="spinner"></span>Generating beat '+(si+1)+'/'+sc.sheets.length+'…','run');
       // Only the mascot is sent as a reference (small + fast); placement comes from the pin text hint.
-      const payload={ action:(sh.action||sc.summary||'').trim(), mascotRef:await shrinkData(mascot,768,'image/png'), cols:sh.cols, rows:sh.rows, quality:s.quality, size:resolveSize(sh.cols,sh.rows) };
+      const payload={ action:(sh.action||sc.summary||'').trim(), mascotRef:await shrinkData(mascot,1024,'image/png'), cols:sh.cols, rows:sh.rows, quality:s.quality, size:resolveSize(sh.cols,sh.rows) };
       if(sc.pin) payload.sceneNote='Place Gul '+placementWords(sc.pin)+' of the framing, facing the action.';
       const seed=lastFrameBefore(idx,si); if(seed) payload.prevFrame=seed;
       let data;
