@@ -185,6 +185,18 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 
 <input type="file" id="importFile" accept="application/json" hidden>
 
+<div style="max-width:1180px;margin:0 auto;padding:0 18px 28px">
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h2 style="margin:0">Debug log</h2>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn sm ghost" id="dbgClear">Clear</button>
+    </div>
+    <p class="hint" style="margin-top:6px">Shows what each generation call actually does — screenshot this if a beat fails.</p>
+    <pre id="dbg" style="font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;color:var(--ink2);background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:0"></pre>
+  </div>
+</div>
+
 <script>
 /* ===== config ===== */
 const FN_BASE = (localStorage.getItem('nt_fn_base') || 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions');
@@ -569,25 +581,40 @@ $('dlAll').onclick=async()=>{
 /* ===== helpers ===== */
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 // Start a background generation job, then poll for the result (no 26s limit).
+function dbg(m){ const el=$('dbg'); if(el){ const t=new Date().toLocaleTimeString(); el.textContent='['+t+'] '+m+'\n'+el.textContent; const lines=el.textContent.split('\n'); if(lines.length>60) el.textContent=lines.slice(0,60).join('\n'); } try{ console.log('[gul]',m); }catch(e){} }
+$('dbgClear').onclick=()=>{ $('dbg').textContent=''; };
 async function generateSheet(payload, onWait){
   let t=0; const timer=setInterval(()=>{ if(onWait) onWait(++t); },1000);
   try{
     // 1) Fast path: synchronous nt-sprite — finishes under the 26s cap for small beats.
-    let res=null, data=null;
-    try{ res=await fetch(SPRITE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); }catch(e){}
-    if(res){ try{ data=await res.json(); }catch(e){ data=null; } } // non-JSON ⇒ hit the 26s cap
-    if(data && data.image) return data;
-    if(data && data.error) throw new Error(data.error); // real API error — surface it
+    dbg('SYNC POST nt-sprite  q='+payload.quality+' '+payload.cols+'x'+payload.rows+' size='+payload.size+' refs=mascot'+(payload.prevFrame?'+prev':'')+' bytes~'+Math.round(JSON.stringify(payload).length/1024)+'KB');
+    const t0=Date.now();
+    let res=null, raw='', data=null;
+    try{ res=await fetch(SPRITE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); }
+    catch(e){ dbg('SYNC fetch threw: '+e.message); }
+    if(res){
+      dbg('SYNC HTTP '+res.status+' in '+Math.round((Date.now()-t0)/1000)+'s');
+      try{ raw=await res.text(); }catch(e){ dbg('SYNC read body threw: '+e.message); }
+      try{ data=JSON.parse(raw); }catch(e){ data=null; dbg('SYNC body not JSON ('+raw.length+' chars): '+raw.slice(0,140)); }
+    }
+    if(data && data.image){ dbg('SYNC OK image '+Math.round(data.image.length/1024)+'KB'); return data; }
+    if(data && data.error){ dbg('SYNC returned error: '+data.error); throw new Error(data.error); }
     // 2) Fallback for slow beats: background job + poll (no 26s limit).
     const jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
-    try{ await fetch(START_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({jobId},payload))}); }catch(e){}
-    const deadline=Date.now()+180000;
+    dbg('FALLBACK start bg job '+jobId);
+    try{ const r=await fetch(START_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({jobId},payload))}); dbg('BG start HTTP '+r.status); }
+    catch(e){ dbg('BG start fetch threw: '+e.message); }
+    const deadline=Date.now()+180000; let poll=0;
     while(Date.now()<deadline){
-      await sleep(3000);
-      let d=null; try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); d=await r.json(); }catch(e){ continue; }
-      if(d && d.status==='done') return d;
+      await sleep(3000); poll++;
+      let d=null, txt='';
+      try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); txt=await r.text(); d=JSON.parse(txt); }
+      catch(e){ dbg('POLL '+poll+' err: '+(txt?txt.slice(0,80):e.message)); continue; }
+      dbg('POLL '+poll+': '+(d&&d.status||'?'));
+      if(d && d.status==='done'){ dbg('BG done image '+Math.round((d.image||'').length/1024)+'KB'); return d; }
       if(d && d.status==='error') throw new Error(d.error||'generation failed');
     }
+    dbg('BG gave up after '+poll+' polls');
     throw new Error('the image took too long (try Low quality / fewer frames)');
   } finally { clearInterval(timer); }
 }
