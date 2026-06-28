@@ -201,7 +201,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 /* ===== config ===== */
 const FN_BASE = (localStorage.getItem('nt_fn_base') || 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions');
 const SPRITE_URL = FN_BASE + '/nt-sprite';
-const START_URL = FN_BASE + '/nt-sprite-background';
+const START_URL = FN_BASE + '/nt-sprite-start';
 const RESULT_URL = FN_BASE + '/nt-sprite-result';
 const DIRECTOR_URL = FN_BASE + '/nt-sprite-director';
 const LS_KEY = 'nt_sprite_studio_v3';
@@ -413,7 +413,7 @@ function lastFrameBefore(sceneIdx, sheetIdx){
   return null;
 }
 
-function renderAll(){ stopAnimators(); renderShots(); renderScenes(); renderProjects(); }
+function renderAll(){ stopAnimators(); renderShots(); renderScenes(); renderProjects(); maybeResume(); }
 
 function renderScenes(){
   const p=curProj(); const wrap=$('scenesWrap'); wrap.innerHTML='';
@@ -507,7 +507,7 @@ async function generateScene(sc, idx, st, btn){
       const seed=lastFrameBefore(idx,si); if(seed) payload.prevFrame=seed;
       let data;
       try{
-        data=await generateSheet(payload, sec=>{ st.innerHTML='<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s'; st.className='status run'; });
+        data=await generateSheet(payload, sh, sec=>{ st.innerHTML='<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s'; st.className='status run'; });
       }catch(e){ st.innerHTML='✕ Beat '+(si+1)+': '+e.message; st.className='status err'; btn.disabled=false; return; }
       sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, s.trim);
       persist(); scheduleSave();
@@ -583,40 +583,53 @@ function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 // Start a background generation job, then poll for the result (no 26s limit).
 function dbg(m){ const el=$('dbg'); if(el){ const t=new Date().toLocaleTimeString(); el.textContent='['+t+'] '+m+'\n'+el.textContent; const lines=el.textContent.split('\n'); if(lines.length>60) el.textContent=lines.slice(0,60).join('\n'); } try{ console.log('[gul]',m); }catch(e){} }
 $('dbgClear').onclick=()=>{ $('dbg').textContent=''; };
-async function generateSheet(payload, onWait){
+async function pollResult(jobId, deadlineMs){
+  const deadline=Date.now()+(deadlineMs||150000); let poll=0;
+  while(Date.now()<deadline){
+    await sleep(3000); poll++;
+    let d=null, txt='';
+    try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); txt=await r.text(); d=JSON.parse(txt); }
+    catch(e){ dbg('POLL '+poll+' err: '+(txt?txt.slice(0,80):e.message)); continue; }
+    dbg('POLL '+poll+': '+(d&&d.status||'?'));
+    if(d && d.status==='done'){ dbg('DONE image '+Math.round((d.image||'').length/1024)+'KB'); return d; }
+    if(d && d.status==='error') throw new Error(d.error||'generation failed');
+  }
+  return null; // timed out for now — the job keeps running; pendingJob lets us resume later
+}
+async function generateSheet(payload, sh, onWait){
   let t=0; const timer=setInterval(()=>{ if(onWait) onWait(++t); },1000);
   try{
-    // 1) Fast path: synchronous nt-sprite — finishes under the 26s cap for small beats.
-    dbg('SYNC POST nt-sprite  q='+payload.quality+' '+payload.cols+'x'+payload.rows+' size='+payload.size+' refs=mascot'+(payload.prevFrame?'+prev':'')+' bytes~'+Math.round(JSON.stringify(payload).length/1024)+'KB');
-    const t0=Date.now();
-    let res=null, raw='', data=null;
-    try{ res=await fetch(SPRITE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); }
-    catch(e){ dbg('SYNC fetch threw: '+e.message); }
-    if(res){
-      dbg('SYNC HTTP '+res.status+' in '+Math.round((Date.now()-t0)/1000)+'s');
-      try{ raw=await res.text(); }catch(e){ dbg('SYNC read body threw: '+e.message); }
-      try{ data=JSON.parse(raw); }catch(e){ data=null; dbg('SYNC body not JSON ('+raw.length+' chars): '+raw.slice(0,140)); }
-    }
-    if(data && data.image){ dbg('SYNC OK image '+Math.round(data.image.length/1024)+'KB'); return data; }
-    if(data && data.error){ dbg('SYNC returned error: '+data.error); throw new Error(data.error); }
-    // 2) Fallback for slow beats: background job + poll (no 26s limit).
-    const jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
-    dbg('FALLBACK start bg job '+jobId);
-    try{ const r=await fetch(START_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({jobId},payload))}); dbg('BG start HTTP '+r.status); }
-    catch(e){ dbg('BG start fetch threw: '+e.message); }
-    const deadline=Date.now()+180000; let poll=0;
-    while(Date.now()<deadline){
-      await sleep(3000); poll++;
-      let d=null, txt='';
-      try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); txt=await r.text(); d=JSON.parse(txt); }
-      catch(e){ dbg('POLL '+poll+' err: '+(txt?txt.slice(0,80):e.message)); continue; }
-      dbg('POLL '+poll+': '+(d&&d.status||'?'));
-      if(d && d.status==='done'){ dbg('BG done image '+Math.round((d.image||'').length/1024)+'KB'); return d; }
-      if(d && d.status==='error') throw new Error(d.error||'generation failed');
-    }
-    dbg('BG gave up after '+poll+' polls');
-    throw new Error('the image took too long (try Low quality / fewer frames)');
+    let jobId=sh.pendingJob;
+    if(!jobId){
+      jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
+      dbg('START job '+jobId+'  q='+payload.quality+' '+payload.cols+'x'+payload.rows+' size='+payload.size+' refs=mascot'+(payload.prevFrame?'+prev':''));
+      try{
+        const r=await fetch(START_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({jobId},payload))});
+        const j=await r.json().catch(()=>({}));
+        dbg('START HTTP '+r.status+' '+(j.ok?('triggered bg '+j.triggered):('err: '+(j.error||'?'))));
+        if(j.error) throw new Error(j.error);
+      }catch(e){ dbg('START threw: '+e.message); throw new Error('could not start job: '+e.message); }
+      sh.pendingJob=jobId; persist(); scheduleSave();
+    } else { dbg('RESUME job '+jobId); }
+    const data=await pollResult(jobId, 150000);
+    if(!data){ throw new Error('still rendering (~1–2 min) — it will appear automatically; you can leave & come back'); }
+    delete sh.pendingJob;
+    return data;
   } finally { clearInterval(timer); }
+}
+// If a beat's job was left mid-render (e.g. phone slept), pick it up from Redis on render.
+const activePolls=new Set();
+function maybeResume(){
+  const p=curProj(); if(!p) return;
+  (p.scenes||[]).forEach(sc=>(sc.sheets||[]).forEach(sh=>{
+    if(sh.pendingJob && !(sh.frames&&sh.frames.length) && !activePolls.has(sh.pendingJob)){
+      const jid=sh.pendingJob; activePolls.add(jid); dbg('auto-resume '+jid);
+      pollResult(jid, 150000).then(async data=>{
+        activePolls.delete(jid);
+        if(data){ sh.sheetImg=data.image; sh.frames=await cropSheet(data.image,data.cols,data.rows,settings().trim!==false); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }
+      }).catch(e=>{ activePolls.delete(jid); dbg('resume err: '+e.message); });
+    }
+  }));
 }
 function shrinkData(d,max,mime){ return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const sc=Math.min(max/im.width,max/im.height,1); if(sc>=1) return res(d); const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext('2d').drawImage(im,0,0,c.width,c.height); res(c.toDataURL(mime||'image/png', mime==='image/jpeg'?0.85:undefined)); }; im.onerror=()=>res(d); im.src=d; }); }
 function fileToDataURL(f,cb){ if(!f)return; const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(f); }
