@@ -459,9 +459,11 @@ function buildSceneCard(sc, idx){
   // status + actions
   const st=document.createElement('div'); st.className='status'; st.id='st-'+sc.id; card.appendChild(st);
   const actions=document.createElement('div'); actions.className='row'; actions.style.marginTop='10px';
+  const busy = !!sc._generating || (sc.sheets||[]).some(sh=>sh.pendingJob && !(sh.frames&&sh.frames.length));
   const genBtn=document.createElement('button'); genBtn.className='btn'; genBtn.style.flex='2';
-  genBtn.textContent= sc._generating?'Generating…':(sceneGenerated(sc)?'Regenerate scene':'Generate scene ▸'); genBtn.disabled=!prevApproved || !!sc._generating;
+  genBtn.textContent= busy?'Generating…':(sceneGenerated(sc)?'Regenerate scene':'Generate scene ▸'); genBtn.disabled=!prevApproved || busy;
   actions.appendChild(genBtn);
+  if(busy){ const stopBtn=document.createElement('button'); stopBtn.className='btn danger'; stopBtn.style.flex='1'; stopBtn.textContent='■ Stop'; stopBtn.onclick=()=>stopGeneration(); actions.appendChild(stopBtn); }
   card.appendChild(actions);
 
   // result preview
@@ -497,9 +499,10 @@ function setSceneStatus(sceneId, html, cls){ const el=document.getElementById('s
 async function generateScene(sceneId, idx){
   const p=curProj(); const sc=p&&p.scenes.find(x=>x.id===sceneId); if(!sc) return;
   const mascot=curMascot(); if(!mascot){ setSceneStatus(sceneId,'✕ Load a mascot first.','err'); return; }
-  const s=settings(); sc._generating=true;
+  const s=settings(); sc._generating=true; const myEpoch=genEpoch;
   try{
     for(let si=0; si<sc.sheets.length; si++){
+      if(genEpoch!==myEpoch){ sc._generating=false; renderAll(); return; } // stopped
       const sh=sc.sheets[si];
       if(sh.frames&&sh.frames.length) continue; // already done (e.g. resumed)
       setSceneStatus(sceneId,'<span class="spinner"></span>Generating beat '+(si+1)+'/'+sc.sheets.length+'…','run');
@@ -510,7 +513,7 @@ async function generateScene(sceneId, idx){
       let data;
       try{
         data=await generateSheet(payload, sh, sec=>setSceneStatus(sceneId,'<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s','run'));
-      }catch(e){ sc._generating=false; setSceneStatus(sceneId,'✕ Beat '+(si+1)+': '+e.message,'err'); renderAll(); return; }
+      }catch(e){ if(genEpoch!==myEpoch){ sc._generating=false; renderAll(); return; } sc._generating=false; setSceneStatus(sceneId,'✕ Beat '+(si+1)+': '+e.message,'err'); renderAll(); return; }
       sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, s.trim);
       persist(); scheduleSave();
       renderAll(); // show THIS beat's frames right away
@@ -590,6 +593,7 @@ $('dbgClear').onclick=()=>{ $('dbg').textContent=''; };
 // One poll loop per jobId, shared by every caller (generate + auto-resume), so the
 // log shows a single clean counter instead of two interleaved ones.
 const jobPromises={};
+let genEpoch=0; // bumped by Stop to cancel all in-flight polls/loops
 function pollResult(jobId, deadlineMs){
   if(jobPromises[jobId]) return jobPromises[jobId];
   const pr=_poll(jobId, deadlineMs);
@@ -598,8 +602,9 @@ function pollResult(jobId, deadlineMs){
   return pr;
 }
 async function _poll(jobId, deadlineMs){
-  const deadline=Date.now()+(deadlineMs||300000); let poll=0;
+  const deadline=Date.now()+(deadlineMs||300000); let poll=0; const myEpoch=genEpoch;
   while(Date.now()<deadline){
+    if(genEpoch!==myEpoch){ dbg('poll cancelled'); return null; }
     await sleep(3000); poll++;
     let d=null, txt='';
     try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); txt=await r.text(); d=JSON.parse(txt); }
@@ -645,6 +650,15 @@ function maybeResume(){
       }).catch(e=>{ activePolls.delete(jid); dbg('resume err: '+e.message); });
     }
   }));
+}
+// Stop everything: cancel in-flight polls/loops and clear stuck jobs so nothing auto-resumes.
+function stopGeneration(){
+  genEpoch++;
+  for(const k in jobPromises) delete jobPromises[k];
+  activePolls.clear();
+  const p=curProj();
+  if(p) (p.scenes||[]).forEach(sc=>{ sc._generating=false; (sc.sheets||[]).forEach(sh=>{ if(sh.pendingJob && !(sh.frames&&sh.frames.length)) delete sh.pendingJob; }); });
+  persist(); scheduleSave(); dbg('■ STOPPED by user'); renderAll();
 }
 function shrinkData(d,max,mime){ return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const sc=Math.min(max/im.width,max/im.height,1); if(sc>=1) return res(d); const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext('2d').drawImage(im,0,0,c.width,c.height); res(c.toDataURL(mime||'image/png', mime==='image/jpeg'?0.85:undefined)); }; im.onerror=()=>res(d); im.src=d; }); }
 function fileToDataURL(f,cb){ if(!f)return; const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(f); }
