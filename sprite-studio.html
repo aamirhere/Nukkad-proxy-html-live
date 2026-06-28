@@ -96,6 +96,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 <header class="top">
   <div class="bar">
     <div class="brand"><span class="dot"></span> Gul Sprite Studio <small>NukkadTales</small></div>
+    <span id="cloudStatus" style="font-size:11px;font-weight:700;color:var(--muted)">☁ …</span>
     <div class="spacer"></div>
     <select id="projSel" style="width:auto;min-width:160px"></select>
     <button class="btn sm ghost" id="newProj">+ New video</button>
@@ -207,11 +208,72 @@ function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
 function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:18,quality:'medium',fps:8,trim:true}, scenes:[] }; }
 function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:18,quality:'medium',fps:8,trim:true}; }
 
+/* ===== cloud sync (Netlify Blobs via nt-store) — shared workspace, loads on any device ===== */
+const STORE_URL = FN_BASE + '/nt-store';
+let cloudOn=false, cloudIndex=[], saveTimer=null;
+const synced=new Set();
+function defaults(){ return {framesMax:18,quality:'medium',fps:8,trim:true}; }
+function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
+async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
+async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
+async function cloudDel(key){ try{ await fetch(STORE_URL+'?key='+encodeURIComponent(key),{method:'DELETE'}); }catch(e){} }
+// meta = project structure with images replaced by their blob keys (one image per key)
+function projectMeta(p){
+  return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', settings:p.settings||defaults(),
+    scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null,
+      refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
+      sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null })) })) };
+}
+async function saveCloud(p){
+  if(!cloudOn||!p) return;
+  try{
+    setCloudStatus('☁ saving…');
+    const meta=projectMeta(p);
+    for(const s of (p.scenes||[])){
+      if(s.refImage && s.refKey && !synced.has(s.refKey)){ await cloudSet(s.refKey,s.refImage); synced.add(s.refKey); }
+      for(const sh of (s.sheets||[])){ if(sh.sheetImg && sh.sheetKey && !synced.has(sh.sheetKey)){ await cloudSet(sh.sheetKey,sh.sheetImg); synced.add(sh.sheetKey); } }
+    }
+    await cloudSet('p:'+p.id, JSON.stringify(meta));
+    cloudIndex=cloudIndex.filter(x=>x.id!==p.id); cloudIndex.unshift({id:p.id,name:p.name,updatedAt:meta.updatedAt});
+    await cloudSet('index', JSON.stringify(cloudIndex));
+    setCloudStatus('☁ saved');
+  }catch(e){ setCloudStatus('☁ save failed (kept locally)'); }
+}
+function scheduleSave(){ if(!cloudOn)return; clearTimeout(saveTimer); saveTimer=setTimeout(()=>saveCloud(curProj()),1500); }
+async function loadCloud(id){
+  setCloudStatus('☁ loading…');
+  const raw=await cloudGet('p:'+id); if(!raw) throw new Error('not found in cloud');
+  const meta=JSON.parse(raw);
+  const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', settings:meta.settings||defaults(), scenes:[] };
+  for(const s of (meta.scenes||[])){
+    const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, refImage:null, refKey:s.refKey||null, sheets:[] };
+    if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
+    for(const sh of (s.sheets||[])){
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, frames:null };
+      if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); if(beat.sheetImg) beat.frames=await cropSheet(beat.sheetImg, beat.cols, beat.rows, p.settings.trim!==false); }catch(e){} }
+      sc.sheets.push(beat);
+    }
+    p.scenes.push(sc);
+  }
+  DB.projects=DB.projects.filter(x=>x.id!==id); DB.projects.push(p); persist();
+  setCloudStatus('☁ loaded'); return p;
+}
+async function initCloud(){
+  try{
+    const idxRaw=await cloudGet('index'); cloudOn=true;       // a successful call means the store is reachable
+    cloudIndex = idxRaw?JSON.parse(idxRaw):[];
+    try{ const m=await cloudGet('mascot'); if(m){ DB.mascot=m; renderMascot(); } }catch(e){}
+    cloudIndex.forEach(ci=>{ if(!DB.projects.find(p=>p.id===ci.id)) DB.projects.push({id:ci.id,name:ci.name,createdAt:ci.updatedAt,story:'',settings:defaults(),scenes:[],_stub:true}); });
+    renderProjects(); setCloudStatus('☁ synced');
+  }catch(e){ cloudOn=false; setCloudStatus('☁ offline (local only)'); }
+}
+
 /* ===== boot ===== */
 function boot(){
   if(!DB.projects.length){ const p=newProject('My first video'); DB.projects.push(p); DB.activeProject=p.id; persist(); }
   if(!DB.activeProject) DB.activeProject=DB.projects[0].id;
   renderProjects(); renderMascot(); loadSettingsUI(); renderAll();
+  initCloud();
 }
 
 /* ===== projects ===== */
@@ -219,9 +281,13 @@ function renderProjects(){
   const sel=$('projSel'); sel.innerHTML='';
   DB.projects.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; if(p.id===DB.activeProject)o.selected=true; sel.appendChild(o); });
 }
-$('projSel').onchange=e=>{ DB.activeProject=e.target.value; persist(); renderProjects(); loadSettingsUI(); renderAll(); };
-$('newProj').onclick=()=>{ const n=prompt('Name this video:', 'Video '+(DB.projects.length+1)); if(!n)return; const p=newProject(n.trim()); DB.projects.push(p); DB.activeProject=p.id; persist(); renderProjects(); loadSettingsUI(); renderAll(); };
-$('delProj').onclick=()=>{ const p=curProj(); if(!p)return; if(!confirm('Delete "'+p.name+'" and all its scenes?'))return; DB.projects=DB.projects.filter(x=>x.id!==p.id); if(!DB.projects.length){const np=newProject('My first video');DB.projects.push(np);} DB.activeProject=DB.projects[0].id; persist(); renderProjects(); loadSettingsUI(); renderAll(); };
+$('projSel').onchange=async e=>{ const id=e.target.value; DB.activeProject=id; const p=DB.projects.find(x=>x.id===id);
+  if(p&&p._stub){ try{ await loadCloud(id); }catch(err){ setCloudStatus('☁ load failed'); } }
+  persist(); renderProjects(); loadSettingsUI(); renderAll(); };
+$('newProj').onclick=()=>{ const n=prompt('Name this video:', 'Video '+(DB.projects.length+1)); if(!n)return; const p=newProject(n.trim()); DB.projects.push(p); DB.activeProject=p.id; persist(); renderProjects(); loadSettingsUI(); renderAll(); scheduleSave(); };
+$('delProj').onclick=()=>{ const p=curProj(); if(!p)return; if(!confirm('Delete "'+p.name+'" and all its scenes?'))return;
+  if(cloudOn){ cloudDel('p:'+p.id); (p.scenes||[]).forEach(s=>{ if(s.refKey)cloudDel(s.refKey); (s.sheets||[]).forEach(sh=>{ if(sh.sheetKey)cloudDel(sh.sheetKey); }); }); cloudIndex=cloudIndex.filter(x=>x.id!==p.id); cloudSet('index',JSON.stringify(cloudIndex)).catch(()=>{}); }
+  DB.projects=DB.projects.filter(x=>x.id!==p.id); if(!DB.projects.length){const np=newProject('My first video');DB.projects.push(np);} DB.activeProject=DB.projects[0].id; persist(); renderProjects(); loadSettingsUI(); renderAll(); };
 
 $('exportProj').onclick=()=>{ const p=curProj(); if(!p)return; const blob=new Blob([JSON.stringify({type:'nt-sprite-project-v3',mascot:curMascot(),project:p})],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'.gulproject.json'; a.click(); URL.revokeObjectURL(a.href); };
 $('importProj').onclick=()=>$('importFile').click();
@@ -230,21 +296,21 @@ $('importFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=n
 /* ===== mascot ===== */
 function renderMascot(){ const m=curMascot(); $('mascotPrev').innerHTML = m?'<img src="'+m+'">':'<div class="empty">No mascot. Click Replace.</div>'; }
 $('mascotUploadBtn').onclick=()=>$('mascotFile').click();
-$('mascotFile').onchange=e=>fileToDataURL(e.target.files[0],d=>{DB.mascot=d;persist();renderMascot();});
-$('mascotResetBtn').onclick=()=>{DB.mascot=null;persist();renderMascot();};
+$('mascotFile').onchange=e=>fileToDataURL(e.target.files[0],d=>{DB.mascot=d;persist();renderMascot(); if(cloudOn)cloudSet('mascot',d).catch(()=>{});});
+$('mascotResetBtn').onclick=()=>{DB.mascot=null;persist();renderMascot(); if(cloudOn)cloudDel('mascot');};
 
 /* ===== settings ===== */
 function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setTrim').checked=s.trim!==false; }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, trim:$('setTrim').checked }; persist(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, trim:$('setTrim').checked }; persist(); scheduleSave(); }
 ['setFramesMax','setQuality','setFps','setTrim'].forEach(id=>$(id).addEventListener('change', saveSettings));
 
 /* ===== shots / story ===== */
 $('uploadShotsBtn').onclick=()=>$('shotFile').click();
 $('shotFile').onchange=e=>{ const files=[...e.target.files]; const p=curProj(); if(!p)return; let pending=files.length; if(!pending)return;
-  files.forEach(f=>downscaleDataURL(f,1280,d=>{ p.scenes.push({id:uid(),refImage:d,hint:'',title:'',summary:'',sheets:[],approved:false}); if(--pending===0){persist();renderAll();} })); e.target.value=''; };
-$('addEmptyBtn').onclick=()=>{ const p=curProj(); if(!p)return; p.scenes.push({id:uid(),refImage:null,hint:'',title:'',summary:'',sheets:[],approved:false}); persist(); renderAll(); };
+  files.forEach(f=>downscaleDataURL(f,1280,d=>{ p.scenes.push({id:uid(),refImage:d,hint:'',title:'',summary:'',sheets:[],approved:false}); if(--pending===0){persist();renderAll();scheduleSave();} })); e.target.value=''; };
+$('addEmptyBtn').onclick=()=>{ const p=curProj(); if(!p)return; p.scenes.push({id:uid(),refImage:null,hint:'',title:'',summary:'',sheets:[],approved:false}); persist(); renderAll(); scheduleSave(); };
 $('story').addEventListener('input',e=>{ const p=curProj(); if(p){p.story=e.target.value;} });
-$('story').addEventListener('change',persist);
+$('story').addEventListener('change',()=>{persist();scheduleSave();});
 
 function placementWords(pin){
   const h=pin.x<0.34?'left':pin.x>0.66?'right':'centre';
@@ -268,23 +334,23 @@ function renderShots(){
       const pin=document.createElement('div'); pin.className='pin'; pin.style.display=s.pin?'block':'none';
       if(s.pin){ pin.style.left=(s.pin.x*100)+'%'; pin.style.top=(s.pin.y*100)+'%'; }
       ed.appendChild(pin);
-      ed.onclick=(ev)=>{ const r=im.getBoundingClientRect(); s.pin={x:Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height))}; pin.style.display='block'; pin.style.left=(s.pin.x*100)+'%'; pin.style.top=(s.pin.y*100)+'%'; place.textContent='📍 Gul sits '+placementWords(s.pin)+' (tap to move · '; place.appendChild(clr); place.append(')'); persist(); };
+      ed.onclick=(ev)=>{ const r=im.getBoundingClientRect(); s.pin={x:Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height))}; pin.style.display='block'; pin.style.left=(s.pin.x*100)+'%'; pin.style.top=(s.pin.y*100)+'%'; place.textContent='📍 Gul sits '+placementWords(s.pin)+' (tap to move · '; place.appendChild(clr); place.append(')'); persist(); scheduleSave(); };
       d.appendChild(ed);
       const place=document.createElement('small'); place.className='note';
       const clr=document.createElement('a'); clr.href='#'; clr.textContent='clear'; clr.style.color='var(--accent)';
-      clr.onclick=(e)=>{ e.preventDefault(); s.pin=null; persist(); renderShots(); };
+      clr.onclick=(e)=>{ e.preventDefault(); s.pin=null; persist(); scheduleSave(); renderShots(); };
       if(s.pin){ place.textContent='📍 Gul sits '+placementWords(s.pin)+' (tap to move · '; place.appendChild(clr); place.append(')'); }
       else { place.textContent='Tap the still to mark where Gul sits (optional — Claude decides if you skip).'; }
       d.appendChild(place);
     }
 
     const hint=document.createElement('input'); hint.type='text'; hint.placeholder='what this shot shows / what Gul does here'; hint.value=s.hint||''; hint.style.marginTop='8px';
-    hint.addEventListener('input',()=>{s.hint=hint.value;}); hint.addEventListener('change',persist);
+    hint.addEventListener('input',()=>{s.hint=hint.value;}); hint.addEventListener('change',()=>{persist();scheduleSave();});
     d.appendChild(hint);
 
-    top.querySelector('.up').onclick=()=>{ if(i>0){ [p.scenes[i-1],p.scenes[i]]=[p.scenes[i],p.scenes[i-1]]; persist(); renderAll(); } };
-    top.querySelector('.down').onclick=()=>{ if(i<p.scenes.length-1){ [p.scenes[i+1],p.scenes[i]]=[p.scenes[i],p.scenes[i+1]]; persist(); renderAll(); } };
-    top.querySelector('.del').onclick=()=>{ if(!confirm('Remove scene '+(i+1)+'?'))return; p.scenes.splice(i,1); persist(); renderAll(); };
+    top.querySelector('.up').onclick=()=>{ if(i>0){ [p.scenes[i-1],p.scenes[i]]=[p.scenes[i],p.scenes[i-1]]; persist(); renderAll(); scheduleSave(); } };
+    top.querySelector('.down').onclick=()=>{ if(i<p.scenes.length-1){ [p.scenes[i+1],p.scenes[i]]=[p.scenes[i],p.scenes[i+1]]; persist(); renderAll(); scheduleSave(); } };
+    top.querySelector('.del').onclick=()=>{ if(!confirm('Remove scene '+(i+1)+'?'))return; p.scenes.splice(i,1); persist(); renderAll(); scheduleSave(); };
     wrap.appendChild(d);
   });
 }
@@ -312,7 +378,7 @@ $('planBtn').onclick=async()=>{
       sc.approved=false;
       sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null }; });
     });
-    persist(); renderAll();
+    persist(); renderAll(); scheduleSave();
     planMsg('✓ Planned '+planned.length+' scenes. Review the prompts, then generate Scene 1.','ok');
   }catch(e){ planMsg('✕ '+e.message,'err'); }
   finally{ $('planBtn').disabled=false; }
@@ -404,7 +470,7 @@ function buildSceneCard(sc, idx){
     card.appendChild(box);
 
     dl.onclick=()=>downloadSceneZip(sc,idx);
-    appr.onclick=()=>{ sc.approved=!sc.approved; persist(); renderAll(); };
+    appr.onclick=()=>{ sc.approved=!sc.approved; persist(); renderAll(); scheduleSave(); };
 
     const a=makeAnimator(sc, cv, ()=>cbInput.checked); cbInput.onchange=()=>layout(a);
   }
@@ -429,10 +495,10 @@ async function generateScene(sc, idx, st, btn){
         data=await generateSheet(payload, sec=>{ st.innerHTML='<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s'; st.className='status run'; });
       }catch(e){ st.innerHTML='✕ Beat '+(si+1)+': '+e.message; st.className='status err'; btn.disabled=false; return; }
       sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, s.trim);
-      persist();
+      persist(); scheduleSave();
     }
     st.innerHTML='✓ Scene generated.'; st.className='status ok';
-    renderAll();
+    renderAll(); scheduleSave();
   }catch(e){ st.innerHTML='✕ '+e.message; st.className='status err'; btn.disabled=false; }
 }
 
