@@ -90,6 +90,17 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 .sceneEditor img{width:100%;display:block;max-height:170px;object-fit:contain}
 .pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 0;background:var(--accent);transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.3);pointer-events:none}
 .pin::after{content:"";position:absolute;inset:6px;background:#fff;border-radius:50%}
+.pinsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.pn{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.4);border:2px solid #fff;pointer-events:none;z-index:2}
+.pn.pose{background:var(--accent)} .pn.look{background:#2f6fd4} .pn.track{background:var(--ok)} .pn.move{background:#8a5bd0}
+.pintools{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+.pintools .chip{padding:5px 9px}
+.pintools .chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pinlist{margin-top:4px}
+.pinlist .pi{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink2);margin:3px 0;line-height:1.4}
+.pinlist .pi span{flex:1}
+.eguide{margin:8px 0;padding:8px 10px;background:rgba(138,91,208,.08);border:1px solid #e4d8f3;border-radius:9px;font-size:12px;color:var(--ink2);line-height:1.5}
+.eguide b{color:#6f44c0}
 </style>
 </head>
 <body>
@@ -134,9 +145,9 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
         <div>
           <label class="f">Quality</label>
           <select id="setQuality">
-            <option value="low" selected>Low (fast)</option>
-            <option value="medium">Medium</option>
-            <option value="high">High (slow)</option>
+            <option value="low">Low (draft — rough, blobby)</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High (best match, slow)</option>
           </select>
         </div>
         <div>
@@ -148,11 +159,11 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
       </div>
       <label class="f" style="margin-top:10px">Crop</label>
       <select id="setCrop">
-        <option value="aligned" selected>Aligned (same size — smooth playback)</option>
+        <option value="aligned" selected>Aligned (same size, centred — smooth)</option>
         <option value="tight">Tight (each pose cropped to itself)</option>
-        <option value="off">Off (full square cells)</option>
+        <option value="off">Off (keep position in cell)</option>
       </select>
-      <small class="note">High quality can hit the 26s function limit on big sheets — prefer Low/Medium.</small>
+      <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
     </div>
   </div>
 
@@ -223,14 +234,14 @@ function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catc
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"low",fps:8,crop:"aligned"}, scenes:[] }; }
-function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"low",fps:8,crop:"aligned"}; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:8,crop:"aligned"}, scenes:[] }; }
+function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:8,crop:"aligned"}; }
 
 /* ===== cloud sync (Netlify Blobs via nt-store) — shared workspace, loads on any device ===== */
 const STORE_URL = FN_BASE + '/nt-store';
 let cloudOn=false, cloudIndex=[], saveTimer=null;
 const synced=new Set();
-function defaults(){ return {framesMax:9,quality:"low",fps:8,crop:"aligned"}; }
+function defaults(){ return {framesMax:9,quality:"medium",fps:8,crop:"aligned"}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
 async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
@@ -238,7 +249,8 @@ async function cloudDel(key){ try{ await fetch(STORE_URL+'?key='+encodeURICompon
 // meta = project structure with images replaced by their blob keys (one image per key)
 function projectMeta(p){
   return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', settings:p.settings||defaults(),
-    scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null,
+    scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved,
+      pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop,
       refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null })) })) };
 }
@@ -264,7 +276,7 @@ async function loadCloud(id){
   const meta=JSON.parse(raw);
   const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', settings:meta.settings||defaults(), scenes:[] };
   for(const s of (meta.scenes||[])){
-    const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, refImage:null, refKey:s.refKey||null, sheets:[] };
+    const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, frames:null };
@@ -337,6 +349,31 @@ function placementWords(pin){
   if(h==='centre'&&v==='middle') return 'in the centre';
   return 'in the '+v+(h==='centre'?'':' '+h);
 }
+function dirWords(pin){ return placementWords(pin).replace(/^in the /,'toward the ').replace('in the centre','straight ahead'); }
+// Pose + Look pins shape the SPRITE (sent to the image model). Track + Move are editor-only.
+const PIN_LABELS={pose:'📍 Pose',look:'👀 Look',track:'🎯 Track',move:'➡️ Move'};
+function pinsOf(sc){ if(!sc.pins){ sc.pins = sc.pin?[{id:uid(),type:'pose',x:sc.pin.x,y:sc.pin.y}]:[]; } return sc.pins; }
+function buildSceneNote(sc){
+  const ps=pinsOf(sc); const out=[];
+  const pose=ps.find(p=>p.type==='pose');
+  const look=ps.find(p=>p.type==='look');
+  if(pose) out.push('Place Gul '+placementWords(pose)+' of the framing, facing the action'+(pose.note?(' — '+pose.note):'')+'.');
+  if(look) out.push('She looks/leans '+dirWords(look)+(look.note?(' ('+look.note+')'):'')+'.');
+  return out.join(' ');
+}
+// Track + Move pins (or Claude's placement fallback) → plain "do this in your editor" steps.
+function buildEditorGuide(sc){
+  const ps=pinsOf(sc); const lines=[];
+  ps.filter(p=>p.type==='move').forEach(p=>{
+    const to = p.x2!=null ? placementWords({x:p.x2,y:p.y2}) : '(set end point)';
+    lines.push('Position-keyframe Gul from '+placementWords(p)+' to '+to+' along an arc'+(p.note?(' — '+p.note):'')+'.');
+  });
+  ps.filter(p=>p.type==='track').forEach(p=>{
+    lines.push('Motion-track the point '+placementWords(p)+' (the moving hand/shoulder) and parent Gul’s sprite to it so she rides along'+(p.note?(' — '+p.note):'')+'.');
+  });
+  if(!lines.length && sc.placement) lines.push(sc.placement);
+  return lines;
+}
 function renderShots(){
   const p=curProj(); const wrap=$('shotList'); wrap.innerHTML=''; $('story').value=p.story||'';
   if(!p.scenes.length){ wrap.innerHTML='<div class="empty">No shots yet — upload stills (or add an empty scene), then write the story.</div>'; return; }
@@ -348,19 +385,51 @@ function renderShots(){
     d.appendChild(top);
 
     if(s.refImage){
+      pinsOf(s);
       const ed=document.createElement('div'); ed.className='sceneEditor';
       const im=document.createElement('img'); im.src=s.refImage; ed.appendChild(im);
-      const pin=document.createElement('div'); pin.className='pin'; pin.style.display=s.pin?'block':'none';
-      if(s.pin){ pin.style.left=(s.pin.x*100)+'%'; pin.style.top=(s.pin.y*100)+'%'; }
-      ed.appendChild(pin);
-      ed.onclick=(ev)=>{ const r=im.getBoundingClientRect(); s.pin={x:Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height))}; pin.style.display='block'; pin.style.left=(s.pin.x*100)+'%'; pin.style.top=(s.pin.y*100)+'%'; place.textContent='📍 Gul sits '+placementWords(s.pin)+' (tap to move · '; place.appendChild(clr); place.append(')'); persist(); scheduleSave(); };
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','pinsvg'); ed.appendChild(svg);
+      const SVGNS='http://www.w3.org/2000/svg';
+      function redraw(){
+        [...ed.querySelectorAll('.pn')].forEach(n=>n.remove()); svg.innerHTML='';
+        (s.pins||[]).forEach(p=>{
+          if(p.type==='move'){
+            addDot(p.x,p.y,'move','A');
+            if(p.x2!=null){ addDot(p.x2,p.y2,'move','B');
+              const l=document.createElementNS(SVGNS,'line'); l.setAttribute('x1',(p.x*100)+'%'); l.setAttribute('y1',(p.y*100)+'%'); l.setAttribute('x2',(p.x2*100)+'%'); l.setAttribute('y2',(p.y2*100)+'%'); l.setAttribute('stroke','#8a5bd0'); l.setAttribute('stroke-width','2'); l.setAttribute('stroke-dasharray','5 4'); svg.appendChild(l); }
+          } else { addDot(p.x,p.y,p.type, p.type==='pose'?'P':p.type==='look'?'L':'T'); }
+        });
+      }
+      function addDot(x,y,type,lab){ const dot=document.createElement('div'); dot.className='pn '+type; dot.style.left=(x*100)+'%'; dot.style.top=(y*100)+'%'; dot.textContent=lab; ed.appendChild(dot); }
+      ed.onclick=(ev)=>{
+        const r=im.getBoundingClientRect(); const x=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), y=Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height));
+        const t=s._drawType||'pose';
+        if(t==='move'){ const open=(s.pins||[]).find(p=>p.type==='move'&&p.x2==null); if(open){ open.x2=x; open.y2=y; } else { s.pins.push({id:uid(),type:'move',x,y}); } }
+        else if(t==='track'){ s.pins.push({id:uid(),type:'track',x,y}); }
+        else { s.pins=s.pins.filter(p=>p.type!==t); s.pins.push({id:uid(),type:t,x,y}); } // pose/look: one each, replace
+        persist(); scheduleSave(); redraw(); renderPinList();
+      };
       d.appendChild(ed);
-      const place=document.createElement('small'); place.className='note';
-      const clr=document.createElement('a'); clr.href='#'; clr.textContent='clear'; clr.style.color='var(--accent)';
-      clr.onclick=(e)=>{ e.preventDefault(); s.pin=null; persist(); scheduleSave(); renderShots(); };
-      if(s.pin){ place.textContent='📍 Gul sits '+placementWords(s.pin)+' (tap to move · '; place.appendChild(clr); place.append(')'); }
-      else { place.textContent='Tap the still to mark where Gul sits (optional — Claude decides if you skip).'; }
-      d.appendChild(place);
+
+      const tools=document.createElement('div'); tools.className='pintools';
+      Object.keys(PIN_LABELS).forEach(t=>{ const c=document.createElement('button'); c.className='chip'+(((s._drawType||'pose')===t)?' active':''); c.textContent=PIN_LABELS[t]; c.onclick=()=>{ s._drawType=t; [...tools.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); }; tools.appendChild(c); });
+      d.appendChild(tools);
+
+      const list=document.createElement('div'); list.className='pinlist'; d.appendChild(list);
+      function renderPinList(){
+        list.innerHTML='';
+        const hasT=(s.pins||[]).some(p=>p.type==='track'), hasM=(s.pins||[]).some(p=>p.type==='move');
+        if(!s.pins||!s.pins.length){ list.innerHTML='<small class="note">Drop <b>Track + Move</b> (required) so the editor guide knows Gul’s path & what she sticks to. Pose/Look optional — or leave them and Claude decides.</small>'; return; }
+        s.pins.forEach(p=>{
+          const row=document.createElement('div'); row.className='pi';
+          const where = p.type==='move' ? (placementWords(p)+(p.x2!=null?(' → '+placementWords({x:p.x2,y:p.y2})):' → tap end point')) : placementWords(p);
+          const sp=document.createElement('span'); sp.textContent=PIN_LABELS[p.type]+' · '+where; row.appendChild(sp);
+          const x=document.createElement('a'); x.href='#'; x.textContent='✕'; x.style.color='var(--err)'; x.onclick=(e)=>{e.preventDefault(); s.pins=s.pins.filter(q=>q!==p); persist(); scheduleSave(); redraw(); renderPinList();}; row.appendChild(x);
+          list.appendChild(row);
+        });
+        if(!hasT||!hasM){ const w=document.createElement('small'); w.className='note'; w.textContent='⚠ Still need: '+[!hasT?'Track':null,!hasM?'Move':null].filter(Boolean).join(' + ')+'.'; list.appendChild(w); }
+      }
+      redraw(); renderPinList();
     }
 
     const hint=document.createElement('input'); hint.type='text'; hint.placeholder='what this shot shows / what Gul does here'; hint.value=s.hint||''; hint.style.marginTop='8px';
@@ -397,6 +466,7 @@ $('planBtn').onclick=async()=>{
       if(!sc){ sc={id:uid(),refImage:null,hint:'',approved:false}; p.scenes.push(sc); }
       sc.title=ps.title||('Scene '+(i+1));
       sc.summary=ps.summary||'';
+      sc.placement=ps.placement||'';
       sc.loop=ps.loop!==false;
       sc.approved=false;
       sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null }; });
@@ -450,6 +520,8 @@ function buildSceneCard(sc, idx){
   card.appendChild(head);
 
   if(sc.summary){ const sm=document.createElement('div'); sm.style.cssText='color:var(--ink2);font-size:13px;margin:6px 0 2px'; sm.textContent=sc.summary; card.appendChild(sm); }
+  const guide=buildEditorGuide(sc);
+  if(guide.length){ const g=document.createElement('div'); g.className='eguide'; g.innerHTML='<b>🎬 In your editor</b><br>'+guide.map(escapeHtml).join('<br>'); card.appendChild(g); }
   const seed=lastFrameBefore(idx,0);
   if(idx>0){ const n=document.createElement('small'); n.className='note'; n.textContent= seed?'↳ continues from the previous scene\'s last frame.':'⚠ generate & approve the previous scene first so this one can continue from it.'; card.appendChild(n); }
 
@@ -525,7 +597,7 @@ async function generateScene(sceneId, idx){
       setSceneStatus(sceneId,'<span class="spinner"></span>Generating beat '+(si+1)+'/'+sc.sheets.length+'…','run');
       // Only the mascot is sent as a reference (small + fast); placement comes from the pin text hint.
       const payload={ action:(sh.action||sc.summary||'').trim(), mascotRef:await shrinkData(mascot,1024,'image/png'), cols:sh.cols, rows:sh.rows, quality:s.quality, size:resolveSize(sh.cols,sh.rows) };
-      if(sc.pin) payload.sceneNote='Place Gul '+placementWords(sc.pin)+' of the framing, facing the action.';
+      const note=buildSceneNote(sc); if(note) payload.sceneNote=note;
       const seed=lastFrameBefore(idx,si); if(seed) payload.prevFrame=seed;
       let data;
       try{
@@ -552,26 +624,32 @@ function cropSheet(dataUrl, cols, rows, mode){
     const img=new Image();
     img.onload=()=>{
       const cw=Math.floor(img.width/cols), ch=Math.floor(img.height/rows);
-      const cells=[], boxes=[]; const c=document.createElement('canvas'); c.width=cw; c.height=ch; const ctx=c.getContext('2d');
-      let gx0=cw,gy0=ch,gx1=0,gy1=0,gAny=false;
+      const c=document.createElement('canvas'); c.width=cw; c.height=ch; const ctx=c.getContext('2d');
+      const cells=[]; let maxW=0,maxH=0;            // per-cell {url, box(tight content)}
       for(let r=0;r<rows;r++) for(let col=0;col<cols;col++){
         ctx.clearRect(0,0,cw,ch); ctx.drawImage(img, col*cw,r*ch,cw,ch, 0,0,cw,ch);
         let bx0=cw,by0=ch,bx1=0,by1=0,any=false;
         if(mode!=='off'){ const id=ctx.getImageData(0,0,cw,ch).data;
-          for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){ if(id[(y*cw+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y; if(x<gx0)gx0=x;if(x>gx1)gx1=x;if(y<gy0)gy0=y;if(y>gy1)gy1=y; gAny=true; } } }
-        cells.push(c.toDataURL('image/png')); boxes.push(any?{x0:bx0,y0:by0,x1:bx1,y1:by1}:null);
+          for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){ if(id[(y*cw+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y; } } }
+        const box = any?{x0:bx0,y0:by0,x1:bx1,y1:by1}:null;
+        if(box){ maxW=Math.max(maxW,box.x1-box.x0+1); maxH=Math.max(maxH,box.y1-box.y0+1); }
+        cells.push({url:c.toDataURL('image/png'), box});
       }
-      if(mode==='off' || !gAny) return resolve(cells);
-      const pad=6;
-      const clamp=b=>({x0:Math.max(0,b.x0-pad), y0:Math.max(0,b.y0-pad), x1:Math.min(cw-1,b.x1+pad), y1:Math.min(ch-1,b.y1+pad)});
-      const union=clamp({x0:gx0,y0:gy0,x1:gx1,y1:gy1});
-      const out=[]; let done=0;
-      cells.forEach((u,i)=>{ const im=new Image(); im.onload=()=>{
-        const box = mode==='tight' ? (boxes[i]?clamp(boxes[i]):union) : union;
-        const tw=box.x1-box.x0+1, th=box.y1-box.y0+1;
-        const tc=document.createElement('canvas'); tc.width=tw; tc.height=th; tc.getContext('2d').drawImage(im,box.x0,box.y0,tw,th,0,0,tw,th);
-        out[i]=tc.toDataURL('image/png'); if(++done===cells.length)resolve(out);
-      }; im.src=u; });
+      if(mode==='off' || !maxW) return resolve(cells.map(c=>c.url));
+      const pad=8;
+      const out=[]; let done=0; const fin=()=>{ if(++done===cells.length) resolve(out); };
+      if(mode==='tight'){
+        // each pose cropped to its own content (variable size)
+        cells.forEach((cell,i)=>{ const im=new Image(); im.onload=()=>{ const b=cell.box; if(!b){ out[i]=cell.url; return fin(); }
+          const x0=Math.max(0,b.x0-pad),y0=Math.max(0,b.y0-pad),x1=Math.min(cw-1,b.x1+pad),y1=Math.min(ch-1,b.y1+pad); const tw=x1-x0+1,th=y1-y0+1;
+          const tc=document.createElement('canvas'); tc.width=tw; tc.height=th; tc.getContext('2d').drawImage(im,x0,y0,tw,th,0,0,tw,th); out[i]=tc.toDataURL('image/png'); fin(); }; im.src=cell.url; });
+        return;
+      }
+      // aligned: one uniform canvas (largest pose + pad), each pose tight-cropped then CENTRED.
+      const W=Math.min(cw, maxW+pad*2), H=Math.min(ch, maxH+pad*2);
+      cells.forEach((cell,i)=>{ const im=new Image(); im.onload=()=>{ const tc=document.createElement('canvas'); tc.width=W; tc.height=H; const tctx=tc.getContext('2d');
+        const b=cell.box; if(b){ const bw=b.x1-b.x0+1, bh=b.y1-b.y0+1; tctx.drawImage(im,b.x0,b.y0,bw,bh,Math.round((W-bw)/2),Math.round((H-bh)/2),bw,bh); }
+        out[i]=tc.toDataURL('image/png'); fin(); }; im.src=cell.url; });
     };
     img.src=dataUrl;
   });
