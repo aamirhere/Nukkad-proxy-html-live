@@ -86,6 +86,10 @@ textarea{resize:vertical;min-height:64px;line-height:1.5}
 small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-height:1.5}
 .steps{display:flex;gap:6px;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px;flex-wrap:wrap}
 .steps b{color:var(--accent)}
+.sceneEditor{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#faf2e8;cursor:crosshair;margin-top:6px}
+.sceneEditor img{width:100%;display:block;max-height:170px;object-fit:contain}
+.pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 0;background:var(--accent);transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.3);pointer-events:none}
+.pin::after{content:"";position:absolute;inset:6px;background:#fff;border-radius:50%}
 </style>
 </head>
 <body>
@@ -241,21 +245,45 @@ $('addEmptyBtn').onclick=()=>{ const p=curProj(); if(!p)return; p.scenes.push({i
 $('story').addEventListener('input',e=>{ const p=curProj(); if(p){p.story=e.target.value;} });
 $('story').addEventListener('change',persist);
 
+function placementWords(pin){
+  const h=pin.x<0.34?'left':pin.x>0.66?'right':'centre';
+  const v=pin.y<0.34?'top':pin.y>0.66?'bottom':'middle';
+  if(h==='centre'&&v==='middle') return 'in the centre';
+  return 'in the '+v+(h==='centre'?'':' '+h);
+}
 function renderShots(){
   const p=curProj(); const wrap=$('shotList'); wrap.innerHTML=''; $('story').value=p.story||'';
   if(!p.scenes.length){ wrap.innerHTML='<div class="empty">No shots yet — upload stills (or add an empty scene), then write the story.</div>'; return; }
   p.scenes.forEach((s,i)=>{
-    const d=document.createElement('div'); d.className='shot';
-    d.innerHTML = (s.refImage?'<img src="'+s.refImage+'">':'<div style="width:64px;height:64px;border-radius:8px;background:#faf2e8;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;flex:0 0 auto">no still</div>')+
-      '<div class="body"><div class="num">Scene '+(i+1)+'</div></div>'+
-      '<div class="ctrls"><button class="btn sm ghost up">▲</button><button class="btn sm ghost down">▼</button><button class="btn sm danger del">✕</button></div>';
-    const body=d.querySelector('.body');
-    const hint=document.createElement('input'); hint.type='text'; hint.placeholder='what this shot shows / what Gul does here'; hint.value=s.hint||''; hint.style.marginTop='4px';
+    const d=document.createElement('div'); d.className='shot'; d.style.flexDirection='column';
+    const top=document.createElement('div'); top.style.cssText='display:flex;align-items:center;gap:8px;width:100%';
+    top.innerHTML='<div class="num" style="flex:1">Scene '+(i+1)+'</div>'+
+      '<button class="btn sm ghost up" style="width:34px">▲</button><button class="btn sm ghost down" style="width:34px">▼</button><button class="btn sm danger del" style="width:34px">✕</button>';
+    d.appendChild(top);
+
+    if(s.refImage){
+      const ed=document.createElement('div'); ed.className='sceneEditor';
+      const im=document.createElement('img'); im.src=s.refImage; ed.appendChild(im);
+      const pin=document.createElement('div'); pin.className='pin'; pin.style.display=s.pin?'block':'none';
+      if(s.pin){ pin.style.left=(s.pin.x*100)+'%'; pin.style.top=(s.pin.y*100)+'%'; }
+      ed.appendChild(pin);
+      ed.onclick=(ev)=>{ const r=im.getBoundingClientRect(); s.pin={x:Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height))}; pin.style.display='block'; pin.style.left=(s.pin.x*100)+'%'; pin.style.top=(s.pin.y*100)+'%'; place.textContent='📍 Gul sits '+placementWords(s.pin)+' (tap to move · '; place.appendChild(clr); place.append(')'); persist(); };
+      d.appendChild(ed);
+      const place=document.createElement('small'); place.className='note';
+      const clr=document.createElement('a'); clr.href='#'; clr.textContent='clear'; clr.style.color='var(--accent)';
+      clr.onclick=(e)=>{ e.preventDefault(); s.pin=null; persist(); renderShots(); };
+      if(s.pin){ place.textContent='📍 Gul sits '+placementWords(s.pin)+' (tap to move · '; place.appendChild(clr); place.append(')'); }
+      else { place.textContent='Tap the still to mark where Gul sits (optional — Claude decides if you skip).'; }
+      d.appendChild(place);
+    }
+
+    const hint=document.createElement('input'); hint.type='text'; hint.placeholder='what this shot shows / what Gul does here'; hint.value=s.hint||''; hint.style.marginTop='8px';
     hint.addEventListener('input',()=>{s.hint=hint.value;}); hint.addEventListener('change',persist);
-    body.appendChild(hint);
-    d.querySelector('.up').onclick=()=>{ if(i>0){ [p.scenes[i-1],p.scenes[i]]=[p.scenes[i],p.scenes[i-1]]; persist(); renderAll(); } };
-    d.querySelector('.down').onclick=()=>{ if(i<p.scenes.length-1){ [p.scenes[i+1],p.scenes[i]]=[p.scenes[i],p.scenes[i+1]]; persist(); renderAll(); } };
-    d.querySelector('.del').onclick=()=>{ if(!confirm('Remove scene '+(i+1)+'?'))return; p.scenes.splice(i,1); persist(); renderAll(); };
+    d.appendChild(hint);
+
+    top.querySelector('.up').onclick=()=>{ if(i>0){ [p.scenes[i-1],p.scenes[i]]=[p.scenes[i],p.scenes[i-1]]; persist(); renderAll(); } };
+    top.querySelector('.down').onclick=()=>{ if(i<p.scenes.length-1){ [p.scenes[i+1],p.scenes[i]]=[p.scenes[i],p.scenes[i+1]]; persist(); renderAll(); } };
+    top.querySelector('.del').onclick=()=>{ if(!confirm('Remove scene '+(i+1)+'?'))return; p.scenes.splice(i,1); persist(); renderAll(); };
     wrap.appendChild(d);
   });
 }
@@ -393,9 +421,15 @@ async function generateScene(sc, idx, st, btn){
       st.innerHTML='<span class="spinner"></span>Generating beat '+(si+1)+'/'+sc.sheets.length+'…'; st.className='status run';
       const payload={ action:(sh.action||sc.summary||'').trim(), mascotRef:mascot, cols:sh.cols, rows:sh.rows, quality:s.quality, size:resolveSize(sh.cols,sh.rows) };
       if(sc.refImage) payload.sceneImage=sc.refImage;
+      if(sc.pin) payload.sceneNote='Place Gul '+placementWords(sc.pin)+' of the framing, facing the action.';
       const seed=lastFrameBefore(idx,si); if(seed) payload.prevFrame=seed;
-      const res=await fetch(SPRITE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const data=await res.json();
+      let data=null, lastErr='';
+      for(let attempt=1; attempt<=2 && !data; attempt++){
+        if(attempt===2){ st.innerHTML='<span class="spinner"></span>Beat '+(si+1)+' timed out — retrying…'; }
+        try{ const res=await fetch(SPRITE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); data=await res.json(); }
+        catch(err){ lastErr=err.message; }
+      }
+      if(!data){ st.innerHTML='✕ Beat '+(si+1)+': '+lastErr+' — the image took too long (try Low quality / fewer frames per sheet).'; st.className='status err'; btn.disabled=false; return; }
       if(data.error){ st.innerHTML='✕ Beat '+(si+1)+': '+data.error; st.className='status err'; btn.disabled=false; return; }
       sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, s.trim);
       persist();
