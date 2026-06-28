@@ -188,6 +188,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 <script>
 /* ===== config ===== */
 const FN_BASE = (localStorage.getItem('nt_fn_base') || 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions');
+const SPRITE_URL = FN_BASE + '/nt-sprite';
 const START_URL = FN_BASE + '/nt-sprite-background';
 const RESULT_URL = FN_BASE + '/nt-sprite-result';
 const DIRECTOR_URL = FN_BASE + '/nt-sprite-director';
@@ -567,19 +568,26 @@ $('dlAll').onclick=async()=>{
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 // Start a background generation job, then poll for the result (no 26s limit).
 async function generateSheet(payload, onWait){
-  const jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
-  // text/plain keeps this a CORS "simple request" — no OPTIONS preflight, which Netlify
-  // background functions answer with a bare 202 (no CORS headers) and would block the POST.
-  try{ await fetch(START_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({jobId},payload))}); }
-  catch(e){ /* response may be unreadable cross-origin, but the job has started; poll anyway */ }
-  const deadline=Date.now()+240000; let waited=0;
-  while(Date.now()<deadline){
-    await sleep(3000); waited+=3; if(onWait) onWait(waited);
-    let d=null; try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); d=await r.json(); }catch(e){ continue; }
-    if(d && d.status==='done') return d;
-    if(d && d.status==='error') throw new Error(d.error||'generation failed');
-  }
-  throw new Error('timed out after 4 min — try Low quality / fewer frames');
+  let t=0; const timer=setInterval(()=>{ if(onWait) onWait(++t); },1000);
+  try{
+    // 1) Fast path: synchronous nt-sprite — finishes under the 26s cap for small beats.
+    let res=null, data=null;
+    try{ res=await fetch(SPRITE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); }catch(e){}
+    if(res){ try{ data=await res.json(); }catch(e){ data=null; } } // non-JSON ⇒ hit the 26s cap
+    if(data && data.image) return data;
+    if(data && data.error) throw new Error(data.error); // real API error — surface it
+    // 2) Fallback for slow beats: background job + poll (no 26s limit).
+    const jobId=(uid()+uid()+Date.now().toString(36)).slice(0,40);
+    try{ await fetch(START_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({jobId},payload))}); }catch(e){}
+    const deadline=Date.now()+180000;
+    while(Date.now()<deadline){
+      await sleep(3000);
+      let d=null; try{ const r=await fetch(RESULT_URL+'?id='+encodeURIComponent(jobId)); d=await r.json(); }catch(e){ continue; }
+      if(d && d.status==='done') return d;
+      if(d && d.status==='error') throw new Error(d.error||'generation failed');
+    }
+    throw new Error('the image took too long (try Low quality / fewer frames)');
+  } finally { clearInterval(timer); }
 }
 function fileToDataURL(f,cb){ if(!f)return; const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(f); }
 function downscaleDataURL(f,maxDim,cb){ fileToDataURL(f,d=>{ const im=new Image(); im.onload=()=>{ const sc=Math.min(maxDim/im.width,maxDim/im.height,1); if(sc>=1)return cb(d); const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext('2d').drawImage(im,0,0,c.width,c.height); cb(c.toDataURL('image/jpeg',0.85)); }; im.src=d; }); }
