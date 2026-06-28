@@ -487,9 +487,10 @@ async function generateScene(sc, idx, st, btn){
     for(let si=0; si<sc.sheets.length; si++){
       const sh=sc.sheets[si];
       st.innerHTML='<span class="spinner"></span>Generating beat '+(si+1)+'/'+sc.sheets.length+'…'; st.className='status run';
-      // Shrink the references — smaller inputs = much faster gpt-image-1 calls (helps stay under the time cap).
+      // Send ONLY the mascot as a reference (small) — that's the fast call that worked first time.
+      // The scene still is NOT sent to the model (extra reference images make gpt-image-1 much slower);
+      // placement/gaze comes from the pin as a text hint instead.
       const payload={ action:(sh.action||sc.summary||'').trim(), mascotRef:await shrinkData(mascot,512,'image/png'), cols:sh.cols, rows:sh.rows, quality:s.quality, size:resolveSize(sh.cols,sh.rows) };
-      if(sc.refImage) payload.sceneImage=await shrinkData(sc.refImage,640,'image/jpeg');
       if(sc.pin) payload.sceneNote='Place Gul '+placementWords(sc.pin)+' of the framing, facing the action.';
       const seed=lastFrameBefore(idx,si); if(seed) payload.prevFrame=seed;
       let data;
