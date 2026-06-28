@@ -126,8 +126,10 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
       <div class="mascot-prev" id="mascotPrev"></div>
       <div class="row" style="margin-top:10px">
         <button class="btn sm ghost" id="mascotUploadBtn">Replace</button>
+        <button class="btn sm ghost" id="mascotDownload">Save</button>
         <button class="btn sm ghost" id="mascotResetBtn">Reset</button>
       </div>
+      <small class="note">“Save” downloads Gul so you can attach her in ChatGPT for the free manual route.</small>
       <input type="file" id="mascotFile" accept="image/*" hidden>
     </div>
 
@@ -170,7 +172,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
   <!-- RIGHT -->
   <div class="col">
     <div class="card">
-      <div class="steps">FLOW: <b>1</b> upload shots → <b>2</b> write the story → <b>3</b> Claude plans the scenes → <b>4</b> generate &amp; approve scene by scene</div>
+      <div class="steps">FLOW: <b>1</b> upload shots → <b>2</b> write the story → <b>3</b> Claude plans the scenes → <b>4</b> per beat: generate via API, <em>or</em> copy prompt → make on ChatGPT → upload (free) → approve</div>
       <h2>1 · Shots &amp; story</h2>
       <p class="hint">Upload the stills from your video — each becomes a scene, in order. Add a one-line note on what each shot shows / what Gul should do. Then write the overall story and let Claude plan it.</p>
       <div class="row">
@@ -328,6 +330,7 @@ function renderMascot(){ const m=curMascot(); $('mascotPrev').innerHTML = m?'<im
 $('mascotUploadBtn').onclick=()=>$('mascotFile').click();
 $('mascotFile').onchange=e=>fileToDataURL(e.target.files[0],d=>{DB.mascot=d;persist();renderMascot(); if(cloudOn)cloudSet('mascot',d).catch(()=>{});});
 $('mascotResetBtn').onclick=()=>{DB.mascot=null;persist();renderMascot(); if(cloudOn)cloudDel('mascot');};
+$('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'gul-reference.png'); };
 
 /* ===== settings ===== */
 function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setCrop').value=cropMode(s); }
@@ -360,6 +363,22 @@ function buildSceneNote(sc){
   if(pose) out.push('Place Gul '+placementWords(pose)+' of the framing, facing the action'+(pose.note?(' — '+pose.note):'')+'.');
   if(look) out.push('She looks/leans '+dirWords(look)+(look.note?(' ('+look.note+')'):'')+'.');
   return out.join(' ');
+}
+// Free manual route: the exact prompt to paste into ChatGPT (mirrors the server prompt),
+// so you generate the sheet by hand with the reference and upload it back here.
+function buildManualPrompt(sc, idx, sh, si){
+  const cols=sh.cols, rows=sh.rows, total=cols*rows;
+  const action=(sh.action||sc.summary||'').trim();
+  const note=buildSceneNote(sc);
+  const hasPrev=!!lastFrameBefore(idx, si);
+  const L=[];
+  L.push('KEEP THE BIRD IN THE ATTACHED REFERENCE IMAGE EXACTLY THE SAME. Identical character in every frame — same body shape, orange-and-cream colours and feather markings, wings, face, eyes, cheeks, beak and proportions. Match her soft hand-painted watercolour art style with gentle shading — NO bold cartoon outlines, no restyling. Only her POSE changes from frame to frame.');
+  L.push('Lay it out as ONE image: a clean '+cols+'×'+rows+' grid of '+total+' equal cells, read left-to-right then top-to-bottom, evenly spaced, NO borders, NO gridlines, NO numbers, NO text. Fully TRANSPARENT background. Show ONLY the bird in each cell — no scene, floor or props. Draw her LARGE so she fills most of each cell, richly detailed, centred and the SAME size in every cell.');
+  L.push('The '+total+' frames are one smooth, evenly-timed animation of this single action: '+action+'. Frame 1 is the start pose, the last frame is the end pose, with even in-between poses so it plays back fluidly. Keep her perfectly on-model so she never morphs into a different bird.');
+  if(hasPrev) L.push('Continuity: also attach the LAST frame of the previous beat and make frame 1 continue seamlessly from that exact pose.');
+  if(note) L.push('Direction: '+note);
+  L.push('(Attach Gul’s reference image — use “Save” in the studio. Export the result as a PNG with a transparent background, then upload it back to this beat.)');
+  return L.join('\n\n');
 }
 // Track + Move pins (or Claude's placement fallback) → plain "do this in your editor" steps.
 function buildEditorGuide(sc){
@@ -534,6 +553,20 @@ function buildSceneCard(sc, idx){
     const ta=document.createElement('textarea'); ta.value=sh.action||''; ta.placeholder='action for this beat';
     ta.addEventListener('input',()=>{sh.action=ta.value;}); ta.addEventListener('change',persist);
     sd.appendChild(ta);
+
+    // Free manual route: copy this beat's prompt, make it on ChatGPT, upload the sheet back.
+    const man=document.createElement('div'); man.className='row'; man.style.marginTop='8px';
+    const cp=document.createElement('button'); cp.className='btn sm ghost'; cp.style.flex='1'; cp.textContent='📋 Copy prompt';
+    cp.onclick=()=>copyText(buildManualPrompt(sc, idx, sh, si), cp);
+    const up=document.createElement('button'); up.className='btn sm ghost'; up.style.flex='1'; up.textContent=(sh.frames&&sh.frames.length)?'⬆ Replace sheet':'⬆ Upload sheet';
+    const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
+    up.onclick=()=>fi.click();
+    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ sh.sheetImg=d; sh.frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
+    man.appendChild(cp); man.appendChild(up); man.appendChild(fi);
+    sd.appendChild(man);
+    const mn=document.createElement('small'); mn.className='note'; mn.textContent='Free route: Copy prompt → paste in ChatGPT with Gul attached → upload the PNG here (must be a '+sh.cols+'×'+sh.rows+' grid).';
+    sd.appendChild(mn);
+
     if(sh.frames&&sh.frames.length){
       const strip=document.createElement('div'); strip.className='framestrip';
       sh.frames.forEach((f,i)=>{ const fr=document.createElement('div'); fr.className='fr'; fr.innerHTML='<div class="box"><img src="'+f+'"></div><div class="lab">#'+(i+1)+'</div>'; strip.appendChild(fr); });
@@ -547,7 +580,7 @@ function buildSceneCard(sc, idx){
   const actions=document.createElement('div'); actions.className='row'; actions.style.marginTop='10px';
   const busy = !!sc._generating || (sc.sheets||[]).some(sh=>sh.pendingJob && !(sh.frames&&sh.frames.length));
   const genBtn=document.createElement('button'); genBtn.className='btn'; genBtn.style.flex='2';
-  genBtn.textContent= busy?'Generating…':(sceneGenerated(sc)?'Regenerate scene':'Generate scene ▸'); genBtn.disabled=!prevApproved || busy;
+  genBtn.textContent= busy?'Generating…':(sceneGenerated(sc)?'Regenerate (API)':'Generate all via API ▸'); genBtn.disabled=!prevApproved || busy;
   actions.appendChild(genBtn);
   if(busy){ const stopBtn=document.createElement('button'); stopBtn.className='btn danger'; stopBtn.style.flex='1'; stopBtn.textContent='■ Stop'; stopBtn.onclick=()=>stopGeneration(); actions.appendChild(stopBtn); }
   card.appendChild(actions);
@@ -786,6 +819,11 @@ function shrinkData(d,max,mime){ return new Promise(res=>{ const im=new Image();
 function fileToDataURL(f,cb){ if(!f)return; const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(f); }
 function downscaleDataURL(f,maxDim,cb){ fileToDataURL(f,d=>{ const im=new Image(); im.onload=()=>{ const sc=Math.min(maxDim/im.width,maxDim/im.height,1); if(sc>=1)return cb(d); const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext('2d').drawImage(im,0,0,c.width,c.height); cb(c.toDataURL('image/jpeg',0.85)); }; im.src=d; }); }
 function downloadDataUrl(d,name){ const a=document.createElement('a'); a.href=d; a.download=name; a.click(); }
+function copyText(t, btn){
+  const ok=()=>{ if(btn){ const o=btn.textContent; btn.textContent='✓ Copied'; setTimeout(()=>{btn.textContent=o;},1500); } };
+  const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{ document.execCommand('copy'); ok(); }catch(e){ prompt('Copy this prompt:', t); } document.body.removeChild(ta); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(ok, fallback); } else fallback();
+}
 function dataUrlBytes(d){ return d.split(',')[1]; }
 function slug(s){ return (s||'gul').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'gul'; }
 function pad2(n){ return String(n).padStart(2,'0'); }
