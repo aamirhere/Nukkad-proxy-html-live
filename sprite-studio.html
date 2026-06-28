@@ -598,7 +598,7 @@ function pollResult(jobId, deadlineMs){
   return pr;
 }
 async function _poll(jobId, deadlineMs){
-  const deadline=Date.now()+(deadlineMs||150000); let poll=0;
+  const deadline=Date.now()+(deadlineMs||300000); let poll=0;
   while(Date.now()<deadline){
     await sleep(3000); poll++;
     let d=null, txt='';
@@ -626,7 +626,7 @@ async function generateSheet(payload, sh, onWait){
       sh.pendingJob=jobId; persist(); scheduleSave();
     } else { dbg('RESUME job '+jobId); }
     activePolls.add(jobId); // claim it so auto-resume doesn't poll the same job
-    const data=await pollResult(jobId, 150000);
+    const data=await pollResult(jobId, 300000);
     if(!data){ throw new Error('still rendering (~1–2 min) — it will appear automatically; you can leave & come back'); }
     delete sh.pendingJob;
     return data;
