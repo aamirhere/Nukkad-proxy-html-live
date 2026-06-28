@@ -366,6 +366,9 @@ function renderShots(){
     const hint=document.createElement('input'); hint.type='text'; hint.placeholder='what this shot shows / what Gul does here'; hint.value=s.hint||''; hint.style.marginTop='8px';
     hint.addEventListener('input',()=>{s.hint=hint.value;}); hint.addEventListener('change',()=>{persist();scheduleSave();});
     d.appendChild(hint);
+    const dur=document.createElement('input'); dur.type='text'; dur.inputMode='decimal'; dur.placeholder='seconds on screen (e.g. 3) — optional'; dur.value=s.durationSec||''; dur.style.marginTop='6px';
+    dur.addEventListener('input',()=>{ s.durationSec=parseFloat(dur.value)||0; }); dur.addEventListener('change',()=>{persist();scheduleSave();});
+    d.appendChild(dur);
 
     top.querySelector('.up').onclick=()=>{ if(i>0){ [p.scenes[i-1],p.scenes[i]]=[p.scenes[i],p.scenes[i-1]]; persist(); renderAll(); scheduleSave(); } };
     top.querySelector('.down').onclick=()=>{ if(i<p.scenes.length-1){ [p.scenes[i+1],p.scenes[i]]=[p.scenes[i],p.scenes[i+1]]; persist(); renderAll(); scheduleSave(); } };
@@ -382,8 +385,8 @@ $('planBtn').onclick=async()=>{
   $('planBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is planning the scenes…','run');
   try{
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      task:'plan', story, framesMax:settings().framesMax,
-      scenes:p.scenes.map(s=>({hint:s.hint||''}))
+      task:'plan', story, framesMax:settings().framesMax, fps:settings().fps,
+      scenes:p.scenes.map(s=>({hint:s.hint||'', durationSec:s.durationSec||0}))
     })});
     const data=await res.json();
     if(data.error){ planMsg('✕ '+data.error,'err'); return; }
@@ -394,6 +397,7 @@ $('planBtn').onclick=async()=>{
       if(!sc){ sc={id:uid(),refImage:null,hint:'',approved:false}; p.scenes.push(sc); }
       sc.title=ps.title||('Scene '+(i+1));
       sc.summary=ps.summary||'';
+      sc.loop=ps.loop!==false;
       sc.approved=false;
       sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null }; });
     });
@@ -439,6 +443,10 @@ function buildSceneCard(sc, idx){
   const tag=document.createElement('span'); tag.className='tag '+(sc.approved?'ok':(prevApproved?'':'lock'));
   tag.textContent=sc.approved?'✓ approved':(prevApproved?(sceneGenerated(sc)?'generated':'ready'):'locked — approve previous');
   head.appendChild(tag);
+  const fps=settings().fps||8;
+  const tt=document.createElement('span'); tt.className='tag'; tt.style.cssText='color:var(--ink2);background:rgba(156,138,118,.15)';
+  tt.textContent=(sc.loop===false?'▶ one-shot':'↻ loop')+(sc.durationSec?(' · '+sc.durationSec+'s @'+fps+'fps'):'');
+  head.appendChild(tt);
   card.appendChild(head);
 
   if(sc.summary){ const sm=document.createElement('div'); sm.style.cssText='color:var(--ink2);font-size:13px;margin:6px 0 2px'; sm.textContent=sc.summary; card.appendChild(sm); }
@@ -485,12 +493,15 @@ function buildSceneCard(sc, idx){
     box.appendChild(ab);
 
     const ar=document.createElement('div'); ar.className='row'; ar.style.marginTop='10px';
-    const dl=document.createElement('button'); dl.className='btn sm ghost'; dl.textContent='Download scene (.zip)'; dl.style.flex='1';
-    const appr=document.createElement('button'); appr.className='btn sm '+(sc.approved?'ok':''); appr.textContent=sc.approved?'✓ approved — re-open':'Approve & continue ▸'; appr.style.flex='1';
-    ar.appendChild(dl); ar.appendChild(appr); box.appendChild(ar);
+    const dl=document.createElement('button'); dl.className='btn sm ghost'; dl.textContent='Frames (.zip)'; dl.style.flex='1';
+    const dlt=document.createElement('button'); dlt.className='btn sm ghost'; dlt.textContent='⏱ Timed (.zip)'; dlt.style.flex='1';
+    const appr=document.createElement('button'); appr.className='btn sm '+(sc.approved?'ok':''); appr.textContent=sc.approved?'✓ re-open':'Approve ▸'; appr.style.flex='1';
+    ar.appendChild(dl); ar.appendChild(dlt); ar.appendChild(appr); box.appendChild(ar);
+    if(sc.durationSec){ const n=document.createElement('small'); n.className='note'; n.textContent='Timed = '+Math.round(sc.durationSec*(settings().fps||8))+' frames at '+(settings().fps||8)+'fps ('+sc.durationSec+'s), '+(sc.loop===false?'time-stretched':'looped')+' to fill the duration.'; box.appendChild(n); }
     card.appendChild(box);
 
-    dl.onclick=()=>downloadSceneZip(sc,idx);
+    dl.onclick=()=>downloadSceneZip(sc,idx,false);
+    dlt.onclick=()=>downloadSceneZip(sc,idx,true);
     appr.onclick=()=>{ sc.approved=!sc.approved; persist(); renderAll(); scheduleSave(); };
 
     const a=makeAnimator(sc, cv, ()=>cbInput.checked); cbInput.onchange=()=>layout(a);
@@ -589,13 +600,26 @@ function tickA(a){
 }
 
 /* ===== downloads ===== */
-async function downloadSceneZip(sc, idx){
-  const p=curProj(); const frames=sceneFrames(sc);
+// Build the exact on-screen frame list for a scene: round(duration×fps) frames,
+// looping the cycle (loop scenes) or time-stretching the unique frames (one-shots).
+function timedFrames(sc){
+  const frames=sceneFrames(sc); if(!frames.length) return frames;
+  const fps=settings().fps||8; const total=Math.max(1, Math.round((sc.durationSec||(frames.length/fps))*fps));
+  const out=[];
+  for(let i=0;i<total;i++){
+    const idx = sc.loop===false ? Math.min(frames.length-1, Math.floor(i*frames.length/total)) : (i%frames.length);
+    out.push(frames[idx]);
+  }
+  return out;
+}
+async function downloadSceneZip(sc, idx, timed){
+  const p=curProj(); const frames= timed? timedFrames(sc) : sceneFrames(sc);
   if(!frames.length) return;
+  const tag = timed?'_timed':'';
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(sc.title||('scene'+(idx+1)))+'_'+pad3(i+1)+'.png')); return; }
-  const zip=new JSZip(); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1))));
+  const zip=new JSZip(); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+tag);
   frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true}));
-  const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_scene'+pad2(idx+1)+'.zip'; a.click(); URL.revokeObjectURL(a.href);
+  const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_scene'+pad2(idx+1)+tag+'.zip'; a.click(); URL.revokeObjectURL(a.href);
 }
 $('dlAll').onclick=async()=>{
   const p=curProj(); if(typeof JSZip==='undefined'){ alert('Zip unavailable.'); return; }
