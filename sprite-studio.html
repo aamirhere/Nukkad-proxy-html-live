@@ -31,8 +31,17 @@ header.top{ border-top:3px solid var(--accent); background:rgba(255,250,243,.85)
 .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(212,84,31,.15)}
 .brand small{font-family:var(--fb);font-weight:700;color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
 .spacer{flex:1}
-.wrap{max-width:1180px;margin:0 auto;padding:18px;display:grid;grid-template-columns:320px 1fr;gap:18px}
-@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.wrap{max-width:1180px;margin:0 auto;padding:18px}
+.toprow{display:flex;gap:18px;margin-bottom:18px;flex-wrap:wrap}
+.toprow .fold{flex:1;min-width:280px}
+.fold{padding:0}
+.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px;font-family:var(--ff);font-weight:600;font-size:16px}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary::before{content:"▸";color:var(--accent);font-family:var(--fb);font-weight:800;transition:transform .15s;font-size:13px}
+.fold[open]>summary::before{transform:rotate(90deg)}
+.fold>summary .foldthumb{margin-left:auto;height:34px;width:34px;object-fit:contain;border-radius:7px;background:#fff repeating-conic-gradient(#f0f0f0 0 25%,#fff 0 50%) 0 0/8px 8px;display:none}
+.fold:not([open])>summary .foldthumb[src]{display:block}
+.foldbody{padding:0 16px 16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 8px 24px -18px rgba(58,43,29,.4)}
 .card h2{font-family:var(--ff);font-weight:600;font-size:16px;margin:0 0 4px}
 .card .hint{color:var(--muted);font-size:12px;margin:0 0 12px;line-height:1.5}
@@ -123,60 +132,64 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 </header>
 
 <div class="wrap">
-  <!-- LEFT -->
-  <div class="col">
-    <div class="card">
-      <h2>Gul (the constant)</h2>
-      <p class="hint">Goes into every generation so she stays on-model.</p>
-      <div class="mascot-prev" id="mascotPrev"></div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn sm ghost" id="mascotUploadBtn">Replace</button>
-        <button class="btn sm ghost" id="mascotCopy">🖼 Copy</button>
-        <button class="btn sm ghost" id="mascotDownload">Save</button>
-        <button class="btn sm ghost" id="mascotResetBtn">Reset</button>
+  <!-- collapsed utility row: mascot (left) + settings (right) -->
+  <div class="toprow">
+    <details class="card fold" id="gulFold">
+      <summary><span>Gul (the constant)</span><img id="mascotThumb" class="foldthumb" alt=""></summary>
+      <div class="foldbody">
+        <p class="hint">Goes into every generation so she stays on-model.</p>
+        <div class="mascot-prev" id="mascotPrev"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn sm ghost" id="mascotUploadBtn">Replace</button>
+          <button class="btn sm ghost" id="mascotCopy">🖼 Copy</button>
+          <button class="btn sm ghost" id="mascotDownload">Save</button>
+          <button class="btn sm ghost" id="mascotResetBtn">Reset</button>
+        </div>
+        <small class="note">“Copy” puts Gul on your clipboard to paste into ChatGPT; “Save” downloads her. For the free manual route.</small>
+        <input type="file" id="mascotFile" accept="image/*" hidden>
       </div>
-      <small class="note">“Copy” puts Gul on your clipboard to paste into ChatGPT; “Save” downloads her. For the free manual route.</small>
-      <input type="file" id="mascotFile" accept="image/*" hidden>
-    </div>
+    </details>
 
-    <div class="card">
-      <h2>Settings</h2>
-      <p class="hint">Claude decides how many sheets each scene needs, up to this frame budget per sheet.</p>
-      <label class="f">Max frames per sheet</label>
-      <select id="setFramesMax">
-        <option value="9" selected>9 (fast)</option>
-        <option value="12">12</option>
-        <option value="15">15</option>
-        <option value="18">18 (smoothest, slower)</option>
-      </select>
-      <div class="row" style="margin-top:10px">
-        <div>
-          <label class="f">Quality</label>
-          <select id="setQuality">
-            <option value="low">Low (draft — rough, blobby)</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High (best match, slow)</option>
-          </select>
+    <details class="card fold" id="setFold">
+      <summary><span>Settings</span></summary>
+      <div class="foldbody">
+        <p class="hint">Claude decides how many sheets each scene needs, up to this frame budget per sheet.</p>
+        <label class="f">Max frames per sheet</label>
+        <select id="setFramesMax">
+          <option value="9" selected>9 (fast)</option>
+          <option value="12">12</option>
+          <option value="15">15</option>
+          <option value="18">18 (smoothest, slower)</option>
+        </select>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label class="f">Quality</label>
+            <select id="setQuality">
+              <option value="low">Low (draft — rough, blobby)</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High (best match, slow)</option>
+            </select>
+          </div>
+          <div>
+            <label class="f">Preview fps</label>
+            <select id="setFps">
+              <option>6</option><option selected>8</option><option>10</option><option>12</option><option>16</option><option>24</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label class="f">Preview fps</label>
-          <select id="setFps">
-            <option>6</option><option selected>8</option><option>10</option><option>12</option><option>16</option><option>24</option>
-          </select>
-        </div>
+        <label class="f" style="margin-top:10px">Crop</label>
+        <select id="setCrop">
+          <option value="aligned" selected>Aligned (same size, centred — smooth)</option>
+          <option value="tight">Tight (each pose cropped to itself)</option>
+          <option value="off">Off (keep position in cell)</option>
+        </select>
+        <label class="chip" style="margin-top:10px;display:flex"><input type="checkbox" id="setBgRemove" checked style="margin:0 7px 0 0"> Remove background on upload (white → transparent)</label>
+        <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
       </div>
-      <label class="f" style="margin-top:10px">Crop</label>
-      <select id="setCrop">
-        <option value="aligned" selected>Aligned (same size, centred — smooth)</option>
-        <option value="tight">Tight (each pose cropped to itself)</option>
-        <option value="off">Off (keep position in cell)</option>
-      </select>
-      <label class="chip" style="margin-top:10px;display:flex"><input type="checkbox" id="setBgRemove" checked style="margin:0 7px 0 0"> Remove background on upload (white → transparent)</label>
-      <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
-    </div>
+    </details>
   </div>
 
-  <!-- RIGHT -->
+  <!-- main flow -->
   <div class="col">
     <div class="card">
       <div class="steps">FLOW: <b>1</b> upload shots → <b>2</b> write the story → <b>3</b> Claude plans the scenes → <b>4</b> per beat: generate via API, <em>or</em> copy prompt → make on ChatGPT → upload (free) → approve</div>
@@ -334,7 +347,7 @@ $('importProj').onclick=()=>$('importFile').click();
 $('importFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); const p=d.project||d; if(!p||!Array.isArray(p.scenes)){alert('Not a valid Gul project file.');return;} p.id=uid(); if(!p.settings)p.settings={framesMax:18,quality:'medium',fps:8,trim:true}; DB.projects.push(p); DB.activeProject=p.id; if(d.mascot&&!DB.mascot)DB.mascot=d.mascot; persist(); renderProjects(); renderMascot(); loadSettingsUI(); renderAll(); }catch(err){alert('Could not read file: '+err.message);} }; r.readAsText(f); e.target.value=''; };
 
 /* ===== mascot ===== */
-function renderMascot(){ const m=curMascot(); $('mascotPrev').innerHTML = m?'<img src="'+m+'">':'<div class="empty">No mascot. Click Replace.</div>'; }
+function renderMascot(){ const m=curMascot(); $('mascotPrev').innerHTML = m?'<img src="'+m+'">':'<div class="empty">No mascot. Click Replace.</div>'; const th=$('mascotThumb'); if(th){ if(m) th.src=m; else th.removeAttribute('src'); } }
 $('mascotUploadBtn').onclick=()=>$('mascotFile').click();
 $('mascotFile').onchange=e=>fileToDataURL(e.target.files[0],d=>{DB.mascot=d;persist();renderMascot(); if(cloudOn)cloudSet('mascot',d).catch(()=>{});});
 $('mascotResetBtn').onclick=()=>{DB.mascot=null;persist();renderMascot(); if(cloudOn)cloudDel('mascot');};
@@ -654,7 +667,15 @@ function buildSceneCard(sc, idx){
       if(sh.review){ renderReview(sc, idx, sh, si, apanel); }
       else if(sh._autoReview && !sh._reviewed && !sh._reviewing && sh.frames.length>=2){
         sh._reviewing=true; apanel.innerHTML='<small class="note"><span class="spinner"></span> Claude is reviewing these frames…</small>';
-        (async()=>{ const v=await analyzeSheet(sh); sh.review=v; sh._reviewed=true; sh._reviewing=false; delete sh._autoReview; persist(); scheduleSave(); renderAll(); })();
+        (async()=>{ const v=await analyzeSheet(sh);
+          // Auto-apply a pure ordering fix (reorder + drop non-frames), then re-review once.
+          if(v && v.reordered && !sh._reorderedOnce && v.order && v.order.length>=2){
+            sh.frames=v.order.map(n=>sh.frames[n-1]).filter(Boolean); sh.wide=[]; sh._reorderedOnce=true;
+            sh.review=null; sh._reviewed=false; sh._autoReview=true; sh._reviewing=false;
+            persist(); scheduleSave(); renderAll(); return;
+          }
+          sh.review=v; sh._reviewed=true; sh._reviewing=false; delete sh._autoReview; persist(); scheduleSave(); renderAll();
+        })();
       }
     }
     card.appendChild(sd);
@@ -897,7 +918,7 @@ async function ingestSheet(sh, dataUrl){
   sh.sheetImg=d; sh.frames=frames; sh.target=frames.length; delete sh.pendingJob;
   markForReview(sh);
 }
-function markForReview(sh){ sh.review=null; sh._reviewed=false; sh._autoReview=true; }
+function markForReview(sh){ sh.review=null; sh._reviewed=false; sh._autoReview=true; sh._reorderedOnce=false; }
 async function analyzeSheet(sh){
   try{
     const montage=await buildMontage(sh.frames);
