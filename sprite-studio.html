@@ -608,10 +608,10 @@ function buildSceneCard(sc, idx){
       const upd=()=>drawGrid(parseInt(cIn.value,10)||1, parseInt(rIn.value,10)||1);
       cIn.addEventListener('input',upd); rIn.addEventListener('input',upd);
       const apply=document.createElement('button'); apply.className='btn sm'; apply.style.marginTop='8px'; apply.style.width='100%'; apply.textContent='Re-slice with this grid';
-      apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); };
+      apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); sh.wide=[]; sh.detected=false; persist(); scheduleSave(); renderAll(); };
       gbody.appendChild(apply);
       const det2=document.createElement('button'); det2.className='btn sm ghost'; det2.style.marginTop='6px'; det2.style.width='100%'; det2.textContent='🔎 Auto-detect frames (ignore grid)';
-      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.length){ sh.frames=out; sh.detected=true; sh.target=out.length; markForReview(sh); persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
+      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.frames.length){ sh.frames=out.frames; sh.wide=out.wide; sh.detected=true; sh.target=out.frames.length; markForReview(sh); persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
       gbody.appendChild(det2);
       const dn=document.createElement('small'); dn.className='note'; dn.textContent='Auto-detect finds each Gul as a separate shape — use it when ChatGPT laid the frames out unevenly (different sizes, arrows, no clean grid).';
       gbody.appendChild(dn);
@@ -621,18 +621,21 @@ function buildSceneCard(sc, idx){
     if(sh.frames&&sh.frames.length){
       const strip=document.createElement('div'); strip.className='framestrip';
       sh.frames.forEach((f,i)=>{
+        const wideHere=(sh.wide||[]).includes(i+1);
         const fr=document.createElement('div'); fr.className='fr';
-        fr.innerHTML='<div class="box"><img src="'+f+'"></div><div class="lab">#'+(i+1)+'</div>';
+        fr.innerHTML='<div class="box"'+(wideHere?' style="outline:2px solid var(--accent)"':'')+'><img src="'+f+'"></div><div class="lab"'+(wideHere?' style="color:var(--accent)"':'')+'>'+(wideHere?'⚠ ':'')+'#'+(i+1)+'</div>';
         const fc=document.createElement('div'); fc.style.cssText='display:flex;gap:2px;justify-content:center;margin-top:3px';
+        const edited=()=>{ sh.wide=[]; persist(); scheduleSave(); renderAll(); };
         const mk=(t,cls,fn)=>{ const b=document.createElement('button'); b.className='btn sm '+cls; b.style.cssText='padding:2px 0;font-size:10px;flex:1;min-width:0;border-radius:6px'; b.textContent=t; b.onclick=fn; return b; };
-        fc.appendChild(mk('◀','ghost',()=>{ if(i>0){ [sh.frames[i-1],sh.frames[i]]=[sh.frames[i],sh.frames[i-1]]; persist(); scheduleSave(); renderAll(); } }));
-        fc.appendChild(mk('✕','danger',()=>{ sh.frames.splice(i,1); persist(); scheduleSave(); renderAll(); }));
-        fc.appendChild(mk('▶','ghost',()=>{ if(i<sh.frames.length-1){ [sh.frames[i+1],sh.frames[i]]=[sh.frames[i],sh.frames[i+1]]; persist(); scheduleSave(); renderAll(); } }));
+        fc.appendChild(mk('◀','ghost',()=>{ if(i>0){ [sh.frames[i-1],sh.frames[i]]=[sh.frames[i],sh.frames[i-1]]; edited(); } }));
+        fc.appendChild(mk('✕','danger',()=>{ sh.frames.splice(i,1); edited(); }));
+        fc.appendChild(mk('▶','ghost',()=>{ if(i<sh.frames.length-1){ [sh.frames[i+1],sh.frames[i]]=[sh.frames[i],sh.frames[i+1]]; edited(); } }));
         fr.appendChild(fc); strip.appendChild(fr);
       });
       sd.appendChild(strip);
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. (Re-slicing or changing crop rebuilds from the sheet and resets these edits.)';
       sd.appendChild(fn);
+      if((sh.wide||[]).length){ const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4'; ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide</b><br>Likely two Guls merged into one frame. Open <b>⊞ Grid & slicing</b> to re-slice on a grid, or regenerate this beat asking ChatGPT to space the poses apart.'; sd.appendChild(ww); }
       const apanel=document.createElement('div'); apanel.style.marginTop='8px';
       const an=document.createElement('button'); an.className='btn sm ghost'; an.style.marginTop='8px'; an.style.width='100%';
       an.textContent= sh.review?'🔍 Re-analyse with Claude':'🔍 Analyse frames with Claude';
@@ -710,7 +713,7 @@ async function generateScene(sceneId, idx){
       try{
         data=await generateSheet(payload, sh, sec=>setSceneStatus(sceneId,'<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s','run'));
       }catch(e){ if(genEpoch!==myEpoch){ sc._generating=false; renderAll(); return; } sc._generating=false; setSceneStatus(sceneId,'✕ Beat '+(si+1)+': '+e.message,'err'); renderAll(); return; }
-      sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, cropMode(s)); markForReview(sh);
+      sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, cropMode(s)); sh.wide=[]; markForReview(sh);
       persist(); scheduleSave();
       renderAll(); // show THIS beat's frames right away
     }
@@ -807,7 +810,7 @@ function detectFrames(dataUrl){
           for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ if(!dx&&!dy)continue; const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue; const np=ny*w+nx; if(lab[np]!==-1)continue; if(data[np*4+3]<=ALPHA_THRESHOLD){ lab[np]=-2; continue; } lab[np]=id; stack.push(np); } }
         comps.push({minx,miny,maxx,maxy,area});
       }
-      if(!comps.length) return resolve([]);
+      if(!comps.length) return resolve({frames:[], wide:[]});
       const maxArea=Math.max(...comps.map(c=>c.area));
       const birds=comps.filter(c=>c.area>=maxArea*0.15);
       const smalls=comps.filter(c=>c.area<maxArea*0.15);
@@ -820,10 +823,13 @@ function detectFrames(dataUrl){
       rows.sort((a,b)=>a.cy-b.cy); rows.forEach(r=>r.items.sort((a,b)=>a.minx-b.minx));
       const ordered=[]; rows.forEach(r=>r.items.forEach(b=>ordered.push(b)));
       const pad=8; let mw=0,mh=0; const boxes=ordered.map(b=>{ const x0=Math.max(0,b.minx-pad),y0=Math.max(0,b.miny-pad),x1=Math.min(w-1,b.maxx+pad),y1=Math.min(h-1,b.maxy+pad); const bw=x1-x0+1,bh=y1-y0+1; if(bw>mw)mw=bw; if(bh>mh)mh=bh; return {x0,y0,bw,bh}; });
+      // Flag boxes that are much wider than the typical bird — likely two Guls merged into one frame.
+      const widths=boxes.map(b=>b.bw).slice().sort((a,b)=>a-b); const medW=widths[Math.floor(widths.length/2)]||1;
+      const wide=[]; boxes.forEach((b,i)=>{ if(boxes.length>=3 && b.bw>medW*1.6) wide.push(i+1); });
       const out=boxes.map(bx=>{ const tc=document.createElement('canvas'); tc.width=mw; tc.height=mh; tc.getContext('2d').drawImage(c, bx.x0,bx.y0,bx.bw,bx.bh, Math.round((mw-bx.bw)/2),Math.round((mh-bx.bh)/2), bx.bw,bx.bh); return tc.toDataURL('image/png'); });
-      resolve(out);
+      resolve({frames:out, wide});
     };
-    im.onerror=()=>resolve([]); im.src=dataUrl;
+    im.onerror=()=>resolve({frames:[], wide:[]}); im.src=dataUrl;
   });
 }
 // Build a numbered contact-sheet of the frames (one image) to send to Claude for review.
@@ -853,8 +859,9 @@ function isOpaqueBg(dataUrl){
 async function ingestSheet(sh, dataUrl){
   let d=dataUrl;
   if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d);
-  let frames=await detectFrames(d);
-  if(frames.length>=2){ sh.detected=true; } else { sh.detected=false; frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); }
+  const det=await detectFrames(d);
+  let frames;
+  if(det.frames.length>=2){ sh.detected=true; frames=det.frames; sh.wide=det.wide; } else { sh.detected=false; frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); sh.wide=[]; }
   sh.sheetImg=d; sh.frames=frames; sh.target=frames.length; delete sh.pendingJob;
   markForReview(sh);
 }
@@ -1022,7 +1029,7 @@ function maybeResume(){
       const jid=sh.pendingJob; activePolls.add(jid); dbg('auto-resume '+jid);
       pollResult(jid, 150000).then(async data=>{
         activePolls.delete(jid);
-        if(data){ sh.sheetImg=data.image; sh.frames=await cropSheet(data.image,data.cols,data.rows,cropMode()); markForReview(sh); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }
+        if(data){ sh.sheetImg=data.image; sh.frames=await cropSheet(data.image,data.cols,data.rows,cropMode()); sh.wide=[]; markForReview(sh); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }
       }).catch(e=>{ activePolls.delete(jid); dbg('resume err: '+e.message); });
     }
   }));
