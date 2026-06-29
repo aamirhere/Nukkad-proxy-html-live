@@ -782,15 +782,20 @@ function buildSceneCard(sc, idx){
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
       const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
       const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb);
+      // Real-time toggle: play at the video rate (vfps), each pose held vfps/gfps frames —
+      // exactly like the Timed/GIF export — vs the default quick pose-rate (gfps) loop.
+      const rcb=document.createElement('label'); rcb.className='chip'; rcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> real-time ('+vfps()+'fps)'; const rcbI=rcb.querySelector('input'); pctr.appendChild(rcb);
       // From beat 2 on, let the preview stitch in the earlier beats so you can watch
       // beat 1 + this one play together even if later beats aren't generated yet.
       const hasPrevBeat = si>0 && sc.sheets.slice(0,si).some(s=>s.frames&&s.frames.length);
       let combineI=null;
       if(hasPrevBeat){ const ccb=document.createElement('label'); ccb.className='chip'; ccb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> with previous beats'; combineI=ccb.querySelector('input'); pctr.appendChild(ccb); }
       pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox);
-      const playFrames=()=> (combineI&&combineI.checked) ? beatsUpTo(sc, si) : sh.frames;
-      const pa=makeFramesAnimator(playFrames(), pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
-      if(combineI) combineI.onchange=()=>{ const fr=playFrames(); pa.imgs=imgsForFrames(fr); pa.idx=0; const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
+      const baseFrames=()=> (combineI&&combineI.checked) ? beatsUpTo(sc, si) : sh.frames;
+      const curFrames=()=> rcbI.checked ? framesTimed(baseFrames()) : baseFrames();
+      const pa=makeFramesAnimator(curFrames(), pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
+      const rebuildPrev=()=>{ const fr=curFrames(); pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=rcbI.checked?vfps():gfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
+      rcbI.onchange=rebuildPrev; if(combineI) combineI.onchange=rebuildPrev;
       // Per-beat downloads: unique poses, the same poses held to video fps, or a GIF.
       const beatName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
       const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
@@ -1284,8 +1289,11 @@ async function dlFramesGif(frames, fileName, fps, btn){
   gif.on('finished', blob=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(fileName)+'.gif'; a.click(); URL.revokeObjectURL(a.href); if(btn){ btn.textContent=o; btn.disabled=false; } });
   gif.render();
 }
-// A beat held to video rate: each unique pose repeated vfps/gfps times (one play-through).
-function beatTimed(sh){ const fr=(sh.frames||[]); if(!fr.length) return fr; return fillFrames(fr, fr.length/gfps(), false); }
+// Hold a list of unique poses to the video rate: each pose repeated vfps/gfps times, one
+// play-through — so it plays at real-time 24fps cadence instead of the pose rate.
+function framesTimed(frames){ if(!frames||!frames.length) return frames||[]; return fillFrames(frames, frames.length/gfps(), false); }
+// A beat held to video rate (one play-through).
+function beatTimed(sh){ return framesTimed(sh.frames||[]); }
 async function downloadSceneZip(sc, idx, timed){
   const p=curProj(); let frames= timed? timelineFrames(sc) : sceneFrames(sc);
   if(!frames.length) return; frames=await exportFrames(frames);
