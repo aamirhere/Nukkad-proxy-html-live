@@ -795,8 +795,13 @@ function buildSceneCard(sc, idx){
       const baseFrames=()=> (combineI&&combineI.checked) ? beatsUpTo(sc, si) : sh.frames;
       const curFrames=()=> rcbI.checked ? framesTimed(baseFrames()) : baseFrames();
       const pa=makeFramesAnimator(curFrames(), pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
-      const rebuildPrev=()=>{ const fr=curFrames(); pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=rcbI.checked?vfps():gfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
+      // Run the preview through the SAME export pipeline (size-lock / uniform) so it shows
+      // exactly what you'll download — Gul stays one size here too. Async, so set a token to
+      // ignore a stale pass if the toggles change again before it finishes.
+      let prevTok=0;
+      const rebuildPrev=async()=>{ const my=++prevTok; const fps=rcbI.checked?vfps():gfps(); const fr=await exportFrames(curFrames()); if(my!==prevTok) return; pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=fps; const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ if(my!==prevTok)return; pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
       rcbI.onchange=rebuildPrev; if(combineI) combineI.onchange=rebuildPrev;
+      rebuildPrev();
       // Per-beat downloads: unique poses, the same poses held to video fps, or a GIF.
       const beatName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
       const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
