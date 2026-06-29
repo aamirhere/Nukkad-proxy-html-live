@@ -627,14 +627,14 @@ function renderShots(){
 }
 function planMsg(html,cls){ const s=$('planStatus'); s.innerHTML=html; s.className='status '+(cls||''); }
 
-async function runPlan(storyText){
+async function runPlan(storyText, treatment){
   const p=curProj(); if(!p)return;
   const story=(storyText||p.story||'').trim();
-  if(!story && !p.scenes.length){ planMsg('Pitch an ad, write a story, or upload shots first.','err'); return; }
+  if(!story && !treatment && !p.scenes.length){ planMsg('Pitch an ad, write a story, or upload shots first.','err'); return; }
   $('planBtn').disabled=true; $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is breaking it into scenes & beats…','run');
   try{
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      task:'plan', story, framesMax:settings().framesMax, fps:settings().fps,
+      task:'plan', story, treatment:treatment||null, framesMax:settings().framesMax, fps:settings().fps,
       scenes:p.scenes.map(s=>{ const guide=[buildSceneNote(s), buildEditorGuide(s).join(' ')].filter(Boolean).join(' '); return { hint:[s.hint||'', guide].filter(Boolean).join(' — '), durationSec:s.durationSec||moveSeconds(s) }; })
     })});
     const data=await res.json();
@@ -678,8 +678,8 @@ function renderPitch(t){
   if(t.beats&&t.beats.length){ h+='<div style="font-size:12px;color:var(--ink);margin-top:6px"><b>Shot list:</b></div><ol style="margin:4px 0 0 18px;padding:0;font-size:12px;color:var(--ink2)">'+t.beats.map(b=>'<li>'+(b.title?'<b>'+escapeHtml(b.title)+'</b> — ':'')+escapeHtml(b.action)+(b.seconds?(' <span style="color:var(--muted)">~'+b.seconds+'s</span>'):'')+'</li>').join('')+'</ol>'; }
   box.innerHTML=h;
   const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:10px;flex-wrap:wrap';
-  const use=document.createElement('button'); use.className='btn sm'; use.style.cssText='flex:2;min-width:150px'; use.textContent='👍 Use this → break into beats';
-  use.onclick=()=>runPlan(treatmentToStory(t));
+  const use=document.createElement('button'); use.className='btn sm'; use.style.cssText='flex:2;min-width:150px'; use.textContent='👍 Use Claude’s pitch → break into beats';
+  use.onclick=()=>runPlan(treatmentToStory(t), t);
   const tweak=document.createElement('button'); tweak.className='btn sm ghost'; tweak.style.cssText='flex:1;min-width:110px'; tweak.textContent='✍ Tweak / redo';
   const tin=document.createElement('div'); tin.style.cssText='margin-top:8px;display:none';
   tin.innerHTML='<input type="text" id="pitchNote" placeholder="e.g. make it funnier, start with her asleep, less motion"><button class="btn sm" id="pitchRedo" style="margin-top:6px;width:100%">Re-pitch with this note</button>';
