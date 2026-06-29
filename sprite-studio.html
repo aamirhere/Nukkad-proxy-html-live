@@ -391,6 +391,26 @@ function pinsOf(sc){
 }
 function movePath(sc){ return (pinsOf(sc).find(p=>p.type==='move')||{}).points||[]; }
 function moveSeconds(sc){ return movePath(sc).reduce((s,pt)=>s+(parseFloat(pt.t)||0),0); }
+// Plain-English recipe of how this scene is built — beats, timeline, movement, pins.
+function buildScenePlan(sc){
+  const fps=settings().fps||8; const lines=[];
+  const snip=a=>(a||'').split(/[.,\n]/)[0].trim().slice(0,26);
+  if(sc.sheets&&sc.sheets.length){
+    lines.push('Beats (drawn once): '+sc.sheets.map((sh,i)=>{ const n=(sh.frames&&sh.frames.length)||sh.target||0; return (i+1)+') '+(snip(sh.action)||'beat')+' ~'+n+'f'; }).join('  ·  '));
+  }
+  if(sc.timeline&&sc.timeline.length){
+    const seq=sc.timeline.map(seg=>{ const b=(sc.sheets||[])[seg.beat]; return (snip(b&&b.action)||('beat '+(seg.beat+1)))+' '+(seg.sec||0)+'s'+(seg.loop!==false?'↻':'▶'); }).join(' → ');
+    lines.push('Timeline: '+seq+' = '+(+timelineSeconds(sc).toFixed(1))+'s (beats just repeat — nothing re-rendered)');
+  } else {
+    lines.push('Plays: '+(sc.loop===false?'one-shot':'loop')+(sc.durationSec?(' for '+sc.durationSec+'s @'+fps+'fps'):''));
+  }
+  const mv=movePath(sc);
+  if(mv.length>=2){ const path=mv.map((pt,k)=>(k+1)+'.'+placementWords(pt).replace('in the ','')+(k>0&&(parseFloat(pt.t)||0)?' ('+pt.t+'s)':'')).join(' → '); const tf=mv.findIndex(pt=>pt.track); lines.push('Gul travels: '+path+(tf>=0?(' · ride from point '+(tf+1)):'')); }
+  const pose=pinsOf(sc).find(p=>p.type==='pose'); if(pose) lines.push('Pose: '+placementWords(pose));
+  const look=pinsOf(sc).find(p=>p.type==='look'); if(look) lines.push('Looks: '+dirWords(look));
+  const tracks=pinsOf(sc).filter(p=>p.type==='track'); if(tracks.length) lines.push('Track & parent: '+tracks.map(placementWords).join(', '));
+  return lines;
+}
 function buildSceneNote(sc){
   const ps=pinsOf(sc); const out=[];
   const pose=ps.find(p=>p.type==='pose');
@@ -595,6 +615,8 @@ function buildSceneCard(sc, idx){
   card.appendChild(head);
 
   if(sc.summary){ const sm=document.createElement('div'); sm.style.cssText='color:var(--ink2);font-size:13px;margin:6px 0 2px'; sm.textContent=sc.summary; card.appendChild(sm); }
+  const plan=buildScenePlan(sc);
+  if(plan.length){ const pl=document.createElement('div'); pl.className='eguide'; pl.style.cssText='margin:6px 0;background:rgba(58,43,29,.05);border-color:var(--line)'; pl.innerHTML='<b style="color:var(--ink)">🗂 Plan — how this is built</b><br>'+plan.map(escapeHtml).join('<br>'); card.appendChild(pl); }
   const guide=buildEditorGuide(sc);
   if(guide.length){ const g=document.createElement('div'); g.className='eguide'; g.innerHTML='<b>🎬 In your editor</b><br>'+guide.map(escapeHtml).join('<br>'); card.appendChild(g); }
   const seed=lastFrameBefore(idx,0);
