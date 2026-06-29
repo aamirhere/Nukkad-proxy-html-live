@@ -768,10 +768,21 @@ function buildSceneCard(sc, idx){
         sd.appendChild(ww);
       }
       const apanel=document.createElement('div'); apanel.style.marginTop='8px';
-      const an=document.createElement('button'); an.className='btn sm ghost'; an.style.marginTop='8px'; an.style.width='100%';
-      an.textContent= sh.review?'🔍 Re-analyse with Claude':'🔍 Analyse frames with Claude';
-      an.onclick=async()=>{ an.textContent='… analysing'; an.disabled=true; sh.review=await analyzeSheet(sh); sh._reviewed=true; delete sh._autoReview; persist(); scheduleSave(); renderReview(sc, idx, sh, si, apanel); an.textContent='🔍 Re-analyse with Claude'; an.disabled=false; };
-      sd.appendChild(an); sd.appendChild(apanel);
+      const arow=document.createElement('div'); arow.className='row'; arow.style.cssText='margin-top:8px;flex-wrap:wrap';
+      const an=document.createElement('button'); an.className='btn sm ghost'; an.style.cssText='flex:2;min-width:140px';
+      an.textContent= sh.review?'🔍 Re-analyse':'🔍 Analyse with Claude';
+      const runAn=async(note)=>{ an.textContent='… analysing'; an.disabled=true; tc.disabled=true; sh.review=await analyzeSheet(sh, note); sh._reviewed=true; delete sh._autoReview; persist(); scheduleSave(); renderReview(sc, idx, sh, si, apanel); an.textContent='🔍 Re-analyse'; an.disabled=false; tc.disabled=false; };
+      an.onclick=()=>runAn('');
+      const tc=document.createElement('button'); tc.className='btn sm ghost'; tc.style.cssText='flex:1;min-width:110px'; tc.textContent='✍ Tell Claude';
+      const tbox=document.createElement('div'); tbox.style.cssText='margin-top:8px;display:none';
+      const tin=document.createElement('input'); tin.type='text'; tin.placeholder='e.g. drop frame 3, reverse the order, she should look left';
+      const tsend=document.createElement('button'); tsend.className='btn sm'; tsend.style.cssText='margin-top:6px;width:100%'; tsend.textContent='Send to Claude';
+      tsend.onclick=()=>{ const v=tin.value.trim(); if(!v) return; tbox.style.display='none'; runAn(v); };
+      tin.addEventListener('keydown',e=>{ if(e.key==='Enter') tsend.click(); });
+      tbox.appendChild(tin); tbox.appendChild(tsend);
+      tc.onclick=()=>{ tbox.style.display = tbox.style.display==='none'?'block':'none'; if(tbox.style.display==='block') tin.focus(); };
+      arow.appendChild(an); arow.appendChild(tc);
+      sd.appendChild(arow); sd.appendChild(tbox); sd.appendChild(apanel);
       if(sh.review){ renderReview(sc, idx, sh, si, apanel); }
       else if(sh._autoReview && !sh._reviewed && !sh._reviewing && sh.frames.length>=2){
         sh._reviewing=true; apanel.innerHTML='<small class="note"><span class="spinner"></span> Claude is reviewing these frames…</small>';
@@ -1065,10 +1076,10 @@ async function ingestSheet(sh, dataUrl){
   markForReview(sh);
 }
 function markForReview(sh){ sh.review=null; sh._reviewed=false; sh._autoReview=true; sh._reorderedOnce=false; }
-async function analyzeSheet(sh){
+async function analyzeSheet(sh, note){
   try{
     const montage=await buildMontage(sh.frames);
-    const r=await fetch(ANALYZE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image:montage, count:sh.frames.length, action:sh.action||'' })});
+    const r=await fetch(ANALYZE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image:montage, count:sh.frames.length, action:sh.action||'', note:note||'' })});
     const d=await r.json();
     if(d.error) return {error:d.error};
     const inRange=n=>n>=1&&n<=sh.frames.length;
@@ -1088,6 +1099,7 @@ function buildRedoPrompt(sc, idx, sh, si, rv){
 }
 function renderReview(sc, idx, sh, si, panel){
   panel.innerHTML=''; const rv=sh.review; if(!rv) return;
+  if(rv.applied){ panel.innerHTML='<div style="font-size:13px;font-weight:800;color:var(--ok)">✓ Applied'+(rv.what?(' — '+escapeHtml(rv.what)):'')+'.</div>'; return; }
   if(rv.error){ panel.innerHTML='<small class="note" style="color:var(--err)">✕ review failed: '+escapeHtml(rv.error)+'</small>'; return; }
   if(rv.good && !(rv.gaps&&rv.gaps.length)){ panel.innerHTML='<div style="font-size:13px;font-weight:800;color:var(--ok)">✓ Good to go — Claude found nothing to fix.</div>'+(rv.notes?'<div style="font-size:11px;color:var(--ink2);margin-top:3px">'+escapeHtml(rv.notes)+'</div>':''); return; }
   let html='<div style="font-size:12px;font-weight:800;color:var(--accent)">⚠ Claude suggests fixes</div>';
@@ -1104,12 +1116,12 @@ function renderReview(sc, idx, sh, si, panel){
   const dropFrames=()=>sh.frames.filter((_,i)=>!toDrop.includes(i+1));
   const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
   if(rv.reordered){
-    const rb=document.createElement('button'); rb.className='btn sm'; rb.style.cssText='flex:2;min-width:120px'; rb.textContent='↕ Apply order'; rb.onclick=()=>{ sh.frames=orderFrames(); sh.wide=[]; persist(); scheduleSave(); renderAll(); };
+    const rb=document.createElement('button'); rb.className='btn sm'; rb.style.cssText='flex:2;min-width:120px'; rb.textContent='↕ Apply order'; rb.onclick=()=>{ const n=orderFrames().length; sh.frames=orderFrames(); sh.wide=[]; sh.review={applied:true,what:'reordered to '+n+' frames'}; persist(); scheduleSave(); renderAll(); };
     const pb=document.createElement('button'); pb.className='btn sm ghost'; pb.style.cssText='flex:1;min-width:80px'; pb.textContent='👁 Preview'; pb.onclick=()=>preview(orderFrames(), 'order applied · '+sh.frames.length+'→'+orderFrames().length+' frames'+(rv.order.length<sh.frames.length?' (drops non-frames)':''));
     row.appendChild(rb); row.appendChild(pb);
   }
   if(toDrop.length){
-    const db=document.createElement('button'); db.className='btn sm danger'; db.style.cssText='flex:2;min-width:120px'; db.textContent='Drop #'+toDrop.join(',#'); db.onclick=()=>{ sh.frames=dropFrames(); persist(); scheduleSave(); renderAll(); };
+    const db=document.createElement('button'); db.className='btn sm danger'; db.style.cssText='flex:2;min-width:120px'; db.textContent='Drop #'+toDrop.join(',#'); db.onclick=()=>{ sh.frames=dropFrames(); sh.review={applied:true,what:'dropped #'+toDrop.join(', #')}; persist(); scheduleSave(); renderAll(); };
     const pb=document.createElement('button'); pb.className='btn sm ghost'; pb.style.cssText='flex:1;min-width:80px'; pb.textContent='👁 Preview'; pb.onclick=()=>preview(dropFrames(), 'after dropping #'+toDrop.join(',#')+' · '+sh.frames.length+'→'+dropFrames().length+' frames');
     row.appendChild(db); row.appendChild(pb);
   }
