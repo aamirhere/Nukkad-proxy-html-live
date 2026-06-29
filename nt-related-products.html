@@ -710,7 +710,7 @@ function toggleTax(handle) {
 function regenPrompt(handle) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   if (!p) return;
-  const quote = p.tagline || p.tl || p.title || '';
+  const quote = p.title || p.t || p.tagline || p.tl || '';
   const scene = (studioState[handle]||{}).scene || 'desk';
   const tax = taxonomyData[handle] || {};
   const el = document.getElementById('stprompt-' + handle);
@@ -782,7 +782,7 @@ async function writeGulPrompt(handle) {
       action: 'write_prompt',
       handle,
       product_title: p.title || handle,
-      quote: p.tagline || p.tl || p.title || '',
+      quote: p.title || p.t || p.tagline || p.tl || '',
       taxonomy: taxonomyData[handle] || {},
       user_brief: brief,
       ref_image_b64,
@@ -1050,7 +1050,7 @@ async function generateStudioImage(handle) {
   const imgEl  = document.getElementById('stimages-'+handle);
   if (imgEl) imgEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">Generating… ~15s</div>';
   try {
-    const res = await api(AD_URL, { action:'generate_image', handle, quote: p.tagline||p.tl||p.title||'', scene_type:scene, taxonomy:tax, custom_prompt:prompt });
+    const res = await api(AD_URL, { action:'generate_image', handle, quote: p.title||p.t||p.tagline||p.tl||'', scene_type:scene, taxonomy:tax, custom_prompt:prompt });
     if (res.ok && res.image) {
       if (!studioState[handle]) studioState[handle]={scene,images:[],taglines:[]};
       studioState[handle].images.push(res.image);
@@ -1073,7 +1073,7 @@ async function getStudioTaglines(handle) {
   const el = document.getElementById('sttaglines-'+handle);
   if (el) el.innerHTML = '<span style="font-size:10px;color:var(--muted);">Generating taglines…</span>';
   try {
-    const res = await api(AD_URL, {action:'generate_taglines', handle, product_title:p.title||handle, quote:p.tagline||p.tl||p.title||'', taxonomy:taxonomyData[handle]||{}});
+    const res = await api(AD_URL, {action:'generate_taglines', handle, product_title:p.title||handle, quote:p.title||p.t||p.tagline||p.tl||'', taxonomy:taxonomyData[handle]||{}});
     if (res.ok && el) {
       el.innerHTML = (res.taglines||[]).map(tl =>
         `<span onclick="navigator.clipboard.writeText(this.dataset.t);toast('Copied!')" data-t="${esc(tl)}"
@@ -1094,7 +1094,7 @@ async function generateForAll(parentHandle) {
     const rp = allProducts.find(x=>(x.handle||x.h)===rh);
     if (!rp) continue;
     const tax = taxonomyData[rh]||{};
-    const quote = rp.tagline||rp.tl||rp.title||'';
+    const quote = rp.title||rp.t||rp.tagline||rp.tl||'';
     const imgEl = document.getElementById('stimages-'+rh);
     if (imgEl) imgEl.innerHTML = '<div style="font-size:10px;color:var(--muted);">Generating…</div>';
     try {
