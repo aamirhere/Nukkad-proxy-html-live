@@ -805,7 +805,9 @@ function buildSceneCard(sc, idx){
       dlft.title='Poses held to '+vfps()+' fps — one play-through, frame-accurate (zip)'; dlft.onclick=()=>dlFramesZip(beatTimed(sh), beatName+'-timed', beatName+'-timed');
       const dlg=document.createElement('button'); dlg.className='btn sm ghost'; dlg.style.cssText='flex:1;min-width:96px'; dlg.textContent='🎞 GIF';
       dlg.title='Animated GIF preview of this beat'; dlg.onclick=()=>dlFramesGif(beatTimed(sh), beatName, vfps(), dlg);
-      drow.appendChild(dlf); drow.appendChild(dlft); drow.appendChild(dlg); sd.appendChild(drow);
+      const dlhd=document.createElement('button'); dlhd.className='btn sm ghost'; dlhd.style.cssText='flex:1;min-width:96px'; dlhd.textContent='🔍 HD ×2';
+      dlhd.title='Upscale this beat ×2 on-device (free) and download as a zip — keeps transparency'; dlhd.onclick=()=>dlBeatHD(sh, beatName, dlhd);
+      drow.appendChild(dlf); drow.appendChild(dlft); drow.appendChild(dlg); drow.appendChild(dlhd); sd.appendChild(drow);
       if((sh.wide||[]).length){
         const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4';
         ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide — likely two Guls merged.</b>';
@@ -1268,8 +1270,9 @@ function padFrames(frames, W, H){ return Promise.all((frames||[]).map(f=>new Pro
 // Apply uniform sizing to a frame list at export time (unless turned off in settings).
 async function exportFrames(frames){ if(settings().uniform===false || !(frames&&frames.length)) return frames||[]; const {W,H}=projectMaxSize(); return padFrames(frames, W, H); }
 // Generic: zip any frame list (numbered PNGs) and download under fileName.
-async function dlFramesZip(frames, fileName, folderName){
-  if(!frames.length) return; frames=await exportFrames(frames);
+// raw=true skips uniform-padding (used for already-upscaled HD frames).
+async function dlFramesZip(frames, fileName, folderName, raw){
+  if(!frames.length) return; if(!raw) frames=await exportFrames(frames);
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(fileName)+'_'+pad3(i+1)+'.png')); return; }
   const zip=new JSZip(); const folder=zip.folder(slug(folderName||fileName));
   frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true}));
@@ -1294,6 +1297,52 @@ async function dlFramesGif(frames, fileName, fps, btn){
 function framesTimed(frames){ if(!frames||!frames.length) return frames||[]; return fillFrames(frames, frames.length/gfps(), false); }
 // A beat held to video rate (one play-through).
 function beatTimed(sh){ return framesTimed(sh.frames||[]); }
+// ===== In-browser upscaling (UpscalerJS / ESRGAN ×2, free, on-device) =====
+// Lazy-loaded on first use so the ~heavy model never costs a normal page load.
+let _upPromise=null;
+function loadUpscaler(){
+  if(_upPromise) return _upPromise;
+  const add=src=>new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('could not load '+src)); document.head.appendChild(s); });
+  _upPromise=(async()=>{
+    try{
+      if(typeof tf==='undefined') await add('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js');
+      if(typeof DefaultUpscalerJSModel==='undefined') await add('https://cdn.jsdelivr.net/npm/@upscalerjs/default-model@1.0.0/dist/umd/index.min.js');
+      if(typeof Upscaler==='undefined') await add('https://cdn.jsdelivr.net/npm/upscaler@1.0.0/dist/browser/umd/upscaler.min.js');
+      return new Upscaler();
+    }catch(e){ _upPromise=null; throw e; }
+  })();
+  return _upPromise;
+}
+function loadImg(src){ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
+// ESRGAN upscales RGB only and drops alpha, so re-apply a scaled alpha mask from the
+// original to keep Gul's transparent cutout.
+async function upscaleFrame(up, dataUrl){
+  const out=await up.upscale(dataUrl, { output:'base64', patchSize:128, padding:6 });
+  const [rgb, orig]=await Promise.all([loadImg(out), loadImg(dataUrl)]);
+  const W=rgb.width, H=rgb.height;
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.drawImage(rgb,0,0);
+  const ac=document.createElement('canvas'); ac.width=W; ac.height=H; const actx=ac.getContext('2d'); actx.imageSmoothingEnabled=true; actx.drawImage(orig,0,0,W,H);
+  const rd=ctx.getImageData(0,0,W,H), ad=actx.getImageData(0,0,W,H), p=rd.data, q=ad.data;
+  for(let i=3;i<p.length;i+=4) p[i]=q[i];   // copy alpha channel back
+  ctx.putImageData(rd,0,0);
+  return c.toDataURL('image/png');
+}
+async function upscaleFrames(frames, onProgress){
+  const up=await loadUpscaler(); const out=[];
+  for(let i=0;i<frames.length;i++){ if(onProgress) onProgress(i+1, frames.length); out.push(await upscaleFrame(up, frames[i])); }
+  return out;
+}
+async function dlBeatHD(sh, name, btn){
+  const frames=beatTimed(sh); if(!frames.length) return;
+  const o=btn.textContent; btn.disabled=true;
+  try{
+    btn.textContent='loading…';
+    const hd=await upscaleFrames(frames, (i,n)=>{ btn.textContent='HD '+i+'/'+n; });
+    btn.textContent='zipping…';
+    await dlFramesZip(hd, name+'-hd2x', name+'-hd2x', true);
+  }catch(e){ alert('Upscale failed: '+(e.message||e)); }
+  finally{ btn.textContent=o; btn.disabled=false; }
+}
 async function downloadSceneZip(sc, idx, timed){
   const p=curProj(); let frames= timed? timelineFrames(sc) : sceneFrames(sc);
   if(!frames.length) return; frames=await exportFrames(frames);
