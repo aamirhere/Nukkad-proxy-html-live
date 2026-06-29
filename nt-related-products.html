@@ -621,7 +621,12 @@ function studioHTML(handle, title, img, quote, tax, s) {
               <div style="font-size:11px;font-weight:700;color:var(--brown);margin-bottom:4px;">${esc(rtitle)}</div>
               <div id="stimages-${rh}" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
             </div>
-            <button class="btn btn-sm" style="background:#7c3aed;color:#fff;flex-shrink:0;" onclick="generateStudioImage('${rh}','${handle}')">✨</button>
+            <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+              <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="generateStudioImage('${rh}','${handle}')">✨</button>
+              <label style="cursor:pointer;font-size:9px;padding:3px 6px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);text-align:center;font-weight:600;">
+                📁<input type="file" accept="image/*" style="display:none;" onchange="uploadStudioImage('${rh}',this)">
+              </label>
+            </div>
           </div>`;
         }).join('')}
       </div>
@@ -639,9 +644,13 @@ function studioHTML(handle, title, img, quote, tax, s) {
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
       <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;">Prompt</div>
       <textarea id="stprompt-${handle}" style="width:100%;height:70px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;font-family:'DM Sans',sans-serif;resize:vertical;">${esc(builtPrompt)}</textarea>
-      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-primary btn-sm" onclick="generateStudioImage('${handle}')">✨ Generate Image</button>
         <button class="btn btn-ghost btn-sm" onclick="getStudioTaglines('${handle}')">💡 Taglines</button>
+        <button class="btn btn-ghost btn-sm" onclick="copyStudioPrompt('${handle}')" title="Copy full prompt to paste in Gemini">📋 Copy Prompt</button>
+        <label style="cursor:pointer;font-size:11px;padding:4px 10px;background:#fff;border:1.5px solid var(--border);border-radius:6px;color:var(--brown);font-weight:600;">
+          📁 Upload Image<input type="file" accept="image/*" style="display:none;" onchange="uploadStudioImage('${handle}',this)">
+        </label>
       </div>
       <div id="sttaglines-${handle}" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;"></div>
     </div>
@@ -703,11 +712,55 @@ function renderStudioImages(handle) {
         </div>
       </div>
       <div style="font-size:9px;color:var(--muted);text-align:center;margin-top:2px;">${img.scene_type||''}</div>
-      <div style="display:flex;gap:3px;margin-top:3px;justify-content:center;">
+      <div style="display:flex;gap:3px;margin-top:3px;justify-content:center;flex-wrap:wrap;">
         <a href="${esc(img.url)}" download="${handle}-${img.id}.png" style="font-size:9px;padding:2px 6px;background:var(--sand);border:1px solid var(--border);border-radius:4px;color:var(--brown);text-decoration:none;">📥</a>
+        <button onclick="pushImageToShopify('${handle}','${esc(img.url)}',this)" title="Add to Shopify product images" style="font-size:9px;padding:2px 6px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;color:#0369a1;cursor:pointer;">🛍</button>
         <button onclick="deleteStudioImage('${handle}','${img.id}')" style="font-size:9px;padding:2px 6px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;color:#b91c1c;cursor:pointer;">🗑</button>
       </div>
     </div>`).join('');
+}
+
+function copyStudioPrompt(handle) {
+  const text = document.getElementById('stprompt-' + handle)?.value;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => toast('✓ Prompt copied — paste in Gemini ImageFX or AI Studio'));
+}
+
+async function uploadStudioImage(handle, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  input.value = '';
+  const imgEl = document.getElementById('stimages-' + handle);
+  if (imgEl) imgEl.insertAdjacentHTML('afterbegin', '<div id="upload-spinner-'+handle+'" style="font-size:10px;color:var(--muted);">Uploading…</div>');
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const b64 = e.target.result; // data:image/...;base64,...
+      const res = await api(AD_URL, { action: 'upload_image', handle, image_b64: b64 });
+      const sp = document.getElementById('upload-spinner-' + handle);
+      if (sp) sp.remove();
+      if (res.ok && res.image) {
+        if (!studioState[handle]) studioState[handle] = { scene: 'desk', images: [], taglines: [] };
+        studioState[handle].images.push(res.image);
+        renderStudioImages(handle);
+        toast('✓ Image uploaded');
+      } else { toast(res.error || 'Upload failed', true); }
+    } catch(err) {
+      const sp = document.getElementById('upload-spinner-' + handle);
+      if (sp) sp.remove();
+      toast('Upload error: ' + err.message, true);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function pushImageToShopify(handle, url, btn) {
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const res = await api(AD_URL, { action: 'push_to_shopify', handle, url });
+    if (res.ok) { btn.textContent = '✅'; toast('✓ Added to Shopify product images'); }
+    else { btn.textContent = '🛍'; toast(res.error || 'Shopify push failed', true); btn.disabled = false; }
+  } catch(e) { btn.textContent = '🛍'; btn.disabled = false; toast('Error: ' + e.message, true); }
 }
 
 // ── Text Overlay Modal ──────────────────────────────────
