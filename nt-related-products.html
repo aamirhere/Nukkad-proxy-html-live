@@ -826,10 +826,45 @@ function renderStudioImages(handle) {
       <div style="font-size:9px;color:var(--muted);text-align:center;margin-top:2px;">${img.scene_type||''}</div>
       <div style="display:flex;gap:3px;margin-top:3px;justify-content:center;flex-wrap:wrap;">
         <a href="${esc(img.url)}" download="${handle}-${img.id}.png" style="font-size:9px;padding:2px 6px;background:var(--sand);border:1px solid var(--border);border-radius:4px;color:var(--brown);text-decoration:none;">📥</a>
+        <button onclick="copyImageToClipboard('${esc(img.url)}',this)" title="Copy image to clipboard — paste in Gemini" style="font-size:9px;padding:2px 6px;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;color:#15803d;cursor:pointer;">📋</button>
         <button onclick="pushImageToShopify('${handle}','${esc(img.url)}',this)" title="Add to Shopify product images" style="font-size:9px;padding:2px 6px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;color:#0369a1;cursor:pointer;">🛍</button>
         <button onclick="deleteStudioImage('${handle}','${img.id}')" style="font-size:9px;padding:2px 6px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;color:#b91c1c;cursor:pointer;">🗑</button>
       </div>
     </div>`).join('');
+}
+
+async function copyImageToClipboard(url, btn) {
+  const orig = btn.textContent;
+  btn.textContent = '⏳';
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const pngBlob = blob.type === 'image/png' ? blob : await convertToPng(blob);
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+    btn.textContent = '✅';
+    toast('✓ Image copied — paste directly in Gemini');
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch(e) {
+    btn.textContent = orig;
+    toast('Copy failed — try downloading instead', true);
+  }
+}
+
+async function convertToPng(blob) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('canvas toBlob failed')), 'image/png');
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
 }
 
 function copyStudioPrompt(handle) {
