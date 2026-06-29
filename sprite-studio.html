@@ -270,8 +270,18 @@ let DB = load();
 let animators = [];
 
 function blank(){ return { mascot:null, projects:[], activeProject:null }; }
+// Local store lives in IndexedDB (hundreds of MB) — full-res frames overflow localStorage's
+// ~5MB cap, which silently dropped saves and made frames vanish on reload. localStorage is
+// kept only to read/migrate any old data on first load.
+let _idb=null;
+function idbConn(){ if(_idb) return _idb; _idb=new Promise((res,rej)=>{ try{ const r=indexedDB.open('nt_sprite_idb',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }catch(e){ rej(e); } }); _idb.catch(()=>{ _idb=null; }); return _idb; }
+async function idbGet(k){ try{ const db=await idbConn(); return await new Promise((res,rej)=>{ const t=db.transaction('kv','readonly').objectStore('kv').get(k); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); }); }catch(e){ return undefined; } }
+async function idbSet(k,v){ try{ const db=await idbConn(); return await new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=()=>res(true); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error); }); }catch(e){ return false; } }
 function load(){ try{ const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.projects) return d; }catch(e){} return blank(); }
-function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){ planMsg('⚠ Browser storage full — current work is in memory only. Use Export to keep it.','err'); } }
+// Pull the authoritative copy from IndexedDB at startup; migrate any old localStorage data in.
+async function hydrateLocal(){ try{ const d=await idbGet('DB'); if(d&&d.projects){ DB=d; return; } if(DB&&DB.projects&&DB.projects.length){ await idbSet('DB', DB); } }catch(e){} }
+let _persistTimer=null, _persistWarned=false;
+function persist(){ clearTimeout(_persistTimer); _persistTimer=setTimeout(async()=>{ const ok=await idbSet('DB', DB); if(!ok && !_persistWarned){ _persistWarned=true; try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){ planMsg('⚠ Browser storage full — current work is in memory only. Use Export to keep it.','err'); } } }, 250); }
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
@@ -356,10 +366,15 @@ async function initCloud(){
 }
 
 /* ===== boot ===== */
-function boot(){
+async function boot(){
+  await hydrateLocal();
   if(!DB.projects.length){ const p=newProject('My first video'); DB.projects.push(p); DB.activeProject=p.id; persist(); }
   if(!DB.activeProject) DB.activeProject=DB.projects[0].id;
   renderProjects(); renderMascot(); loadSettingsUI(); renderAll();
+  // Flush any pending save immediately when the tab is hidden/closed (mobile-safe).
+  const flush=()=>{ clearTimeout(_persistTimer); idbSet('DB', DB); };
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flush(); });
   initCloud();
 }
 
