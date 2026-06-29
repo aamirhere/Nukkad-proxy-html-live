@@ -653,7 +653,7 @@ function tabContentHTML(parentHandle, handle) {
       <button onclick="loadPersonalities('${handle}')" style="font-size:9px;padding:2px 7px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">✦ Suggest</button>
     </div>
     <div id="stpersona-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;min-height:24px;">
-      <span style="font-size:10px;color:var(--muted);font-style:italic;">Click ✦ Suggest to get personality archetypes for this product</span>
+      <span style="font-size:10px;color:var(--muted);font-style:italic;">Optional — select a person to tailor the prompt</span>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;flex:1;">Prompt</div>
@@ -802,8 +802,9 @@ function renderPersonalities(handle, personalities) {
   ).join('');
   const controls = `
     <button onclick="loadPersonalities('${handle}', true)" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:4px 11px;font-size:10px;cursor:pointer;">+ More</button>
+    <button onclick="clearPersonality('${handle}')" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:4px 11px;font-size:10px;cursor:pointer;">✕ Clear</button>
     <div style="display:flex;gap:4px;margin-top:4px;width:100%;">
-      <input id="stpersona-manual-${handle}" placeholder="Type your own…" onkeydown="if(event.key==='Enter')addManualPersonality('${handle}')"
+      <input id="stpersona-manual-${handle}" placeholder="Type your own person…" onkeydown="if(event.key==='Enter')addManualPersonality('${handle}')"
         style="flex:1;font-size:10px;padding:3px 8px;border:1.5px solid var(--border);border-radius:20px;outline:none;font-family:var(--fb);color:var(--ink);">
       <button onclick="addManualPersonality('${handle}')" style="font-size:10px;padding:3px 10px;background:#fff;border:1.5px solid var(--border);border-radius:20px;color:var(--brown);cursor:pointer;">Add</button>
     </div>`;
@@ -838,6 +839,23 @@ function selectPersonality(handle, idx) {
   const ta = document.getElementById('stprompt-' + handle);
   if (ta) ta.value = newPrompt;
   toast('✓ Prompt updated for: ' + persona.name);
+}
+
+function clearPersonality(handle) {
+  if (!studioState[handle]) return;
+  studioState[handle].selectedPersona = null;
+  document.querySelectorAll(`[id^="spersona-${handle}-"]`).forEach(b => {
+    b.style.background = '#fff';
+    b.style.color = 'var(--brown)';
+    b.style.borderColor = 'var(--border)';
+  });
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  const quote = p?.title || p?.t || p?.tagline || '';
+  const scene = studioState[handle]?.scene || 'desk';
+  const tax = taxonomyData[handle] || {};
+  const ta = document.getElementById('stprompt-' + handle);
+  if (ta) ta.value = buildStudioPrompt(quote, scene, tax);
+  toast('Person cleared — using base prompt');
 }
 
 async function applyDirection(handle) {
