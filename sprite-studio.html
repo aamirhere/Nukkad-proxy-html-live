@@ -99,6 +99,10 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 .sceneEditor{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#faf2e8;cursor:crosshair;margin-top:6px}
 .sceneEditor img{width:100%;display:block;max-height:300px;object-fit:contain}
 .sceneEditor.big img{max-height:75vh}
+.imgfull{position:fixed;inset:0;background:rgba(20,12,6,.86);z-index:9999;display:none;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.imgfull .sceneEditor{width:auto;max-width:96vw;margin:0;background:transparent;border:none}
+.imgfull .sceneEditor img{width:auto;max-width:96vw;max-height:90vh}
+body.noscroll{overflow:hidden}
 .pathtime{position:absolute;transform:translate(-50%,-50%);background:#8a5bd0;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;pointer-events:none;z-index:3;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 0;background:var(--accent);transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.3);pointer-events:none}
 .pin::after{content:"";position:absolute;inset:6px;background:#fff;border-radius:50%}
@@ -499,8 +503,21 @@ function buildEditorGuide(sc){
   if(!lines.length && sc.placement) lines.push(sc.placement);
   return lines;
 }
+// Pop the scene's pin-editor into a full-screen overlay so it's big enough to see and tap on
+// mobile. We MOVE the live element (not a copy), so pin placement keeps working at full size.
+function openImageFull(ed){
+  let ov=$('imgFull');
+  if(!ov){ ov=document.createElement('div'); ov.id='imgFull'; ov.className='imgfull'; document.body.appendChild(ov); }
+  const ph=document.createComment('ed'); ed.parentNode.insertBefore(ph, ed);
+  ov.innerHTML='';
+  const close=document.createElement('button'); close.className='btn sm expbtn'; close.textContent='✕ Close'; close.style.cssText='position:fixed;top:12px;right:12px;z-index:2';
+  const done=()=>{ if(ph.parentNode){ ph.parentNode.insertBefore(ed, ph); ph.remove(); } ov.style.display='none'; document.body.classList.remove('noscroll'); };
+  close.onclick=done; ov.onclick=(e)=>{ if(e.target===ov) done(); };
+  ov.appendChild(close); ov.appendChild(ed); ov.style.display='flex'; document.body.classList.add('noscroll');
+}
 function renderShots(){
   const p=curProj(); const wrap=$('shotList'); wrap.innerHTML=''; $('story').value=p.story||'';
+  const ovx=$('imgFull'); if(ovx){ ovx.style.display='none'; document.body.classList.remove('noscroll'); }
   if($('pitchPanel')){ if(p.treatment) renderPitch(p.treatment); else $('pitchPanel').innerHTML=''; }
   if(!p.scenes.length){ wrap.innerHTML='<div class="empty">No shots yet — upload stills (or add an empty scene), then write the story.</div>'; return; }
   p.scenes.forEach((s,i)=>{
@@ -552,8 +569,8 @@ function renderShots(){
       };
       d.appendChild(ed);
 
-      const exp=document.createElement('button'); exp.className='btn sm ghost'; exp.style.marginTop='6px'; exp.textContent= s._big?'⤡ Shrink image':'⤢ Expand image';
-      exp.onclick=()=>{ s._big=!s._big; ed.classList.toggle('big', s._big); exp.textContent= s._big?'⤡ Shrink image':'⤢ Expand image'; };
+      const exp=document.createElement('button'); exp.className='btn sm ghost'; exp.style.marginTop='6px'; exp.textContent='⤢ Expand image';
+      exp.onclick=()=>openImageFull(ed);
       d.appendChild(exp);
 
       const tools=document.createElement('div'); tools.className='pintools';
