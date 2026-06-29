@@ -180,12 +180,17 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
             </select>
           </div>
           <div>
-            <label class="f">Preview fps</label>
+            <label class="f">Gul fps (pose rate)</label>
             <select id="setFps">
-              <option>6</option><option selected>8</option><option>10</option><option>12</option><option>16</option><option>24</option>
+              <option>5</option><option>6</option><option selected>8</option><option>10</option><option>12</option><option>15</option>
             </select>
           </div>
         </div>
+        <label class="f" style="margin-top:10px">Video fps (your footage)</label>
+        <select id="setVfps">
+          <option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option>
+        </select>
+        <small class="note" id="fpsNote"></small>
         <label class="f" style="margin-top:10px">Crop</label>
         <select id="setCrop">
           <option value="aligned" selected>Aligned (same size, centred — smooth)</option>
@@ -267,14 +272,16 @@ function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catc
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:8,crop:"aligned"}, scenes:[] }; }
-function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:8,crop:"aligned"}; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:8,vfps:30,crop:"aligned"}, scenes:[] }; }
+function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:8,vfps:30,crop:"aligned"}; }
+function gfps(){ return parseInt(settings().fps,10)||8; }   // Gul pose-change rate
+function vfps(){ return parseInt(settings().vfps,10)||30; } // video / timeline rate (export)
 
 /* ===== cloud sync (Netlify Blobs via nt-store) — shared workspace, loads on any device ===== */
 const STORE_URL = FN_BASE + '/nt-store';
 let cloudOn=false, cloudIndex=[], saveTimer=null;
 const synced=new Set();
-function defaults(){ return {framesMax:9,quality:"medium",fps:8,crop:"aligned"}; }
+function defaults(){ return {framesMax:9,quality:"medium",fps:8,vfps:30,crop:"aligned"}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
 async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
@@ -365,9 +372,10 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked }; persist(); scheduleSave(); }
-['setFramesMax','setQuality','setFps','setBgRemove'].forEach(id=>$(id).addEventListener('change', saveSettings));
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setVfps').value=s.vfps||30; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; updateFpsNote(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked }; persist(); scheduleSave(); updateFpsNote(); }
+function updateFpsNote(){ const el=$('fpsNote'); if(!el)return; const v=vfps(), g=gfps(); if(v%g===0){ el.style.color='var(--muted)'; el.textContent='✓ Each Gul pose holds '+(v/g)+' video frame'+(v/g===1?'':'s')+' — exports clean at '+v+'fps.'; } else { el.style.color='var(--accent)'; el.textContent='⚠ '+v+'fps ÷ '+g+'fps isn’t whole — holds will be uneven (slightly jerky). Pick a Gul fps that divides '+v+' (e.g. '+[2,3,4,5,6,8,10,12,15].filter(x=>v%x===0).join(', ')+').'; } }
+['setFramesMax','setQuality','setFps','setVfps','setBgRemove'].forEach(id=>$(id).addEventListener('change', saveSettings));
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -396,7 +404,7 @@ function movePath(sc){ return (pinsOf(sc).find(p=>p.type==='move')||{}).points||
 function moveSeconds(sc){ return movePath(sc).reduce((s,pt)=>s+(parseFloat(pt.t)||0),0); }
 // Plain-English recipe of how this scene is built — beats, timeline, movement, pins.
 function buildScenePlan(sc){
-  const fps=settings().fps||8; const lines=[];
+  const fps=vfps(); const lines=[];
   const snip=a=>(a||'').split(/[.,\n]/)[0].trim().slice(0,26);
   if(sc.sheets&&sc.sheets.length){
     lines.push('Beats (drawn once): '+sc.sheets.map((sh,i)=>{ const n=(sh.frames&&sh.frames.length)||sh.target||0; return (i+1)+') '+(snip(sh.action)||'beat')+' ~'+n+'f'; }).join('  ·  '));
@@ -633,7 +641,7 @@ function buildSceneCard(sc, idx){
   const tag=document.createElement('span'); tag.className='tag '+(sc.approved?'ok':(prevApproved?'':'lock'));
   tag.textContent=sc.approved?'✓ approved':(prevApproved?(sceneGenerated(sc)?'generated':'ready'):'locked — approve previous');
   head.appendChild(tag);
-  const fps=settings().fps||8;
+  const fps=vfps();
   const tt=document.createElement('span'); tt.className='tag'; tt.style.cssText='color:var(--ink2);background:rgba(156,138,118,.15)';
   tt.textContent=(sc.loop===false?'▶ one-shot':'↻ loop')+(sc.durationSec?(' · '+sc.durationSec+'s @'+fps+'fps'):'');
   head.appendChild(tt);
@@ -830,7 +838,7 @@ function buildSceneCard(sc, idx){
     ar.appendChild(dl); ar.appendChild(dlt); ar.appendChild(gifb); ar.appendChild(appr); box.appendChild(ar);
     const hasTL=()=>!!(sc.timeline&&sc.timeline.length);
     gifb.onclick=()=>downloadSceneGif(sc, idx, (!!sc.durationSec||hasTL()), gifb);
-    if(sc.durationSec && !hasTL()){ const n=document.createElement('small'); n.className='note'; n.textContent='Timed = '+Math.round(sc.durationSec*(settings().fps||8))+' frames at '+(settings().fps||8)+'fps ('+sc.durationSec+'s), '+(sc.loop===false?'time-stretched':'looped')+' to fill the duration.'; box.appendChild(n); }
+    if(sc.durationSec && !hasTL()){ const n=document.createElement('small'); n.className='note'; n.textContent='Timed = '+Math.round(sc.durationSec*vfps())+' frames at '+vfps()+'fps video rate ('+sc.durationSec+'s), '+(sc.loop===false?'time-stretched':'looped')+'; each Gul pose held '+(vfps()%gfps()===0?(vfps()/gfps())+' frames':'~'+(vfps()/gfps()).toFixed(1)+' frames')+'.'; box.appendChild(n); }
 
     // Timeline: build a long shot by sequencing/repeating the beats above over exact times.
     const tlWrap=document.createElement('details'); tlWrap.className='fullprompt'; if(hasTL()) tlWrap.open=true;
@@ -1110,7 +1118,7 @@ function renderReview(sc, idx, sh, si, panel){
   if(rv.gaps&&rv.gaps.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Missing in-betweens:</b> '+rv.gaps.map(g=>'after #'+g.after+(g.need?(' ('+escapeHtml(g.need)+')'):'')).join('; ')+'</div>';
   panel.innerHTML=html;
   const pv=document.createElement('div'); pv.style.marginTop='8px';
-  const preview=(frames,caption)=>{ pv.innerHTML=''; if(!frames.length){ pv.innerHTML='<small class="note">Nothing to preview.</small>'; return; } const cap=document.createElement('div'); cap.style.cssText='font-size:11px;color:var(--ink2);margin-bottom:4px'; cap.textContent='👁 Preview — '+caption+' (not applied yet)'; pv.appendChild(cap); const ab=document.createElement('div'); ab.className='anim-box'; const cv=document.createElement('canvas'); cv.width=180; cv.height=180; ab.appendChild(cv); pv.appendChild(ab); makeSeqAnimator(frames, cv); };
+  const preview=(frames,caption)=>{ pv.innerHTML=''; if(!frames.length){ pv.innerHTML='<small class="note">Nothing to preview.</small>'; return; } const cap=document.createElement('div'); cap.style.cssText='font-size:11px;color:var(--ink2);margin-bottom:4px'; cap.textContent='👁 Preview — '+caption+' (not applied yet)'; pv.appendChild(cap); const ab=document.createElement('div'); ab.className='anim-box'; const cv=document.createElement('canvas'); cv.width=180; cv.height=180; ab.appendChild(cv); pv.appendChild(ab); makeFramesAnimator(frames, cv); };
   const orderFrames=()=>rv.order.map(n=>sh.frames[n-1]).filter(Boolean);
   const toDrop=[...new Set([...rv.bad,...rv.dups])].sort((a,b)=>a-b);
   const dropFrames=()=>sh.frames.filter((_,i)=>!toDrop.includes(i+1));
@@ -1135,21 +1143,22 @@ function stopAnimators(){ animators.forEach(a=>{ if(a.timer) clearTimeout(a.time
 // Cache one Image per unique data-URL so a long repeating timeline reuses ~a handful of imgs.
 function imgsForFrames(frames){ const cache={}; return frames.map(f=>{ if(!cache[f]){ const im=new Image(); im.src=f; cache[f]=im; } return cache[f]; }); }
 function makeAnimator(sc, canvas, getComp){
-  const frames=(sc.timeline&&sc.timeline.length)? timelineFrames(sc) : sceneFrames(sc);
-  const a={ canvas, getComp, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null };
+  const timed=!!(sc.timeline&&sc.timeline.length);
+  const frames= timed? timelineFrames(sc) : sceneFrames(sc);
+  const a={ canvas, getComp, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null, fps: timed?vfps():gfps() };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
   if(sc.refImage){ const b=new Image(); b.onload=()=>{ if(a.getComp())layout(a); }; b.src=sc.refImage; a.bg=b; a.pin={x:.5,y:.78}; }
   animators.push(a); layout(a); tickA(a); return a;
 }
-// Plain sequence player (no still compositing) — used for the whole-video preview.
+// Plain sequence player (no still compositing) — used for the whole-video preview (vfps).
 function makeSeqAnimator(frames, canvas){
-  const a={ canvas, getComp:()=>false, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null };
+  const a={ canvas, getComp:()=>false, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null, fps:vfps() };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
   animators.push(a); layout(a); tickA(a); return a;
 }
-// Play an arbitrary frame list, optionally composited over a still (for per-beat preview).
+// Play a list of UNIQUE poses at the Gul pose rate (per-beat preview).
 function makeFramesAnimator(frames, canvas, getComp, bgUrl){
-  const a={ canvas, getComp:getComp||(()=>false), imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, pin:{x:.5,y:.78}, timer:null };
+  const a={ canvas, getComp:getComp||(()=>false), imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, pin:{x:.5,y:.78}, timer:null, fps:gfps() };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
   if(bgUrl){ const b=new Image(); b.onload=()=>{ if(a.getComp())layout(a); }; b.src=bgUrl; a.bg=b; }
   animators.push(a); layout(a); tickA(a); return a;
@@ -1157,8 +1166,8 @@ function makeFramesAnimator(frames, canvas, getComp, bgUrl){
 function renderVideoPreview(){
   const host=$('videoPreview'); if(!host) return; host.innerHTML='';
   const frames=videoFrames(); if(!frames.length) return;
-  const fps=settings().fps||8; const secs=+(frames.length/fps).toFixed(1);
-  const lab=document.createElement('div'); lab.className='steps'; lab.style.marginTop='12px'; lab.innerHTML='<b>▶ Whole-video preview</b> — all generated scenes in order, timelines applied · '+frames.length+' frames ≈ '+secs+'s @'+fps+'fps';
+  const fps=vfps(); const secs=+(frames.length/fps).toFixed(1);
+  const lab=document.createElement('div'); lab.className='steps'; lab.style.marginTop='12px'; lab.innerHTML='<b>▶ Whole-video preview</b> — all generated scenes in order, timelines applied · '+frames.length+' frames ≈ '+secs+'s @'+fps+'fps (video rate)';
   host.appendChild(lab);
   const ab=document.createElement('div'); ab.className='anim-box'; const cv=document.createElement('canvas'); cv.width=240; cv.height=240; ab.appendChild(cv); host.appendChild(ab);
   makeSeqAnimator(frames, cv);
@@ -1171,33 +1180,35 @@ function tickA(a){
   const im=a.imgs[a.idx];
   if(im&&im.complete){ if(comp){ const pin=a.pin||{x:.5,y:.5}; const s=0.5; const fh=cv.height*s, fw=fh*(a.dim.w/a.dim.h); ctx.drawImage(im,pin.x*cv.width-fw/2,pin.y*cv.height-fh/2,fw,fh); } else ctx.drawImage(im,0,0,cv.width,cv.height); }
   a.idx=(a.idx+1)%Math.max(1,a.imgs.length);
-  const fps=settings().fps||8;
+  const fps=a.fps||gfps();
   a.timer=setTimeout(()=>requestAnimationFrame(()=>tickA(a)), 1000/fps);
 }
 
 /* ===== downloads ===== */
-// Build the exact on-screen frame list for a scene: round(duration×fps) frames,
-// looping the cycle (loop scenes) or time-stretching the unique frames (one-shots).
-function timedFrames(sc){
-  const frames=sceneFrames(sc); if(!frames.length) return frames;
-  const fps=settings().fps||8; const total=Math.max(1, Math.round((sc.durationSec||(frames.length/fps))*fps));
-  const out=[];
+// Output one frame per VIDEO frame (vfps), holding each unique Gul pose for vfps/gfps
+// frames — so the exported sequence drops onto your timeline frame-accurate, not jerky.
+function fillFrames(frames, sec, loop){
+  const n=frames.length; if(!n) return []; const vf=vfps(), gf=gfps();
+  const total=Math.max(1, Math.round(sec*vf)); const out=[];
   for(let i=0;i<total;i++){
-    const idx = sc.loop===false ? Math.min(frames.length-1, Math.floor(i*frames.length/total)) : (i%frames.length);
+    const idx = loop ? Math.floor(i*gf/vf) % n            // loop: step poses at Gul fps
+                     : Math.min(n-1, Math.floor(i*n/total)); // one-shot: spread poses across the duration
     out.push(frames[idx]);
   }
   return out;
+}
+function timedFrames(sc){
+  const frames=sceneFrames(sc); if(!frames.length) return frames;
+  const sec = sc.durationSec || (frames.length/gfps());
+  return fillFrames(frames, sec, sc.loop!==false);
 }
 function beatFrames(sc, bi){ const sh=(sc.sheets||[])[bi]; return (sh&&sh.frames)?sh.frames:[]; }
 // Compose a long shot by REPEATING short beat-loops over an exact timeline (no re-render):
 // each segment plays one beat for its seconds — looped (idle/talk) or stretched (one-shot).
 function timelineFrames(sc){
   if(!(sc.timeline&&sc.timeline.length)) return timedFrames(sc);
-  const fps=settings().fps||8; const out=[];
-  sc.timeline.forEach(seg=>{ const fr=beatFrames(sc, seg.beat); if(!fr.length) return;
-    const total=Math.max(1, Math.round((parseFloat(seg.sec)||0)*fps));
-    for(let i=0;i<total;i++){ const idx = seg.loop!==false ? (i%fr.length) : Math.min(fr.length-1, Math.floor(i*fr.length/total)); out.push(fr[idx]); }
-  });
+  const out=[];
+  sc.timeline.forEach(seg=>{ const fr=beatFrames(sc, seg.beat); if(!fr.length) return; out.push(...fillFrames(fr, parseFloat(seg.sec)||0, seg.loop!==false)); });
   return out.length?out:timedFrames(sc);
 }
 function timelineSeconds(sc){ return (sc.timeline||[]).reduce((s,seg)=>s+(parseFloat(seg.sec)||0),0); }
@@ -1216,7 +1227,7 @@ const GIF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker
 async function downloadSceneGif(sc, idx, timed, btn){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — check your connection and refresh.'); return; }
   const frames = timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length) return;
-  const fps=settings().fps||8; const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
+  const fps= timed? vfps() : gfps(); const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
   const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
   const w=Math.max(...valid.map(i=>i.width)), h=Math.max(...valid.map(i=>i.height));
