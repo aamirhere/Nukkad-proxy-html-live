@@ -744,32 +744,70 @@ function previewRef(handle, input) {
   reader.readAsDataURL(file);
 }
 
-async function loadPersonalities(handle) {
+async function loadPersonalities(handle, append) {
   const el = document.getElementById('stpersona-' + handle);
   if (!el) return;
-  el.innerHTML = '<span style="font-size:10px;color:var(--muted);">✦ Generating personalities…</span>';
+  const loadingMsg = append ? '✦ Finding more…' : '✦ Generating personalities…';
+  if (!append) el.innerHTML = `<span style="font-size:10px;color:var(--muted);">${loadingMsg}</span>`;
+  else {
+    const spinner = document.createElement('span');
+    spinner.id = 'stpersona-spinner-' + handle;
+    spinner.style.cssText = 'font-size:10px;color:var(--muted);';
+    spinner.textContent = loadingMsg;
+    el.appendChild(spinner);
+  }
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   const quote = p?.title || p?.t || p?.tagline || '';
   try {
     const res = await api(AD_URL, { action:'suggest_personalities', quote, taxonomy: taxonomyData[handle]||{} });
     if (res.ok && res.personalities?.length) {
       if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
-      studioState[handle].personalities = res.personalities;
-      renderPersonalities(handle, res.personalities);
-    } else { el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Could not generate — ' + (res.error || JSON.stringify(res)) + '</span>'; }
-  } catch(e) { el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Error: ' + e.message + '</span>'; }
+      const existing = studioState[handle].personalities || [];
+      studioState[handle].personalities = append ? [...existing, ...res.personalities] : res.personalities;
+      renderPersonalities(handle, studioState[handle].personalities);
+    } else {
+      const errEl = document.getElementById('stpersona-spinner-' + handle);
+      if (errEl) errEl.remove();
+      if (!append) el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Could not generate — ' + (res.error || JSON.stringify(res)) + '</span>';
+    }
+  } catch(e) {
+    const errEl = document.getElementById('stpersona-spinner-' + handle);
+    if (errEl) errEl.remove();
+    if (!append) el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Error: ' + e.message + '</span>';
+  }
+}
+
+function addManualPersonality(handle) {
+  const inp = document.getElementById('stpersona-manual-' + handle);
+  const name = inp?.value?.trim();
+  if (!name) return;
+  if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
+  const existing = studioState[handle].personalities || [];
+  const manual = { name, tagline: name, props: '', mood: 'soft warm light', scene: '' };
+  studioState[handle].personalities = [...existing, manual];
+  inp.value = '';
+  renderPersonalities(handle, studioState[handle].personalities);
+  selectPersonality(handle, studioState[handle].personalities.length - 1);
 }
 
 function renderPersonalities(handle, personalities) {
   const el = document.getElementById('stpersona-' + handle);
   if (!el) return;
-  el.innerHTML = personalities.map((persona, i) =>
+  const chips = personalities.map((persona, i) =>
     `<button id="spersona-${handle}-${i}" onclick="selectPersonality('${handle}',${i})"
       title="${esc(persona.tagline)}"
       style="border:1.5px solid var(--border);background:#fff;color:var(--brown);border-radius:20px;padding:4px 11px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;">
       ${esc(persona.name)}
     </button>`
   ).join('');
+  const controls = `
+    <button onclick="loadPersonalities('${handle}', true)" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:4px 11px;font-size:10px;cursor:pointer;">+ More</button>
+    <div style="display:flex;gap:4px;margin-top:4px;width:100%;">
+      <input id="stpersona-manual-${handle}" placeholder="Type your own…" onkeydown="if(event.key==='Enter')addManualPersonality('${handle}')"
+        style="flex:1;font-size:10px;padding:3px 8px;border:1.5px solid var(--border);border-radius:20px;outline:none;font-family:var(--fb);color:var(--ink);">
+      <button onclick="addManualPersonality('${handle}')" style="font-size:10px;padding:3px 10px;background:#fff;border:1.5px solid var(--border);border-radius:20px;color:var(--brown);cursor:pointer;">Add</button>
+    </div>`;
+  el.innerHTML = chips + controls;
 }
 
 function selectPersonality(handle, idx) {
@@ -794,7 +832,8 @@ function selectPersonality(handle, idx) {
   const sceneMap = {desk:'on a clean modern wooden desk',shelf:'on a minimal wooden shelf',gifting:'beside a beautifully wrapped gift box',cozy_home:'on a side table with fairy lights and a cozy throw',workspace:'in a contemporary home workspace',festive:'on a festive surface with marigolds and diyas'};
   const placement = persona.scene || sceneMap[scene] || sceneMap.desk;
 
-  const newPrompt = `Product lifestyle photography. Hero: handmade 3D wooden quote piece reading "${quote}" — sharp, realistic, exactly as it looks, no distortion. ${placement}. Nearby: ${persona.props}. ${persona.mood}. The person who owns this: ${persona.tagline}. Clean contemporary aesthetic. Product is the undeniable hero of the frame. High-converting ad quality, shallow depth of field.`;
+  const propsLine = persona.props ? `Nearby: ${persona.props}.` : '';
+  const newPrompt = `Product lifestyle photography. A handmade 3D wooden quote piece reading "${quote}" is placed ${placement}. ${propsLine} ${persona.mood}. This belongs to: ${persona.tagline}. The product occupies roughly one-third of the frame — rule-of-thirds composition, not a close-up. Pull back to show the scene around it. No distortion to the engraved text or wooden shape. Clean contemporary aesthetic — modern home, warm tones. High-converting ad quality, shallow depth of field.`;
 
   const ta = document.getElementById('stprompt-' + handle);
   if (ta) ta.value = newPrompt;
