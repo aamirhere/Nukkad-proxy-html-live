@@ -648,6 +648,13 @@ function tabContentHTML(parentHandle, handle) {
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;">Scene</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;flex:1;">Person</div>
+      <button onclick="loadPersonalities('${handle}')" style="font-size:9px;padding:2px 7px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">✦ Suggest</button>
+    </div>
+    <div id="stpersona-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;min-height:24px;">
+      <span style="font-size:10px;color:var(--muted);font-style:italic;">Click ✦ Suggest to get personality archetypes for this product</span>
+    </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;flex:1;">Prompt</div>
       <button onclick="regenPrompt('${handle}')" style="font-size:9px;padding:2px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">🔄 Regen</button>
@@ -735,6 +742,63 @@ function previewRef(handle, input) {
   const reader = new FileReader();
   reader.onload = e => { preview.src = e.target.result; preview.style.display = 'inline-block'; };
   reader.readAsDataURL(file);
+}
+
+async function loadPersonalities(handle) {
+  const el = document.getElementById('stpersona-' + handle);
+  if (!el) return;
+  el.innerHTML = '<span style="font-size:10px;color:var(--muted);">✦ Generating personalities…</span>';
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  const quote = p?.title || p?.t || p?.tagline || '';
+  try {
+    const res = await api(AD_URL, { action:'suggest_personalities', quote, taxonomy: taxonomyData[handle]||{} });
+    if (res.ok && res.personalities?.length) {
+      if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
+      studioState[handle].personalities = res.personalities;
+      renderPersonalities(handle, res.personalities);
+    } else { el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Could not generate — try again</span>'; }
+  } catch(e) { el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Error: ' + e.message + '</span>'; }
+}
+
+function renderPersonalities(handle, personalities) {
+  const el = document.getElementById('stpersona-' + handle);
+  if (!el) return;
+  el.innerHTML = personalities.map((persona, i) =>
+    `<button id="spersona-${handle}-${i}" onclick="selectPersonality('${handle}',${i})"
+      title="${esc(persona.tagline)}"
+      style="border:1.5px solid var(--border);background:#fff;color:var(--brown);border-radius:20px;padding:4px 11px;font-size:10px;font-weight:600;cursor:pointer;transition:.15s;">
+      ${esc(persona.name)}
+    </button>`
+  ).join('');
+}
+
+function selectPersonality(handle, idx) {
+  const personas = studioState[handle]?.personalities;
+  if (!personas) return;
+  const persona = personas[idx];
+  if (!persona) return;
+
+  // highlight selected
+  document.querySelectorAll(`[id^="spersona-${handle}-"]`).forEach((b, i) => {
+    const active = i === idx;
+    b.style.background = active ? '#7c3aed' : '#fff';
+    b.style.color = active ? '#fff' : 'var(--brown)';
+    b.style.borderColor = active ? '#7c3aed' : 'var(--border)';
+  });
+  studioState[handle].selectedPersona = persona;
+
+  // rebuild prompt with this persona
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  const quote = p?.title || p?.t || p?.tagline || '';
+  const scene = studioState[handle]?.scene || 'desk';
+  const sceneMap = {desk:'on a clean modern wooden desk',shelf:'on a minimal wooden shelf',gifting:'beside a beautifully wrapped gift box',cozy_home:'on a side table with fairy lights and a cozy throw',workspace:'in a contemporary home workspace',festive:'on a festive surface with marigolds and diyas'};
+  const placement = persona.scene || sceneMap[scene] || sceneMap.desk;
+
+  const newPrompt = `Product lifestyle photography. Hero: handmade 3D wooden quote piece reading "${quote}" — sharp, realistic, exactly as it looks, no distortion. ${placement}. Nearby: ${persona.props}. ${persona.mood}. The person who owns this: ${persona.tagline}. Clean contemporary aesthetic. Product is the undeniable hero of the frame. High-converting ad quality, shallow depth of field.`;
+
+  const ta = document.getElementById('stprompt-' + handle);
+  if (ta) ta.value = newPrompt;
+  toast('✓ Prompt updated for: ' + persona.name);
 }
 
 async function applyDirection(handle) {
