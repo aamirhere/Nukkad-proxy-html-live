@@ -282,6 +282,9 @@ function vfps(){ return parseInt(settings().vfps,10)||24; } // video / timeline 
 const STORE_URL = FN_BASE + '/nt-store';
 let cloudOn=false, cloudIndex=[], saveTimer=null;
 const synced=new Set();
+// Signature per framesKey so we only re-upload a beat's sliced frames when they change.
+const frameSigs={};
+function framesSig(fr){ return (fr||[]).length+':'+(fr||[]).reduce((a,f)=>a+f.length,0); }
 function defaults(){ return {framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned"}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
@@ -293,7 +296,10 @@ function projectMeta(p){
     scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved,
       pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null,
       refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
-      sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null })) })) };
+      sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
+        sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
+        framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed })) })) };
 }
 async function saveCloud(p){
   if(!cloudOn||!p) return;
@@ -302,7 +308,10 @@ async function saveCloud(p){
     const meta=projectMeta(p);
     for(const s of (p.scenes||[])){
       if(s.refImage && s.refKey && !synced.has(s.refKey)){ await cloudSet(s.refKey,s.refImage); synced.add(s.refKey); }
-      for(const sh of (s.sheets||[])){ if(sh.sheetImg && sh.sheetKey && !synced.has(sh.sheetKey)){ await cloudSet(sh.sheetKey,sh.sheetImg); synced.add(sh.sheetKey); } }
+      for(const sh of (s.sheets||[])){
+        if(sh.sheetImg && sh.sheetKey && !synced.has(sh.sheetKey)){ await cloudSet(sh.sheetKey,sh.sheetImg); synced.add(sh.sheetKey); }
+        if(sh.frames && sh.frames.length && sh.framesKey){ const sig=framesSig(sh.frames); if(frameSigs[sh.framesKey]!==sig){ await cloudSet(sh.framesKey, JSON.stringify(sh.frames)); frameSigs[sh.framesKey]=sig; } }
+      }
     }
     await cloudSet('p:'+p.id, JSON.stringify(meta));
     cloudIndex=cloudIndex.filter(x=>x.id!==p.id); cloudIndex.unshift({id:p.id,name:p.name,updatedAt:meta.updatedAt});
@@ -320,8 +329,13 @@ async function loadCloud(id){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, frames:null };
-      if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); if(beat.sheetImg) beat.frames=await cropSheet(beat.sheetImg, beat.cols, beat.rows, cropMode(p.settings)); }catch(e){} }
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null };
+      if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
+      // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
+      // fall back to a fresh grid crop for older projects that never stored their frames.
+      if(sh.framesKey){ try{ const fr=await cloudGet(sh.framesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.frames=arr; frameSigs[sh.framesKey]=framesSig(arr); } }catch(e){} }
+      if(!beat.frames && beat.sheetImg){ beat.frames=await cropSheet(beat.sheetImg, beat.cols, beat.rows, cropMode(p.settings)); }
+      if(sh.review){ beat.review=sh.review; beat._reviewed=true; } else if(sh.reviewed){ beat._reviewed=true; }
       sc.sheets.push(beat);
     }
     p.scenes.push(sc);
@@ -357,7 +371,7 @@ $('projSel').onchange=async e=>{ const id=e.target.value; DB.activeProject=id; c
   persist(); renderProjects(); loadSettingsUI(); renderAll(); };
 $('newProj').onclick=()=>{ const n=prompt('Name this video:', 'Video '+(DB.projects.length+1)); if(!n)return; const p=newProject(n.trim()); DB.projects.push(p); DB.activeProject=p.id; persist(); renderProjects(); loadSettingsUI(); renderAll(); scheduleSave(); };
 $('delProj').onclick=()=>{ const p=curProj(); if(!p)return; if(!confirm('Delete "'+p.name+'" and all its scenes?'))return;
-  if(cloudOn){ cloudDel('p:'+p.id); (p.scenes||[]).forEach(s=>{ if(s.refKey)cloudDel(s.refKey); (s.sheets||[]).forEach(sh=>{ if(sh.sheetKey)cloudDel(sh.sheetKey); }); }); cloudIndex=cloudIndex.filter(x=>x.id!==p.id); cloudSet('index',JSON.stringify(cloudIndex)).catch(()=>{}); }
+  if(cloudOn){ cloudDel('p:'+p.id); (p.scenes||[]).forEach(s=>{ if(s.refKey)cloudDel(s.refKey); (s.sheets||[]).forEach(sh=>{ if(sh.sheetKey)cloudDel(sh.sheetKey); if(sh.framesKey)cloudDel(sh.framesKey); }); }); cloudIndex=cloudIndex.filter(x=>x.id!==p.id); cloudSet('index',JSON.stringify(cloudIndex)).catch(()=>{}); }
   DB.projects=DB.projects.filter(x=>x.id!==p.id); if(!DB.projects.length){const np=newProject('My first video');DB.projects.push(np);} DB.activeProject=DB.projects[0].id; persist(); renderProjects(); loadSettingsUI(); renderAll(); };
 
 $('exportProj').onclick=()=>{ const p=curProj(); if(!p)return; const blob=new Blob([JSON.stringify({type:'nt-sprite-project-v3',mascot:curMascot(),project:p})],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'.gulproject.json'; a.click(); URL.revokeObjectURL(a.href); };
