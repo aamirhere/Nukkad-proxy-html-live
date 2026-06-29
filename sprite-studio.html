@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
 <script src="./gul-mascot-ref.js"></script>
 <style>
 :root{
@@ -170,6 +171,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
         <option value="tight">Tight (each pose cropped to itself)</option>
         <option value="off">Off (keep position in cell)</option>
       </select>
+      <label class="chip" style="margin-top:10px;display:flex"><input type="checkbox" id="setBgRemove" checked style="margin:0 7px 0 0"> Remove background on upload (white → transparent)</label>
       <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
     </div>
   </div>
@@ -339,9 +341,9 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setCrop').value=cropMode(s); }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, crop:$('setCrop').value }; persist(); scheduleSave(); }
-['setFramesMax','setQuality','setFps'].forEach(id=>$(id).addEventListener('change', saveSettings));
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked }; persist(); scheduleSave(); }
+['setFramesMax','setQuality','setFps','setBgRemove'].forEach(id=>$(id).addEventListener('change', saveSettings));
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -578,18 +580,52 @@ function buildSceneCard(sc, idx){
     const up=mkBtn((sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload');
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
-    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ sh.sheetImg=d; sh.frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
+    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ if(settings().bgRemove!==false){ up.textContent='… cutout'; d=await removeBg(d); } sh.sheetImg=d; sh.frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
     man.appendChild(up); man.appendChild(fi);
+    if(sh.sheetImg){ const ct=mkBtn('✂ Cutout'); ct.onclick=async()=>{ ct.textContent='…'; sh.sheetImg=await removeBg(sh.sheetImg); sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); }; man.appendChild(ct); }
     sd.appendChild(man);
     const mn=document.createElement('small'); mn.className='note'; mn.textContent= seedFrame
       ? 'Free route: Copy Gul + Copy seed + Copy prompt → paste all in ChatGPT (seed = where this beat continues from) → upload the PNG here ('+sh.cols+'×'+sh.rows+' grid).'
       : 'Free route: Copy Gul + Copy prompt → paste both in ChatGPT → upload the PNG here (must be a '+sh.cols+'×'+sh.rows+' grid).';
     sd.appendChild(mn);
 
+    // Editable grid + slice preview — fix uploads whose layout differs from the plan's.
+    if(sh.sheetImg){
+      const gd=document.createElement('details'); gd.className='fullprompt';
+      const gs=document.createElement('summary'); gs.textContent='⊞ Grid & slicing ('+sh.cols+'×'+sh.rows+')'; gd.appendChild(gs);
+      const gbody=document.createElement('div'); gbody.style.padding='10px';
+      const ctrls=document.createElement('div'); ctrls.className='row'; ctrls.style.marginBottom='8px';
+      const mkNum=(lab,val)=>{ const wrap=document.createElement('label'); wrap.style.cssText='flex:1;font-size:11px;font-weight:700;color:var(--ink2)'; wrap.textContent=lab; const inp=document.createElement('input'); inp.type='number'; inp.min='1'; inp.max='8'; inp.value=val; inp.style.marginTop='4px'; wrap.appendChild(inp); return inp; };
+      const cIn=mkNum('Columns', sh.cols), rIn=mkNum('Rows', sh.rows);
+      ctrls.appendChild(cIn.parentNode); ctrls.appendChild(rIn.parentNode); gbody.appendChild(ctrls);
+      const ov=document.createElement('div'); ov.style.cssText='position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px';
+      const ovImg=document.createElement('img'); ovImg.src=sh.sheetImg; ovImg.style.cssText='width:100%;display:block'; ov.appendChild(ovImg);
+      const ovSvg=document.createElementNS('http://www.w3.org/2000/svg','svg'); ovSvg.setAttribute('class','pinsvg'); ov.appendChild(ovSvg);
+      const drawGrid=(cols,rows)=>{ const NS='http://www.w3.org/2000/svg'; ovSvg.innerHTML=''; const line=(x1,y1,x2,y2)=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2); l.setAttribute('stroke','#d4541f'); l.setAttribute('stroke-width','1.5'); l.setAttribute('opacity','.85'); ovSvg.appendChild(l); };
+        for(let i=1;i<cols;i++) line((i*100/cols)+'%','0',(i*100/cols)+'%','100%'); for(let j=1;j<rows;j++) line('0',(j*100/rows)+'%','100%',(j*100/rows)+'%'); };
+      drawGrid(sh.cols, sh.rows); gbody.appendChild(ov);
+      const upd=()=>drawGrid(parseInt(cIn.value,10)||1, parseInt(rIn.value,10)||1);
+      cIn.addEventListener('input',upd); rIn.addEventListener('input',upd);
+      const apply=document.createElement('button'); apply.className='btn sm'; apply.style.marginTop='8px'; apply.style.width='100%'; apply.textContent='Re-slice with this grid';
+      apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); };
+      gbody.appendChild(apply); gd.appendChild(gbody); sd.appendChild(gd);
+    }
+
     if(sh.frames&&sh.frames.length){
       const strip=document.createElement('div'); strip.className='framestrip';
-      sh.frames.forEach((f,i)=>{ const fr=document.createElement('div'); fr.className='fr'; fr.innerHTML='<div class="box"><img src="'+f+'"></div><div class="lab">#'+(i+1)+'</div>'; strip.appendChild(fr); });
+      sh.frames.forEach((f,i)=>{
+        const fr=document.createElement('div'); fr.className='fr';
+        fr.innerHTML='<div class="box"><img src="'+f+'"></div><div class="lab">#'+(i+1)+'</div>';
+        const fc=document.createElement('div'); fc.style.cssText='display:flex;gap:2px;justify-content:center;margin-top:3px';
+        const mk=(t,cls,fn)=>{ const b=document.createElement('button'); b.className='btn sm '+cls; b.style.cssText='padding:2px 0;font-size:10px;flex:1;min-width:0;border-radius:6px'; b.textContent=t; b.onclick=fn; return b; };
+        fc.appendChild(mk('◀','ghost',()=>{ if(i>0){ [sh.frames[i-1],sh.frames[i]]=[sh.frames[i],sh.frames[i-1]]; persist(); scheduleSave(); renderAll(); } }));
+        fc.appendChild(mk('✕','danger',()=>{ sh.frames.splice(i,1); persist(); scheduleSave(); renderAll(); }));
+        fc.appendChild(mk('▶','ghost',()=>{ if(i<sh.frames.length-1){ [sh.frames[i+1],sh.frames[i]]=[sh.frames[i],sh.frames[i+1]]; persist(); scheduleSave(); renderAll(); } }));
+        fr.appendChild(fc); strip.appendChild(fr);
+      });
       sd.appendChild(strip);
+      const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. (Re-slicing or changing crop rebuilds from the sheet and resets these edits.)';
+      sd.appendChild(fn);
     }
     card.appendChild(sd);
   });
@@ -616,11 +652,13 @@ function buildSceneCard(sc, idx){
     ab.appendChild(ctr);
     box.appendChild(ab);
 
-    const ar=document.createElement('div'); ar.className='row'; ar.style.marginTop='10px';
-    const dl=document.createElement('button'); dl.className='btn sm ghost'; dl.textContent='Frames (.zip)'; dl.style.flex='1';
-    const dlt=document.createElement('button'); dlt.className='btn sm ghost'; dlt.textContent='⏱ Timed (.zip)'; dlt.style.flex='1';
-    const appr=document.createElement('button'); appr.className='btn sm '+(sc.approved?'ok':''); appr.textContent=sc.approved?'✓ re-open':'Approve ▸'; appr.style.flex='1';
-    ar.appendChild(dl); ar.appendChild(dlt); ar.appendChild(appr); box.appendChild(ar);
+    const ar=document.createElement('div'); ar.className='row'; ar.style.marginTop='10px'; ar.style.flexWrap='wrap';
+    const dl=document.createElement('button'); dl.className='btn sm ghost'; dl.textContent='Frames (.zip)'; dl.style.flex='1'; dl.style.minWidth='92px';
+    const dlt=document.createElement('button'); dlt.className='btn sm ghost'; dlt.textContent='⏱ Timed (.zip)'; dlt.style.flex='1'; dlt.style.minWidth='92px';
+    const gifb=document.createElement('button'); gifb.className='btn sm ghost'; gifb.textContent='🎞 GIF'; gifb.style.flex='1'; gifb.style.minWidth='92px';
+    const appr=document.createElement('button'); appr.className='btn sm '+(sc.approved?'ok':''); appr.textContent=sc.approved?'✓ re-open':'Approve ▸'; appr.style.flex='1'; appr.style.minWidth='92px';
+    ar.appendChild(dl); ar.appendChild(dlt); ar.appendChild(gifb); ar.appendChild(appr); box.appendChild(ar);
+    gifb.onclick=()=>downloadSceneGif(sc, idx, !!sc.durationSec, gifb);
     if(sc.durationSec){ const n=document.createElement('small'); n.className='note'; n.textContent='Timed = '+Math.round(sc.durationSec*(settings().fps||8))+' frames at '+(settings().fps||8)+'fps ('+sc.durationSec+'s), '+(sc.loop===false?'time-stretched':'looped')+' to fill the duration.'; box.appendChild(n); }
     card.appendChild(box);
 
@@ -707,6 +745,30 @@ function cropSheet(dataUrl, cols, rows, mode){
   });
 }
 async function recropAll(){ const p=curProj(); if(!p)return; const m=cropMode(); for(const sc of (p.scenes||[])) for(const sh of (sc.sheets||[])){ if(sh.sheetImg) sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, m); } persist(); scheduleSave(); renderAll(); }
+// Flood-fill the background to transparent from the image edges, for when ChatGPT returns a
+// white/solid sheet instead of a transparent one. Edge-connected only, so interior cream is kept.
+function removeBg(dataUrl, tol){
+  tol = tol||64;
+  return new Promise(resolve=>{
+    const im=new Image();
+    im.onload=()=>{
+      const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height; if(!w||!h) return resolve(dataUrl);
+      const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0);
+      const img=ctx.getImageData(0,0,w,h), d=img.data, N=w*h;
+      const corners=[0, w-1, (h-1)*w, (h-1)*w+(w-1)]; let br=0,bg=0,bb=0;
+      corners.forEach(p=>{ br+=d[p*4]; bg+=d[p*4+1]; bb+=d[p*4+2]; }); br/=4; bg/=4; bb/=4;
+      const t2=tol*tol, vis=new Uint8Array(N), stack=[];
+      for(let x=0;x<w;x++){ stack.push(x, (h-1)*w+x); }
+      for(let y=0;y<h;y++){ stack.push(y*w, y*w+(w-1)); }
+      while(stack.length){ const p=stack.pop(); if(p<0||p>=N||vis[p]) continue;
+        const i=p*4; if(d[i+3]===0){ vis[p]=1; } else { const dr=d[i]-br,dg=d[i+1]-bg,db=d[i+2]-bb; if(dr*dr+dg*dg+db*db>t2){ vis[p]=2; continue; } vis[p]=1; d[i+3]=0; }
+        const x=p%w, y=(p-x)/w; if(x>0)stack.push(p-1); if(x<w-1)stack.push(p+1); if(y>0)stack.push(p-w); if(y<h-1)stack.push(p+w);
+      }
+      ctx.putImageData(img,0,0); resolve(c.toDataURL('image/png'));
+    };
+    im.onerror=()=>resolve(dataUrl); im.src=dataUrl;
+  });
+}
 
 /* ===== per-scene animation ===== */
 function stopAnimators(){ animators.forEach(a=>{ if(a.timer) clearTimeout(a.timer); }); animators=[]; }
@@ -750,6 +812,21 @@ async function downloadSceneZip(sc, idx, timed){
   const zip=new JSZip(); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+tag);
   frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true}));
   const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_scene'+pad2(idx+1)+tag+'.zip'; a.click(); URL.revokeObjectURL(a.href);
+}
+const GIF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js';
+// One-file animated GIF of a whole scene, composited on white (GIF has no soft alpha).
+async function downloadSceneGif(sc, idx, timed, btn){
+  if(typeof GIF==='undefined'){ alert('GIF library not loaded — check your connection and refresh.'); return; }
+  const frames = timed? timedFrames(sc) : sceneFrames(sc); if(!frames.length) return;
+  const fps=settings().fps||8; const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
+  const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
+  const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
+  const w=Math.max(...valid.map(i=>i.width)), h=Math.max(...valid.map(i=>i.height));
+  const gif=new GIF({workers:2, quality:10, width:w, height:h, workerScript:GIF_WORKER, background:'#ffffff'});
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d');
+  valid.forEach(im=>{ ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(im, Math.round((w-im.width)/2), Math.round((h-im.height)/2)); gif.addFrame(ctx,{copy:true, delay:Math.round(1000/fps)}); });
+  gif.on('finished', blob=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')+'.gif'; a.click(); URL.revokeObjectURL(a.href); if(btn){ btn.textContent=o; btn.disabled=false; } });
+  gif.render();
 }
 $('dlAll').onclick=async()=>{
   const p=curProj(); if(typeof JSZip==='undefined'){ alert('Zip unavailable.'); return; }
