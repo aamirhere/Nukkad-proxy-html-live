@@ -462,7 +462,15 @@ function renderShots(){
     const d=document.createElement('div'); d.className='shot'; d.style.flexDirection='column';
     const top=document.createElement('div'); top.style.cssText='display:flex;align-items:center;gap:8px;width:100%';
     top.innerHTML='<div class="num" style="flex:1">Scene '+(i+1)+'</div>'+
-      '<button class="btn sm ghost up" style="width:34px">▲</button><button class="btn sm ghost down" style="width:34px">▼</button><button class="btn sm danger del" style="width:34px">✕</button>';
+      '<button class="btn sm ghost rep" title="Replace image (resets this scene)">🖼</button><button class="btn sm ghost up" style="width:34px">▲</button><button class="btn sm ghost down" style="width:34px">▼</button><button class="btn sm danger del" style="width:34px">✕</button>';
+    const repFi=document.createElement('input'); repFi.type='file'; repFi.accept='image/*'; repFi.hidden=true; d.appendChild(repFi);
+    top.querySelector('.rep').onclick=()=>repFi.click();
+    repFi.onchange=e=>{ const f=e.target.files[0]; if(!f) return;
+      const hadWork=(s.sheets&&s.sheets.length)||(s.pins&&s.pins.length)||(s.timeline&&s.timeline.length);
+      if(hadWork && !confirm('Replace the image and RESET this scene’s pins, beats and timeline?')){ e.target.value=''; return; }
+      showToast('⏳ Updating image…');
+      downscaleDataURL(f,1280,d2=>{ s.refImage=d2; s.sheets=[]; s.pins=[]; s.timeline=null; s.title=''; s.summary=''; s.placement=''; s.approved=false; s._big=false; persist(); scheduleSave(); renderAll(); showToast('✓ Image updated — scene reset, blank slate.'); });
+      e.target.value=''; };
     d.appendChild(top);
 
     if(s.refImage){
@@ -667,7 +675,7 @@ function buildSceneCard(sc, idx){
     const up=mkBtn((sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload');
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
-    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ up.textContent='… processing'; await ingestSheet(sh, d); persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
+    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ up.textContent='… processing'; showToast('⏳ Processing sheet…'); await ingestSheet(sh, d); persist(); scheduleSave(); renderAll(); showToast('✓ Sheet updated — '+((sh.frames||[]).length)+' frames'); }); e.target.value=''; };
     man.appendChild(up); man.appendChild(fi);
     if(sh.sheetImg){ const ct=mkBtn('✂ Cutout'); ct.onclick=async()=>{ ct.textContent='…'; sh.sheetImg=await removeBg(sh.sheetImg); sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); }; man.appendChild(ct); }
     sd.appendChild(man);
@@ -701,6 +709,27 @@ function buildSceneCard(sc, idx){
       gbody.appendChild(det2);
       const dn=document.createElement('small'); dn.className='note'; dn.textContent='Auto-detect finds each Gul as a separate shape — use it when ChatGPT laid the frames out unevenly (different sizes, arrows, no clean grid).';
       gbody.appendChild(dn);
+
+      // Manual click-to-slice: when Claude & auto-detect both miss, draw your own cut lines.
+      if(!sh.cuts) sh.cuts={x:[],y:[]};
+      let armDir=null; // 'v' | 'h'
+      function drawCuts(){ const NS='http://www.w3.org/2000/svg'; (sh.cuts.x||[]).forEach(fx=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('x1',(fx*100)+'%'); l.setAttribute('y1','0'); l.setAttribute('x2',(fx*100)+'%'); l.setAttribute('y2','100%'); l.setAttribute('stroke','#2f6fd4'); l.setAttribute('stroke-width','2'); ovSvg.appendChild(l); });
+        (sh.cuts.y||[]).forEach(fy=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('x1','0'); l.setAttribute('y1',(fy*100)+'%'); l.setAttribute('x2','100%'); l.setAttribute('y2',(fy*100)+'%'); l.setAttribute('stroke','#2f6fd4'); l.setAttribute('stroke-width','2'); ovSvg.appendChild(l); }); }
+      const reflow=()=>{ drawGrid(parseInt(cIn.value,10)||1, parseInt(rIn.value,10)||1); drawCuts(); };
+      ov.style.cursor='crosshair';
+      ov.onclick=(ev)=>{ if(!armDir) return; const r=ovImg.getBoundingClientRect(); if(armDir==='v') sh.cuts.x.push(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))); else sh.cuts.y.push(Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height))); persist(); scheduleSave(); reflow(); };
+      const mrow=document.createElement('div'); mrow.className='row'; mrow.style.cssText='margin-top:8px;flex-wrap:wrap';
+      const vb=document.createElement('button'); vb.className='btn sm ghost'; vb.style.cssText='flex:1;min-width:90px'; vb.textContent='✎ + Vertical cut';
+      const hb=document.createElement('button'); hb.className='btn sm ghost'; hb.style.cssText='flex:1;min-width:90px'; hb.textContent='✎ + Horizontal cut';
+      const setArm=(dir,btn)=>{ armDir=(armDir===dir)?null:dir; vb.classList.toggle('active', armDir==='v'); hb.classList.toggle('active', armDir==='h'); vb.style.background= armDir==='v'?'var(--accent)':''; vb.style.color=armDir==='v'?'#fff':''; hb.style.background= armDir==='h'?'var(--accent)':''; hb.style.color=armDir==='h'?'#fff':''; showToast(armDir?('Tap the image to add a '+(armDir==='v'?'vertical':'horizontal')+' cut'):'Manual cut off'); };
+      vb.onclick=()=>setArm('v'); hb.onclick=()=>setArm('h');
+      const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.style.cssText='flex:1;min-width:70px'; clr.textContent='Clear cuts'; clr.onclick=()=>{ sh.cuts={x:[],y:[]}; armDir=null; persist(); scheduleSave(); reflow(); };
+      const slc=document.createElement('button'); slc.className='btn sm'; slc.style.cssText='flex:1;min-width:90px'; slc.textContent='✂ Slice by cuts'; slc.onclick=async()=>{ if(!sh.cuts.x.length && !sh.cuts.y.length){ showToast('Add cut lines first'); return; } slc.textContent='… slicing'; let fr=await manualSlice(sh.sheetImg, sh.cuts.x, sh.cuts.y); fr=await normalizeFrames(fr); if(fr.length){ sh.frames=fr; sh.detected=true; sh.wide=[]; sh.target=fr.length; markForReview(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Sliced into '+fr.length+' frames'); } else { slc.textContent='✂ Slice by cuts'; showToast('No frames found in those cuts'); } };
+      mrow.appendChild(vb); mrow.appendChild(hb); mrow.appendChild(clr); mrow.appendChild(slc); gbody.appendChild(mrow);
+      const mn=document.createElement('small'); mn.className='note'; mn.textContent='Manual slice: tap “+ Vertical/Horizontal cut”, then tap the image where the gaps between frames are. “Slice by cuts” cuts on those blue lines (uneven spacing is fine).';
+      gbody.appendChild(mn);
+      drawCuts();
+
       gd.appendChild(gbody); sd.appendChild(gd);
     }
 
@@ -983,6 +1012,19 @@ function normalizeFrames(frames){
   return Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>{ const w=im.naturalWidth||im.width,h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0); const d=x.getImageData(0,0,w,h).data; let minx=w,miny=h,maxx=0,maxy=0,any=false; for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ if(d[(y*w+xx)*4+3]>ALPHA_THRESHOLD){ any=true; if(xx<minx)minx=xx;if(xx>maxx)maxx=xx;if(y<miny)miny=y;if(y>maxy)maxy=y; } } r(any?{c,minx,miny,bw:maxx-minx+1,bh:maxy-miny+1}:{c,minx:0,miny:0,bw:w,bh:h}); }; im.onerror=()=>r(null); im.src=f; })))
   .then(items=>{ const v=items.filter(Boolean); if(!v.length) return frames; const pad=8; const W=Math.max(...v.map(i=>i.bw))+pad*2, H=Math.max(...v.map(i=>i.bh))+pad*2; return v.map(it=>{ const tc=document.createElement('canvas'); tc.width=W; tc.height=H; tc.getContext('2d').drawImage(it.c, it.minx,it.miny,it.bw,it.bh, Math.round((W-it.bw)/2),Math.round((H-it.bh)/2), it.bw,it.bh); return tc.toDataURL('image/png'); }); });
 }
+// Manual slice: cut the sheet on user-drawn vertical (xs) + horizontal (ys) fractions,
+// keep non-empty regions in reading order. Pair with normalizeFrames to centre them.
+function manualSlice(dataUrl, xs, ys){
+  return new Promise(resolve=>{ const im=new Image(); im.onload=()=>{ const w=im.naturalWidth||im.width,h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0); const data=ctx.getImageData(0,0,w,h).data;
+    const xb=[0,...(xs||[]).slice().sort((a,b)=>a-b).map(f=>Math.round(f*w)),w];
+    const yb=[0,...(ys||[]).slice().sort((a,b)=>a-b).map(f=>Math.round(f*h)),h];
+    const out=[];
+    for(let r=0;r<yb.length-1;r++) for(let cc=0;cc<xb.length-1;cc++){ const x0=xb[cc],x1=xb[cc+1],y0=yb[r],y1=yb[r+1],bw=x1-x0,bh=y1-y0; if(bw<4||bh<4) continue;
+      let any=false; for(let y=y0;y<y1&&!any;y+=2) for(let x=x0;x<x1;x+=2){ if(data[(y*w+x)*4+3]>ALPHA_THRESHOLD){ any=true; break; } }
+      if(!any) continue; const tc=document.createElement('canvas'); tc.width=bw; tc.height=bh; tc.getContext('2d').drawImage(c,x0,y0,bw,bh,0,0,bw,bh); out.push(tc.toDataURL('image/png'));
+    }
+    resolve(out); }; im.onerror=()=>resolve([]); im.src=dataUrl; });
+}
 // Build a numbered contact-sheet of the frames (one image) to send to Claude for review.
 function buildMontage(frames){
   return new Promise(resolve=>{
@@ -1049,12 +1091,24 @@ function renderReview(sc, idx, sh, si, panel){
   if(rv.dups.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Near-duplicates:</b> #'+rv.dups.join(', #')+'</div>';
   if(rv.gaps&&rv.gaps.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Missing in-betweens:</b> '+rv.gaps.map(g=>'after #'+g.after+(g.need?(' ('+escapeHtml(g.need)+')'):'')).join('; ')+'</div>';
   panel.innerHTML=html;
-  const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
-  if(rv.reordered){ const rb=document.createElement('button'); rb.className='btn sm'; rb.style.cssText='flex:1;min-width:130px'; rb.textContent='↕ Apply Claude’s order'; rb.onclick=()=>{ sh.frames=rv.order.map(n=>sh.frames[n-1]).filter(Boolean); sh.wide=[]; persist(); scheduleSave(); renderAll(); }; row.appendChild(rb); }
+  const pv=document.createElement('div'); pv.style.marginTop='8px';
+  const preview=(frames,caption)=>{ pv.innerHTML=''; if(!frames.length){ pv.innerHTML='<small class="note">Nothing to preview.</small>'; return; } const cap=document.createElement('div'); cap.style.cssText='font-size:11px;color:var(--ink2);margin-bottom:4px'; cap.textContent='👁 Preview — '+caption+' (not applied yet)'; pv.appendChild(cap); const ab=document.createElement('div'); ab.className='anim-box'; const cv=document.createElement('canvas'); cv.width=180; cv.height=180; ab.appendChild(cv); pv.appendChild(ab); makeSeqAnimator(frames, cv); };
+  const orderFrames=()=>rv.order.map(n=>sh.frames[n-1]).filter(Boolean);
   const toDrop=[...new Set([...rv.bad,...rv.dups])].sort((a,b)=>a-b);
-  if(toDrop.length){ const db=document.createElement('button'); db.className='btn sm danger'; db.style.cssText='flex:1;min-width:110px'; db.textContent='Drop flagged (#'+toDrop.join(',#')+')'; db.onclick=()=>{ sh.frames=sh.frames.filter((_,i)=>!toDrop.includes(i+1)); persist(); scheduleSave(); renderAll(); }; row.appendChild(db); }
+  const dropFrames=()=>sh.frames.filter((_,i)=>!toDrop.includes(i+1));
+  const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
+  if(rv.reordered){
+    const rb=document.createElement('button'); rb.className='btn sm'; rb.style.cssText='flex:2;min-width:120px'; rb.textContent='↕ Apply order'; rb.onclick=()=>{ sh.frames=orderFrames(); sh.wide=[]; persist(); scheduleSave(); renderAll(); };
+    const pb=document.createElement('button'); pb.className='btn sm ghost'; pb.style.cssText='flex:1;min-width:80px'; pb.textContent='👁 Preview'; pb.onclick=()=>preview(orderFrames(), 'order applied · '+sh.frames.length+'→'+orderFrames().length+' frames'+(rv.order.length<sh.frames.length?' (drops non-frames)':''));
+    row.appendChild(rb); row.appendChild(pb);
+  }
+  if(toDrop.length){
+    const db=document.createElement('button'); db.className='btn sm danger'; db.style.cssText='flex:2;min-width:120px'; db.textContent='Drop #'+toDrop.join(',#'); db.onclick=()=>{ sh.frames=dropFrames(); persist(); scheduleSave(); renderAll(); };
+    const pb=document.createElement('button'); pb.className='btn sm ghost'; pb.style.cssText='flex:1;min-width:80px'; pb.textContent='👁 Preview'; pb.onclick=()=>preview(dropFrames(), 'after dropping #'+toDrop.join(',#')+' · '+sh.frames.length+'→'+dropFrames().length+' frames');
+    row.appendChild(db); row.appendChild(pb);
+  }
   const redo=document.createElement('button'); redo.className='btn sm ghost'; redo.style.cssText='flex:1;min-width:110px'; redo.textContent='📋 Copy prompt to redo'; redo.onclick=()=>copyText(buildRedoPrompt(sc, idx, sh, si, rv), redo); row.appendChild(redo);
-  panel.appendChild(row);
+  panel.appendChild(row); panel.appendChild(pv);
   if(rv.gaps&&rv.gaps.length){ const n=document.createElement('small'); n.className='note'; n.textContent='Missing in-betweens can’t be drawn here — use “Copy prompt to redo” (it asks for smoother in-betweens) and regenerate this beat.'; panel.appendChild(n); }
 }
 
@@ -1234,6 +1288,7 @@ function shrinkData(d,max,mime){ return new Promise(res=>{ const im=new Image();
 function fileToDataURL(f,cb){ if(!f)return; const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(f); }
 function downscaleDataURL(f,maxDim,cb){ fileToDataURL(f,d=>{ const im=new Image(); im.onload=()=>{ const sc=Math.min(maxDim/im.width,maxDim/im.height,1); if(sc>=1)return cb(d); const c=document.createElement('canvas'); c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext('2d').drawImage(im,0,0,c.width,c.height); cb(c.toDataURL('image/jpeg',0.85)); }; im.src=d; }); }
 function downloadDataUrl(d,name){ const a=document.createElement('a'); a.href=d; a.download=name; a.click(); }
+function showToast(msg){ let t=document.getElementById('nt-toast'); if(!t){ t=document.createElement('div'); t.id='nt-toast'; t.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;font-size:13px;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.3);opacity:0;transition:opacity .2s;max-width:90vw;text-align:center'; document.body.appendChild(t); } t.textContent=msg; t.style.opacity='1'; clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.opacity='0'; },2400); }
 function copyText(t, btn){
   const ok=()=>{ if(btn){ const o=btn.textContent; btn.textContent='✓ Copied'; setTimeout(()=>{btn.textContent=o;},1500); } };
   const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{ document.execCommand('copy'); ok(); }catch(e){ prompt('Copy this prompt:', t); } document.body.removeChild(ta); };
