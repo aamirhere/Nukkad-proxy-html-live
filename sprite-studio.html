@@ -1192,19 +1192,22 @@ function renderReview(sc, idx, sh, si, panel){
 function stopAnimators(){ animators.forEach(a=>{ if(a.timer) clearTimeout(a.timer); }); animators=[]; }
 // Cache one Image per unique data-URL so a long repeating timeline reuses ~a handful of imgs.
 function imgsForFrames(frames){ const cache={}; return frames.map(f=>{ if(!cache[f]){ const im=new Image(); im.src=f; cache[f]=im; } return cache[f]; }); }
+// Re-feed an existing animator with size-locked / uniform frames (async) so the scene &
+// whole-video previews show the same single-size Gul as the export, not the raw frames.
+function applyLockToAnimator(a, frames){ if(!frames||!frames.length) return; exportFrames(frames).then(fr=>{ if(!fr||!fr.length||!animators.includes(a)) return; a.imgs=imgsForFrames(fr); a.idx=a.idx%fr.length; const f0=a.imgs[0]; if(f0){ const setDim=()=>{ a.dim={w:f0.width||220,h:f0.height||220}; layout(a); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(a); }).catch(()=>{}); }
 function makeAnimator(sc, canvas, getComp){
   const timed=!!(sc.timeline&&sc.timeline.length);
   const frames= timed? timelineFrames(sc) : sceneFrames(sc);
   const a={ canvas, getComp, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null, fps: timed?vfps():gfps() };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
   if(sc.refImage){ const b=new Image(); b.onload=()=>{ if(a.getComp())layout(a); }; b.src=sc.refImage; a.bg=b; a.pin={x:.5,y:.78}; }
-  animators.push(a); layout(a); tickA(a); return a;
+  animators.push(a); layout(a); tickA(a); applyLockToAnimator(a, frames); return a;
 }
 // Plain sequence player (no still compositing) — used for the whole-video preview (vfps).
 function makeSeqAnimator(frames, canvas){
   const a={ canvas, getComp:()=>false, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null, fps:vfps() };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
-  animators.push(a); layout(a); tickA(a); return a;
+  animators.push(a); layout(a); tickA(a); applyLockToAnimator(a, frames); return a;
 }
 // Play a list of UNIQUE poses at the Gul pose rate (per-beat preview).
 function makeFramesAnimator(frames, canvas, getComp, bgUrl){
@@ -1276,7 +1279,10 @@ function padFrames(frames, W, H){ return Promise.all((frames||[]).map(f=>new Pro
 // Measure Gul's silhouette in a frame: bounding box, opaque-pixel AREA and CENTROID.
 // Area + centroid are far more pose-stable than the bounding box for a flapping bird —
 // raising a wing barely changes area, but it stretches the box, so the box is a bad ruler.
-function measureBox(dataUrl){ return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const w=im.naturalWidth||im.width,h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w;c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0); let d; try{ d=x.getImageData(0,0,w,h).data; }catch(e){ return res({im,w,h,x0:0,y0:0,bw:w,bh:h,area:w*h,cx:w/2,cy:h/2}); } let x0=w,y0=h,x1=0,y1=0,any=false,area=0,sx=0,sy=0; for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){ if(d[(yy*w+xx)*4+3]>ALPHA_THRESHOLD){any=true;area++;sx+=xx;sy+=yy; if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy;} } res(any?{im,w,h,x0,y0,bw:x1-x0+1,bh:y1-y0+1,area,cx:sx/area,cy:sy/area}:{im,w,h,x0:0,y0:0,bw:w,bh:h,area:w*h,cx:w/2,cy:h/2}); }; im.onerror=()=>res(null); im.src=dataUrl; }); }
+// Cached per data-URL so a looping timeline doesn't re-decode the same frame many times.
+const _boxCache=new Map();
+function measureBox(dataUrl){ if(_boxCache.has(dataUrl)) return _boxCache.get(dataUrl); const pr=_measureBox(dataUrl); _boxCache.set(dataUrl, pr); return pr; }
+function _measureBox(dataUrl){ return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const w=im.naturalWidth||im.width,h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w;c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0); let d; try{ d=x.getImageData(0,0,w,h).data; }catch(e){ return res({im,w,h,x0:0,y0:0,bw:w,bh:h,area:w*h,cx:w/2,cy:h/2}); } let x0=w,y0=h,x1=0,y1=0,any=false,area=0,sx=0,sy=0; for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){ if(d[(yy*w+xx)*4+3]>ALPHA_THRESHOLD){any=true;area++;sx+=xx;sy+=yy; if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy;} } res(any?{im,w,h,x0,y0,bw:x1-x0+1,bh:y1-y0+1,area,cx:sx/area,cy:sy/area}:{im,w,h,x0:0,y0:0,bw:w,bh:h,area:w*h,cx:w/2,cy:h/2}); }; im.onerror=()=>res(null); im.src=dataUrl; }); }
 // One target silhouette AREA for the WHOLE project (median), cached by content, so every
 // frame everywhere is scaled to the same body size — Gul never swells or shrinks.
 let _birdA=0,_birdASig='';
