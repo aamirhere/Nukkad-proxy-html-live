@@ -101,6 +101,10 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 .pinlist .pi span{flex:1}
 .eguide{margin:8px 0;padding:8px 10px;background:rgba(138,91,208,.08);border:1px solid #e4d8f3;border-radius:9px;font-size:12px;color:var(--ink2);line-height:1.5}
 .eguide b{color:#6f44c0}
+.fullprompt{margin-top:8px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.fullprompt>summary{cursor:pointer;padding:8px 10px;font-size:12px;font-weight:800;color:var(--ink2);list-style:none}
+.fullprompt>summary::-webkit-details-marker{display:none}
+.promptbox{width:100%;border:0;border-top:1px solid var(--line);border-radius:0 0 9px 9px;font-size:11px;line-height:1.5;color:var(--ink2);padding:10px;min-height:130px;resize:vertical;background:#fffdf9;font-family:var(--fb)}
 </style>
 </head>
 <body>
@@ -126,10 +130,11 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
       <div class="mascot-prev" id="mascotPrev"></div>
       <div class="row" style="margin-top:10px">
         <button class="btn sm ghost" id="mascotUploadBtn">Replace</button>
+        <button class="btn sm ghost" id="mascotCopy">🖼 Copy</button>
         <button class="btn sm ghost" id="mascotDownload">Save</button>
         <button class="btn sm ghost" id="mascotResetBtn">Reset</button>
       </div>
-      <small class="note">“Save” downloads Gul so you can attach her in ChatGPT for the free manual route.</small>
+      <small class="note">“Copy” puts Gul on your clipboard to paste into ChatGPT; “Save” downloads her. For the free manual route.</small>
       <input type="file" id="mascotFile" accept="image/*" hidden>
     </div>
 
@@ -331,6 +336,7 @@ $('mascotUploadBtn').onclick=()=>$('mascotFile').click();
 $('mascotFile').onchange=e=>fileToDataURL(e.target.files[0],d=>{DB.mascot=d;persist();renderMascot(); if(cloudOn)cloudSet('mascot',d).catch(()=>{});});
 $('mascotResetBtn').onclick=()=>{DB.mascot=null;persist();renderMascot(); if(cloudOn)cloudDel('mascot');};
 $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'gul-reference.png'); };
+$('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
 function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $('setCrop').value=cropMode(s); }
@@ -554,17 +560,26 @@ function buildSceneCard(sc, idx){
     ta.addEventListener('input',()=>{sh.action=ta.value;}); ta.addEventListener('change',persist);
     sd.appendChild(ta);
 
-    // Free manual route: copy this beat's prompt, make it on ChatGPT, upload the sheet back.
+    // Free manual route. The action box above is the short direction (prompt 1, editable);
+    // this panel is the FULL prompt that actually goes to ChatGPT (prompt 2, grid + transparency).
+    const det=document.createElement('details'); det.className='fullprompt';
+    const sum=document.createElement('summary'); sum.textContent='▸ Full ChatGPT prompt ('+sh.cols+'×'+sh.rows+' grid, transparent, character-lock)'; det.appendChild(sum);
+    const pre=document.createElement('textarea'); pre.readOnly=true; pre.className='promptbox'; pre.value=buildManualPrompt(sc, idx, sh, si); det.appendChild(pre);
+    det.addEventListener('toggle',()=>{ if(det.open) pre.value=buildManualPrompt(sc, idx, sh, si); }); // refresh if action was edited
+    sd.appendChild(det);
+
     const man=document.createElement('div'); man.className='row'; man.style.marginTop='8px';
     const cp=document.createElement('button'); cp.className='btn sm ghost'; cp.style.flex='1'; cp.textContent='📋 Copy prompt';
     cp.onclick=()=>copyText(buildManualPrompt(sc, idx, sh, si), cp);
-    const up=document.createElement('button'); up.className='btn sm ghost'; up.style.flex='1'; up.textContent=(sh.frames&&sh.frames.length)?'⬆ Replace sheet':'⬆ Upload sheet';
+    const ci=document.createElement('button'); ci.className='btn sm ghost'; ci.style.flex='1'; ci.textContent='🖼 Copy Gul';
+    ci.onclick=()=>copyImage(curMascot(), ci);
+    const up=document.createElement('button'); up.className='btn sm ghost'; up.style.flex='1'; up.textContent=(sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload';
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
     fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ sh.sheetImg=d; sh.frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
-    man.appendChild(cp); man.appendChild(up); man.appendChild(fi);
+    man.appendChild(cp); man.appendChild(ci); man.appendChild(up); man.appendChild(fi);
     sd.appendChild(man);
-    const mn=document.createElement('small'); mn.className='note'; mn.textContent='Free route: Copy prompt → paste in ChatGPT with Gul attached → upload the PNG here (must be a '+sh.cols+'×'+sh.rows+' grid).';
+    const mn=document.createElement('small'); mn.className='note'; mn.textContent='Free route: Copy Gul + Copy prompt → paste both in ChatGPT → upload the PNG here (must be a '+sh.cols+'×'+sh.rows+' grid).';
     sd.appendChild(mn);
 
     if(sh.frames&&sh.frames.length){
@@ -823,6 +838,18 @@ function copyText(t, btn){
   const ok=()=>{ if(btn){ const o=btn.textContent; btn.textContent='✓ Copied'; setTimeout(()=>{btn.textContent=o;},1500); } };
   const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{ document.execCommand('copy'); ok(); }catch(e){ prompt('Copy this prompt:', t); } document.body.removeChild(ta); };
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(ok, fallback); } else fallback();
+}
+// Copy the reference image to the clipboard (paste straight into ChatGPT). ClipboardItem
+// takes a Promise<Blob> so the canvas→PNG conversion keeps the click's user-gesture (Safari).
+function copyImage(dataUrl, btn){
+  if(!dataUrl){ return; }
+  const o=btn?btn.textContent:''; const flash=m=>{ if(btn){ btn.textContent=m; setTimeout(()=>{btn.textContent=o;},1500); } };
+  const toPng=()=>new Promise((resolve,reject)=>{ const im=new Image(); im.onload=()=>{ const c=document.createElement('canvas'); c.width=im.naturalWidth||im.width; c.height=im.naturalHeight||im.height; c.getContext('2d').drawImage(im,0,0); c.toBlob(b=>b?resolve(b):reject(new Error('no blob')),'image/png'); }; im.onerror=reject; im.src=dataUrl; });
+  const save=()=>{ downloadDataUrl(dataUrl,'gul-reference.png'); flash('⬇ Saved'); };
+  if(navigator.clipboard && window.ClipboardItem){
+    try{ navigator.clipboard.write([new ClipboardItem({'image/png':toPng()})]).then(()=>flash('✓ Copied'), save); }
+    catch(e){ save(); }
+  } else { save(); }
 }
 function dataUrlBytes(d){ return d.split(',')[1]; }
 function slug(s){ return (s||'gul').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'gul'; }
