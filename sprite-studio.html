@@ -228,9 +228,10 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <h2 style="margin:0">Whole video</h2>
         <div class="spacer" style="flex:1"></div>
-        <button class="btn sm ghost" id="dlAll">Download all scenes (.zip)</button>
+        <button class="btn sm ghost" id="dlAll">All scenes — Frames (.zip)</button>
+        <button class="btn sm ghost" id="dlAllTimed">⏱ All scenes — Timed (.zip)</button>
       </div>
-      <p class="hint" style="margin-top:8px">Every generated scene, each in its own folder of numbered transparent PNG frames.</p>
+      <p class="hint" style="margin-top:8px">Every generated scene, each in its own folder of numbered transparent PNG frames. <b>Frames</b> = unique poses only. <b>Timed</b> = poses held to your video fps, frame-accurate on the timeline.</p>
       <div id="videoPreview"></div>
     </div>
   </div>
@@ -764,6 +765,16 @@ function buildSceneCard(sc, idx){
       const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb); pab.appendChild(pctr);
       pbox.appendChild(pab); sd.appendChild(pbox);
       const pa=makeFramesAnimator(sh.frames, pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
+      // Per-beat downloads: unique poses, the same poses held to video fps, or a GIF.
+      const beatName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
+      const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
+      const dlf=document.createElement('button'); dlf.className='btn sm ghost'; dlf.style.cssText='flex:1;min-width:96px'; dlf.textContent='⬇ Frames ('+sh.frames.length+')';
+      dlf.title='Each unique pose as a numbered PNG (zip)'; dlf.onclick=()=>dlFramesZip(sh.frames, beatName, beatName);
+      const dlft=document.createElement('button'); dlft.className='btn sm ghost'; dlft.style.cssText='flex:1;min-width:96px'; dlft.textContent='⏱ Timed ('+beatTimed(sh).length+')';
+      dlft.title='Poses held to '+vfps()+' fps — one play-through, frame-accurate (zip)'; dlft.onclick=()=>dlFramesZip(beatTimed(sh), beatName+'-timed', beatName+'-timed');
+      const dlg=document.createElement('button'); dlg.className='btn sm ghost'; dlg.style.cssText='flex:1;min-width:96px'; dlg.textContent='🎞 GIF';
+      dlg.title='Animated GIF preview of this beat'; dlg.onclick=()=>dlFramesGif(beatTimed(sh), beatName, vfps(), dlg);
+      drow.appendChild(dlf); drow.appendChild(dlft); drow.appendChild(dlg); sd.appendChild(drow);
       if((sh.wide||[]).length){
         const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4';
         ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide — likely two Guls merged.</b>';
@@ -1213,6 +1224,29 @@ function timelineFrames(sc){
 }
 function timelineSeconds(sc){ return (sc.timeline||[]).reduce((s,seg)=>s+(parseFloat(seg.sec)||0),0); }
 function videoFrames(){ const p=curProj(); if(!p) return []; const out=[]; (p.scenes||[]).forEach(sc=>{ if(sceneGenerated(sc)) out.push(...timelineFrames(sc)); }); return out; }
+// Generic: zip any frame list (numbered PNGs) and download under fileName.
+async function dlFramesZip(frames, fileName, folderName){
+  if(!frames.length) return;
+  if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(fileName)+'_'+pad3(i+1)+'.png')); return; }
+  const zip=new JSZip(); const folder=zip.folder(slug(folderName||fileName));
+  frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true}));
+  const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(fileName)+'.zip'; a.click(); URL.revokeObjectURL(a.href);
+}
+// Generic GIF from any frame list, composited on white, at the given fps.
+async function dlFramesGif(frames, fileName, fps, btn){
+  if(typeof GIF==='undefined'){ alert('GIF library not loaded — refresh and retry.'); return; }
+  if(!frames.length) return; const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
+  const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
+  const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
+  const w=Math.max(...valid.map(i=>i.width)), h=Math.max(...valid.map(i=>i.height));
+  const gif=new GIF({workers:2, quality:10, width:w, height:h, workerScript:GIF_WORKER, background:'#ffffff'});
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d');
+  valid.forEach(im=>{ ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(im, Math.round((w-im.width)/2), Math.round((h-im.height)/2)); gif.addFrame(ctx,{copy:true, delay:Math.round(1000/(fps||vfps()))}); });
+  gif.on('finished', blob=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(fileName)+'.gif'; a.click(); URL.revokeObjectURL(a.href); if(btn){ btn.textContent=o; btn.disabled=false; } });
+  gif.render();
+}
+// A beat held to video rate: each unique pose repeated vfps/gfps times (one play-through).
+function beatTimed(sh){ const fr=(sh.frames||[]); if(!fr.length) return fr; return fillFrames(fr, fr.length/gfps(), false); }
 async function downloadSceneZip(sc, idx, timed){
   const p=curProj(); const frames= timed? timelineFrames(sc) : sceneFrames(sc);
   if(!frames.length) return;
@@ -1237,13 +1271,15 @@ async function downloadSceneGif(sc, idx, timed, btn){
   gif.on('finished', blob=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')+'.gif'; a.click(); URL.revokeObjectURL(a.href); if(btn){ btn.textContent=o; btn.disabled=false; } });
   gif.render();
 }
-$('dlAll').onclick=async()=>{
+async function dlAllScenes(timed){
   const p=curProj(); if(typeof JSZip==='undefined'){ alert('Zip unavailable.'); return; }
   const zip=new JSZip(); let any=false;
-  p.scenes.forEach((sc,idx)=>{ const frames=sceneFrames(sc); if(!frames.length)return; any=true; const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); });
+  p.scenes.forEach((sc,idx)=>{ const frames= timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length)return; any=true; const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); });
   if(!any){ alert('Generate a scene first.'); return; }
-  const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_all-scenes.zip'; a.click(); URL.revokeObjectURL(a.href);
-};
+  const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_all-scenes'+(timed?'_timed':'')+'.zip'; a.click(); URL.revokeObjectURL(a.href);
+}
+$('dlAll').onclick=()=>dlAllScenes(false);
+$('dlAllTimed').onclick=()=>dlAllScenes(true);
 
 /* ===== helpers ===== */
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
