@@ -97,7 +97,9 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
 .steps{display:flex;gap:6px;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:10px;flex-wrap:wrap}
 .steps b{color:var(--accent)}
 .sceneEditor{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#faf2e8;cursor:crosshair;margin-top:6px}
-.sceneEditor img{width:100%;display:block;max-height:170px;object-fit:contain}
+.sceneEditor img{width:100%;display:block;max-height:300px;object-fit:contain}
+.sceneEditor.big img{max-height:75vh}
+.pathtime{position:absolute;transform:translate(-50%,-50%);background:#8a5bd0;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;pointer-events:none;z-index:3;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .pin{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50% 50% 50% 0;background:var(--accent);transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.3);pointer-events:none}
 .pin::after{content:"";position:absolute;inset:6px;background:#fff;border-radius:50%}
 .pinsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
@@ -465,23 +467,31 @@ function renderShots(){
 
     if(s.refImage){
       pinsOf(s);
-      const ed=document.createElement('div'); ed.className='sceneEditor';
+      const ed=document.createElement('div'); ed.className='sceneEditor'+(s._big?' big':'');
       const im=document.createElement('img'); im.src=s.refImage; ed.appendChild(im);
-      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','pinsvg'); ed.appendChild(svg);
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','pinsvg'); svg.setAttribute('viewBox','0 0 100 100'); svg.setAttribute('preserveAspectRatio','none'); ed.appendChild(svg);
       const SVGNS='http://www.w3.org/2000/svg';
       function addDot(x,y,type,lab){ const dot=document.createElement('div'); dot.className='pn '+type; dot.style.left=(x*100)+'%'; dot.style.top=(y*100)+'%'; const hd=document.createElement('div'); hd.className='hd'; hd.textContent=lab; const tp=document.createElement('div'); tp.className='tp'; dot.appendChild(hd); dot.appendChild(tp); ed.appendChild(dot); }
+      function addTime(x,y,txt){ const lbl=document.createElement('div'); lbl.className='pathtime'; lbl.textContent=txt; lbl.style.left=(x*100)+'%'; lbl.style.top=(y*100)+'%'; ed.appendChild(lbl); }
       function redraw(){
-        [...ed.querySelectorAll('.pn')].forEach(n=>n.remove()); svg.innerHTML='';
+        [...ed.querySelectorAll('.pn,.pathtime')].forEach(n=>n.remove()); svg.innerHTML='';
         (s.pins||[]).forEach(p=>{
           if(p.type==='move'){
             const pts=p.points||[]; pts.forEach((pt,k)=> addDot(pt.x,pt.y,'move',String(k+1)));
-            for(let k=1;k<pts.length;k++){ const l=document.createElementNS(SVGNS,'line'); l.setAttribute('x1',(pts[k-1].x*100)+'%'); l.setAttribute('y1',(pts[k-1].y*100)+'%'); l.setAttribute('x2',(pts[k].x*100)+'%'); l.setAttribute('y2',(pts[k].y*100)+'%'); l.setAttribute('stroke','#8a5bd0'); l.setAttribute('stroke-width','2'); l.setAttribute('stroke-dasharray','5 4'); svg.appendChild(l); }
+            for(let k=1;k<pts.length;k++){
+              const a=pts[k-1], b=pts[k]; const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1e-4;
+              let px=-dy/len, py=dx/len; if(py>0){ px=-px; py=-py; } // bow upward
+              const off=0.18*len+0.04, cx=mx+px*off, cy=my+py*off;
+              const path=document.createElementNS(SVGNS,'path'); path.setAttribute('d','M '+(a.x*100)+' '+(a.y*100)+' Q '+(cx*100)+' '+(cy*100)+' '+(b.x*100)+' '+(b.y*100)); path.setAttribute('fill','none'); path.setAttribute('stroke','#8a5bd0'); path.setAttribute('stroke-width','2.5'); path.setAttribute('stroke-linecap','round'); path.setAttribute('vector-effect','non-scaling-stroke'); svg.appendChild(path);
+              const tt=parseFloat(b.t)||0; if(tt) addTime(0.25*a.x+0.5*cx+0.25*b.x, 0.25*a.y+0.5*cy+0.25*b.y, tt+'s');
+            }
           } else { addDot(p.x,p.y,p.type, p.type==='pose'?'P':p.type==='look'?'L':'T'); }
         });
       }
       ed.onclick=(ev)=>{
+        if(ev.target.closest('.expbtn')) return;
         const r=im.getBoundingClientRect(); const x=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)), y=Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height));
-        const t=s._drawType||'pose';
+        const t=s._drawType||'move';
         if(t==='move'){ let mv=(s.pins||[]).find(p=>p.type==='move'); if(!mv){ mv={id:uid(),type:'move',points:[]}; s.pins.push(mv); } mv.points.push({x,y,t:0}); }
         else if(t==='track'){ s.pins.push({id:uid(),type:'track',x,y}); }
         else { s.pins=s.pins.filter(p=>p.type!==t); s.pins.push({id:uid(),type:t,x,y}); } // pose/look: one each, replace
@@ -489,8 +499,12 @@ function renderShots(){
       };
       d.appendChild(ed);
 
+      const exp=document.createElement('button'); exp.className='btn sm ghost'; exp.style.marginTop='6px'; exp.textContent= s._big?'⤡ Shrink image':'⤢ Expand image';
+      exp.onclick=()=>{ s._big=!s._big; ed.classList.toggle('big', s._big); exp.textContent= s._big?'⤡ Shrink image':'⤢ Expand image'; };
+      d.appendChild(exp);
+
       const tools=document.createElement('div'); tools.className='pintools';
-      Object.keys(PIN_LABELS).forEach(t=>{ const c=document.createElement('button'); c.className='chip'+(((s._drawType||'pose')===t)?' active':''); c.textContent=PIN_LABELS[t]; c.onclick=()=>{ s._drawType=t; [...tools.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); }; tools.appendChild(c); });
+      ['move','track','pose','look'].forEach(t=>{ const c=document.createElement('button'); c.className='chip'+(((s._drawType||'move')===t)?' active':''); c.textContent=PIN_LABELS[t]; c.onclick=()=>{ s._drawType=t; [...tools.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); }; tools.appendChild(c); });
       d.appendChild(tools);
 
       const list=document.createElement('div'); list.className='pinlist'; d.appendChild(list);
