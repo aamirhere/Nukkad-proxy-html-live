@@ -632,11 +632,12 @@ function tabContentHTML(parentHandle, handle) {
   ).join('');
 
   const customChips = (s.customScenes||[]).map((cs, i) =>
-    `<button onclick="selectCustomScene('${handle}',${i})" id="csc-${handle}-${i}"
-      title="${esc(cs.prompt)}"
-      style="border:1.5px solid ${s.activeCustomScene===i?'#d4541f':'var(--border)'};background:${s.activeCustomScene===i?'#d4541f':'#fff'};color:${s.activeCustomScene===i?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-      ${esc(cs.label)}
-    </button>`
+    `<span style="display:inline-flex;align-items:center;border:1.5px solid ${s.activeCustomScene===i?'#d4541f':'var(--border)'};background:${s.activeCustomScene===i?'#d4541f':'#fff'};border-radius:20px;overflow:hidden;">
+      <button onclick="selectCustomScene('${handle}',${i})" title="${esc(cs.prompt)}"
+        style="border:none;background:transparent;color:${s.activeCustomScene===i?'#fff':'var(--brown)'};padding:3px 6px 3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cs.label)}</button>
+      <button onclick="removeCustomScene('${handle}',${i})" title="Remove"
+        style="border:none;background:transparent;color:${s.activeCustomScene===i?'rgba(255,255,255,.7)':'var(--muted)'};padding:3px 8px 3px 2px;font-size:10px;cursor:pointer;line-height:1;">✕</button>
+    </span>`
   ).join('');
 
   const builtPrompt = buildStudioPrompt(engrave, s.scene, tax);
@@ -1025,14 +1026,31 @@ function rebuildSceneChips(handle) {
       style="border:1.5px solid ${s.scene===sc && s.activeCustomScene==null?'#7c3aed':'var(--border)'};background:${s.scene===sc && s.activeCustomScene==null?'#7c3aed':'#fff'};color:${s.scene===sc && s.activeCustomScene==null?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
   ).join('');
   const customs = (s.customScenes||[]).map((cs, i) =>
-    `<button onclick="selectCustomScene('${handle}',${i})" id="csc-${handle}-${i}"
-      title="${esc(cs.prompt)}"
-      style="border:1.5px solid ${s.activeCustomScene===i?'#d4541f':'var(--border)'};background:${s.activeCustomScene===i?'#d4541f':'#fff'};color:${s.activeCustomScene===i?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-      ${esc(cs.label)}
-    </button>`
+    `<span style="display:inline-flex;align-items:center;border:1.5px solid ${s.activeCustomScene===i?'#d4541f':'var(--border)'};background:${s.activeCustomScene===i?'#d4541f':'#fff'};border-radius:20px;overflow:hidden;">
+      <button onclick="selectCustomScene('${handle}',${i})" title="${esc(cs.prompt)}"
+        style="border:none;background:transparent;color:${s.activeCustomScene===i?'#fff':'var(--brown)'};padding:3px 6px 3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cs.label)}</button>
+      <button onclick="removeCustomScene('${handle}',${i})" title="Remove"
+        style="border:none;background:transparent;color:${s.activeCustomScene===i?'rgba(255,255,255,.7)':'var(--muted)'};padding:3px 8px 3px 2px;font-size:10px;cursor:pointer;line-height:1;">✕</button>
+    </span>`
   ).join('');
   container.innerHTML = presets + customs +
     `<button onclick="toggleAddScene('${handle}')" id="addscene-toggle-${handle}" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add</button>`;
+}
+
+function removeCustomScene(handle, idx) {
+  const s = studioState[handle];
+  if (!s?.customScenes) return;
+  s.customScenes.splice(idx, 1);
+  if (s.activeCustomScene === idx) {
+    s.activeCustomScene = null;
+    const p = allProducts.find(x=>(x.handle||x.h)===handle);
+    const quote = p?.title || p?.t || p?.tagline || '';
+    const ta = document.getElementById('stprompt-' + handle);
+    if (ta) ta.value = buildStudioPrompt(quote, s.scene || 'desk', taxonomyData[handle]||{});
+  } else if (s.activeCustomScene > idx) {
+    s.activeCustomScene--;
+  }
+  rebuildSceneChips(handle);
 }
 
 function selectCustomScene(handle, idx) {
