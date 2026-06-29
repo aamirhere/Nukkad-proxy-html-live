@@ -320,7 +320,7 @@ function projectMeta(p){
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
-        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0 })) })) };
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0 })) })) };
 }
 async function saveCloud(p){
   if(!cloudOn||!p) return;
@@ -350,7 +350,7 @@ async function loadCloud(id){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0 };
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0 };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
@@ -852,18 +852,20 @@ function buildSceneCard(sc, idx){
       const strip=document.createElement('div'); strip.className='framestrip';
       sh.frames.forEach((f,i)=>{
         const wideHere=(sh.wide||[]).includes(i+1);
+        const isBlink=(parseInt(sh.blinkFrame,10)||0)===i+1;
         const fr=document.createElement('div'); fr.className='fr';
-        fr.innerHTML='<div class="box"'+(wideHere?' style="outline:2px solid var(--accent)"':'')+'><img src="'+f+'"></div><div class="lab"'+(wideHere?' style="color:var(--accent)"':'')+'>'+(wideHere?'⚠ ':'')+'#'+(i+1)+'</div>';
+        fr.innerHTML='<div class="box"'+(wideHere?' style="outline:2px solid var(--accent)"':(isBlink?' style="outline:2px solid #2f6fd4"':''))+'><img src="'+f+'"></div><div class="lab"'+(wideHere?' style="color:var(--accent)"':(isBlink?' style="color:#2f6fd4"':''))+'>'+(wideHere?'⚠ ':(isBlink?'👁 ':''))+'#'+(i+1)+'</div>';
         const fc=document.createElement('div'); fc.style.cssText='display:flex;gap:2px;justify-content:center;margin-top:3px';
         const edited=()=>{ sh.wide=[]; persist(); scheduleSave(); renderAll(); };
         const mk=(t,cls,fn)=>{ const b=document.createElement('button'); b.className='btn sm '+cls; b.style.cssText='padding:2px 0;font-size:10px;flex:1;min-width:0;border-radius:6px'; b.textContent=t; b.onclick=fn; return b; };
         fc.appendChild(mk('◀','ghost',()=>{ if(i>0){ [sh.frames[i-1],sh.frames[i]]=[sh.frames[i],sh.frames[i-1]]; edited(); } }));
         fc.appendChild(mk('✕','danger',()=>{ sh.frames.splice(i,1); edited(); }));
+        fc.appendChild(mk(isBlink?'👁':'👁','ghost',()=>{ sh.blinkFrame=isBlink?0:(i+1); persist(); scheduleSave(); renderAll(); }));
         fc.appendChild(mk('▶','ghost',()=>{ if(i<sh.frames.length-1){ [sh.frames[i+1],sh.frames[i]]=[sh.frames[i],sh.frames[i+1]]; edited(); } }));
         fr.appendChild(fc); strip.appendChild(fr);
       });
       sd.appendChild(strip);
-      const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. (Re-slicing or changing crop rebuilds from the sheet and resets these edits.)';
+      const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder, 👁 to mark the eyes-closed pose (used for subtle idle blinks). (Re-slicing or changing crop resets these.)';
       sd.appendChild(fn);
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
@@ -1241,6 +1243,8 @@ async function analyzeSheet(sh, note){
     const order=(d.order||[]).filter(inRange);
     const N=sh.frames.length;
     const reordered = order.length>0 && (order.length!==N || order.some((n,i)=>n!==i+1)); // a real reorder or drop
+    // Auto-fill the blink pose for subtle idle blinks if the user hasn't set one and we're not reordering.
+    if(d.blink && inRange(d.blink) && !reordered && !(sh.blinkFrame>0)){ sh.blinkFrame=d.blink; }
     return { bad, dups, gaps, order, reordered, notes:d.notes||'', good:(bad.length===0 && dups.length===0 && !reordered) };
   }catch(e){ return {error:e.message}; }
 }
@@ -1394,12 +1398,14 @@ async function normalizeScale(frames, targetCore){ if(!targetCore) return frames
 // staying still. Reuses the single drawn pose — no new art. Motion (short 2-3 frame runs)
 // is left untouched; only true holds (≥ MIN) breathe.
 const _breathCache=new Map();
-async function breathRun(url, len){
-  const key=url+'|'+len+'|'+vfps(); if(_breathCache.has(key)) return _breathCache.get(key);
+// Breath phase is keyed to the ABSOLUTE frame index so separate hold sub-runs (split by a
+// blink) stay continuous — no jump when the eyes flick shut and back. Amplitude is tiny.
+async function breathRun(url, startIdx, len){
+  const key=url+'|'+startIdx+'|'+len+'|'+vfps(); if(_breathCache.has(key)) return _breathCache.get(key);
   const im=await loadImg(url).catch(()=>null); if(!im){ return Array(len).fill(url); }
   const W=im.naturalWidth||im.width, H=im.naturalHeight||im.height;
-  const period=Math.max(len, Math.round(vfps()*2.8)), ampS=0.016, ampY=0.012, res=[];
-  for(let k=0;k<len;k++){ const ph=Math.sin(2*Math.PI*k/period); const s=1+ampS*ph, dy=-H*ampY*ph;
+  const period=Math.max(8, Math.round(vfps()*3.2)), ampS=0.009, ampY=0.007, res=[];
+  for(let k=0;k<len;k++){ const ph=Math.sin(2*Math.PI*(startIdx+k)/period); const s=1+ampS*ph, dy=-H*ampY*ph;
     const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
     const dw=W*s, dh=H*s; ctx.drawImage(im, (W-dw)/2, (H-dh)/2+dy, dw, dh); res.push(c.toDataURL('image/png')); }
   _breathCache.set(key,res); return res;
@@ -1407,7 +1413,7 @@ async function breathRun(url, len){
 async function breatheHolds(frames){
   if(!frames||frames.length<4) return frames; const MIN=4; const out=frames.slice();
   let i=0; while(i<out.length){ let j=i; while(j+1<out.length && out[j+1]===out[i]) j++; const len=j-i+1;
-    if(len>=MIN){ const br=await breathRun(out[i], len); for(let k=0;k<len;k++) out[i+k]=br[k]; } i=j+1; }
+    if(len>=MIN){ const br=await breathRun(out[i], i, len); for(let k=0;k<len;k++) out[i+k]=br[k]; } i=j+1; }
   return out;
 }
 // Export-time pipeline: size-lock (or uniform pad), then breathe the holds so still moments
@@ -1452,9 +1458,13 @@ function beatHold(sh){ return { s:Math.max(0,parseFloat(sh&&sh.holdStart)||0), e
 function beatPlayed(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const vf=vfps(), h=beatHold(sh); const out=[];
+  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(bi>=0&&bi<fr.length)?fr[bi]:null;
   for(let i=0;i<Math.round(h.s*vf);i++) out.push(fr[0]);
   out.push(...framesTimed(fr));
-  for(let i=0;i<Math.round(h.e*vf);i++) out.push(fr[fr.length-1]);
+  // hold the end pose; during it, blink subtly now and then (reuses the eyes-closed pose)
+  const endN=Math.round(h.e*vf);
+  if(endN>0){ const rest=fr[fr.length-1], every=Math.round(vf*3.6), dur=Math.max(2,Math.round(vf*0.09)), firstAt=Math.round(vf*1.2);
+    for(let i=0;i<endN;i++){ const isBlink= blink && i>=firstAt && ((i-firstAt)%every)<dur; out.push(isBlink?blink:rest); } }
   return out;
 }
 function beatHasHold(sc){ return (sc.sheets||[]).some(sh=>{ const h=beatHold(sh); return h.s>0||h.e>0; }); }
