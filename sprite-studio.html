@@ -592,7 +592,7 @@ function buildSceneCard(sc, idx){
 
     // Editable grid + slice preview — fix uploads whose layout differs from the plan's.
     if(sh.sheetImg){
-      const gd=document.createElement('details'); gd.className='fullprompt';
+      const gd=document.createElement('details'); gd.className='fullprompt gridslice';
       const gs=document.createElement('summary'); gs.textContent='⊞ Grid & slicing ('+sh.cols+'×'+sh.rows+')'; gd.appendChild(gs);
       const gbody=document.createElement('div'); gbody.style.padding='10px';
       const ctrls=document.createElement('div'); ctrls.className='row'; ctrls.style.marginBottom='8px';
@@ -635,7 +635,17 @@ function buildSceneCard(sc, idx){
       sd.appendChild(strip);
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. (Re-slicing or changing crop rebuilds from the sheet and resets these edits.)';
       sd.appendChild(fn);
-      if((sh.wide||[]).length){ const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4'; ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide</b><br>Likely two Guls merged into one frame. Open <b>⊞ Grid & slicing</b> to re-slice on a grid, or regenerate this beat asking ChatGPT to space the poses apart.'; sd.appendChild(ww); }
+      if((sh.wide||[]).length){
+        const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4';
+        ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide — likely two Guls merged.</b>';
+        const wrow=document.createElement('div'); wrow.className='row'; wrow.style.cssText='margin-top:8px;flex-wrap:wrap';
+        const sp=document.createElement('button'); sp.className='btn sm'; sp.style.cssText='flex:1;min-width:130px'; sp.textContent='✂ Split into separate frames';
+        sp.onclick=async()=>{ sp.textContent='… splitting'; sp.disabled=true; const wides=(sh.wide||[]).slice().sort((a,b)=>b-a); for(const idx1 of wides){ const i=idx1-1; const parts=await splitFrame(sh.frames[i]); if(parts) sh.frames.splice(i,1,parts[0],parts[1]); } sh.frames=await normalizeFrames(sh.frames); sh.wide=[]; sh.target=sh.frames.length; markForReview(sh); persist(); scheduleSave(); renderAll(); };
+        const gs2=document.createElement('button'); gs2.className='btn sm ghost'; gs2.style.cssText='flex:1;min-width:130px'; gs2.textContent='⊞ Re-slice on grid';
+        gs2.onclick=()=>{ const g=sd.querySelector('details.gridslice'); if(g){ g.open=true; g.scrollIntoView({behavior:'smooth',block:'center'}); } };
+        wrow.appendChild(sp); wrow.appendChild(gs2); ww.appendChild(wrow);
+        sd.appendChild(ww);
+      }
       const apanel=document.createElement('div'); apanel.style.marginTop='8px';
       const an=document.createElement('button'); an.className='btn sm ghost'; an.style.marginTop='8px'; an.style.width='100%';
       an.textContent= sh.review?'🔍 Re-analyse with Claude':'🔍 Analyse frames with Claude';
@@ -831,6 +841,28 @@ function detectFrames(dataUrl){
     };
     im.onerror=()=>resolve({frames:[], wide:[]}); im.src=dataUrl;
   });
+}
+// Split a frame that merged two Guls: cut at the lowest-alpha column in the middle band.
+function splitFrame(dataUrl){
+  return new Promise(resolve=>{
+    const im=new Image();
+    im.onload=()=>{
+      const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height; if(!w||!h) return resolve(null);
+      const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0);
+      const d=ctx.getImageData(0,0,w,h).data;
+      let cut=Math.floor(w/2), best=Infinity;
+      for(let x=Math.floor(w*0.3);x<Math.floor(w*0.7);x++){ let s=0; for(let y=0;y<h;y++) s+=d[(y*w+x)*4+3]; if(s<best){ best=s; cut=x; } }
+      const half=(x0,x1)=>{ let minx=x1,miny=h,maxx=x0,maxy=0,any=false; for(let y=0;y<h;y++) for(let x=x0;x<x1;x++){ if(d[(y*w+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y; } }
+        const tc=document.createElement('canvas'); tc.width=w; tc.height=h; if(any){ const bw=maxx-minx+1,bh=maxy-miny+1; tc.getContext('2d').drawImage(c, minx,miny,bw,bh, Math.round((w-bw)/2),Math.round((h-bh)/2), bw,bh); } return tc.toDataURL('image/png'); };
+      resolve([half(0,cut), half(cut,w)]);
+    };
+    im.onerror=()=>resolve(null); im.src=dataUrl;
+  });
+}
+// Re-tight-crop a set of frames to one uniform centred canvas (keeps sizes consistent).
+function normalizeFrames(frames){
+  return Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>{ const w=im.naturalWidth||im.width,h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0); const d=x.getImageData(0,0,w,h).data; let minx=w,miny=h,maxx=0,maxy=0,any=false; for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ if(d[(y*w+xx)*4+3]>ALPHA_THRESHOLD){ any=true; if(xx<minx)minx=xx;if(xx>maxx)maxx=xx;if(y<miny)miny=y;if(y>maxy)maxy=y; } } r(any?{c,minx,miny,bw:maxx-minx+1,bh:maxy-miny+1}:{c,minx:0,miny:0,bw:w,bh:h}); }; im.onerror=()=>r(null); im.src=f; })))
+  .then(items=>{ const v=items.filter(Boolean); if(!v.length) return frames; const pad=8; const W=Math.max(...v.map(i=>i.bw))+pad*2, H=Math.max(...v.map(i=>i.bh))+pad*2; return v.map(it=>{ const tc=document.createElement('canvas'); tc.width=W; tc.height=H; tc.getContext('2d').drawImage(it.c, it.minx,it.miny,it.bw,it.bh, Math.round((W-it.bw)/2),Math.round((H-it.bh)/2), it.bw,it.bh); return tc.toDataURL('image/png'); }); });
 }
 // Build a numbered contact-sheet of the frames (one image) to send to Claude for review.
 function buildMontage(frames){
