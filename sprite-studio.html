@@ -382,7 +382,7 @@ function buildManualPrompt(sc, idx, sh, si){
   const hasPrev=!!lastFrameBefore(idx, si);
   const L=[];
   L.push('KEEP THE BIRD IN THE ATTACHED REFERENCE IMAGE EXACTLY THE SAME. Identical character in every frame — same body shape, orange-and-cream colours and feather markings, wings, face, eyes, cheeks, beak and proportions. Match her soft hand-painted watercolour art style with gentle shading — NO bold cartoon outlines, no restyling. Only her POSE changes from frame to frame.');
-  L.push('Lay it out as ONE image: a clean '+cols+'×'+rows+' grid of '+total+' equal cells, read left-to-right then top-to-bottom, evenly spaced, NO borders, NO gridlines, NO numbers, NO text. Fully TRANSPARENT background. Show ONLY the bird in each cell — no scene, floor or props. Draw her LARGE so she fills most of each cell, richly detailed, centred and the SAME size in every cell.');
+  L.push('Lay it out as ONE image: a STRICT, evenly-spaced '+cols+'×'+rows+' grid of '+total+' equal cells, read left-to-right then top-to-bottom. Every cell the SAME size; the bird at the SAME scale and CENTRED in each; rows and columns cleanly aligned. NO borders, NO gridlines, NO numbers, NO text, and NO arrows, connectors or motion-lines between cells. Do NOT scatter the frames or vary their size — keep a clean uniform grid. Fully TRANSPARENT background. Show ONLY the bird in each cell — no scene, floor or props. Draw her LARGE so she fills most of each cell, richly detailed.');
   L.push('The '+total+' frames are one smooth, evenly-timed animation of this single action: '+action+'. Frame 1 is the start pose, the last frame is the end pose, with even in-between poses so it plays back fluidly. Keep her perfectly on-model so she never morphs into a different bird.');
   if(hasPrev) L.push('Continuity: also attach the LAST frame of the previous beat and make frame 1 continue seamlessly from that exact pose.');
   if(note) L.push('Direction: '+note);
@@ -906,7 +906,10 @@ async function analyzeSheet(sh){
     if(d.error) return {error:d.error};
     const inRange=n=>n>=1&&n<=sh.frames.length;
     const bad=(d.bad||[]).filter(inRange), dups=(d.duplicates||[]).filter(inRange), gaps=(d.gaps||[]);
-    return { bad, dups, gaps, notes:d.notes||'', good:(bad.length===0 && dups.length===0) };
+    const order=(d.order||[]).filter(inRange);
+    const N=sh.frames.length;
+    const reordered = order.length>0 && (order.length!==N || order.some((n,i)=>n!==i+1)); // a real reorder or drop
+    return { bad, dups, gaps, order, reordered, notes:d.notes||'', good:(bad.length===0 && dups.length===0 && !reordered) };
   }catch(e){ return {error:e.message}; }
 }
 function buildRedoPrompt(sc, idx, sh, si, rv){
@@ -922,12 +925,14 @@ function renderReview(sc, idx, sh, si, panel){
   if(rv.good && !(rv.gaps&&rv.gaps.length)){ panel.innerHTML='<div style="font-size:13px;font-weight:800;color:var(--ok)">✓ Good to go — Claude found nothing to fix.</div>'+(rv.notes?'<div style="font-size:11px;color:var(--ink2);margin-top:3px">'+escapeHtml(rv.notes)+'</div>':''); return; }
   let html='<div style="font-size:12px;font-weight:800;color:var(--accent)">⚠ Claude suggests fixes</div>';
   if(rv.notes) html+='<div style="font-size:12px;color:var(--ink2);margin:3px 0">'+escapeHtml(rv.notes)+'</div>';
+  if(rv.reordered) html+='<div style="font-size:12px;color:var(--ink2)"><b>Order looks off</b> — Claude has the correct sequence'+((rv.order.length<sh.frames.length)?' (and would drop non-frames like arrows)':'')+'.</div>';
   if(rv.bad.length) html+='<div style="font-size:12px;color:var(--err)"><b>Awkward:</b> #'+rv.bad.join(', #')+'</div>';
   if(rv.dups.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Near-duplicates:</b> #'+rv.dups.join(', #')+'</div>';
   if(rv.gaps&&rv.gaps.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Missing in-betweens:</b> '+rv.gaps.map(g=>'after #'+g.after+(g.need?(' ('+escapeHtml(g.need)+')'):'')).join('; ')+'</div>';
   panel.innerHTML=html;
-  const toDrop=[...new Set([...rv.bad,...rv.dups])].sort((a,b)=>a-b);
   const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
+  if(rv.reordered){ const rb=document.createElement('button'); rb.className='btn sm'; rb.style.cssText='flex:1;min-width:130px'; rb.textContent='↕ Apply Claude’s order'; rb.onclick=()=>{ sh.frames=rv.order.map(n=>sh.frames[n-1]).filter(Boolean); sh.wide=[]; persist(); scheduleSave(); renderAll(); }; row.appendChild(rb); }
+  const toDrop=[...new Set([...rv.bad,...rv.dups])].sort((a,b)=>a-b);
   if(toDrop.length){ const db=document.createElement('button'); db.className='btn sm danger'; db.style.cssText='flex:1;min-width:110px'; db.textContent='Drop flagged (#'+toDrop.join(',#')+')'; db.onclick=()=>{ sh.frames=sh.frames.filter((_,i)=>!toDrop.includes(i+1)); persist(); scheduleSave(); renderAll(); }; row.appendChild(db); }
   const redo=document.createElement('button'); redo.className='btn sm ghost'; redo.style.cssText='flex:1;min-width:110px'; redo.textContent='📋 Copy prompt to redo'; redo.onclick=()=>copyText(buildRedoPrompt(sc, idx, sh, si, rv), redo); row.appendChild(redo);
   panel.appendChild(row);
