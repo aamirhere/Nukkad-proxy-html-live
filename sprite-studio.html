@@ -198,6 +198,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
           <option value="off">Off (keep position in cell)</option>
         </select>
         <label class="chip" style="margin-top:10px;display:flex"><input type="checkbox" id="setBgRemove" checked style="margin:0 7px 0 0"> Remove background on upload (white → transparent)</label>
+        <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setUniform" checked style="margin:0 7px 0 0"> Uniform export size (every exported frame, all scenes, same canvas)</label>
         <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
       </div>
     </details>
@@ -273,8 +274,8 @@ function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catc
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned"}, scenes:[] }; }
-function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned"}; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned",uniform:true}, scenes:[] }; }
+function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned",uniform:true}; }
 function gfps(){ return parseInt(settings().fps,10)||8; }   // Gul pose-change rate
 function vfps(){ return parseInt(settings().vfps,10)||24; } // video / timeline rate (export)
 
@@ -285,7 +286,7 @@ const synced=new Set();
 // Signature per framesKey so we only re-upload a beat's sliced frames when they change.
 const frameSigs={};
 function framesSig(fr){ return (fr||[]).length+':'+(fr||[]).reduce((a,f)=>a+f.length,0); }
-function defaults(){ return {framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned"}; }
+function defaults(){ return {framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned",uniform:true}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
 async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
@@ -387,10 +388,10 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; updateFpsNote(); }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked }; persist(); scheduleSave(); updateFpsNote(); }
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; updateFpsNote(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked }; persist(); scheduleSave(); updateFpsNote(); }
 function updateFpsNote(){ const el=$('fpsNote'); if(!el)return; const v=vfps(), g=gfps(); if(v%g===0){ el.style.color='var(--muted)'; el.textContent='✓ Each Gul pose holds '+(v/g)+' video frame'+(v/g===1?'':'s')+' — exports clean at '+v+'fps.'; } else { el.style.color='var(--accent)'; el.textContent='⚠ '+v+'fps ÷ '+g+'fps isn’t whole — holds will be uneven (slightly jerky). Pick a Gul fps that divides '+v+' (e.g. '+[2,3,4,5,6,8,10,12,15].filter(x=>v%x===0).join(', ')+').'; } }
-['setFramesMax','setQuality','setFps','setVfps','setBgRemove'].forEach(id=>$(id).addEventListener('change', saveSettings));
+['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform'].forEach(id=>$(id).addEventListener('change', saveSettings));
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -1238,9 +1239,18 @@ function timelineFrames(sc){
 }
 function timelineSeconds(sc){ return (sc.timeline||[]).reduce((s,seg)=>s+(parseFloat(seg.sec)||0),0); }
 function videoFrames(){ const p=curProj(); if(!p) return []; const out=[]; (p.scenes||[]).forEach(sc=>{ if(sceneGenerated(sc)) out.push(...timelineFrames(sc)); }); return out; }
+// Read a PNG's pixel size straight from its IHDR header (no Image decode) — width/height are
+// big-endian uint32s at byte 16/20, i.e. the first ~24 bytes = first ~32 base64 chars.
+function pngSize(dataUrl){ try{ const b64=(dataUrl.split(',')[1]||'').slice(0,64); const bin=atob(b64); const rd=o=>((bin.charCodeAt(o)<<24)|(bin.charCodeAt(o+1)<<16)|(bin.charCodeAt(o+2)<<8)|bin.charCodeAt(o+3))>>>0; return {w:rd(16),h:rd(20)}; }catch(e){ return null; } }
+// Biggest frame across the WHOLE project, so every exported frame can share one canvas.
+function projectMaxSize(){ const p=curProj(); let W=0,H=0; (p&&p.scenes||[]).forEach(sc=>(sc.sheets||[]).forEach(sh=>(sh.frames||[]).forEach(f=>{ const s=pngSize(f); if(s){ if(s.w>W)W=s.w; if(s.h>H)H=s.h; } }))); return {W:W||1,H:H||1}; }
+// Re-draw each frame centred on one uniform W×H transparent canvas.
+function padFrames(frames, W, H){ return Promise.all((frames||[]).map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>{ const iw=im.naturalWidth||im.width, ih=im.naturalHeight||im.height; if(iw===W&&ih===H) return r(f); const c=document.createElement('canvas'); c.width=W; c.height=H; c.getContext('2d').drawImage(im, Math.round((W-iw)/2), Math.round((H-ih)/2)); r(c.toDataURL('image/png')); }; im.onerror=()=>r(f); im.src=f; }))); }
+// Apply uniform sizing to a frame list at export time (unless turned off in settings).
+async function exportFrames(frames){ if(settings().uniform===false || !(frames&&frames.length)) return frames||[]; const {W,H}=projectMaxSize(); return padFrames(frames, W, H); }
 // Generic: zip any frame list (numbered PNGs) and download under fileName.
 async function dlFramesZip(frames, fileName, folderName){
-  if(!frames.length) return;
+  if(!frames.length) return; frames=await exportFrames(frames);
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(fileName)+'_'+pad3(i+1)+'.png')); return; }
   const zip=new JSZip(); const folder=zip.folder(slug(folderName||fileName));
   frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true}));
@@ -1250,6 +1260,7 @@ async function dlFramesZip(frames, fileName, folderName){
 async function dlFramesGif(frames, fileName, fps, btn){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — refresh and retry.'); return; }
   if(!frames.length) return; const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
+  frames=await exportFrames(frames);
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
   const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
   const w=Math.max(...valid.map(i=>i.width)), h=Math.max(...valid.map(i=>i.height));
@@ -1262,8 +1273,8 @@ async function dlFramesGif(frames, fileName, fps, btn){
 // A beat held to video rate: each unique pose repeated vfps/gfps times (one play-through).
 function beatTimed(sh){ const fr=(sh.frames||[]); if(!fr.length) return fr; return fillFrames(fr, fr.length/gfps(), false); }
 async function downloadSceneZip(sc, idx, timed){
-  const p=curProj(); const frames= timed? timelineFrames(sc) : sceneFrames(sc);
-  if(!frames.length) return;
+  const p=curProj(); let frames= timed? timelineFrames(sc) : sceneFrames(sc);
+  if(!frames.length) return; frames=await exportFrames(frames);
   const tag = timed?'_timed':'';
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(sc.title||('scene'+(idx+1)))+'_'+pad3(i+1)+'.png')); return; }
   const zip=new JSZip(); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+tag);
@@ -1274,8 +1285,9 @@ const GIF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker
 // One-file animated GIF of a whole scene, composited on white (GIF has no soft alpha).
 async function downloadSceneGif(sc, idx, timed, btn){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — check your connection and refresh.'); return; }
-  const frames = timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length) return;
+  let frames = timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length) return;
   const fps= timed? vfps() : gfps(); const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
+  frames=await exportFrames(frames);
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
   const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
   const w=Math.max(...valid.map(i=>i.width)), h=Math.max(...valid.map(i=>i.height));
@@ -1288,7 +1300,7 @@ async function downloadSceneGif(sc, idx, timed, btn){
 async function dlAllScenes(timed){
   const p=curProj(); if(typeof JSZip==='undefined'){ alert('Zip unavailable.'); return; }
   const zip=new JSZip(); let any=false;
-  p.scenes.forEach((sc,idx)=>{ const frames= timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length)return; any=true; const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); });
+  for(let idx=0; idx<p.scenes.length; idx++){ const sc=p.scenes[idx]; let frames= timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length) continue; any=true; frames=await exportFrames(frames); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); }
   if(!any){ alert('Generate a scene first.'); return; }
   const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_all-scenes'+(timed?'_timed':'')+'.zip'; a.click(); URL.revokeObjectURL(a.href);
 }
