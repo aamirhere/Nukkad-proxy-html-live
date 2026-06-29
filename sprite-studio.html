@@ -280,7 +280,7 @@ async function cloudDel(key){ try{ await fetch(STORE_URL+'?key='+encodeURICompon
 function projectMeta(p){
   return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', settings:p.settings||defaults(),
     scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved,
-      pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop,
+      pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null,
       refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null })) })) };
 }
@@ -306,7 +306,7 @@ async function loadCloud(id){
   const meta=JSON.parse(raw);
   const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', settings:meta.settings||defaults(), scenes:[] };
   for(const s of (meta.scenes||[])){
-    const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, refImage:null, refKey:s.refKey||null, sheets:[] };
+    const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, frames:null };
@@ -420,9 +420,11 @@ function buildEditorGuide(sc){
   const ps=pinsOf(sc); const lines=[];
   ps.filter(p=>p.type==='move').forEach(p=>{
     const pts=p.points||[]; if(pts.length<2) return;
-    const path=pts.map((pt,k)=> placementWords(pt) + (k>0 && (parseFloat(pt.t)||0) ? ' ('+pt.t+'s)' : '')).join(' → ');
+    const path=pts.map((pt,k)=> (k+1)+'. '+placementWords(pt) + (k>0 && (parseFloat(pt.t)||0) ? ' ('+pt.t+'s)' : '')).join(' → ');
     const tot=pts.reduce((s,pt)=>s+(parseFloat(pt.t)||0),0);
     lines.push('Position-keyframe Gul along: '+path+(tot?(' — total ~'+(+tot.toFixed(1))+'s'):'')+' (ease the arc)'+(p.note?(' — '+p.note):'')+'.');
+    const trackFrom=pts.findIndex(pt=>pt.track);
+    if(trackFrom>=0) lines.push('From point '+(trackFrom+1)+' onward, motion-track that spot in your footage and parent Gul to it so she rides it (don’t keyframe by hand there).');
   });
   ps.filter(p=>p.type==='track').forEach(p=>{
     lines.push('Motion-track the point '+placementWords(p)+' (the moving hand/shoulder) and parent Gul’s sprite to it so she rides along'+(p.note?(' — '+p.note):'')+'.');
@@ -482,7 +484,7 @@ function renderShots(){
             list.appendChild(head);
             for(let k=0;k<pts.length;k++){
               const seg=document.createElement('div'); seg.className='pathseg';
-              if(k===0){ seg.innerHTML='<span>'+(k+1)+'. '+placementWords(pts[k])+' (start)</span>'; }
+              if(k===0){ const s0=document.createElement('span'); s0.textContent=(k+1)+'. '+placementWords(pts[k])+' (start)'; seg.appendChild(s0); }
               else {
                 const lab=document.createElement('span'); lab.textContent='⤷ over';
                 const ti=document.createElement('input'); ti.type='text'; ti.inputMode='decimal'; ti.value=pts[k].t||''; ti.placeholder='s';
@@ -490,6 +492,8 @@ function renderShots(){
                 const lab2=document.createElement('span'); lab2.textContent='s → '+(k+1)+'. '+placementWords(pts[k]);
                 seg.appendChild(lab); seg.appendChild(ti); seg.appendChild(lab2);
               }
+              const tk=document.createElement('label'); tk.style.cssText='font-size:10px;display:flex;align-items:center;gap:2px;margin-left:auto;color:var(--ok)'; const tc=document.createElement('input'); tc.type='checkbox'; tc.checked=!!pts[k].track; tc.onchange=()=>{ pts[k].track=tc.checked; persist(); scheduleSave(); }; tk.appendChild(tc); tk.append('🎯 ride');
+              seg.appendChild(tk);
               list.appendChild(seg);
             }
           } else {
@@ -739,8 +743,33 @@ function buildSceneCard(sc, idx){
     const gifb=document.createElement('button'); gifb.className='btn sm ghost'; gifb.textContent='🎞 GIF'; gifb.style.flex='1'; gifb.style.minWidth='92px';
     const appr=document.createElement('button'); appr.className='btn sm '+(sc.approved?'ok':''); appr.textContent=sc.approved?'✓ re-open':'Approve ▸'; appr.style.flex='1'; appr.style.minWidth='92px';
     ar.appendChild(dl); ar.appendChild(dlt); ar.appendChild(gifb); ar.appendChild(appr); box.appendChild(ar);
-    gifb.onclick=()=>downloadSceneGif(sc, idx, !!sc.durationSec, gifb);
-    if(sc.durationSec){ const n=document.createElement('small'); n.className='note'; n.textContent='Timed = '+Math.round(sc.durationSec*(settings().fps||8))+' frames at '+(settings().fps||8)+'fps ('+sc.durationSec+'s), '+(sc.loop===false?'time-stretched':'looped')+' to fill the duration.'; box.appendChild(n); }
+    const hasTL=()=>!!(sc.timeline&&sc.timeline.length);
+    gifb.onclick=()=>downloadSceneGif(sc, idx, (!!sc.durationSec||hasTL()), gifb);
+    if(sc.durationSec && !hasTL()){ const n=document.createElement('small'); n.className='note'; n.textContent='Timed = '+Math.round(sc.durationSec*(settings().fps||8))+' frames at '+(settings().fps||8)+'fps ('+sc.durationSec+'s), '+(sc.loop===false?'time-stretched':'looped')+' to fill the duration.'; box.appendChild(n); }
+
+    // Timeline: build a long shot by sequencing/repeating the beats above over exact times.
+    const tlWrap=document.createElement('details'); tlWrap.className='fullprompt'; if(hasTL()) tlWrap.open=true;
+    const tlsum=document.createElement('summary'); tlsum.textContent='🎬 Timeline — repeat beats to fill a long shot'; tlWrap.appendChild(tlsum);
+    const tlbody=document.createElement('div'); tlbody.style.padding='10px'; tlWrap.appendChild(tlbody);
+    function renderTL(){
+      tlbody.innerHTML='';
+      const beats=(sc.sheets||[]).map((sh,bi)=>({bi,label:'Beat '+(bi+1)+(sh.action?(' — '+sh.action.slice(0,22)):'')})).filter(b=>beatFrames(sc,b.bi).length);
+      if(!sc.timeline) sc.timeline=[];
+      sc.timeline.forEach((seg,si)=>{
+        const rowEl=document.createElement('div'); rowEl.className='pathseg';
+        const sel=document.createElement('select'); sel.style.cssText='flex:2;min-width:120px'; beats.forEach(b=>{ const o=document.createElement('option'); o.value=b.bi; o.textContent=b.label; if(b.bi===seg.beat)o.selected=true; sel.appendChild(o); }); sel.onchange=()=>{ seg.beat=parseInt(sel.value,10)||0; persist(); scheduleSave(); };
+        const ti=document.createElement('input'); ti.type='text'; ti.inputMode='decimal'; ti.value=seg.sec||''; ti.placeholder='sec'; ti.addEventListener('input',()=>{seg.sec=parseFloat(ti.value)||0;}); ti.addEventListener('change',()=>{persist();scheduleSave();renderTL();});
+        const lp=document.createElement('label'); lp.style.cssText='font-size:11px;display:flex;align-items:center;gap:3px'; const lc=document.createElement('input'); lc.type='checkbox'; lc.checked=seg.loop!==false; lc.onchange=()=>{seg.loop=lc.checked; persist(); scheduleSave();}; lp.appendChild(lc); lp.append('loop');
+        const x=document.createElement('a'); x.href='#'; x.textContent='✕'; x.style.color='var(--err)'; x.onclick=(e)=>{e.preventDefault(); sc.timeline.splice(si,1); persist(); scheduleSave(); renderTL();};
+        rowEl.appendChild(sel); rowEl.appendChild(ti); rowEl.appendChild(lp); rowEl.appendChild(x); tlbody.appendChild(rowEl);
+      });
+      const add=document.createElement('button'); add.className='btn sm ghost'; add.style.marginTop='6px'; add.textContent='+ Add segment'; add.onclick=()=>{ if(!beats.length) return; sc.timeline.push({beat:beats[0].bi, sec:5, loop:true}); persist(); scheduleSave(); renderTL(); };
+      tlbody.appendChild(add);
+      const tot=timelineSeconds(sc); const n=document.createElement('small'); n.className='note';
+      n.textContent= sc.timeline.length ? ('Total '+(+tot.toFixed(1))+'s from '+sc.timeline.length+' segment(s) — only the beats above are generated; they just repeat. Export with ⏱ Timed / 🎞 GIF.') : 'Add segments to sequence beats over time (e.g. idle 20s → talk 5s → idle 35s). The same short beat repeats — nothing extra is generated.';
+      tlbody.appendChild(n);
+    }
+    renderTL(); box.appendChild(tlWrap);
     card.appendChild(box);
 
     dl.onclick=()=>downloadSceneZip(sc,idx,false);
@@ -1024,8 +1053,21 @@ function timedFrames(sc){
   }
   return out;
 }
+function beatFrames(sc, bi){ const sh=(sc.sheets||[])[bi]; return (sh&&sh.frames)?sh.frames:[]; }
+// Compose a long shot by REPEATING short beat-loops over an exact timeline (no re-render):
+// each segment plays one beat for its seconds — looped (idle/talk) or stretched (one-shot).
+function timelineFrames(sc){
+  if(!(sc.timeline&&sc.timeline.length)) return timedFrames(sc);
+  const fps=settings().fps||8; const out=[];
+  sc.timeline.forEach(seg=>{ const fr=beatFrames(sc, seg.beat); if(!fr.length) return;
+    const total=Math.max(1, Math.round((parseFloat(seg.sec)||0)*fps));
+    for(let i=0;i<total;i++){ const idx = seg.loop!==false ? (i%fr.length) : Math.min(fr.length-1, Math.floor(i*fr.length/total)); out.push(fr[idx]); }
+  });
+  return out.length?out:timedFrames(sc);
+}
+function timelineSeconds(sc){ return (sc.timeline||[]).reduce((s,seg)=>s+(parseFloat(seg.sec)||0),0); }
 async function downloadSceneZip(sc, idx, timed){
-  const p=curProj(); const frames= timed? timedFrames(sc) : sceneFrames(sc);
+  const p=curProj(); const frames= timed? timelineFrames(sc) : sceneFrames(sc);
   if(!frames.length) return;
   const tag = timed?'_timed':'';
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(sc.title||('scene'+(idx+1)))+'_'+pad3(i+1)+'.png')); return; }
@@ -1037,7 +1079,7 @@ const GIF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker
 // One-file animated GIF of a whole scene, composited on white (GIF has no soft alpha).
 async function downloadSceneGif(sc, idx, timed, btn){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — check your connection and refresh.'); return; }
-  const frames = timed? timedFrames(sc) : sceneFrames(sc); if(!frames.length) return;
+  const frames = timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length) return;
   const fps=settings().fps||8; const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
   const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
