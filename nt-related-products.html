@@ -912,7 +912,7 @@ function setScene(handle, scene) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   if (ta && p) {
     const tax = taxonomyData[handle]||{};
-    ta.value = buildStudioPrompt(p.tagline||p.tl||p.title||'', scene, tax);
+    ta.value = buildStudioPrompt(p.title||p.t||p.tagline||p.tl||'', scene, tax);
   }
 }
 
