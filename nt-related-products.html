@@ -614,7 +614,8 @@ function tabContentHTML(parentHandle, handle) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   if (!p) return `<div style="padding:16px;font-size:12px;color:var(--muted);">Product data not loaded yet.</div>`;
   const img = p.shopifyImage || p.featuredImage || '';
-  const quote = p.tagline || p.tl || p.title || '';
+  const engrave = p.title || p.t || handle; // text physically on the product
+  const quote = p.tagline || p.tl || engrave; // marketing tagline for display
   const tax = taxonomyData[handle] || {};
   if (!studioState[handle]) studioState[handle] = { scene: 'desk', images: [], taglines: [] };
   const s = studioState[handle];
@@ -630,7 +631,7 @@ function tabContentHTML(parentHandle, handle) {
       style="border:1.5px solid ${s.scene===sc?'#7c3aed':'var(--border)'};background:${s.scene===sc?'#7c3aed':'#fff'};color:${s.scene===sc?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
   ).join('');
 
-  const builtPrompt = buildStudioPrompt(quote, s.scene, tax);
+  const builtPrompt = buildStudioPrompt(engrave, s.scene, tax);
 
   return `<div style="padding:12px;">
     <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
