@@ -750,6 +750,12 @@ function buildSceneCard(sc, idx){
       sd.appendChild(strip);
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. (Re-slicing or changing crop rebuilds from the sheet and resets these edits.)';
       sd.appendChild(fn);
+      // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
+      const pbox=document.createElement('div'); pbox.style.marginTop='8px';
+      const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
+      const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb); pab.appendChild(pctr);
+      pbox.appendChild(pab); sd.appendChild(pbox);
+      const pa=makeFramesAnimator(sh.frames, pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
       if((sh.wide||[]).length){
         const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4';
         ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide — likely two Guls merged.</b>';
@@ -1127,6 +1133,13 @@ function makeAnimator(sc, canvas, getComp){
 function makeSeqAnimator(frames, canvas){
   const a={ canvas, getComp:()=>false, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
+  animators.push(a); layout(a); tickA(a); return a;
+}
+// Play an arbitrary frame list, optionally composited over a still (for per-beat preview).
+function makeFramesAnimator(frames, canvas, getComp, bgUrl){
+  const a={ canvas, getComp:getComp||(()=>false), imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, pin:{x:.5,y:.78}, timer:null };
+  if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
+  if(bgUrl){ const b=new Image(); b.onload=()=>{ if(a.getComp())layout(a); }; b.src=bgUrl; a.bg=b; }
   animators.push(a); layout(a); tickA(a); return a;
 }
 function renderVideoPreview(){
