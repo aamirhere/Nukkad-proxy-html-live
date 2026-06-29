@@ -634,7 +634,10 @@ function tabContentHTML(parentHandle, handle) {
 
   return `<div style="padding:12px;">
     <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
-      ${img ? `<img src="${esc(img)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">` : ''}
+      ${img ? `<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <img src="${esc(img)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+        <button onclick="copyImageToClipboard('${esc(img)}',this)" title="Copy product image — paste in Gemini" style="font-size:9px;padding:2px 8px;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;color:#15803d;cursor:pointer;width:100%;">📋 Copy</button>
+      </div>` : ''}
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:700;color:var(--brown);">${esc(p.title||handle)}</div>
         <div style="font-size:10px;color:var(--muted);font-style:italic;margin-top:2px;">"${esc(quote)}"</div>
