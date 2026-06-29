@@ -568,18 +568,22 @@ function buildSceneCard(sc, idx){
     det.addEventListener('toggle',()=>{ if(det.open) pre.value=buildManualPrompt(sc, idx, sh, si); }); // refresh if action was edited
     sd.appendChild(det);
 
-    const man=document.createElement('div'); man.className='row'; man.style.marginTop='8px';
-    const cp=document.createElement('button'); cp.className='btn sm ghost'; cp.style.flex='1'; cp.textContent='📋 Copy prompt';
-    cp.onclick=()=>copyText(buildManualPrompt(sc, idx, sh, si), cp);
-    const ci=document.createElement('button'); ci.className='btn sm ghost'; ci.style.flex='1'; ci.textContent='🖼 Copy Gul';
-    ci.onclick=()=>copyImage(curMascot(), ci);
-    const up=document.createElement('button'); up.className='btn sm ghost'; up.style.flex='1'; up.textContent=(sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload';
+    const man=document.createElement('div'); man.className='row'; man.style.marginTop='8px'; man.style.flexWrap='wrap';
+    const mkBtn=t=>{ const b=document.createElement('button'); b.className='btn sm ghost'; b.style.flex='1'; b.style.minWidth='92px'; b.textContent=t; return b; };
+    const cp=mkBtn('📋 Copy prompt'); cp.onclick=()=>copyText(buildManualPrompt(sc, idx, sh, si), cp);
+    const ci=mkBtn('🖼 Copy Gul'); ci.onclick=()=>copyImage(curMascot(), ci);
+    man.appendChild(cp); man.appendChild(ci);
+    const seedFrame=lastFrameBefore(idx, si);
+    if(seedFrame){ const cs=mkBtn('🌱 Copy seed'); cs.onclick=()=>copyImage(seedFrame, cs, 'seed-frame.png'); man.appendChild(cs); }
+    const up=mkBtn((sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload');
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
     fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ sh.sheetImg=d; sh.frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
-    man.appendChild(cp); man.appendChild(ci); man.appendChild(up); man.appendChild(fi);
+    man.appendChild(up); man.appendChild(fi);
     sd.appendChild(man);
-    const mn=document.createElement('small'); mn.className='note'; mn.textContent='Free route: Copy Gul + Copy prompt → paste both in ChatGPT → upload the PNG here (must be a '+sh.cols+'×'+sh.rows+' grid).';
+    const mn=document.createElement('small'); mn.className='note'; mn.textContent= seedFrame
+      ? 'Free route: Copy Gul + Copy seed + Copy prompt → paste all in ChatGPT (seed = where this beat continues from) → upload the PNG here ('+sh.cols+'×'+sh.rows+' grid).'
+      : 'Free route: Copy Gul + Copy prompt → paste both in ChatGPT → upload the PNG here (must be a '+sh.cols+'×'+sh.rows+' grid).';
     sd.appendChild(mn);
 
     if(sh.frames&&sh.frames.length){
@@ -841,11 +845,11 @@ function copyText(t, btn){
 }
 // Copy the reference image to the clipboard (paste straight into ChatGPT). ClipboardItem
 // takes a Promise<Blob> so the canvas→PNG conversion keeps the click's user-gesture (Safari).
-function copyImage(dataUrl, btn){
+function copyImage(dataUrl, btn, name){
   if(!dataUrl){ return; }
   const o=btn?btn.textContent:''; const flash=m=>{ if(btn){ btn.textContent=m; setTimeout(()=>{btn.textContent=o;},1500); } };
   const toPng=()=>new Promise((resolve,reject)=>{ const im=new Image(); im.onload=()=>{ const c=document.createElement('canvas'); c.width=im.naturalWidth||im.width; c.height=im.naturalHeight||im.height; c.getContext('2d').drawImage(im,0,0); c.toBlob(b=>b?resolve(b):reject(new Error('no blob')),'image/png'); }; im.onerror=reject; im.src=dataUrl; });
-  const save=()=>{ downloadDataUrl(dataUrl,'gul-reference.png'); flash('⬇ Saved'); };
+  const save=()=>{ downloadDataUrl(dataUrl, name||'gul-reference.png'); flash('⬇ Saved'); };
   if(navigator.clipboard && window.ClipboardItem){
     try{ navigator.clipboard.write([new ClipboardItem({'image/png':toPng()})]).then(()=>flash('✓ Copied'), save); }
     catch(e){ save(); }
