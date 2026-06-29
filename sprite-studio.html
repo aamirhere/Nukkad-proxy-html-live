@@ -581,7 +581,7 @@ function buildSceneCard(sc, idx){
     const up=mkBtn((sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload');
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
-    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ if(settings().bgRemove!==false){ up.textContent='… cutout'; d=await removeBg(d); } sh.sheetImg=d; sh.frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
+    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ up.textContent='… processing'; await ingestSheet(sh, d); persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
     man.appendChild(up); man.appendChild(fi);
     if(sh.sheetImg){ const ct=mkBtn('✂ Cutout'); ct.onclick=async()=>{ ct.textContent='…'; sh.sheetImg=await removeBg(sh.sheetImg); sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); }; man.appendChild(ct); }
     sd.appendChild(man);
@@ -611,7 +611,7 @@ function buildSceneCard(sc, idx){
       apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); };
       gbody.appendChild(apply);
       const det2=document.createElement('button'); det2.className='btn sm ghost'; det2.style.marginTop='6px'; det2.style.width='100%'; det2.textContent='🔎 Auto-detect frames (ignore grid)';
-      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.length){ sh.frames=out; sh.detected=true; sh.target=out.length; persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
+      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.length){ sh.frames=out; sh.detected=true; sh.target=out.length; markForReview(sh); persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
       gbody.appendChild(det2);
       const dn=document.createElement('small'); dn.className='note'; dn.textContent='Auto-detect finds each Gul as a separate shape — use it when ChatGPT laid the frames out unevenly (different sizes, arrows, no clean grid).';
       gbody.appendChild(dn);
@@ -633,10 +633,16 @@ function buildSceneCard(sc, idx){
       sd.appendChild(strip);
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. (Re-slicing or changing crop rebuilds from the sheet and resets these edits.)';
       sd.appendChild(fn);
-      const an=document.createElement('button'); an.className='btn sm ghost'; an.style.marginTop='8px'; an.style.width='100%'; an.textContent='🔍 Analyse frames with Claude';
       const apanel=document.createElement('div'); apanel.style.marginTop='8px';
-      an.onclick=()=>runAnalyze(sh, an, apanel);
+      const an=document.createElement('button'); an.className='btn sm ghost'; an.style.marginTop='8px'; an.style.width='100%';
+      an.textContent= sh.review?'🔍 Re-analyse with Claude':'🔍 Analyse frames with Claude';
+      an.onclick=async()=>{ an.textContent='… analysing'; an.disabled=true; sh.review=await analyzeSheet(sh); sh._reviewed=true; delete sh._autoReview; persist(); scheduleSave(); renderReview(sc, idx, sh, si, apanel); an.textContent='🔍 Re-analyse with Claude'; an.disabled=false; };
       sd.appendChild(an); sd.appendChild(apanel);
+      if(sh.review){ renderReview(sc, idx, sh, si, apanel); }
+      else if(sh._autoReview && !sh._reviewed && !sh._reviewing && sh.frames.length>=2){
+        sh._reviewing=true; apanel.innerHTML='<small class="note"><span class="spinner"></span> Claude is reviewing these frames…</small>';
+        (async()=>{ const v=await analyzeSheet(sh); sh.review=v; sh._reviewed=true; sh._reviewing=false; delete sh._autoReview; persist(); scheduleSave(); renderAll(); })();
+      }
     }
     card.appendChild(sd);
   });
@@ -704,7 +710,7 @@ async function generateScene(sceneId, idx){
       try{
         data=await generateSheet(payload, sh, sec=>setSceneStatus(sceneId,'<span class="spinner"></span>Beat '+(si+1)+'/'+sc.sheets.length+' — Gul is being drawn… '+sec+'s','run'));
       }catch(e){ if(genEpoch!==myEpoch){ sc._generating=false; renderAll(); return; } sc._generating=false; setSceneStatus(sceneId,'✕ Beat '+(si+1)+': '+e.message,'err'); renderAll(); return; }
-      sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, cropMode(s));
+      sh.sheetImg=data.image; sh.frames=await cropSheet(data.image, data.cols, data.rows, cropMode(s)); markForReview(sh);
       persist(); scheduleSave();
       renderAll(); // show THIS beat's frames right away
     }
@@ -838,31 +844,55 @@ function buildMontage(frames){
     }; im.src=f; });
   });
 }
-async function runAnalyze(sh, btn, panel){
-  if(!sh.frames||!sh.frames.length) return;
-  const o=btn.textContent; btn.textContent='… analysing'; btn.disabled=true; panel.innerHTML='';
+// True if the image has an opaque (non-transparent) background — sample the four corners.
+function isOpaqueBg(dataUrl){
+  return new Promise(res=>{ const im=new Image(); im.onload=()=>{ const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0); let op=0; [[0,0],[w-1,0],[0,h-1],[w-1,h-1]].forEach(([px,py])=>{ if(x.getImageData(px,py,1,1).data[3]>200) op++; }); res(op>=3); }; im.onerror=()=>res(false); im.src=dataUrl; });
+}
+// Auto pipeline for a freshly uploaded sheet: make transparent if needed, then detect frames
+// (fall back to grid slicing if detection can't find ≥2), and flag it for one auto-review.
+async function ingestSheet(sh, dataUrl){
+  let d=dataUrl;
+  if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d);
+  let frames=await detectFrames(d);
+  if(frames.length>=2){ sh.detected=true; } else { sh.detected=false; frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); }
+  sh.sheetImg=d; sh.frames=frames; sh.target=frames.length; delete sh.pendingJob;
+  markForReview(sh);
+}
+function markForReview(sh){ sh.review=null; sh._reviewed=false; sh._autoReview=true; }
+async function analyzeSheet(sh){
   try{
     const montage=await buildMontage(sh.frames);
     const r=await fetch(ANALYZE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image:montage, count:sh.frames.length, action:sh.action||'' })});
     const d=await r.json();
-    if(d.error){ panel.innerHTML='<small class="note" style="color:var(--err)">✕ '+escapeHtml(d.error)+'</small>'; return; }
+    if(d.error) return {error:d.error};
     const inRange=n=>n>=1&&n<=sh.frames.length;
     const bad=(d.bad||[]).filter(inRange), dups=(d.duplicates||[]).filter(inRange), gaps=(d.gaps||[]);
-    let html='';
-    if(d.notes) html+='<div style="font-size:12px;color:var(--ink2);margin-bottom:6px">'+escapeHtml(d.notes)+'</div>';
-    if(bad.length) html+='<div style="font-size:12px;color:var(--err)"><b>Awkward:</b> #'+bad.join(', #')+'</div>';
-    if(dups.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Near-duplicates:</b> #'+dups.join(', #')+'</div>';
-    if(gaps.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Missing in-betweens:</b> '+gaps.map(g=>'after #'+g.after+(g.need?(' ('+escapeHtml(g.need)+')'):'')).join('; ')+'</div>';
-    if(!html) html='<small class="note">Claude found nothing to fix — looks good.</small>';
-    panel.innerHTML=html;
-    const toDrop=[...new Set([...bad,...dups])].sort((a,b)=>a-b);
-    if(toDrop.length){ const db=document.createElement('button'); db.className='btn sm danger'; db.style.marginTop='8px'; db.textContent='Drop flagged (#'+toDrop.join(', #')+')';
-      db.onclick=()=>{ sh.frames=sh.frames.filter((_,i)=>!toDrop.includes(i+1)); persist(); scheduleSave(); renderAll(); };
-      panel.appendChild(db);
-    }
-    if(gaps.length){ const note=document.createElement('small'); note.className='note'; note.textContent='Missing in-betweens can’t be drawn here — regenerate that beat with more frames in ChatGPT, or accept the jump.'; panel.appendChild(note); }
-  }catch(e){ panel.innerHTML='<small class="note" style="color:var(--err)">✕ '+escapeHtml(e.message)+'</small>'; }
-  finally{ btn.textContent=o; btn.disabled=false; }
+    return { bad, dups, gaps, notes:d.notes||'', good:(bad.length===0 && dups.length===0) };
+  }catch(e){ return {error:e.message}; }
+}
+function buildRedoPrompt(sc, idx, sh, si, rv){
+  const fixes=[];
+  if(rv.notes) fixes.push(rv.notes);
+  if(rv.gaps&&rv.gaps.length){ const ns=rv.gaps.map(g=>g.need).filter(Boolean); fixes.push('Add smoother in-between poses where the motion jumps'+(ns.length?(' ('+ns.join('; ')+')'):'')+'.'); }
+  fixes.push('Keep every frame on-model and evenly spaced; no awkward or distorted poses.');
+  return buildManualPrompt(sc, idx, sh, si)+'\n\nFIX IN THIS VERSION: '+fixes.join(' ');
+}
+function renderReview(sc, idx, sh, si, panel){
+  panel.innerHTML=''; const rv=sh.review; if(!rv) return;
+  if(rv.error){ panel.innerHTML='<small class="note" style="color:var(--err)">✕ review failed: '+escapeHtml(rv.error)+'</small>'; return; }
+  if(rv.good && !(rv.gaps&&rv.gaps.length)){ panel.innerHTML='<div style="font-size:13px;font-weight:800;color:var(--ok)">✓ Good to go — Claude found nothing to fix.</div>'+(rv.notes?'<div style="font-size:11px;color:var(--ink2);margin-top:3px">'+escapeHtml(rv.notes)+'</div>':''); return; }
+  let html='<div style="font-size:12px;font-weight:800;color:var(--accent)">⚠ Claude suggests fixes</div>';
+  if(rv.notes) html+='<div style="font-size:12px;color:var(--ink2);margin:3px 0">'+escapeHtml(rv.notes)+'</div>';
+  if(rv.bad.length) html+='<div style="font-size:12px;color:var(--err)"><b>Awkward:</b> #'+rv.bad.join(', #')+'</div>';
+  if(rv.dups.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Near-duplicates:</b> #'+rv.dups.join(', #')+'</div>';
+  if(rv.gaps&&rv.gaps.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Missing in-betweens:</b> '+rv.gaps.map(g=>'after #'+g.after+(g.need?(' ('+escapeHtml(g.need)+')'):'')).join('; ')+'</div>';
+  panel.innerHTML=html;
+  const toDrop=[...new Set([...rv.bad,...rv.dups])].sort((a,b)=>a-b);
+  const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
+  if(toDrop.length){ const db=document.createElement('button'); db.className='btn sm danger'; db.style.cssText='flex:1;min-width:110px'; db.textContent='Drop flagged (#'+toDrop.join(',#')+')'; db.onclick=()=>{ sh.frames=sh.frames.filter((_,i)=>!toDrop.includes(i+1)); persist(); scheduleSave(); renderAll(); }; row.appendChild(db); }
+  const redo=document.createElement('button'); redo.className='btn sm ghost'; redo.style.cssText='flex:1;min-width:110px'; redo.textContent='📋 Copy prompt to redo'; redo.onclick=()=>copyText(buildRedoPrompt(sc, idx, sh, si, rv), redo); row.appendChild(redo);
+  panel.appendChild(row);
+  if(rv.gaps&&rv.gaps.length){ const n=document.createElement('small'); n.className='note'; n.textContent='Missing in-betweens can’t be drawn here — use “Copy prompt to redo” (it asks for smoother in-betweens) and regenerate this beat.'; panel.appendChild(n); }
 }
 
 /* ===== per-scene animation ===== */
@@ -992,7 +1022,7 @@ function maybeResume(){
       const jid=sh.pendingJob; activePolls.add(jid); dbg('auto-resume '+jid);
       pollResult(jid, 150000).then(async data=>{
         activePolls.delete(jid);
-        if(data){ sh.sheetImg=data.image; sh.frames=await cropSheet(data.image,data.cols,data.rows,cropMode()); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }
+        if(data){ sh.sheetImg=data.image; sh.frames=await cropSheet(data.image,data.cols,data.rows,cropMode()); markForReview(sh); delete sh.pendingJob; persist(); scheduleSave(); renderAll(); }
       }).catch(e=>{ activePolls.delete(jid); dbg('resume err: '+e.message); });
     }
   }));
