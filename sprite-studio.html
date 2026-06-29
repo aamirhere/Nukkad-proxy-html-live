@@ -224,6 +224,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
         <button class="btn sm ghost" id="dlAll">Download all scenes (.zip)</button>
       </div>
       <p class="hint" style="margin-top:8px">Every generated scene, each in its own folder of numbered transparent PNG frames.</p>
+      <div id="videoPreview"></div>
     </div>
   </div>
 </div>
@@ -593,7 +594,9 @@ function renderAll(){ stopAnimators(); renderShots(); renderScenes(); renderProj
 function renderScenes(){
   const p=curProj(); const wrap=$('scenesWrap'); wrap.innerHTML='';
   const planned=p.scenes.filter(s=>s.sheets&&s.sheets.length);
-  $('finishCard').style.display = planned.some(sceneGenerated)?'block':'none';
+  const show=planned.some(sceneGenerated);
+  $('finishCard').style.display = show?'block':'none';
+  if(show) renderVideoPreview();
   if(!planned.length) return;
   p.scenes.forEach((sc,idx)=>{ if(sc.sheets&&sc.sheets.length) wrap.appendChild(buildSceneCard(sc,idx)); });
 }
@@ -1043,12 +1046,29 @@ function renderReview(sc, idx, sh, si, panel){
 
 /* ===== per-scene animation ===== */
 function stopAnimators(){ animators.forEach(a=>{ if(a.timer) clearTimeout(a.timer); }); animators=[]; }
+// Cache one Image per unique data-URL so a long repeating timeline reuses ~a handful of imgs.
+function imgsForFrames(frames){ const cache={}; return frames.map(f=>{ if(!cache[f]){ const im=new Image(); im.src=f; cache[f]=im; } return cache[f]; }); }
 function makeAnimator(sc, canvas, getComp){
-  const frames=sceneFrames(sc);
-  const a={ canvas, getComp, imgs:frames.map(f=>{const im=new Image();im.src=f;return im;}), idx:0, dim:{w:220,h:220}, bg:null, timer:null };
+  const frames=(sc.timeline&&sc.timeline.length)? timelineFrames(sc) : sceneFrames(sc);
+  const a={ canvas, getComp, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
   if(sc.refImage){ const b=new Image(); b.onload=()=>{ if(a.getComp())layout(a); }; b.src=sc.refImage; a.bg=b; a.pin={x:.5,y:.78}; }
   animators.push(a); layout(a); tickA(a); return a;
+}
+// Plain sequence player (no still compositing) — used for the whole-video preview.
+function makeSeqAnimator(frames, canvas){
+  const a={ canvas, getComp:()=>false, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null };
+  if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
+  animators.push(a); layout(a); tickA(a); return a;
+}
+function renderVideoPreview(){
+  const host=$('videoPreview'); if(!host) return; host.innerHTML='';
+  const frames=videoFrames(); if(!frames.length) return;
+  const fps=settings().fps||8; const secs=+(frames.length/fps).toFixed(1);
+  const lab=document.createElement('div'); lab.className='steps'; lab.style.marginTop='12px'; lab.innerHTML='<b>▶ Whole-video preview</b> — all generated scenes in order, timelines applied · '+frames.length+' frames ≈ '+secs+'s @'+fps+'fps';
+  host.appendChild(lab);
+  const ab=document.createElement('div'); ab.className='anim-box'; const cv=document.createElement('canvas'); cv.width=240; cv.height=240; ab.appendChild(cv); host.appendChild(ab);
+  makeSeqAnimator(frames, cv);
 }
 function compReady(a){ return a.getComp() && a.bg && a.bg.complete; }
 function layout(a){ const max=300; let w,h; if(compReady(a)){w=a.bg.width;h=a.bg.height;} else {w=a.dim.w;h=a.dim.h;} const sc=Math.min(max/w,max/h,1)||1; a.canvas.width=Math.max(40,Math.round(w*sc)); a.canvas.height=Math.max(40,Math.round(h*sc)); }
@@ -1088,6 +1108,7 @@ function timelineFrames(sc){
   return out.length?out:timedFrames(sc);
 }
 function timelineSeconds(sc){ return (sc.timeline||[]).reduce((s,seg)=>s+(parseFloat(seg.sec)||0),0); }
+function videoFrames(){ const p=curProj(); if(!p) return []; const out=[]; (p.scenes||[]).forEach(sc=>{ if(sceneGenerated(sc)) out.push(...timelineFrames(sc)); }); return out; }
 async function downloadSceneZip(sc, idx, timed){
   const p=curProj(); const frames= timed? timelineFrames(sc) : sceneFrames(sc);
   if(!frames.length) return;
