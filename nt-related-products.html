@@ -803,10 +803,34 @@ async function writeGulPrompt(handle) {
 }
 
 function buildStudioPrompt(quote, scene, tax) {
-  const placement = {desk:'on a wooden desk with stationery and a warm cup of chai',shelf:'on a curated wooden shelf with books and small plants',gifting:'beside a gift box with tissue paper and ribbon',cozy_home:'on a side table next to fairy lights and a cozy blanket',workspace:'in a professional workspace with minimal decor',festive:'surrounded by marigolds and diyas'}[scene]||'on a shelf';
-  let p = `Product lifestyle photography for an Indian gifting brand. Hero product: handmade wooden engraved piece with quote '${quote}'. Keep product sharp and realistic, no distortion. Placed ${placement}. Warm editorial lighting. Indian home aesthetic. High-converting ad quality.`;
-  if ((tax.professions||[]).length) p += ` Scene subtly reflects a ${tax.professions[0].replace('prof.','')} recipient's world.`;
-  return p;
+  const sceneMap = {
+    desk:      'on a clean modern wooden desk',
+    shelf:     'on a minimal wooden shelf with curated decor',
+    gifting:   'beside a beautifully wrapped gift box with ribbon and tissue paper',
+    cozy_home: 'on a side table with soft fairy lights and a cozy throw blanket nearby',
+    workspace: 'in a contemporary home workspace',
+    festive:   'on a festive surface with marigolds, small diyas, and warm bokeh lights',
+  };
+
+  const profProps = {
+    'prof.fitness':      'A white protein shaker, wireless earbuds, and a leather journal sit nearby. Clean natural light.',
+    'prof.teacher':      'A neat stack of books, a succulent in a ceramic pot, and a black coffee in a minimal mug.',
+    'prof.writer':       'An open notebook with a fountain pen, a warm reading lamp, and two worn paperbacks stacked beside.',
+    'prof.doctor':       'A stethoscope coiled neatly, a small succulent, and soft diffused morning light on a clean desk.',
+    'prof.engineer':     'Mechanical pencils, a sleek closed laptop, a desk organiser, warm side lamp casting long shadows.',
+    'prof.ca':           'A leather-bound planner, a quality pen, a black coffee, clean white desk surface.',
+    'prof.lawyer':       'A leather journal, a fountain pen, one law book spine visible, soft desk lamp.',
+    'prof.creative':     'Watercolour swatches, a sketch pad, a mug of matcha, natural window light.',
+    'prof.homemaker':    'Fresh flowers in a ceramic vase, a scented candle, warm afternoon light through sheer curtains.',
+    'prof.entrepreneur': 'A slim MacBook, a white coffee cup, a succulent, clean minimal desk. City window in soft focus background.',
+    'prof.spiritual':    'A small brass diya, fresh marigolds, a sandalwood incense holder, warm golden light.',
+  };
+
+  const placement = sceneMap[scene] || sceneMap.desk;
+  const profKey = (tax.professions||[])[0] || '';
+  const props = profProps[profKey] || 'A ceramic coffee mug, a small succulent, and a minimal desk organiser nearby. Soft warm light.';
+
+  return `Product lifestyle photography. Hero: handmade 3D wooden quote piece reading "${quote}" — keep it sharp, realistic, exactly as it looks. No distortion to the text or shape. Placed ${placement}. ${props} Soft editorial lighting, warm tones. Clean contemporary aesthetic — modern urban home, not traditional or ancient. Aspirational and personal. The product is the undeniable hero of the frame. High-converting ad quality, shallow depth of field.`;
 }
 
 function setScene(handle, scene) {
