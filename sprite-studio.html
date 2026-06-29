@@ -182,7 +182,7 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
           <div>
             <label class="f">Gul fps (pose rate)</label>
             <select id="setFps">
-              <option>4</option><option>6</option><option selected>8</option><option>12</option>
+              <option>4</option><option>6</option><option>8</option><option selected>12</option>
             </select>
           </div>
         </div>
@@ -218,9 +218,13 @@ small.note{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-h
       <input type="file" id="shotFile" accept="image/*" multiple hidden>
       <div id="shotList" style="margin-top:12px"></div>
 
-      <label class="f" style="margin-top:8px">The story (what happens, start to finish)</label>
-      <textarea id="story" placeholder="Gul flies into the workshop, lands on the table and watches curiously as a parcel is being wrapped. She hops closer, peeks inside, then gives a happy little wing-flap of approval."></textarea>
-      <button class="btn" id="planBtn" style="width:100%;margin-top:10px">✨ Plan the scenes with Claude</button>
+      <label class="f" style="margin-top:8px">The story / rough idea (optional — Claude will improve it)</label>
+      <textarea id="story" placeholder="e.g. a little bird makes this 'Home Sweet Home' piece feel cosy — or just leave blank and let Claude pitch a concept from your shot."></textarea>
+      <button class="btn" id="pitchBtn" style="width:100%;margin-top:10px">🎬 Pitch the ad first (Claude)</button>
+      <div id="pitchPanel"></div>
+      <details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Skip the pitch — plan straight from my story</summary>
+        <button class="btn ghost" id="planBtn" style="width:100%;margin-top:8px">✨ Plan the scenes with Claude</button>
+      </details>
       <div class="status" id="planStatus"></div>
     </div>
 
@@ -285,8 +289,8 @@ function persist(){ clearTimeout(_persistTimer); _persistTimer=setTimeout(async(
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned",uniform:true,sizeLock:true}, scenes:[] }; }
-function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned",uniform:true,sizeLock:true}; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true}, scenes:[] }; }
+function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true}; }
 function gfps(){ return parseInt(settings().fps,10)||8; }   // Gul pose-change rate
 function vfps(){ return parseInt(settings().vfps,10)||24; } // video / timeline rate (export)
 
@@ -297,14 +301,14 @@ const synced=new Set();
 // Signature per framesKey so we only re-upload a beat's sliced frames when they change.
 const frameSigs={};
 function framesSig(fr){ return (fr||[]).length+':'+(fr||[]).reduce((a,f)=>a+f.length,0); }
-function defaults(){ return {framesMax:9,quality:"medium",fps:8,vfps:24,crop:"aligned",uniform:true,sizeLock:true}; }
+function defaults(){ return {framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
 async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
 async function cloudDel(key){ try{ await fetch(STORE_URL+'?key='+encodeURIComponent(key),{method:'DELETE'}); }catch(e){} }
 // meta = project structure with images replaced by their blob keys (one image per key)
 function projectMeta(p){
-  return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', settings:p.settings||defaults(),
+  return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', treatment:p.treatment||null, settings:p.settings||defaults(),
     scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved,
       pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null,
       refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
@@ -336,7 +340,7 @@ async function loadCloud(id){
   setCloudStatus('☁ loading…');
   const raw=await cloudGet('p:'+id); if(!raw) throw new Error('not found in cloud');
   const meta=JSON.parse(raw);
-  const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', settings:meta.settings||defaults(), scenes:[] };
+  const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', treatment:meta.treatment||null, settings:meta.settings||defaults(), scenes:[] };
   for(const s of (meta.scenes||[])){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
@@ -472,7 +476,7 @@ function buildManualPrompt(sc, idx, sh, si){
   const L=[];
   L.push('KEEP THE BIRD IN THE ATTACHED REFERENCE EXACTLY THE SAME in every frame — identical body shape, orange-and-cream colours, feather markings, wings, face, eyes, cheeks, beak and proportions, so she is unmistakably the same bird. She is already drawn in a clean, flat cel / vector style — solid colour fills, smooth even outline, crisp edges, minimal soft shading: PRESERVE that flat style exactly. Do NOT add watercolour texture, brush strokes, paper grain, noise or painterly gradients, and do NOT add, remove or shift any colours. Flat, uniform colour keeps her pixel-consistent across frames so the animation does not shimmer or "boil". Give her gentle DEPTH and VOLUME so she looks softly three-dimensional and rounded — smooth soft shading and subtle highlights, like a cute soft-3D / plush character — while keeping each colour area clean and consistent, never noisy or textured. Only her POSE changes from frame to frame.');
   L.push('Lay it out as ONE image: a STRICT, evenly-spaced '+cols+'×'+rows+' grid of '+total+' equal cells, read left-to-right then top-to-bottom. Every cell the SAME size; the bird at the SAME scale and CENTRED in each; rows and columns cleanly aligned. Leave a CLEAR, generous GAP of empty transparent space between every bird so adjacent birds NEVER touch or overlap — no part of one bird (wing, tail, beak) may cross into a neighbouring cell. Each bird sits alone with margin on all sides so it can be cut out cleanly. Do NOT pack them tightly, scatter them, or vary their size. NO borders, NO gridlines, NO numbers, NO text, NO arrows or connectors, and NO speed-lines, motion-dashes, sparkles or accent marks anywhere. Fully TRANSPARENT background. Show ONLY the bird in each cell — no scene, floor or props. Draw her at a good size but keep clear empty margin around her, clean, crisp and bold.');
-  L.push('The '+total+' frames are one smooth, evenly-timed animation of this single action: '+action+'. Frame 1 is the start pose, the last frame is the end pose, with even in-between poses so it plays back fluidly. Keep her perfectly on-model so she never morphs into a different bird.');
+  L.push('The '+total+' frames are ONE smooth, evenly-timed animation of this single action: '+action+'. Frame 1 is the start pose, the last frame is the end pose, with MANY closely-spaced in-between poses and gentle slow-in/slow-out so it plays fluidly and seamlessly — the change between any two consecutive frames must be SMALL, never a big jump. Keep her perfectly on-model so she never morphs into a different bird.');
   if(hasPrev) L.push('Continuity: also attach the LAST frame of the previous beat and make frame 1 continue seamlessly from that exact pose.');
   if(note) L.push('Direction: '+note);
   L.push('(Attach Gul’s reference image — use “Save” in the studio. Export the result as a PNG with a transparent background, then upload it back to this beat.)');
@@ -497,6 +501,7 @@ function buildEditorGuide(sc){
 }
 function renderShots(){
   const p=curProj(); const wrap=$('shotList'); wrap.innerHTML=''; $('story').value=p.story||'';
+  if($('pitchPanel')){ if(p.treatment) renderPitch(p.treatment); else $('pitchPanel').innerHTML=''; }
   if(!p.scenes.length){ wrap.innerHTML='<div class="empty">No shots yet — upload stills (or add an empty scene), then write the story.</div>'; return; }
   p.scenes.forEach((s,i)=>{
     const d=document.createElement('div'); d.className='shot'; d.style.flexDirection='column';
@@ -605,11 +610,11 @@ function renderShots(){
 }
 function planMsg(html,cls){ const s=$('planStatus'); s.innerHTML=html; s.className='status '+(cls||''); }
 
-$('planBtn').onclick=async()=>{
+async function runPlan(storyText){
   const p=curProj(); if(!p)return;
-  const story=(p.story||'').trim();
-  if(!story && !p.scenes.length){ planMsg('Upload some shots or write the story first.','err'); return; }
-  $('planBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is planning the scenes…','run');
+  const story=(storyText||p.story||'').trim();
+  if(!story && !p.scenes.length){ planMsg('Pitch an ad, write a story, or upload shots first.','err'); return; }
+  $('planBtn').disabled=true; $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is breaking it into scenes & beats…','run');
   try{
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       task:'plan', story, framesMax:settings().framesMax, fps:settings().fps,
@@ -618,7 +623,6 @@ $('planBtn').onclick=async()=>{
     const data=await res.json();
     if(data.error){ planMsg('✕ '+data.error,'err'); return; }
     const planned=data.scenes||[];
-    // map onto existing scenes by index; create extra scenes if planner returned more
     planned.forEach((ps,i)=>{
       let sc=p.scenes[i];
       if(!sc){ sc={id:uid(),refImage:null,hint:'',approved:false}; p.scenes.push(sc); }
@@ -632,8 +636,57 @@ $('planBtn').onclick=async()=>{
     persist(); renderAll(); scheduleSave();
     planMsg('✓ Planned '+planned.length+' scenes. Review the prompts, then generate Scene 1.','ok');
   }catch(e){ planMsg('✕ '+e.message,'err'); }
-  finally{ $('planBtn').disabled=false; }
-};
+  finally{ $('planBtn').disabled=false; $('pitchBtn').disabled=false; }
+}
+$('planBtn').onclick=()=>runPlan();
+
+// Story-first: Claude pitches a complete ad concept (hook + beats + why) to approve BEFORE
+// breaking it into beats/frames.
+function treatmentToStory(t){
+  const lines=[];
+  if(t.logline) lines.push('Concept: '+t.logline);
+  if(t.hook) lines.push('Opening hook: '+t.hook);
+  if(t.overlay) lines.push('On-screen text: '+t.overlay);
+  if(t.beats&&t.beats.length) lines.push('Beats (small motions, keep Gul close to the piece — no long flights):\n'+t.beats.map((b,i)=>(i+1)+'. '+(b.title?b.title+' — ':'')+b.action+(b.seconds?(' (~'+b.seconds+'s)'):'')).join('\n'));
+  return lines.join('\n');
+}
+function renderPitch(t){
+  const host=$('pitchPanel'); host.innerHTML=''; if(!t||!t.logline) return;
+  const box=document.createElement('div'); box.className='eguide'; box.style.cssText='margin-top:10px;text-align:left';
+  let h='<div style="font-weight:800;color:var(--accent);margin-bottom:4px">🎬 Gul\'s ad pitch</div>';
+  h+='<div style="font-size:13px;color:var(--ink);margin-bottom:6px"><b>'+escapeHtml(t.logline)+'</b></div>';
+  if(t.hook) h+='<div style="font-size:12px;color:var(--ink2)"><b>Hook:</b> '+escapeHtml(t.hook)+'</div>';
+  if(t.overlay) h+='<div style="font-size:12px;color:var(--ink2)"><b>On-screen text:</b> "'+escapeHtml(t.overlay)+'"</div>';
+  if(t.why) h+='<div style="font-size:12px;color:var(--ink2);margin-top:3px"><b>Why it works:</b> '+escapeHtml(t.why)+'</div>';
+  if(t.beats&&t.beats.length){ h+='<div style="font-size:12px;color:var(--ink);margin-top:6px"><b>Shot list:</b></div><ol style="margin:4px 0 0 18px;padding:0;font-size:12px;color:var(--ink2)">'+t.beats.map(b=>'<li>'+(b.title?'<b>'+escapeHtml(b.title)+'</b> — ':'')+escapeHtml(b.action)+(b.seconds?(' <span style="color:var(--muted)">~'+b.seconds+'s</span>'):'')+'</li>').join('')+'</ol>'; }
+  box.innerHTML=h;
+  const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:10px;flex-wrap:wrap';
+  const use=document.createElement('button'); use.className='btn sm'; use.style.cssText='flex:2;min-width:150px'; use.textContent='👍 Use this → break into beats';
+  use.onclick=()=>runPlan(treatmentToStory(t));
+  const tweak=document.createElement('button'); tweak.className='btn sm ghost'; tweak.style.cssText='flex:1;min-width:110px'; tweak.textContent='✍ Tweak / redo';
+  const tin=document.createElement('div'); tin.style.cssText='margin-top:8px;display:none';
+  tin.innerHTML='<input type="text" id="pitchNote" placeholder="e.g. make it funnier, start with her asleep, less motion"><button class="btn sm" id="pitchRedo" style="margin-top:6px;width:100%">Re-pitch with this note</button>';
+  tweak.onclick=()=>{ tin.style.display=tin.style.display==='none'?'block':'none'; };
+  row.appendChild(use); row.appendChild(tweak); box.appendChild(row); box.appendChild(tin);
+  host.appendChild(box);
+  const redo=$('pitchRedo'); if(redo) redo.onclick=()=>{ const v=($('pitchNote').value||'').trim(); doPitch(v); };
+}
+async function doPitch(note){
+  const p=curProj(); if(!p)return;
+  $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is pitching the ad…','run');
+  try{
+    const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      task:'treatment', story:(p.story||'').trim(), note:note||'',
+      scenes:p.scenes.map(s=>({ hint:s.hint||'' }))
+    })});
+    const data=await res.json();
+    if(data.error){ planMsg('✕ '+data.error,'err'); return; }
+    p.treatment=data; persist(); scheduleSave(); renderPitch(data);
+    planMsg('✓ Concept ready — approve it, tweak it, or skip to plan.','ok');
+  }catch(e){ planMsg('✕ '+e.message,'err'); }
+  finally{ $('pitchBtn').disabled=false; }
+}
+$('pitchBtn').onclick=()=>doPitch('');
 
 /* ===== scenes / generation ===== */
 function framesToGrid(n){ n=Math.max(2,Math.min(24,n||12)); let best=null;
