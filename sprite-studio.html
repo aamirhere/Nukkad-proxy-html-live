@@ -319,7 +319,7 @@ function projectMeta(p){
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
-        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed })) })) };
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0 })) })) };
 }
 async function saveCloud(p){
   if(!cloudOn||!p) return;
@@ -349,7 +349,7 @@ async function loadCloud(id){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null };
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0 };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
@@ -648,7 +648,7 @@ async function runPlan(storyText, treatment){
       sc.placement=ps.placement||'';
       sc.loop=ps.loop!==false;
       sc.approved=false;
-      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null }; });
+      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0 }; });
     });
     persist(); renderAll(); scheduleSave();
     planMsg('✓ Planned '+planned.length+' scenes. Review the prompts, then generate Scene 1.','ok');
@@ -878,7 +878,9 @@ function buildSceneCard(sc, idx){
       if(hasPrevBeat){ const ccb=document.createElement('label'); ccb.className='chip'; ccb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> with previous beats'; combineI=ccb.querySelector('input'); pctr.appendChild(ccb); }
       pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox);
       const baseFrames=()=> (combineI&&combineI.checked) ? beatsUpTo(sc, si) : sh.frames;
-      const curFrames=()=> rcbI.checked ? framesTimed(baseFrames()) : baseFrames();
+      // Real-time preview plays the beat WITH its hold pause (beatPlayed); combined preview
+      // plays each prior beat with its own hold so you feel the rhythm/pauses you'll export.
+      const curFrames=()=>{ if(!rcbI.checked) return baseFrames(); if(combineI&&combineI.checked){ const out=[]; for(let k=0;k<=si;k++){ const b=sc.sheets[k]; if(b&&b.frames&&b.frames.length) out.push(...beatPlayed(b)); } return out; } return beatPlayed(sh); };
       const pa=makeFramesAnimator(curFrames(), pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
       // Run the preview through the SAME export pipeline (size-lock / uniform) so it shows
       // exactly what you'll download — Gul stays one size here too. Async, so set a token to
@@ -887,6 +889,14 @@ function buildSceneCard(sc, idx){
       const rebuildPrev=async()=>{ const my=++prevTok; const fps=rcbI.checked?vfps():gfps(); const fr=await exportFrames(curFrames()); if(my!==prevTok) return; pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=fps; const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ if(my!==prevTok)return; pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
       rcbI.onchange=rebuildPrev; if(combineI) combineI.onchange=rebuildPrev;
       rebuildPrev();
+      // Hold / pause: freeze the first or last pose for N seconds so a moment can land
+      // (e.g. dwell on the awe after she tilts her head). This is timing, not new frames.
+      const hold=document.createElement('div'); hold.className='row'; hold.style.cssText='margin-top:6px;align-items:center;gap:8px;flex-wrap:wrap';
+      const mkHold=(lab,key)=>{ const w=document.createElement('label'); w.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px'; w.textContent=lab; const inp=document.createElement('input'); inp.type='text'; inp.inputMode='decimal'; inp.value=sh[key]||''; inp.placeholder='0'; inp.style.cssText='width:52px;padding:3px 6px'; inp.addEventListener('input',()=>{ sh[key]=parseFloat(inp.value)||0; }); inp.addEventListener('change',()=>{ persist(); scheduleSave(); rebuildPrev(); }); w.appendChild(inp); w.append('s'); return w; };
+      const hl=document.createElement('span'); hl.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; hl.textContent='⏸ Hold pause:';
+      hold.appendChild(hl); hold.appendChild(mkHold('start','holdStart')); hold.appendChild(mkHold('end','holdEnd'));
+      const hn=document.createElement('small'); hn.className='note'; hn.style.flexBasis='100%'; hn.textContent='Seconds to freeze the first / last pose — the pause that gives the moment depth (turn the real-time preview on to feel it).';
+      hold.appendChild(hn); sd.appendChild(hold);
       // Per-beat downloads: unique poses, the same poses held to video fps, or a GIF.
       const beatName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
       const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
@@ -1281,8 +1291,8 @@ function imgsForFrames(frames){ const cache={}; return frames.map(f=>{ if(!cache
 // whole-video previews show the same single-size Gul as the export, not the raw frames.
 function applyLockToAnimator(a, frames){ if(!frames||!frames.length) return; exportFrames(frames).then(fr=>{ if(!fr||!fr.length||!animators.includes(a)) return; a.imgs=imgsForFrames(fr); a.idx=a.idx%fr.length; const f0=a.imgs[0]; if(f0){ const setDim=()=>{ a.dim={w:f0.width||220,h:f0.height||220}; layout(a); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(a); }).catch(()=>{}); }
 function makeAnimator(sc, canvas, getComp){
-  const timed=!!(sc.timeline&&sc.timeline.length);
-  const frames= timed? timelineFrames(sc) : sceneFrames(sc);
+  const timed=!!(sc.timeline&&sc.timeline.length) || beatHasHold(sc) || !!sc.durationSec;
+  const frames= timed? sceneTimed(sc) : sceneFrames(sc);
   const a={ canvas, getComp, imgs:imgsForFrames(frames), idx:0, dim:{w:220,h:220}, bg:null, timer:null, fps: timed?vfps():gfps() };
   if(a.imgs[0]) a.imgs[0].onload=()=>{ a.dim={w:a.imgs[0].width||220,h:a.imgs[0].height||220}; layout(a); };
   if(sc.refImage){ const b=new Image(); b.onload=()=>{ if(a.getComp())layout(a); }; b.src=sc.refImage; a.bg=b; a.pin={x:.5,y:.78}; }
@@ -1353,7 +1363,7 @@ function timelineFrames(sc){
   return out.length?out:timedFrames(sc);
 }
 function timelineSeconds(sc){ return (sc.timeline||[]).reduce((s,seg)=>s+(parseFloat(seg.sec)||0),0); }
-function videoFrames(){ const p=curProj(); if(!p) return []; const out=[]; (p.scenes||[]).forEach(sc=>{ if(sceneGenerated(sc)) out.push(...timelineFrames(sc)); }); return out; }
+function videoFrames(){ const p=curProj(); if(!p) return []; const out=[]; (p.scenes||[]).forEach(sc=>{ if(sceneGenerated(sc)) out.push(...sceneTimed(sc)); }); return out; }
 // Read a PNG's pixel size straight from its IHDR header (no Image decode) — width/height are
 // big-endian uint32s at byte 16/20, i.e. the first ~24 bytes = first ~32 base64 chars.
 function pngSize(dataUrl){ try{ const b64=(dataUrl.split(',')[1]||'').slice(0,64); const bin=atob(b64); const rd=o=>((bin.charCodeAt(o)<<24)|(bin.charCodeAt(o+1)<<16)|(bin.charCodeAt(o+2)<<8)|bin.charCodeAt(o+3))>>>0; return {w:rd(16),h:rd(20)}; }catch(e){ return null; } }
@@ -1407,8 +1417,28 @@ async function dlFramesGif(frames, fileName, fps, btn){
 // Hold a list of unique poses to the video rate: each pose repeated vfps/gfps times, one
 // play-through — so it plays at real-time 24fps cadence instead of the pose rate.
 function framesTimed(frames){ if(!frames||!frames.length) return frames||[]; return fillFrames(frames, frames.length/gfps(), false); }
-// A beat held to video rate (one play-through).
-function beatTimed(sh){ return framesTimed(sh.frames||[]); }
+// A beat as it actually plays: optional hold on the FIRST pose, the motion once at video
+// rate, then a hold on the LAST pose — the holds are the natural pauses that let a moment
+// land (e.g. dwell on the awe after a head-tilt). holdStart/holdEnd are seconds.
+function beatHold(sh){ return { s:Math.max(0,parseFloat(sh&&sh.holdStart)||0), e:Math.max(0,parseFloat(sh&&sh.holdEnd)||0) }; }
+function beatPlayed(sh){
+  const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
+  const vf=vfps(), h=beatHold(sh); const out=[];
+  for(let i=0;i<Math.round(h.s*vf);i++) out.push(fr[0]);
+  out.push(...framesTimed(fr));
+  for(let i=0;i<Math.round(h.e*vf);i++) out.push(fr[fr.length-1]);
+  return out;
+}
+function beatHasHold(sc){ return (sc.sheets||[]).some(sh=>{ const h=beatHold(sh); return h.s>0||h.e>0; }); }
+// The scene as it plays in real time: a timeline if set; else each beat's motion + its holds
+// back to back (so the pauses give the sequence its natural rhythm); else the old duration fill.
+function sceneTimed(sc){
+  if(sc.timeline&&sc.timeline.length) return timelineFrames(sc);
+  if(beatHasHold(sc)){ const out=[]; (sc.sheets||[]).forEach(sh=>{ if(sh.frames&&sh.frames.length) out.push(...beatPlayed(sh)); }); if(out.length) return out; }
+  return timedFrames(sc);
+}
+// A beat held to video rate, including its hold pauses (one play-through).
+function beatTimed(sh){ return beatPlayed(sh); }
 // ===== In-browser upscaling (UpscalerJS / ESRGAN ×2, free, on-device) =====
 // Lazy-loaded on first use so the ~heavy model never costs a normal page load.
 let _upPromise=null;
@@ -1457,7 +1487,7 @@ async function dlBeatHD(sh, name, btn){
   finally{ btn.textContent=o; btn.disabled=false; }
 }
 async function downloadSceneZip(sc, idx, timed){
-  const p=curProj(); let frames= timed? timelineFrames(sc) : sceneFrames(sc);
+  const p=curProj(); let frames= timed? sceneTimed(sc) : sceneFrames(sc);
   if(!frames.length) return; frames=await exportFrames(frames);
   const tag = timed?'_timed':'';
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(sc.title||('scene'+(idx+1)))+'_'+pad3(i+1)+'.png')); return; }
@@ -1469,7 +1499,7 @@ const GIF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker
 // One-file animated GIF of a whole scene, composited on white (GIF has no soft alpha).
 async function downloadSceneGif(sc, idx, timed, btn){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — check your connection and refresh.'); return; }
-  let frames = timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length) return;
+  let frames = timed? sceneTimed(sc) : sceneFrames(sc); if(!frames.length) return;
   const fps= timed? vfps() : gfps(); const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
   frames=await exportFrames(frames);
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
@@ -1484,7 +1514,7 @@ async function downloadSceneGif(sc, idx, timed, btn){
 async function dlAllScenes(timed){
   const p=curProj(); if(typeof JSZip==='undefined'){ alert('Zip unavailable.'); return; }
   const zip=new JSZip(); let any=false;
-  for(let idx=0; idx<p.scenes.length; idx++){ const sc=p.scenes[idx]; let frames= timed? timelineFrames(sc) : sceneFrames(sc); if(!frames.length) continue; any=true; frames=await exportFrames(frames); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); }
+  for(let idx=0; idx<p.scenes.length; idx++){ const sc=p.scenes[idx]; let frames= timed? sceneTimed(sc) : sceneFrames(sc); if(!frames.length) continue; any=true; frames=await exportFrames(frames); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); }
   if(!any){ alert('Generate a scene first.'); return; }
   const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_all-scenes'+(timed?'_timed':'')+'.zip'; a.click(); URL.revokeObjectURL(a.href);
 }
