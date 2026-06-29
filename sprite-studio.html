@@ -692,10 +692,14 @@ function buildSceneCard(sc, idx){
     const man=document.createElement('div'); man.className='row'; man.style.marginTop='8px'; man.style.flexWrap='wrap';
     const mkBtn=t=>{ const b=document.createElement('button'); b.className='btn sm ghost'; b.style.flex='1'; b.style.minWidth='92px'; b.textContent=t; return b; };
     const cp=mkBtn('📋 Copy prompt'); cp.onclick=()=>copyText(buildManualPrompt(sc, idx, sh, si), cp);
-    const ci=mkBtn('🖼 Copy Gul'); ci.onclick=()=>copyImage(curMascot(), ci);
-    man.appendChild(cp); man.appendChild(ci);
+    // Smart reference: if this beat continues from an earlier one, hand over that beat's
+    // last frame (so Gul carries over seamlessly); otherwise the canonical Gul. Full res.
     const seedFrame=lastFrameBefore(idx, si);
-    if(seedFrame){ const cs=mkBtn('🌱 Copy seed'); cs.onclick=()=>copyImage(seedFrame, cs, 'seed-frame.png'); man.appendChild(cs); }
+    const ref=seedFrame||curMascot();
+    const ci=mkBtn(seedFrame?'🖼 Copy reference (continues)':'🖼 Copy Gul reference');
+    ci.title=seedFrame?'Copies the previous beat’s last frame so Gul continues seamlessly':'Copies the master flat Gul';
+    ci.onclick=()=>copyImage(ref, ci, seedFrame?'gul-continues.png':'gul-reference.png');
+    man.appendChild(cp); man.appendChild(ci);
     const up=mkBtn((sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload');
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
