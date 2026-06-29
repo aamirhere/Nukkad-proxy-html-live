@@ -781,9 +781,16 @@ function buildSceneCard(sc, idx){
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
       const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
-      const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb); pab.appendChild(pctr);
-      pbox.appendChild(pab); sd.appendChild(pbox);
-      const pa=makeFramesAnimator(sh.frames, pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
+      const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb);
+      // From beat 2 on, let the preview stitch in the earlier beats so you can watch
+      // beat 1 + this one play together even if later beats aren't generated yet.
+      const hasPrevBeat = si>0 && sc.sheets.slice(0,si).some(s=>s.frames&&s.frames.length);
+      let combineI=null;
+      if(hasPrevBeat){ const ccb=document.createElement('label'); ccb.className='chip'; ccb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> with previous beats'; combineI=ccb.querySelector('input'); pctr.appendChild(ccb); }
+      pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox);
+      const playFrames=()=> (combineI&&combineI.checked) ? beatsUpTo(sc, si) : sh.frames;
+      const pa=makeFramesAnimator(playFrames(), pcv, ()=>pcbI.checked, sc.refImage); pcbI.onchange=()=>layout(pa);
+      if(combineI) combineI.onchange=()=>{ const fr=playFrames(); pa.imgs=imgsForFrames(fr); pa.idx=0; const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
       // Per-beat downloads: unique poses, the same poses held to video fps, or a GIF.
       const beatName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
       const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
@@ -1233,6 +1240,9 @@ function timedFrames(sc){
   return fillFrames(frames, sec, sc.loop!==false);
 }
 function beatFrames(sc, bi){ const sh=(sc.sheets||[])[bi]; return (sh&&sh.frames)?sh.frames:[]; }
+// All generated beats from the start of the scene up to and including bi, stitched in order
+// — lets you preview beats 1+2 together before the rest of the scene is done.
+function beatsUpTo(sc, bi){ const out=[]; for(let k=0;k<=bi;k++){ const f=beatFrames(sc,k); if(f.length) out.push(...f); } return out; }
 // Compose a long shot by REPEATING short beat-loops over an exact timeline (no re-render):
 // each segment plays one beat for its seconds — looped (idle/talk) or stretched (one-shot).
 function timelineFrames(sc){
