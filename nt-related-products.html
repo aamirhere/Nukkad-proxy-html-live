@@ -318,7 +318,7 @@ function cardHTML(p) {
 
   return `
   <div class="product-card ${matched ? 'matched' : ''}" id="${cardId}">
-    <div class="card-row">
+    <div class="card-row" onclick="openStudio('${handle}')" style="cursor:pointer;">
       ${thumbHTML}
       <div class="card-body">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
@@ -333,7 +333,7 @@ function cardHTML(p) {
       <div class="card-actions">
         <button class="btn btn-ghost btn-sm" onclick="fetchOne('${handle}')" id="refetch-${handle}">↺ Re-fetch</button>
         ${pushBtn}
-        <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="openStudio('${handle}')">🎨</button>
+        <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="event.stopPropagation();openStudio('${handle}')">🎨</button>
       </div>
     </div>
     <div id="studio-${handle}" style="display:none;"></div>
@@ -561,10 +561,9 @@ async function pushOne(handle) {
 const AD_URL = PROXY_BASE + '/nt-ad-studio';
 const SCENES = ['desk','shelf','gifting','cozy_home','workspace','festive'];
 const SCENE_LABELS = {desk:'Desk',shelf:'Shelf',gifting:'Gifting',cozy_home:'Cozy Home',workspace:'Workspace',festive:'Festive'};
-let studioState = {}; // handle → { scene, prompt, images, taglines }
+let studioState = {}; // handle → { scene, images, taglines }
 
 function openStudio(handle) {
-  // close any other open studio
   document.querySelectorAll('[id^="studio-"]').forEach(el => {
     if (el.id !== 'studio-' + handle) { el.style.display = 'none'; el.innerHTML = ''; }
   });
@@ -572,28 +571,53 @@ function openStudio(handle) {
   if (!el) return;
   if (el.style.display === 'block') { el.style.display = 'none'; el.innerHTML = ''; return; }
 
-  const p = allProducts.find(x => (x.handle||x.h) === handle);
-  if (!p) return;
+  const allHandles = [handle, ...(matchedData[handle]?.related || [])];
+  allHandles.forEach(h => { if (!studioState[h]) studioState[h] = { scene: 'desk', images: [], taglines: [] }; });
 
-  if (!studioState[handle]) studioState[handle] = { scene: 'desk', images: [], taglines: [] };
-  const s = studioState[handle];
-  const tax = taxonomyData[handle] || {};
-  const img = p.shopifyImage || p.featuredImage || '';
-  const quote = p.tagline || p.tl || p.title || '';
-
-  el.innerHTML = studioHTML(handle, p.title||handle, img, quote, tax, s);
+  el.innerHTML = studioTabsHTML(handle);
   el.style.display = 'block';
 
-  // load images for this product + all its related products
-  const relatedHandles = (matchedData[handle]?.related || []);
-  [handle, ...relatedHandles].forEach(h => loadStudioImages(h));
+  allHandles.forEach(h => loadStudioImages(h));
 }
 
-function studioHTML(handle, title, img, quote, tax, s) {
-  const sceneChips = SCENES.map(sc =>
-    `<button onclick="setScene('${handle}','${sc}')" id="sc-${handle}-${sc}"
-      style="border:1.5px solid ${s.scene===sc?'var(--orange)':'var(--border)'};background:${s.scene===sc?'var(--orange)':'#fff'};color:${s.scene===sc?'#fff':'var(--brown)'};border-radius:20px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
+function studioTabsHTML(parentHandle) {
+  const allHandles = [parentHandle, ...(matchedData[parentHandle]?.related || [])];
+
+  const tabRow = allHandles.map((h, i) => {
+    const p = allProducts.find(x=>(x.handle||x.h)===h);
+    const img = p?.shopifyImage || p?.featuredImage || '';
+    const title = (p?.title || h).slice(0, 13);
+    const isMain = h === parentHandle;
+    const isActive = i === 0;
+    return `<button id="stab-${parentHandle}-${h}" onclick="switchStudioTab('${parentHandle}','${h}')"
+      style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 10px;border:none;background:none;cursor:pointer;border-bottom:2px solid ${isActive?'#7c3aed':'transparent'};color:${isActive?'#7c3aed':'var(--brown)'};font-weight:${isActive?700:400};font-size:10px;white-space:nowrap;flex-shrink:0;transition:.15s;">
+      ${img ? `<img src="${esc(img)}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;border:${isMain?'2px solid #7c3aed':'1px solid var(--border)'};">` : `<div style="width:32px;height:32px;border-radius:6px;background:#e9ddca;display:flex;align-items:center;justify-content:center;">🪵</div>`}
+      ${isMain?'★ ':''}${esc(title)}
+    </button>`;
+  }).join('');
+
+  const contentAreas = allHandles.map((h, i) =>
+    `<div id="stabcontent-${parentHandle}-${h}" style="display:${i===0?'block':'none'};">${tabContentHTML(parentHandle, h)}</div>`
   ).join('');
+
+  return `<div style="border-top:2px solid #7c3aed;background:#faf5ff;border-radius:0 0 12px 12px;" onclick="event.stopPropagation()">
+    <div style="display:flex;overflow-x:auto;border-bottom:1px solid var(--border);padding:0 8px;align-items:center;">
+      ${tabRow}
+      <div style="flex:1;min-width:8px;"></div>
+      <button class="btn btn-sm btn-gen-all" style="background:#7c3aed;color:#fff;flex-shrink:0;margin:6px 0;" onclick="generateForAll('${parentHandle}')">⚡ All</button>
+    </div>
+    ${contentAreas}
+  </div>`;
+}
+
+function tabContentHTML(parentHandle, handle) {
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  if (!p) return `<div style="padding:16px;font-size:12px;color:var(--muted);">Product data not loaded yet.</div>`;
+  const img = p.shopifyImage || p.featuredImage || '';
+  const quote = p.tagline || p.tl || p.title || '';
+  const tax = taxonomyData[handle] || {};
+  if (!studioState[handle]) studioState[handle] = { scene: 'desk', images: [], taglines: [] };
+  const s = studioState[handle];
 
   const taxChips = [
     ...(tax.professions||[]).map(n=>`<span style="background:#f0fdf4;border:1px solid #86efac;color:#15803d;border-radius:6px;padding:2px 7px;font-size:9px;font-family:monospace;">${n.replace('prof.','')}</span>`),
@@ -601,63 +625,151 @@ function studioHTML(handle, title, img, quote, tax, s) {
     ...(tax.occasions||[]).map(n=>`<span style="background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;border-radius:6px;padding:2px 7px;font-size:9px;font-family:monospace;">${n.replace('occ.','')}</span>`),
   ].join(' ');
 
+  const sceneChips = SCENES.map(sc =>
+    `<button onclick="setScene('${handle}','${sc}')" id="sc-${handle}-${sc}"
+      style="border:1.5px solid ${s.scene===sc?'#7c3aed':'var(--border)'};background:${s.scene===sc?'#7c3aed':'#fff'};color:${s.scene===sc?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
+  ).join('');
+
   const builtPrompt = buildStudioPrompt(quote, s.scene, tax);
 
-  const relatedHandles = (matchedData[handle]?.related || []);
-  const relatedSection = relatedHandles.length ? `
-    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Related Products — Ad Cluster (${relatedHandles.length})</div>
-        <button class="btn btn-sm btn-gen-all" style="background:#7c3aed;color:#fff;" onclick="generateForAll('${handle}')">⚡ Generate for All</button>
+  return `<div style="padding:12px;">
+    <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
+      ${img ? `<img src="${esc(img)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;">` : ''}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:var(--brown);">${esc(p.title||handle)}</div>
+        <div style="font-size:10px;color:var(--muted);font-style:italic;margin-top:2px;">"${esc(quote)}"</div>
+        <button onclick="toggleTax('${handle}')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--muted);padding:3px 0;margin-top:3px;">▶ Taxonomy</button>
+        <div id="stax-${handle}" style="display:none;flex-wrap:wrap;gap:3px;margin-top:3px;">${taxChips||'<span style="font-size:10px;color:var(--muted);">Not classified yet</span>'}</div>
       </div>
-      <div id="strelated-${handle}" style="display:flex;flex-direction:column;gap:8px;">
-        ${relatedHandles.map(rh => {
-          const rp = allProducts.find(x=>(x.handle||x.h)===rh);
-          const rimg = rp?.shopifyImage || rp?.featuredImage || '';
-          const rtitle = rp?.title || rh;
-          return `<div style="display:flex;align-items:flex-start;gap:8px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px;">
-            ${rimg?`<img src="${esc(rimg)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:``}
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:11px;font-weight:700;color:var(--brown);margin-bottom:4px;">${esc(rtitle)}</div>
-              <div id="stimages-${rh}" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-              <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="generateStudioImage('${rh}','${handle}')">✨</button>
-              <label style="cursor:pointer;font-size:9px;padding:3px 6px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);text-align:center;font-weight:600;">
-                📁<input type="file" accept="image/*" style="display:none;" onchange="uploadStudioImage('${rh}',this)">
-              </label>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : '';
-
-  return `<div style="border-top:2px solid #7c3aed;background:#faf5ff;border-radius:0 0 12px 12px;padding:14px;">
-  <div style="display:flex;gap:14px;flex-wrap:wrap;">
-    <div style="flex:0 0 150px;">
-      ${img ? `<img src="${esc(img)}" style="width:150px;height:150px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">` : ''}
-      <div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic;">"${esc(quote)}"</div>
-      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:6px;">${taxChips}</div>
     </div>
-    <div style="flex:1;min-width:200px;">
-      <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Scene</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
-      <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;">Prompt</div>
-      <textarea id="stprompt-${handle}" style="width:100%;height:70px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;font-family:'DM Sans',sans-serif;resize:vertical;">${esc(builtPrompt)}</textarea>
-      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-primary btn-sm" onclick="generateStudioImage('${handle}')">✨ Generate Image</button>
-        <button class="btn btn-ghost btn-sm" onclick="getStudioTaglines('${handle}')">💡 Taglines</button>
-        <button class="btn btn-ghost btn-sm" onclick="copyStudioPrompt('${handle}')" title="Copy full prompt to paste in Gemini">📋 Copy Prompt</button>
-        <label style="cursor:pointer;font-size:11px;padding:4px 10px;background:#fff;border:1.5px solid var(--border);border-radius:6px;color:var(--brown);font-weight:600;">
-          📁 Upload Image<input type="file" accept="image/*" style="display:none;" onchange="uploadStudioImage('${handle}',this)">
+    <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;">Scene</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;flex:1;">Prompt</div>
+      <button onclick="regenPrompt('${handle}')" style="font-size:9px;padding:2px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">🔄 Regen</button>
+      <button onclick="copyStudioPrompt('${handle}')" style="font-size:9px;padding:2px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">📋 Copy</button>
+    </div>
+    <textarea id="stprompt-${handle}" style="width:100%;height:65px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;resize:vertical;box-sizing:border-box;">${esc(builtPrompt)}</textarea>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary btn-sm" onclick="generateStudioImage('${handle}')">✨ Generate via API</button>
+      <label style="cursor:pointer;font-size:11px;padding:4px 10px;background:#fff;border:1.5px solid var(--border);border-radius:6px;color:var(--brown);font-weight:600;">
+        📁 Upload<input type="file" accept="image/*" style="display:none;" onchange="uploadStudioImage('${handle}',this)">
+      </label>
+    </div>
+    <div id="sttaglines-${handle}" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;"></div>
+    <div style="margin-top:12px;border:1.5px solid #c4b5fd;border-radius:10px;background:#f5f3ff;padding:10px;">
+      <div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:6px;">🐦 Tell Gul what you want</div>
+      <textarea id="stbrief-${handle}" placeholder="e.g. Morning café, woman reading, warm light, croissant on table, product as the hero on the table in front of her…" style="width:100%;height:52px;border:1px solid #c4b5fd;border-radius:7px;padding:7px;font-size:11px;resize:vertical;box-sizing:border-box;background:#fff;"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap;">
+        <label style="cursor:pointer;font-size:10px;padding:3px 8px;background:#fff;border:1px solid #c4b5fd;border-radius:5px;color:#7c3aed;font-weight:600;">
+          📸 Reference<input type="file" accept="image/*" id="stref-${handle}" style="display:none;" onchange="previewRef('${handle}',this)">
         </label>
+        <img id="strefpreview-${handle}" style="width:28px;height:28px;object-fit:cover;border-radius:4px;display:none;border:1px solid #c4b5fd;">
+        <button onclick="writeGulPrompt('${handle}')" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;">✍ Write Prompt</button>
+        <button onclick="getStudioTaglines('${handle}')" style="background:#fff;border:1px solid #c4b5fd;border-radius:6px;padding:4px 10px;font-size:10px;color:#7c3aed;cursor:pointer;">💡 Taglines</button>
       </div>
-      <div id="sttaglines-${handle}" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;"></div>
+      <div id="stgulresp-${handle}" style="margin-top:6px;font-size:10px;color:#5b21b6;display:none;padding:6px 8px;background:#ede9fe;border-radius:6px;"></div>
     </div>
-  </div>
-  <div id="stimages-${handle}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
-  ${relatedSection}
-</div>`;
+    <div id="stimages-${handle}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
+  </div>`;
+}
+
+function switchStudioTab(parentHandle, tabHandle) {
+  document.querySelectorAll(`[id^="stab-${parentHandle}-"]`).forEach(t => {
+    const active = t.id === `stab-${parentHandle}-${tabHandle}`;
+    t.style.borderBottom = active ? '2px solid #7c3aed' : '2px solid transparent';
+    t.style.color = active ? '#7c3aed' : 'var(--brown)';
+    t.style.fontWeight = active ? '700' : '400';
+  });
+  document.querySelectorAll(`[id^="stabcontent-${parentHandle}-"]`).forEach(c => c.style.display = 'none');
+  const active = document.getElementById(`stabcontent-${parentHandle}-${tabHandle}`);
+  if (active) active.style.display = 'block';
+  if (!studioState[parentHandle]) studioState[parentHandle] = {};
+  studioState[parentHandle].activeTab = tabHandle;
+}
+
+function toggleTax(handle) {
+  const el = document.getElementById('stax-' + handle);
+  if (!el) return;
+  const open = el.style.display !== 'none' && el.style.display !== '';
+  el.style.display = open ? 'none' : 'flex';
+  const btn = el.previousElementSibling;
+  if (btn) btn.textContent = (open ? '▶' : '▼') + ' Taxonomy';
+}
+
+function regenPrompt(handle) {
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  if (!p) return;
+  const quote = p.tagline || p.tl || p.title || '';
+  const scene = (studioState[handle]||{}).scene || 'desk';
+  const tax = taxonomyData[handle] || {};
+  const el = document.getElementById('stprompt-' + handle);
+  if (!el) return;
+  // build a variation with different angle
+  const variations = [
+    `Product lifestyle ad photography. A handmade wooden piece with the quote '${quote}' sits as the clear hero. ${buildStudioPrompt(quote, scene, tax)} Shot from a slightly lower angle, emphasising the product's texture and depth.`,
+    `Indian gifting brand ad. The wooden quote piece '${quote}' — sharp, realistic, engraved text clearly visible — is the first thing the eye finds. ${buildStudioPrompt(quote, scene, tax)} Golden hour light. Bokeh background.`,
+    buildStudioPrompt(quote, scene, tax) + ` Shallow depth of field. Close crop on product. Colour palette: warm terracottas and creams.`,
+  ];
+  const current = el.value;
+  const pick = variations.find(v => v !== current) || variations[0];
+  el.value = pick;
+  toast('✓ Prompt variation loaded');
+}
+
+function previewRef(handle, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const preview = document.getElementById('strefpreview-' + handle);
+  if (!preview) return;
+  const reader = new FileReader();
+  reader.onload = e => { preview.src = e.target.result; preview.style.display = 'inline-block'; };
+  reader.readAsDataURL(file);
+}
+
+async function writeGulPrompt(handle) {
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  if (!p) return;
+  const brief = document.getElementById('stbrief-' + handle)?.value || '';
+  const refInput = document.getElementById('stref-' + handle);
+  const respEl = document.getElementById('stgulresp-' + handle);
+  const btn = document.querySelector(`#stabcontent-${handle} button[onclick*="writeGulPrompt"]`) ||
+              document.querySelector(`[onclick="writeGulPrompt('${handle}')"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '✍ Writing…'; }
+  if (respEl) { respEl.style.display = 'block'; respEl.textContent = 'Gul is thinking…'; }
+
+  let ref_image_b64 = null;
+  if (refInput?.files?.[0]) {
+    ref_image_b64 = await new Promise(res => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result);
+      r.readAsDataURL(refInput.files[0]);
+    });
+  }
+
+  try {
+    const res = await api(AD_URL, {
+      action: 'write_prompt',
+      handle,
+      product_title: p.title || handle,
+      quote: p.tagline || p.tl || p.title || '',
+      taxonomy: taxonomyData[handle] || {},
+      user_brief: brief,
+      ref_image_b64,
+    });
+    if (res.ok && res.prompt) {
+      const ta = document.getElementById('stprompt-' + handle);
+      if (ta) ta.value = res.prompt;
+      if (respEl) { respEl.textContent = '✓ Prompt written! You can edit it above, then Copy or Generate.'; }
+      toast('✓ Gul wrote your prompt');
+    } else {
+      if (respEl) respEl.textContent = res.error || 'Error';
+    }
+  } catch(e) {
+    if (respEl) respEl.textContent = 'Error: ' + e.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✍ Write Prompt'; }
+  }
 }
 
 function buildStudioPrompt(quote, scene, tax) {
@@ -868,7 +980,7 @@ async function generateStudioImage(handle) {
   const prompt = document.getElementById('stprompt-'+handle)?.value || '';
   const scene  = (studioState[handle]||{}).scene||'desk';
   const tax    = taxonomyData[handle]||{};
-  const btn    = document.querySelector(`#studio-${handle} .btn-primary`);
+  const btn    = document.querySelector(`[onclick="generateStudioImage('${handle}')"]`);
   if (btn) { btn.disabled=true; btn.innerHTML='<span class="spinner-mini"></span> Generating…'; }
   const imgEl  = document.getElementById('stimages-'+handle);
   if (imgEl) imgEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">Generating… ~15s</div>';
