@@ -204,6 +204,7 @@ body.noscroll{overflow:hidden}
         <label class="chip" style="margin-top:10px;display:flex"><input type="checkbox" id="setBgRemove" checked style="margin:0 7px 0 0"> Remove background on upload (white → transparent)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setUniform" checked style="margin:0 7px 0 0"> Uniform export size (every exported frame, all scenes, same canvas)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setSizeLock" checked style="margin:0 7px 0 0"> Lock Gul to one size (scale every frame so she never grows/shrinks)</label>
+        <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setIdle" checked style="margin:0 7px 0 0"> Living idle (gentle breath during holds, so pauses feel alive)</label>
         <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
       </div>
     </details>
@@ -293,8 +294,8 @@ function persist(){ clearTimeout(_persistTimer); _persistTimer=setTimeout(async(
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true}, scenes:[] }; }
-function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true}; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true}, scenes:[] }; }
+function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true}; }
 function gfps(){ return parseInt(settings().fps,10)||8; }   // Gul pose-change rate
 function vfps(){ return parseInt(settings().vfps,10)||24; } // video / timeline rate (export)
 
@@ -305,7 +306,7 @@ const synced=new Set();
 // Signature per framesKey so we only re-upload a beat's sliced frames when they change.
 const frameSigs={};
 function framesSig(fr){ return (fr||[]).length+':'+(fr||[]).reduce((a,f)=>a+f.length,0); }
-function defaults(){ return {framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true}; }
+function defaults(){ return {framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
 async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
@@ -412,10 +413,10 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; updateFpsNote(); }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked }; persist(); scheduleSave(); updateFpsNote(); }
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; updateFpsNote(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked }; persist(); scheduleSave(); updateFpsNote(); }
 function updateFpsNote(){ const el=$('fpsNote'); if(!el)return; const v=vfps(), g=gfps(); if(v%g===0){ el.style.color='var(--muted)'; el.textContent='✓ Each Gul pose holds '+(v/g)+' video frame'+(v/g===1?'':'s')+' — exports clean at '+v+'fps.'; } else { el.style.color='var(--accent)'; el.textContent='⚠ '+v+'fps ÷ '+g+'fps isn’t whole — holds will be uneven (slightly jerky). Pick a Gul fps that divides '+v+' (e.g. '+[2,3,4,5,6,8,10,12,15].filter(x=>v%x===0).join(', ')+').'; } }
-['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock'].forEach(id=>$(id).addEventListener('change', saveSettings));
+['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle'].forEach(id=>$(id).addEventListener('change', saveSettings));
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -1388,9 +1389,36 @@ async function projectBirdArea(){ const p=curProj(); const all=[]; (p&&p.scenes|
 // Scale each frame by sqrt(targetCore/core) so Gul's BODY is one size, and pin her body-core
 // CENTROID to the centre of a shared canvas so the body stays put while wings move.
 async function normalizeScale(frames, targetCore){ if(!targetCore) return frames; const boxes=await Promise.all(frames.map(measureBox)); const info=boxes.map(b=> b?{b,s:Math.max(.2,Math.min(5,Math.sqrt(targetCore/Math.max(1,b.core))))}:null); let hl=0,hr=0,ht=0,hb=0; info.forEach(o=>{ if(!o)return; const {b,s}=o; hl=Math.max(hl,(b.ccx-b.x0)*s); hr=Math.max(hr,(b.x0+b.bw-1-b.ccx)*s); ht=Math.max(ht,(b.ccy-b.y0)*s); hb=Math.max(hb,(b.y0+b.bh-1-b.ccy)*s); }); const pad=Math.round(Math.sqrt(targetCore)*0.25)||8; const halfW=Math.ceil(Math.max(hl,hr))+pad, halfH=Math.ceil(Math.max(ht,hb))+pad; const W=halfW*2, H=halfH*2; return info.map((o,i)=>{ if(!o) return frames[i]; const {b,s}=o; const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.drawImage(b.im, 0,0,b.w,b.h, halfW-b.ccx*s, halfH-b.ccy*s, b.w*s, b.h*s); return c.toDataURL('image/png'); }); }
-// Export-time normalisation: lock Gul to one size (already produces a uniform canvas), else
-// just pad to a uniform canvas. Both off → frames untouched.
-async function exportFrames(frames){ const s=settings(); if(!(frames&&frames.length)) return frames||[]; if(s.sizeLock!==false){ const a=await projectBirdArea(); if(a) return await normalizeScale(frames, a); } if(s.uniform===false) return frames; const {W,H}=projectMaxSize(); return padFrames(frames, W, H); }
+// Living idle: a hold is a RUN of identical frames; instead of a dead freeze, bake a gentle
+// breath (tiny eased scale + vertical settle) onto that one pose so she feels alive while
+// staying still. Reuses the single drawn pose — no new art. Motion (short 2-3 frame runs)
+// is left untouched; only true holds (≥ MIN) breathe.
+const _breathCache=new Map();
+async function breathRun(url, len){
+  const key=url+'|'+len+'|'+vfps(); if(_breathCache.has(key)) return _breathCache.get(key);
+  const im=await loadImg(url).catch(()=>null); if(!im){ return Array(len).fill(url); }
+  const W=im.naturalWidth||im.width, H=im.naturalHeight||im.height;
+  const period=Math.max(len, Math.round(vfps()*2.8)), ampS=0.016, ampY=0.012, res=[];
+  for(let k=0;k<len;k++){ const ph=Math.sin(2*Math.PI*k/period); const s=1+ampS*ph, dy=-H*ampY*ph;
+    const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
+    const dw=W*s, dh=H*s; ctx.drawImage(im, (W-dw)/2, (H-dh)/2+dy, dw, dh); res.push(c.toDataURL('image/png')); }
+  _breathCache.set(key,res); return res;
+}
+async function breatheHolds(frames){
+  if(!frames||frames.length<4) return frames; const MIN=4; const out=frames.slice();
+  let i=0; while(i<out.length){ let j=i; while(j+1<out.length && out[j+1]===out[i]) j++; const len=j-i+1;
+    if(len>=MIN){ const br=await breathRun(out[i], len); for(let k=0;k<len;k++) out[i+k]=br[k]; } i=j+1; }
+  return out;
+}
+// Export-time pipeline: size-lock (or uniform pad), then breathe the holds so still moments
+// feel alive. Each step honours its setting toggle.
+async function exportFrames(frames){
+  const s=settings(); if(!(frames&&frames.length)) return frames||[];
+  if(s.sizeLock!==false){ const a=await projectBirdArea(); if(a) frames=await normalizeScale(frames, a); }
+  else if(s.uniform!==false){ const {W,H}=projectMaxSize(); frames=await padFrames(frames, W, H); }
+  if(s.idle!==false) frames=await breatheHolds(frames);
+  return frames;
+}
 // Generic: zip any frame list (numbered PNGs) and download under fileName.
 // raw=true skips uniform-padding (used for already-upscaled HD frames).
 async function dlFramesZip(frames, fileName, folderName, raw){
