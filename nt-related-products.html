@@ -631,6 +631,14 @@ function tabContentHTML(parentHandle, handle) {
       style="border:1.5px solid ${s.scene===sc?'#7c3aed':'var(--border)'};background:${s.scene===sc?'#7c3aed':'#fff'};color:${s.scene===sc?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
   ).join('');
 
+  const customChips = (s.customScenes||[]).map((cs, i) =>
+    `<button onclick="selectCustomScene('${handle}',${i})" id="csc-${handle}-${i}"
+      title="${esc(cs.prompt)}"
+      style="border:1.5px solid ${s.activeCustomScene===i?'#d4541f':'var(--border)'};background:${s.activeCustomScene===i?'#d4541f':'#fff'};color:${s.activeCustomScene===i?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+      ${esc(cs.label)}
+    </button>`
+  ).join('');
+
   const builtPrompt = buildStudioPrompt(engrave, s.scene, tax);
 
   return `<div style="padding:12px;">
@@ -647,7 +655,22 @@ function tabContentHTML(parentHandle, handle) {
       </div>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;">Scene</div>
-    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
+    <div id="scenechips-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">${sceneChips}${customChips}
+      <button onclick="toggleAddScene('${handle}')" id="addscene-toggle-${handle}" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add</button>
+    </div>
+    <div id="addscene-form-${handle}" style="display:none;background:#fafafa;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Describe the vibe or scene — Claude will write the prompt and save it as a pill.</div>
+      <input id="addscene-desc-${handle}" placeholder="e.g. cozy café corner, minimal Scandinavian desk, golden hour balcony…"
+        style="width:100%;box-sizing:border-box;font-size:11px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;outline:none;font-family:var(--fb);color:var(--ink);margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label style="font-size:10px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;">
+          <input type="file" accept="image/*" id="addscene-img-${handle}" style="display:none;" onchange="previewSceneRef('${handle}',this)">
+          📎 <span id="addscene-img-label-${handle}">Reference image (optional)</span>
+        </label>
+        <button onclick="createCustomScene('${handle}')" id="addscene-btn-${handle}"
+          style="margin-left:auto;font-size:10px;padding:5px 14px;background:var(--ink);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Create pill</button>
+      </div>
+    </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Person</div>
       <button onclick="loadPersonalities('${handle}')" style="font-size:9px;padding:2px 7px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">✦ Suggest</button>
@@ -923,6 +946,107 @@ async function writeGulPrompt(handle) {
   }
 }
 
+function toggleAddScene(handle) {
+  const form = document.getElementById('addscene-form-' + handle);
+  if (!form) return;
+  const open = form.style.display === 'none';
+  form.style.display = open ? 'block' : 'none';
+  if (open) document.getElementById('addscene-desc-' + handle)?.focus();
+}
+
+function previewSceneRef(handle, input) {
+  const label = document.getElementById('addscene-img-label-' + handle);
+  if (label && input.files[0]) label.textContent = input.files[0].name;
+}
+
+async function createCustomScene(handle) {
+  const desc = document.getElementById('addscene-desc-' + handle)?.value?.trim();
+  if (!desc) { toast('Describe the scene first'); return; }
+  const btn = document.getElementById('addscene-btn-' + handle);
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  const quote = p?.title || p?.t || p?.tagline || '';
+  const tax = taxonomyData[handle] || {};
+
+  let ref_image_b64 = null;
+  const imgInput = document.getElementById('addscene-img-' + handle);
+  if (imgInput?.files[0]) {
+    ref_image_b64 = await new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.readAsDataURL(imgInput.files[0]);
+    });
+  }
+
+  try {
+    const res = await api(AD_URL, {
+      action: 'write_prompt',
+      quote, product_title: p?.title || '',
+      taxonomy: tax,
+      user_brief: desc,
+      ref_image_b64
+    });
+    if (!res.ok || !res.prompt) throw new Error(res.error || 'No prompt returned');
+
+    if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
+    if (!studioState[handle].customScenes) studioState[handle].customScenes = [];
+
+    const label = desc.length > 20 ? desc.slice(0,18) + '…' : desc;
+    studioState[handle].customScenes.push({ label, prompt: res.prompt });
+    const idx = studioState[handle].customScenes.length - 1;
+
+    // close form, clear inputs
+    document.getElementById('addscene-form-' + handle).style.display = 'none';
+    document.getElementById('addscene-desc-' + handle).value = '';
+    if (imgInput) { imgInput.value = ''; }
+    const imgLabel = document.getElementById('addscene-img-label-' + handle);
+    if (imgLabel) imgLabel.textContent = 'Reference image (optional)';
+
+    // re-render chips and auto-select the new one
+    rebuildSceneChips(handle);
+    selectCustomScene(handle, idx);
+    toast('✓ Scene pill created');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Create pill'; }
+  }
+}
+
+function rebuildSceneChips(handle) {
+  const container = document.getElementById('scenechips-' + handle);
+  if (!container) return;
+  const s = studioState[handle] || {};
+  const SCENE_LABELS = { desk:'Desk', shelf:'Shelf', gifting:'Gifting', cozy_home:'Cozy Home', workspace:'Workspace', festive:'Festive' };
+  const SCENES = Object.keys(SCENE_LABELS);
+  const presets = SCENES.map(sc =>
+    `<button onclick="setScene('${handle}','${sc}')" id="sc-${handle}-${sc}"
+      style="border:1.5px solid ${s.scene===sc && s.activeCustomScene==null?'#7c3aed':'var(--border)'};background:${s.scene===sc && s.activeCustomScene==null?'#7c3aed':'#fff'};color:${s.scene===sc && s.activeCustomScene==null?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
+  ).join('');
+  const customs = (s.customScenes||[]).map((cs, i) =>
+    `<button onclick="selectCustomScene('${handle}',${i})" id="csc-${handle}-${i}"
+      title="${esc(cs.prompt)}"
+      style="border:1.5px solid ${s.activeCustomScene===i?'#d4541f':'var(--border)'};background:${s.activeCustomScene===i?'#d4541f':'#fff'};color:${s.activeCustomScene===i?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+      ${esc(cs.label)}
+    </button>`
+  ).join('');
+  container.innerHTML = presets + customs +
+    `<button onclick="toggleAddScene('${handle}')" id="addscene-toggle-${handle}" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add</button>`;
+}
+
+function selectCustomScene(handle, idx) {
+  if (!studioState[handle]) return;
+  studioState[handle].activeCustomScene = idx;
+  studioState[handle].scene = null;
+  rebuildSceneChips(handle);
+  const cs = studioState[handle].customScenes?.[idx];
+  if (!cs) return;
+  const ta = document.getElementById('stprompt-' + handle);
+  if (ta) ta.value = cs.prompt;
+  toast('✓ ' + cs.label);
+}
+
 function buildStudioPrompt(quote, scene, tax) {
   const sceneMap = {
     desk:      'on a clean modern wooden desk',
@@ -957,14 +1081,8 @@ function buildStudioPrompt(quote, scene, tax) {
 function setScene(handle, scene) {
   if (!studioState[handle]) studioState[handle] = { scene, images:[], taglines:[] };
   studioState[handle].scene = scene;
-  SCENES.forEach(sc => {
-    const btn = document.getElementById(`sc-${handle}-${sc}`);
-    if (!btn) return;
-    const active = sc === scene;
-    btn.style.borderColor = active ? 'var(--orange)' : 'var(--border)';
-    btn.style.background  = active ? 'var(--orange)' : '#fff';
-    btn.style.color       = active ? '#fff' : 'var(--brown)';
-  });
+  studioState[handle].activeCustomScene = null;
+  rebuildSceneChips(handle);
   const ta = document.getElementById('stprompt-' + handle);
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   if (ta && p) {
