@@ -229,6 +229,7 @@ const SPRITE_URL = FN_BASE + '/nt-sprite';
 const START_URL = FN_BASE + '/nt-sprite-start';
 const RESULT_URL = FN_BASE + '/nt-sprite-result';
 const DIRECTOR_URL = FN_BASE + '/nt-sprite-director';
+const ANALYZE_URL = FN_BASE + '/nt-sprite-analyze';
 const LS_KEY = 'nt_sprite_studio_v3';
 const ALPHA_THRESHOLD = 12;
 
@@ -608,7 +609,13 @@ function buildSceneCard(sc, idx){
       cIn.addEventListener('input',upd); rIn.addEventListener('input',upd);
       const apply=document.createElement('button'); apply.className='btn sm'; apply.style.marginTop='8px'; apply.style.width='100%'; apply.textContent='Re-slice with this grid';
       apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); };
-      gbody.appendChild(apply); gd.appendChild(gbody); sd.appendChild(gd);
+      gbody.appendChild(apply);
+      const det2=document.createElement('button'); det2.className='btn sm ghost'; det2.style.marginTop='6px'; det2.style.width='100%'; det2.textContent='🔎 Auto-detect frames (ignore grid)';
+      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.length){ sh.frames=out; sh.detected=true; sh.target=out.length; persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
+      gbody.appendChild(det2);
+      const dn=document.createElement('small'); dn.className='note'; dn.textContent='Auto-detect finds each Gul as a separate shape — use it when ChatGPT laid the frames out unevenly (different sizes, arrows, no clean grid).';
+      gbody.appendChild(dn);
+      gd.appendChild(gbody); sd.appendChild(gd);
     }
 
     if(sh.frames&&sh.frames.length){
@@ -626,6 +633,10 @@ function buildSceneCard(sc, idx){
       sd.appendChild(strip);
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. (Re-slicing or changing crop rebuilds from the sheet and resets these edits.)';
       sd.appendChild(fn);
+      const an=document.createElement('button'); an.className='btn sm ghost'; an.style.marginTop='8px'; an.style.width='100%'; an.textContent='🔍 Analyse frames with Claude';
+      const apanel=document.createElement('div'); apanel.style.marginTop='8px';
+      an.onclick=()=>runAnalyze(sh, an, apanel);
+      sd.appendChild(an); sd.appendChild(apanel);
     }
     card.appendChild(sd);
   });
@@ -768,6 +779,90 @@ function removeBg(dataUrl, tol){
     };
     im.onerror=()=>resolve(dataUrl); im.src=dataUrl;
   });
+}
+// Content-aware frame detection: find each Gul as a connected blob (ignores stray arrows /
+// specks, handles uneven layouts ChatGPT produces), sort into reading order, centre each on
+// a uniform canvas. Needs a transparent sheet (run Cutout first if it has a background).
+function detectFrames(dataUrl){
+  return new Promise(resolve=>{
+    const im=new Image();
+    im.onload=()=>{
+      const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height; if(!w||!h) return resolve([]);
+      const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0);
+      const data=ctx.getImageData(0,0,w,h).data, N=w*h;
+      const lab=new Int32Array(N).fill(-1); const comps=[]; const stack=[];
+      for(let p=0;p<N;p++){
+        if(lab[p]!==-1) continue;
+        if(data[p*4+3]<=ALPHA_THRESHOLD){ lab[p]=-2; continue; }
+        const id=comps.length; lab[p]=id; stack.length=0; stack.push(p);
+        let minx=w,miny=h,maxx=0,maxy=0,area=0;
+        while(stack.length){ const q=stack.pop(); const x=q%w, y=(q-x)/w; area++;
+          if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y;
+          for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ if(!dx&&!dy)continue; const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue; const np=ny*w+nx; if(lab[np]!==-1)continue; if(data[np*4+3]<=ALPHA_THRESHOLD){ lab[np]=-2; continue; } lab[np]=id; stack.push(np); } }
+        comps.push({minx,miny,maxx,maxy,area});
+      }
+      if(!comps.length) return resolve([]);
+      const maxArea=Math.max(...comps.map(c=>c.area));
+      const birds=comps.filter(c=>c.area>=maxArea*0.15);
+      const smalls=comps.filter(c=>c.area<maxArea*0.15);
+      const gap=(b,s)=>{ const dx=Math.max(0,Math.max(b.minx-s.maxx,s.minx-b.maxx)), dy=Math.max(0,Math.max(b.miny-s.maxy,s.miny-b.maxy)); return Math.hypot(dx,dy); };
+      const thr=0.05*w;
+      smalls.forEach(s=>{ let best=null,bd=1e9; birds.forEach(b=>{ const g=gap(b,s); if(g<bd){bd=g;best=b;} }); if(best&&bd<thr){ best.minx=Math.min(best.minx,s.minx); best.miny=Math.min(best.miny,s.miny); best.maxx=Math.max(best.maxx,s.maxx); best.maxy=Math.max(best.maxy,s.maxy); } });
+      const heights=birds.map(b=>b.maxy-b.miny).sort((a,b)=>a-b); const medH=heights[Math.floor(heights.length/2)]||1;
+      birds.forEach(b=>b.cy=(b.miny+b.maxy)/2);
+      const rows=[]; birds.slice().sort((a,b)=>a.cy-b.cy).forEach(b=>{ let row=rows.find(r=>Math.abs(r.cy-b.cy)<medH*0.6); if(!row){ row={cy:b.cy,items:[]}; rows.push(row); } row.items.push(b); row.cy=(row.cy*(row.items.length-1)+b.cy)/row.items.length; });
+      rows.sort((a,b)=>a.cy-b.cy); rows.forEach(r=>r.items.sort((a,b)=>a.minx-b.minx));
+      const ordered=[]; rows.forEach(r=>r.items.forEach(b=>ordered.push(b)));
+      const pad=8; let mw=0,mh=0; const boxes=ordered.map(b=>{ const x0=Math.max(0,b.minx-pad),y0=Math.max(0,b.miny-pad),x1=Math.min(w-1,b.maxx+pad),y1=Math.min(h-1,b.maxy+pad); const bw=x1-x0+1,bh=y1-y0+1; if(bw>mw)mw=bw; if(bh>mh)mh=bh; return {x0,y0,bw,bh}; });
+      const out=boxes.map(bx=>{ const tc=document.createElement('canvas'); tc.width=mw; tc.height=mh; tc.getContext('2d').drawImage(c, bx.x0,bx.y0,bx.bw,bx.bh, Math.round((mw-bx.bw)/2),Math.round((mh-bx.bh)/2), bx.bw,bx.bh); return tc.toDataURL('image/png'); });
+      resolve(out);
+    };
+    im.onerror=()=>resolve([]); im.src=dataUrl;
+  });
+}
+// Build a numbered contact-sheet of the frames (one image) to send to Claude for review.
+function buildMontage(frames){
+  return new Promise(resolve=>{
+    if(!frames.length) return resolve(null);
+    const cols=Math.min(6, frames.length), rows=Math.ceil(frames.length/cols);
+    const cell=200, lab=22, W=cols*cell, H=rows*(cell+lab);
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+    let loaded=0;
+    frames.forEach((f,i)=>{ const im=new Image(); im.onload=im.onerror=()=>{
+      const cx=(i%cols)*cell, cy=Math.floor(i/cols)*(cell+lab);
+      if(im.width){ const s=Math.min((cell-16)/im.width,(cell-16)/im.height,1); const dw=im.width*s, dh=im.height*s; ctx.drawImage(im, cx+(cell-dw)/2, cy+lab+(cell-lab-dh)/2, dw, dh); }
+      ctx.fillStyle='#d4541f'; ctx.font='bold 16px sans-serif'; ctx.textAlign='center'; ctx.fillText('#'+(i+1), cx+cell/2, cy+16);
+      ctx.strokeStyle='#eee'; ctx.strokeRect(cx,cy,cell,cell+lab);
+      if(++loaded===frames.length) resolve(cv.toDataURL('image/png'));
+    }; im.src=f; });
+  });
+}
+async function runAnalyze(sh, btn, panel){
+  if(!sh.frames||!sh.frames.length) return;
+  const o=btn.textContent; btn.textContent='… analysing'; btn.disabled=true; panel.innerHTML='';
+  try{
+    const montage=await buildMontage(sh.frames);
+    const r=await fetch(ANALYZE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image:montage, count:sh.frames.length, action:sh.action||'' })});
+    const d=await r.json();
+    if(d.error){ panel.innerHTML='<small class="note" style="color:var(--err)">✕ '+escapeHtml(d.error)+'</small>'; return; }
+    const inRange=n=>n>=1&&n<=sh.frames.length;
+    const bad=(d.bad||[]).filter(inRange), dups=(d.duplicates||[]).filter(inRange), gaps=(d.gaps||[]);
+    let html='';
+    if(d.notes) html+='<div style="font-size:12px;color:var(--ink2);margin-bottom:6px">'+escapeHtml(d.notes)+'</div>';
+    if(bad.length) html+='<div style="font-size:12px;color:var(--err)"><b>Awkward:</b> #'+bad.join(', #')+'</div>';
+    if(dups.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Near-duplicates:</b> #'+dups.join(', #')+'</div>';
+    if(gaps.length) html+='<div style="font-size:12px;color:var(--ink2)"><b>Missing in-betweens:</b> '+gaps.map(g=>'after #'+g.after+(g.need?(' ('+escapeHtml(g.need)+')'):'')).join('; ')+'</div>';
+    if(!html) html='<small class="note">Claude found nothing to fix — looks good.</small>';
+    panel.innerHTML=html;
+    const toDrop=[...new Set([...bad,...dups])].sort((a,b)=>a-b);
+    if(toDrop.length){ const db=document.createElement('button'); db.className='btn sm danger'; db.style.marginTop='8px'; db.textContent='Drop flagged (#'+toDrop.join(', #')+')';
+      db.onclick=()=>{ sh.frames=sh.frames.filter((_,i)=>!toDrop.includes(i+1)); persist(); scheduleSave(); renderAll(); };
+      panel.appendChild(db);
+    }
+    if(gaps.length){ const note=document.createElement('small'); note.className='note'; note.textContent='Missing in-betweens can’t be drawn here — regenerate that beat with more frames in ChatGPT, or accept the jump.'; panel.appendChild(note); }
+  }catch(e){ panel.innerHTML='<small class="note" style="color:var(--err)">✕ '+escapeHtml(e.message)+'</small>'; }
+  finally{ btn.textContent=o; btn.disabled=false; }
 }
 
 /* ===== per-scene animation ===== */
