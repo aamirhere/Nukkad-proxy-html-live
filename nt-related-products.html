@@ -756,7 +756,7 @@ async function loadPersonalities(handle) {
       if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
       studioState[handle].personalities = res.personalities;
       renderPersonalities(handle, res.personalities);
-    } else { el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Could not generate — try again</span>'; }
+    } else { el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Could not generate — ' + (res.error || JSON.stringify(res)) + '</span>'; }
   } catch(e) { el.innerHTML = '<span style="font-size:10px;color:#b91c1c;">Error: ' + e.message + '</span>'; }
 }
 
