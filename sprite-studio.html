@@ -1785,7 +1785,7 @@ function synthBlink(dataUrl){
     // Both eyes must be present, compact (real pupils), and on roughly the same row.
     for(const e of eyes){ if(e.n<6) return null; e.ew=e.maxx-e.minx+1; e.eh=e.maxy-e.miny+1; e.cy=(e.miny+e.maxy)/2;
       if(e.ew<3||e.eh<3) return null;
-      if(e.ew>bw*0.22||e.eh>bh*0.20) return null;                   // too big → not a pupil (likely outline) — bail
+      if(e.ew>bw*0.40||e.eh>bh*0.40) return null;                   // too big → not a pupil (likely outline) — bail
       if(e.n < e.ew*e.eh*0.25) return null;                         // too sparse → not a solid blob
     }
     if(Math.abs(eyes[0].cy-eyes[1].cy) > bh*0.10) return null;      // eyes not level → not confident
@@ -1877,7 +1877,7 @@ async function detectEyeBox(dataUrl){
   const by0=Math.round(y0+bh*0.16), by1=Math.round(y0+bh*0.54);
   const eyes=[{minx:w,miny:h,maxx:0,maxy:0,n:0},{minx:w,miny:h,maxx:0,maxy:0,n:0}];
   for(let y=by0;y<=by1;y++)for(let x=ix0;x<=ix1;x++){ const i=(y*w+x)*4; if(d[i+3]<160) continue; const lum=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; if(lum<60){ const e=eyes[x<cx?0:1]; if(x<e.minx)e.minx=x; if(x>e.maxx)e.maxx=x; if(y<e.miny)e.miny=y; if(y>e.maxy)e.maxy=y; e.n++; } }
-  for(const e of eyes){ if(e.n<6) return null; const ew=e.maxx-e.minx+1, eh=e.maxy-e.miny+1; if(ew>bw*0.24||eh>bh*0.22) return null; e.cy=(e.miny+e.maxy)/2; }
+  for(const e of eyes){ if(e.n<6) return null; const ew=e.maxx-e.minx+1, eh=e.maxy-e.miny+1; if(ew>bw*0.40||eh>bh*0.40) return null; e.cy=(e.miny+e.maxy)/2; }
   if(Math.abs(eyes[0].cy-eyes[1].cy) > bh*0.10) return null;
   // union of both eyes + generous vertical pad (lids/brows move a bit) and a little horizontal pad
   const ux0=Math.min(eyes[0].minx,eyes[1].minx), ux1=Math.max(eyes[0].maxx,eyes[1].maxx);
