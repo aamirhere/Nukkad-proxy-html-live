@@ -861,8 +861,32 @@ function buildSceneCard(sc, idx){
       const hl=document.createElement('label'); hl.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px'; hl.textContent='⏸ Hold for'; const hin=document.createElement('input'); hin.type='text'; hin.inputMode='decimal'; hin.value=sh.holdEnd||1.5; hin.style.cssText='width:56px;padding:3px 6px'; hin.addEventListener('input',()=>{sh.holdEnd=parseFloat(hin.value)||0;}); hin.addEventListener('change',()=>{persist();scheduleSave();renderAll();}); hl.appendChild(hin); hl.append('s'); hr.appendChild(hl);
       const norm=document.createElement('button'); norm.className='btn sm ghost'; norm.style.cssText='margin-left:auto'; norm.textContent='↩ Make it a normal beat'; norm.onclick=()=>{ sh.hold=false; sh.frames=null; sh.target=sh.target||9; const g=framesToGrid(sh.target); sh.cols=g.cols; sh.rows=g.rows; persist(); scheduleSave(); renderAll(); }; hr.appendChild(norm);
       sd.appendChild(hr);
-      if(pf){ const pbox=document.createElement('div'); pbox.style.marginTop='8px'; const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv); const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb); pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox); const pa=makeFramesAnimator([], pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
-        (async()=>{ const fr=await exportFrames(beatPlayed(sh)); pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=vfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); })(); }
+      if(pf){
+        const hasPrev = sc.sheets.slice(0,si).some(b=>b&&b.frames&&b.frames.length);
+        const pbox=document.createElement('div'); pbox.style.marginTop='8px';
+        const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
+        const pctr=document.createElement('div'); pctr.className='controls';
+        const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb);
+        let combI=null;
+        if(hasPrev){ const ccb=document.createElement('label'); ccb.className='chip'; ccb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> with previous beats'; combI=ccb.querySelector('input'); pctr.appendChild(ccb); }
+        pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox);
+        const pa=makeFramesAnimator([], pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
+        const curHold=()=> (combI&&combI.checked) ? beatsPlayedUpTo(sc,si) : beatPlayed(sh);
+        let tok=0;
+        const rebuild=async()=>{ const my=++tok; const fr=await exportFrames(curHold()); if(my!==tok) return; pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=vfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ if(my!==tok)return; pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
+        if(combI) combI.onchange=rebuild; rebuild();
+        // downloads — this pause on its own, and the full beat1→pause sequence
+        const baseName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
+        const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
+        const mk=(t,title,fn)=>{ const b=document.createElement('button'); b.className='btn sm ghost'; b.style.cssText='flex:1;min-width:96px'; b.textContent=t; b.title=title; b.onclick=fn; return b; };
+        drow.appendChild(mk('⏱ Pause','This pause held to '+vfps()+'fps, with the breath + blink idle (zip)',()=>dlFramesZip(beatPlayed(sh), baseName+'-pause', baseName+'-pause')));
+        drow.appendChild(mk('🎞 GIF','Animated GIF of this live pause',(e)=>dlFramesGif(beatPlayed(sh), baseName+'-pause', vfps(), e.target)));
+        if(hasPrev){
+          drow.appendChild(mk('⬇ 1→'+(si+1),'Beats 1 through this pause, back to back — frames (zip)',()=>dlFramesZip(beatsPlayedUpTo(sc,si), baseName+'-combined', baseName+'-combined')));
+          drow.appendChild(mk('🎞 1→'+(si+1)+' GIF','GIF of beats 1 through this pause together',(e)=>dlFramesGif(beatsPlayedUpTo(sc,si), baseName+'-combined', vfps(), e.target)));
+        }
+        sd.appendChild(drow);
+      }
       card.appendChild(sd); return;
     }
     const sd=document.createElement('div'); sd.className='sheet';
@@ -1487,6 +1511,9 @@ function beatFrames(sc, bi){ const sh=(sc.sheets||[])[bi]; return (sh&&sh.frames
 // All generated beats from the start of the scene up to and including bi, stitched in order
 // — lets you preview beats 1+2 together before the rest of the scene is done.
 function beatsUpTo(sc, bi){ const out=[]; for(let k=0;k<=bi;k++){ const f=beatFrames(sc,k); if(f.length) out.push(...f); } return out; }
+// Same, but each beat PLAYED at video rate with its hold pauses (motion + breath/blink holds)
+// — so a hold beat stitched after beat 1 plays as "action … then a live pause".
+function beatsPlayedUpTo(sc, bi){ const out=[]; for(let k=0;k<=bi;k++){ const b=(sc.sheets||[])[k]; if(b&&b.frames&&b.frames.length) out.push(...beatPlayed(b)); } return out; }
 // Compose a long shot by REPEATING short beat-loops over an exact timeline (no re-render):
 // each segment plays one beat for its seconds — looped (idle/talk) or stretched (one-shot).
 function timelineFrames(sc){
@@ -1577,7 +1604,7 @@ function synthBlink(dataUrl){
       const fc = corners.length ? corners.reduce((s,v)=>[s[0]+v[0],s[1]+v[1],s[2]+v[2]],[0,0,0]).map(v=>Math.round(v/corners.length)) : null;
       ctx.clearRect(rx,ry,rw,rh);
       if(fc){ ctx.fillStyle='rgb('+fc[0]+','+fc[1]+','+fc[2]+')'; ctx.fillRect(rx,ry,rw,rh); }      // interior of the bird — opaque face
-      const dh=Math.max(2, rh*0.28);                                 // squash the eye to a thin slit
+      const dh=Math.max(2, eh*0.18);                                 // squash the eye to a thin slit (fraction of the EYE, not the padded box)
       ctx.drawImage(region, 0,0,rw,rh, rx, ecy-dh/2, rw, dh);
       closed=true;
     });
@@ -1594,7 +1621,7 @@ async function autoBlinkHolds(frames){
   let i=0;
   while(i<out.length){ let j=i; while(j+1<out.length && out[j+1]===out[i]) j++; const len=j-i+1;
     if(len>=MIN){ const blink=await synthBlink(out[i]);
-      if(blink){ const every=Math.max(MIN, Math.round(vf*3.4)), dur=Math.max(2,Math.round(vf*0.1)), firstAt=Math.round(vf*1.0);
+      if(blink){ const every=Math.max(MIN, Math.round(vf*2.8)), dur=Math.max(3,Math.round(vf*0.14)), firstAt=Math.round(vf*0.8);
         for(let k=firstAt;k<len;k++){ if(((k-firstAt)%every)<dur) out[i+k]=blink; } } }
     i=j+1; }
   return out;
