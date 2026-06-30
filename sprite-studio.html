@@ -331,7 +331,7 @@ function projectMeta(p){
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
-        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk })) })) };
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold })) })) };
 }
 async function saveCloud(p){
   if(!cloudOn||!p) return;
@@ -361,7 +361,7 @@ async function loadCloud(id){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk };
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
@@ -678,7 +678,7 @@ async function runPlan(storyText, treatment){
       sc.placement=ps.placement||'';
       sc.loop=ps.loop!==false;
       sc.approved=false;
-      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0, say:sh.say||'', talk:!!sh.talk }; });
+      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold }; });
     });
     persist(); renderAll(); scheduleSave();
     planMsg('✓ Planned '+planned.length+' scenes. Review the prompts, then generate Scene 1.','ok');
@@ -752,7 +752,11 @@ function lastFrameBefore(sceneIdx, sheetIdx){
   return null;
 }
 
-function renderAll(){ stopAnimators(); renderShots(); renderScenes(); renderProjects(); maybeResume(); }
+// Hold beats reuse the previous beat's LAST frame (stable, no regeneration) so a still/pause
+// doesn't pulse. Resolve them in order so each picks up the already-resolved prior frame.
+function applyHolds(){ const p=curProj(); if(!p) return; (p.scenes||[]).forEach((sc,si)=>(sc.sheets||[]).forEach((sh,k)=>{ if(sh.hold){ const f=lastFrameBefore(si,k); sh.frames= f?[f]:[]; sh.target=sh.frames.length; sh.cols=1; sh.rows=1; sh.wide=[]; } })); }
+
+function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); maybeResume(); }
 
 function renderScenes(){
   const p=curProj(); const wrap=$('scenesWrap'); wrap.innerHTML='';
@@ -790,6 +794,20 @@ function buildSceneCard(sc, idx){
 
   // sheets
   sc.sheets.forEach((sh,si)=>{
+    // HOLD beat — reuses the previous pose (no generation, no pulse). Compact card only.
+    if(sh.hold){
+      const sd=document.createElement('div'); sd.className='sheet';
+      const h=document.createElement('div'); h.className='sh-head'; h.innerHTML='<b style="font-size:12px">Beat '+(si+1)+'</b><span class="tag" style="background:rgba(47,111,212,.14);color:#2f6fd4">♻ hold</span>'; sd.appendChild(h);
+      const pf=lastFrameBefore(idx,si);
+      const note=document.createElement('small'); note.className='note'; note.innerHTML= pf? '♻ <b>Holds the previous pose</b> — reuses that exact frame (rock-steady, no re-generation, no pulse) with the gentle breath/blink idle. Set how long it holds below.' : '⚠ No earlier beat to hold from — generate Beat 1 first, or make this a normal beat.'; sd.appendChild(note);
+      // duration of the hold
+      const hr=document.createElement('div'); hr.className='row'; hr.style.cssText='margin-top:6px;align-items:center;gap:8px';
+      const hl=document.createElement('label'); hl.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px'; hl.textContent='⏸ Hold for'; const hin=document.createElement('input'); hin.type='text'; hin.inputMode='decimal'; hin.value=sh.holdEnd||1.5; hin.style.cssText='width:56px;padding:3px 6px'; hin.addEventListener('input',()=>{sh.holdEnd=parseFloat(hin.value)||0;}); hin.addEventListener('change',()=>{persist();scheduleSave();renderAll();}); hl.appendChild(hin); hl.append('s'); hr.appendChild(hl);
+      const norm=document.createElement('button'); norm.className='btn sm ghost'; norm.style.cssText='margin-left:auto'; norm.textContent='↩ Make it a normal beat'; norm.onclick=()=>{ sh.hold=false; sh.frames=null; sh.target=sh.target||9; const g=framesToGrid(sh.target); sh.cols=g.cols; sh.rows=g.rows; persist(); scheduleSave(); renderAll(); }; hr.appendChild(norm);
+      sd.appendChild(hr);
+      if(pf){ const pbox=document.createElement('div'); pbox.style.marginTop='8px'; const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv); const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb); pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox); const pa=makeFramesAnimator(beatPlayed(sh), pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; }; }
+      card.appendChild(sd); return;
+    }
     const sd=document.createElement('div'); sd.className='sheet';
     const h=document.createElement('div'); h.className='sh-head';
     h.innerHTML='<b style="font-size:12px">Beat '+(si+1)+'</b><span class="tag">~'+sh.target+'f · '+sh.cols+'×'+sh.rows+'</span>';
@@ -800,6 +818,7 @@ function buildSceneCard(sc, idx){
     if(sh.talk||sh.say){ const sy=document.createElement('label'); sy.className='f'; sy.style.cssText='margin-top:6px;color:var(--accent)'; sy.textContent='💬 Gul says (talking beat)';
       const si2=document.createElement('input'); si2.type='text'; si2.value=sh.say||''; si2.placeholder='her spoken line'; si2.addEventListener('input',()=>{sh.say=si2.value; sh.talk=!!si2.value;}); si2.addEventListener('change',()=>{persist();scheduleSave();});
       sd.appendChild(sy); sd.appendChild(si2); }
+    if(si>0 || idx>0){ const hb=document.createElement('button'); hb.className='btn sm ghost'; hb.style.cssText='margin-top:6px;width:100%'; hb.textContent='♻ Make this a HOLD of the previous pose (no generation)'; hb.title='If this beat is basically still, reuse the previous beat’s last frame instead of generating a near-duplicate that pulses'; hb.onclick=()=>{ sh.hold=true; persist(); scheduleSave(); renderAll(); }; sd.appendChild(hb); }
 
     // Free manual route. The action box above is the short direction (prompt 1, editable);
     // this panel is the FULL prompt that actually goes to ChatGPT (prompt 2, grid + transparency).
