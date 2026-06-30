@@ -54,6 +54,26 @@
   @keyframes spin{to{transform:rotate(360deg);}}
   .status-dot{width:7px;height:7px;border-radius:50%;background:var(--orange);animation:pulse 1.4s ease-in-out infinite;display:inline-block;margin-right:5px;flex-shrink:0;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+  .view-tab{padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:none;transition:all .15s;}
+  .view-tab.active{background:#fff;color:var(--brown);}
+  .view-tab:not(.active){background:transparent;color:rgba(255,255,255,.65);}
+  .col-sidebar{width:220px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--sand);}
+  .col-item{padding:8px 14px;cursor:pointer;border-radius:8px;margin:2px 6px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px;transition:background .1s;}
+  .col-item:hover{background:#efe4d4;}
+  .col-item.active{background:#d4541f;color:#fff;}
+  .col-item .col-count{font-size:9px;font-weight:700;background:rgba(0,0,0,.08);border-radius:10px;padding:1px 6px;margin-left:auto;}
+  .col-child{padding-left:26px;font-size:11px;font-weight:500;}
+  .col-type-badge{font-size:8px;font-weight:700;border-radius:4px;padding:1px 5px;flex-shrink:0;}
+  .type-taxonomy{background:#e0f2fe;color:#0369a1;}
+  .type-audience{background:#fdf4ff;color:#7c3aed;}
+  .col-products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:16px;}
+  .col-product-thumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;background:var(--sand);border:1px solid var(--border);}
+  .star-btn{position:absolute;top:4px;right:4px;background:rgba(255,255,255,.9);border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);}
+  .star-btn.starred{background:#fbbf24;}
+  .col-strategy{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px;margin:0 16px 16px;font-size:11px;line-height:1.6;color:var(--brown);}
+  /* Suggest modal */
+  .suggest-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:none;align-items:center;justify-content:center;}
+  .suggest-modal.open{display:flex;}
 </style>
 </head>
 <body>
@@ -144,9 +164,11 @@ function api(url, body) {
 
 <!-- ── Header ────────────────────────────────────────────── -->
 <header>
-  <h1>🔗 Related Products</h1>
-  <div style="display:flex;align-items:center;gap:8px;">
-    <span id="headerStatus" style="font-size:10px;color:rgba(255,255,255,.55);font-weight:500;">Loading…</span>
+  <h1>🔗 NukkadTales Studio</h1>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <button class="view-tab active" id="tab-products" onclick="switchView('products')">📦 Products</button>
+    <button class="view-tab" id="tab-collections" onclick="switchView('collections')">🗂 Collections</button>
+    <span id="headerStatus" style="font-size:10px;color:rgba(255,255,255,.55);font-weight:500;margin-left:8px;">Loading…</span>
   </div>
 </header>
 
@@ -190,6 +212,56 @@ function api(url, body) {
 <div class="list-meta" id="listMeta"></div>
 <div class="products-wrap" id="productsWrap">
   <div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;"></div><p>Loading catalogue…</p></div>
+</div>
+
+<!-- ── Collections View ───────────────────────────────────── -->
+<div id="collectionsView" style="display:none;height:calc(100vh - 45px);display:none;flex-direction:row;overflow:hidden;">
+  <!-- Sidebar -->
+  <div class="col-sidebar" id="colSidebar">
+    <div style="padding:12px 14px 6px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Collections</span>
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-sm btn-primary" onclick="generateCollections()" id="btnGenCollections" title="Ask Claude to cluster all products into collections">✦ Generate</button>
+        <button class="btn btn-sm btn-ghost" onclick="openSuggestModal()" title="Suggest a new audience collection">+ New</button>
+      </div>
+    </div>
+    <div id="colList" style="padding:4px 0 20px;">
+      <div style="text-align:center;padding:20px;font-size:11px;color:var(--muted);">No collections yet.<br>Click ✦ Generate to let Claude cluster your products.</div>
+    </div>
+  </div>
+  <!-- Main -->
+  <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;">
+    <div id="colMain" style="flex:1;">
+      <div style="text-align:center;padding:48px 20px;color:var(--muted);">
+        <div style="font-size:32px;margin-bottom:10px;">🗂</div>
+        <div style="font-weight:700;color:var(--brown);margin-bottom:6px;">Select a collection</div>
+        <div style="font-size:12px;">Generate collections first, then click one to explore its products.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Suggest Collection Modal ───────────────────────────── -->
+<div class="suggest-modal" id="suggestModal">
+  <div style="background:#fff;border-radius:16px;width:min(560px,94vw);max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2);display:flex;flex-direction:column;">
+    <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-weight:700;font-size:14px;color:var(--brown);">✦ Suggest a New Collection</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">Describe an audience or theme — Claude will evaluate it honestly and suggest matching products</div>
+      </div>
+      <button onclick="closeSuggestModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+    <div style="padding:16px 18px;flex:1;">
+      <textarea id="suggestIdea" placeholder="e.g. 'Desk-obsessed working women in their 30s' or 'Spiritual gifting for mothers' or 'Gen Z bookish aesthetic'"
+        style="width:100%;height:72px;border:1.5px solid var(--border);border-radius:8px;padding:10px;font-size:12px;font-family:'DM Sans',sans-serif;resize:none;outline:none;box-sizing:border-box;"></textarea>
+      <div id="suggestResult" style="margin-top:12px;display:none;"></div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;">
+      <button onclick="closeSuggestModal()" class="btn btn-ghost">Cancel</button>
+      <button onclick="runSuggestCollection(false)" class="btn btn-primary" id="btnSuggest" style="flex:1;">✦ Evaluate Idea</button>
+      <button onclick="runSuggestCollection(true)" class="btn btn-green" id="btnSuggestSave" style="display:none;">✓ Save Collection</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── Toast ─────────────────────────────────────────────── -->
@@ -1164,6 +1236,7 @@ async function finalizePillDiscussion() {
       const label = lastUserMsg.length > 18 ? lastUserMsg.slice(0,16)+'…' : lastUserMsg;
       studioState[handle].customScenes.push({ label, prompt: res.prompt });
       const idx = studioState[handle].customScenes.length - 1;
+      savePillsToStorage();
       rebuildSceneChips(handle);
       selectCustomScene(handle, idx);
       closePillModal();
@@ -1233,6 +1306,7 @@ function removeCustomScene(handle, idx) {
   } else if (s.activeCustomScene > idx) {
     s.activeCustomScene--;
   }
+  savePillsToStorage();
   rebuildSceneChips(handle);
 }
 
@@ -1590,6 +1664,245 @@ async function reload() {
   taxonomyData = relRes.taxonomy || {};
   updateStats();
   render();
+}
+
+// ── LocalStorage pill persistence ────────────────────────
+function savePillsToStorage() {
+  const data = {};
+  for (const [h, s] of Object.entries(studioState)) {
+    if (s.customScenes?.length) data[h] = s.customScenes;
+  }
+  try { localStorage.setItem('nt_custom_pills', JSON.stringify(data)); } catch {}
+}
+
+function loadPillsFromStorage() {
+  try {
+    const raw = localStorage.getItem('nt_custom_pills');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    for (const [h, scenes] of Object.entries(data)) {
+      if (!studioState[h]) studioState[h] = { scene:'desk', images:[], taglines:[] };
+      studioState[h].customScenes = scenes;
+    }
+  } catch {}
+}
+window.addEventListener('load', () => { if (NT_TOKEN) loadPillsFromStorage(); });
+
+// ── View switcher ─────────────────────────────────────────
+let _currentView = 'products';
+function switchView(view) {
+  _currentView = view;
+  const isProducts = view === 'products';
+  document.getElementById('tab-products').className    = 'view-tab' + (isProducts ? ' active' : '');
+  document.getElementById('tab-collections').className = 'view-tab' + (!isProducts ? ' active' : '');
+  document.querySelector('.toolbar').style.display     = isProducts ? '' : 'none';
+  document.getElementById('activityBar').style.display = isProducts ? '' : 'none';
+  document.getElementById('statsRow').style.display    = isProducts ? '' : 'none';
+  document.getElementById('listMeta').style.display    = isProducts ? '' : 'none';
+  document.getElementById('productsWrap').style.display = isProducts ? '' : 'none';
+  const cv = document.getElementById('collectionsView');
+  if (isProducts) {
+    cv.style.display = 'none';
+  } else {
+    cv.style.display = 'flex';
+    if (!_collectionsLoaded) loadCollections();
+  }
+}
+
+// ── Collections state ─────────────────────────────────────
+let _collections = [];
+let _stars = {};
+let _activeColId = null;
+let _collectionsLoaded = false;
+
+async function loadCollections() {
+  _collectionsLoaded = true;
+  const colList = document.getElementById('colList');
+  colList.innerHTML = '<div style="text-align:center;padding:20px;font-size:11px;color:var(--muted);">Loading…</div>';
+  try {
+    const res = await api(AD_URL, { action: 'get_collections' });
+    _collections = res.collections || [];
+    _stars = res.stars || {};
+    renderColSidebar();
+    if (_collections.length === 0) {
+      colList.innerHTML = '<div style="text-align:center;padding:20px;font-size:11px;color:var(--muted);">No collections yet.<br>Click ✦ Generate to let Claude cluster your products.</div>';
+    }
+  } catch(e) {
+    colList.innerHTML = `<div style="text-align:center;padding:20px;font-size:11px;color:var(--muted);">Error: ${e.message}</div>`;
+  }
+}
+
+function renderColSidebar() {
+  const colList = document.getElementById('colList');
+  if (!_collections.length) {
+    colList.innerHTML = '<div style="text-align:center;padding:20px;font-size:11px;color:var(--muted);">No collections yet.<br>Click ✦ Generate to cluster products.</div>';
+    return;
+  }
+  const parents = _collections.filter(c => !c.parentId);
+  const children = _collections.filter(c => c.parentId);
+  let html = '';
+  for (const col of parents) {
+    const isActive = col.id === _activeColId;
+    const typeBadge = col.type === 'audience'
+      ? '<span class="col-type-badge type-audience">audience</span>'
+      : '<span class="col-type-badge type-taxonomy">theme</span>';
+    html += `<div class="col-item ${isActive ? 'active' : ''}" onclick="selectCollection('${col.id}')">
+      <span>${col.emoji || '📁'}</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(col.name)}</span>
+      ${typeBadge}
+      <span class="col-count">${(col.handles||[]).length}</span>
+    </div>`;
+    const subs = children.filter(c => c.parentId === col.id);
+    for (const sub of subs) {
+      const isSubActive = sub.id === _activeColId;
+      html += `<div class="col-item col-child ${isSubActive ? 'active' : ''}" onclick="selectCollection('${sub.id}')">
+        <span>${sub.emoji || '›'}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(sub.name)}</span>
+        <span class="col-count">${(sub.handles||[]).length}</span>
+      </div>`;
+    }
+  }
+  colList.innerHTML = html;
+}
+
+function selectCollection(id) {
+  _activeColId = id;
+  renderColSidebar();
+  const col = _collections.find(c => c.id === id);
+  if (!col) return;
+  const main = document.getElementById('colMain');
+
+  const strategyHTML = (col.strategy || col.description) ? `
+    <div class="col-strategy">
+      ${col.audience ? `<div style="font-weight:700;margin-bottom:4px;font-size:12px;">👥 Audience</div><div style="margin-bottom:10px;">${esc(col.audience)}</div>` : ''}
+      ${col.strategy ? `<div style="font-weight:700;margin-bottom:4px;font-size:12px;">🎯 Ad Strategy</div><div style="margin-bottom:10px;">${esc(col.strategy)}</div>` : ''}
+      ${col.description && !col.strategy ? `<div>${esc(col.description)}</div>` : ''}
+      ${col.whatWontWork ? `<div style="font-weight:700;margin-bottom:4px;font-size:12px;color:#c0392b;">⚠ Watch out</div><div style="color:#c0392b;">${esc(col.whatWontWork)}</div>` : ''}
+    </div>` : '';
+
+  const productHandles = col.handles || [];
+  const products = productHandles.map(h => allProducts.find(p => (p.handle||p.h) === h)).filter(Boolean);
+
+  const gridHTML = products.map(p => {
+    const h = p.handle || p.h;
+    const starred = (_stars[h] || []);
+    const img = p.shopifyImage || p.featuredImage;
+    const isStarred = starred.length > 0; // simplified: if this product has stars set
+    return `<div style="position:relative;cursor:pointer;" title="${esc(p.title||h)}">
+      ${img
+        ? `<img class="col-product-thumb" src="${esc(img)}" alt="" loading="lazy" onclick="switchView('products');setTimeout(()=>openStudio('${h}'),200)">`
+        : `<div class="col-product-thumb" style="display:flex;align-items:center;justify-content:center;font-size:28px;" onclick="switchView('products');setTimeout(()=>openStudio('${h}'),200)">🪵</div>`}
+      <div style="font-size:9px;color:var(--brown);font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(p.title||h)}</div>
+    </div>`;
+  }).join('');
+
+  main.innerHTML = `
+    <div style="padding:16px 16px 6px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--brown);">${esc(col.emoji||'')} ${esc(col.name)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${products.length} products · ${col.type === 'audience' ? 'Audience collection' : 'Taxonomy collection'}</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-ghost" onclick="deleteCol('${id}')">🗑 Delete</button>
+      </div>
+    </div>
+    ${strategyHTML}
+    <div class="col-products-grid">${gridHTML}</div>
+    ${products.length === 0 ? '<div style="text-align:center;padding:32px;color:var(--muted);font-size:12px;">No products in this collection yet.</div>' : ''}
+  `;
+}
+
+async function generateCollections() {
+  if (!allProducts.length) { toast('Load products first (switch to Products tab)', true); return; }
+  const btn = document.getElementById('btnGenCollections');
+  btn.disabled = true; btn.textContent = '✦ Generating…';
+  toast('Claude is clustering your products… this takes ~20s');
+  try {
+    const res = await api(AD_URL, { action: 'generate_collections', products: allProducts.map(p => ({
+      handle: p.handle || p.h,
+      title: p.title || p.t || p.handle,
+      tags: Object.values(taxonomyData[p.handle||p.h] || {}).flat().filter(t => typeof t === 'string')
+    })) });
+    if (res.ok) {
+      _collections = res.collections || [];
+      _stars = res.stars || {};
+      _collectionsLoaded = true;
+      renderColSidebar();
+      toast(`✓ Created ${res.count} collections`);
+    } else {
+      toast(res.error || 'Generation failed', true);
+    }
+  } catch(e) { toast('Error: ' + e.message, true); }
+  finally { btn.disabled = false; btn.textContent = '✦ Generate'; }
+}
+
+async function deleteCol(id) {
+  if (!confirm('Delete this collection?')) return;
+  await api(AD_URL, { action: 'delete_collection', id });
+  _collections = _collections.filter(c => c.id !== id && c.parentId !== id);
+  _activeColId = null;
+  renderColSidebar();
+  document.getElementById('colMain').innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted);">Collection deleted.</div>';
+  toast('Deleted');
+}
+
+// ── Suggest Collection Modal ─────────────────────────────
+function openSuggestModal() {
+  document.getElementById('suggestModal').classList.add('open');
+  document.getElementById('suggestIdea').focus();
+  document.getElementById('suggestResult').style.display = 'none';
+  document.getElementById('btnSuggestSave').style.display = 'none';
+}
+function closeSuggestModal() {
+  document.getElementById('suggestModal').classList.remove('open');
+  document.getElementById('suggestIdea').value = '';
+  document.getElementById('suggestResult').style.display = 'none';
+  document.getElementById('btnSuggestSave').style.display = 'none';
+}
+
+async function runSuggestCollection(save = false) {
+  const idea = document.getElementById('suggestIdea').value.trim();
+  if (!idea) return;
+  const btn = save ? document.getElementById('btnSuggestSave') : document.getElementById('btnSuggest');
+  btn.disabled = true; btn.textContent = save ? 'Saving…' : 'Evaluating…';
+  document.getElementById('suggestResult').style.display = 'none';
+
+  try {
+    const res = await api(AD_URL, { action: 'suggest_collection', idea, save, products: allProducts.map(p => ({
+      handle: p.handle || p.h,
+      title: p.title || p.t || p.handle,
+      tags: Object.values(taxonomyData[p.handle||p.h] || {}).flat().filter(t => typeof t === 'string')
+    })) });
+
+    if (!res.ok) { toast(res.error || 'Error', true); return; }
+    const s = res.suggestion;
+
+    const viabilityColor = s.viable ? '#2d7d46' : '#c0392b';
+    const viabilityIcon  = s.viable ? '✓' : '✗';
+
+    document.getElementById('suggestResult').style.display = 'block';
+    document.getElementById('suggestResult').innerHTML = `
+      <div style="border:1.5px solid ${viabilityColor};border-radius:10px;padding:12px;margin-bottom:10px;">
+        <div style="font-weight:700;color:${viabilityColor};font-size:12px;margin-bottom:6px;">${viabilityIcon} ${s.viable ? 'Viable' : 'Not recommended'} — ${esc(s.name || idea)}</div>
+        <div style="font-size:11px;line-height:1.5;color:var(--brown);margin-bottom:8px;">${esc(s.viabilityReason || '')}</div>
+        ${s.audience ? `<div style="font-size:10px;color:var(--muted);margin-bottom:4px;"><strong>Audience:</strong> ${esc(s.audience)}</div>` : ''}
+        ${s.strategy ? `<div style="font-size:10px;color:var(--muted);margin-bottom:4px;"><strong>Strategy:</strong> ${esc(s.strategy)}</div>` : ''}
+        ${s.topQuotes?.length ? `<div style="font-size:10px;color:var(--muted);margin-bottom:4px;"><strong>Best quotes:</strong> ${s.topQuotes.map(q => esc(q)).join(' · ')}</div>` : ''}
+        ${s.whatWontWork ? `<div style="font-size:10px;color:#c0392b;margin-top:6px;">⚠ ${esc(s.whatWontWork)}</div>` : ''}
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;"><strong>${(s.handles||[]).length} products matched</strong></div>
+      </div>`;
+
+    if (s.viable && !save) {
+      document.getElementById('btnSuggestSave').style.display = '';
+    }
+    if (save && s.viable) {
+      _collections.push(s);
+      renderColSidebar();
+      closeSuggestModal();
+      toast('✓ Collection saved!');
+    }
+  } catch(e) { toast('Error: ' + e.message, true); }
+  finally { btn.disabled = false; btn.textContent = save ? '✓ Save Collection' : '✦ Evaluate Idea'; }
 }
 </script>
 </body>
