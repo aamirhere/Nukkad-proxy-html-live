@@ -487,9 +487,17 @@ function buildSceneNote(sc){
 }
 // Free manual route: the exact prompt to paste into ChatGPT (mirrors the server prompt),
 // so you generate the sheet by hand with the reference and upload it back here.
+// Strip crop/peek wording so beats written before the no-crop fix still make a whole bird.
+function cleanAction(s){ if(!s) return s; return String(s)
+  .replace(/\s*\([^)]*\b(hidden|behind|simulat\w*|letterform|peek\w*|crop\w*|cut[- ]?off)\b[^)]*\)/gi,'')
+  .replace(/\bonly her\b[^.;!?]*?\bvisible\b[^.;!?]*?(?=[.;!?]|$)/gi,'her whole body fully visible')
+  .replace(/\bsimulating\b[^.;!?]*?(?=[.;!?]|$)/gi,'')
+  .replace(/\bhidden[- ]behind\b[^.;!?]*?(?=[.;!?]|$)/gi,'fully visible')
+  .replace(/\bpeek(?:ing|s|ed)?\b/gi,'alert')
+  .replace(/\s{2,}/g,' ').replace(/\s+([.,;!?])/g,'$1').trim(); }
 function buildManualPrompt(sc, idx, sh, si){
   const cols=sh.cols, rows=sh.rows, total=cols*rows;
-  const action=(sh.action||sc.summary||'').trim();
+  const action=cleanAction((sh.action||sc.summary||'').trim());
   const note=buildSceneNote(sc);
   const hasPrev=!!lastFrameBefore(idx, si);
   const L=[];
