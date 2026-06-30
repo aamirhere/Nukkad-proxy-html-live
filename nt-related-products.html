@@ -1815,22 +1815,52 @@ function selectCollection(id) {
 async function generateCollections() {
   if (!allProducts.length) { toast('Load products first (switch to Products tab)', true); return; }
   const btn = document.getElementById('btnGenCollections');
-  btn.disabled = true; btn.textContent = '✦ Generating…';
-  toast('Claude is clustering your products… this takes ~20s');
+  btn.disabled = true; btn.textContent = '✦ Defining…';
+  toast('Step 1: Claude defining collections…');
   try {
-    const res = await api(AD_URL, { action: 'generate_collections', products: allProducts.map(p => ({
-      handle: p.handle || p.h,
-      title: p.title || p.t || p.handle
-    })) });
-    if (res.ok) {
-      _collections = res.collections || [];
-      _stars = res.stars || {};
-      _collectionsLoaded = true;
-      renderColSidebar();
-      toast(`✓ Created ${res.count} collections`);
-    } else {
-      toast(res.error || 'Generation failed', true);
+    // Step 1: Claude returns collection schemas with keywords only (~3s)
+    const step1 = await api(AD_URL, { action: 'generate_collections' });
+    if (!step1.ok) { toast(step1.error || 'Failed to define collections', true); return; }
+
+    btn.textContent = '✦ Assigning…';
+    toast('Step 2: Assigning products to collections…');
+
+    // Step 2: Client-side keyword matching — instant, no AI needed
+    const schemas = step1.schemas || [];
+    const collections = schemas.map(schema => {
+      const kws = (schema.keywords || []).map(k => k.toLowerCase());
+      const handles = allProducts
+        .filter(p => {
+          const title = (p.title || p.t || '').toLowerCase();
+          const handle = (p.handle || p.h || '').toLowerCase();
+          return kws.some(k => title.includes(k) || handle.includes(k));
+        })
+        .map(p => p.handle || p.h);
+      // defaultStars = first 6 matches
+      const defaultStars = handles.slice(0, 6);
+      return { ...schema, handles, defaultStars };
+    }).filter(c => c.handles.length > 0);
+
+    // Build stars map: each product's related = its co-stars in same collection
+    const starsMap = {};
+    for (const col of collections) {
+      for (const h of col.defaultStars) {
+        if (!starsMap[h]) starsMap[h] = new Set();
+        col.defaultStars.forEach(s => { if (s !== h) starsMap[h].add(s); });
+      }
     }
+    const stars = {};
+    for (const [h, set] of Object.entries(starsMap)) stars[h] = [...set].slice(0, 8);
+
+    // Step 3: Save to Redis
+    const save = await api(AD_URL, { action: 'save_collections', collections, stars });
+    if (!save.ok) { toast('Saved locally but Redis save failed', true); }
+
+    _collections = collections;
+    _stars = stars;
+    _collectionsLoaded = true;
+    renderColSidebar();
+    toast(`✓ Created ${collections.length} collections across ${allProducts.length} products`);
   } catch(e) { toast('Error: ' + e.message, true); }
   finally { btn.disabled = false; btn.textContent = '✦ Generate'; }
 }
