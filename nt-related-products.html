@@ -213,18 +213,17 @@ function api(url, body) {
         <div id="pill-modal-msgs" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;">
           <div style="font-size:10px;color:var(--muted);text-align:center;padding:12px 8px;">Upload reference images and tell Claude what you have in mind. Discuss until the direction is clear, then finalize into a pill.</div>
         </div>
-        <div style="border-top:1px solid var(--border);padding:10px;flex-shrink:0;">
-          <div id="pill-modal-img-previews" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
-          <textarea id="pill-modal-input" placeholder="Describe the vibe, audience, mood… Paste an image with Ctrl+V. Shift+Enter for new line."
+        <div style="border-top:1px solid var(--border);padding:10px;flex-shrink:0;" onpaste="handlePillPaste(event)">
+          <div id="pill-modal-img-previews" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;min-height:0;"></div>
+          <textarea id="pill-modal-input" placeholder="Type your message… Ctrl+V to paste an image. Enter to send."
             style="width:100%;box-sizing:border-box;font-size:11px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;resize:none;height:56px;font-family:var(--fb);color:var(--ink);outline:none;display:block;margin-bottom:6px;"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPillDiscussion()}"
-            onpaste="handlePillPaste(event)"></textarea>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <label title="Attach reference images" style="cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:6px 12px;font-size:12px;white-space:nowrap;flex-shrink:0;">
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPillDiscussion()}"></textarea>
+          <div style="display:flex;gap:6px;align-items:center;width:100%;">
+            <label title="Attach reference images" style="cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;line-height:1;">
               📎 Attach<input type="file" accept="image/*" multiple id="pill-modal-file" style="display:none;" onchange="attachPillImages(this)">
             </label>
             <button onclick="sendPillDiscussion()" id="pill-modal-send"
-              style="flex:1;background:var(--ink);color:#fff;border:none;border-radius:7px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer;">Send ↑</button>
+              style="flex:1;min-width:60px;background:#3a2b1d;color:#fff;border:none;border-radius:7px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;line-height:1;">Send ↑</button>
           </div>
         </div>
       </div>
@@ -1038,10 +1037,10 @@ function attachPillImages(input) {
       _pillModalImages.push(e.target.result);
       const idx = _pillModalImages.length - 1;
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:relative;display:inline-block;';
-      wrap.innerHTML = `<img src="${e.target.result}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);">
+      wrap.style.cssText = 'position:relative;display:inline-block;flex-shrink:0;';
+      wrap.innerHTML = `<img src="${e.target.result}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1.5px solid #d4541f;">
         <button onclick="this.parentNode.remove();_pillModalImages.splice(${idx},1)"
-          style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:8px;cursor:pointer;line-height:14px;text-align:center;">✕</button>`;
+          style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:9px;cursor:pointer;line-height:16px;text-align:center;padding:0;">✕</button>`;
       previews.appendChild(wrap);
     };
     reader.readAsDataURL(file);
@@ -1052,8 +1051,10 @@ function attachPillImages(input) {
 function handlePillPaste(event) {
   const items = event.clipboardData?.items;
   if (!items) return;
+  let foundImage = false;
   for (const item of items) {
     if (item.type.startsWith('image/')) {
+      foundImage = true;
       event.preventDefault();
       const file = item.getAsFile();
       if (!file) continue;
@@ -1062,12 +1063,15 @@ function handlePillPaste(event) {
         _pillModalImages.push(e.target.result);
         const idx = _pillModalImages.length - 1;
         const previews = document.getElementById('pill-modal-img-previews');
+        if (!previews) return;
         const wrap = document.createElement('div');
-        wrap.style.cssText = 'position:relative;display:inline-block;';
-        wrap.innerHTML = `<img src="${e.target.result}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);">
+        wrap.style.cssText = 'position:relative;display:inline-block;flex-shrink:0;';
+        const mediaType = e.target.result.match(/^data:(image\/\w+)/)?.[1] || 'image/png';
+        wrap.innerHTML = `<img src="${e.target.result}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1.5px solid #d4541f;">
           <button onclick="this.parentNode.remove();_pillModalImages.splice(${idx},1)"
-            style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:8px;cursor:pointer;line-height:14px;text-align:center;">✕</button>`;
+            style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:9px;cursor:pointer;line-height:16px;text-align:center;padding:0;">✕</button>`;
         previews.appendChild(wrap);
+        previews.style.display = 'flex';
       };
       reader.readAsDataURL(file);
     }
