@@ -640,6 +640,8 @@ function renderShots(){
   });
 }
 function planMsg(html,cls){ const s=$('planStatus'); s.innerHTML=html; s.className='status '+(cls||''); }
+// Shrunk product photos to send to Claude so it READS the piece (engraved words/occasion).
+async function sceneImages(max){ const p=curProj(); if(!p) return []; const out=[]; for(const s of (p.scenes||[])){ if(s.refImage){ try{ out.push(await shrinkData(s.refImage, 768, 'image/jpeg')); }catch(e){ out.push(s.refImage); } if(out.length>=(max||3)) break; } } return out; }
 
 async function runPlan(storyText, treatment){
   const p=curProj(); if(!p)return;
@@ -647,8 +649,9 @@ async function runPlan(storyText, treatment){
   if(!story && !treatment && !p.scenes.length){ planMsg('Pitch an ad, write a story, or upload shots first.','err'); return; }
   $('planBtn').disabled=true; $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is breaking it into scenes & beats…','run');
   try{
+    const images=await sceneImages(3);
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      task:'plan', story, treatment:treatment||null, kind:p.kind||'ad', script:(p.script||'').trim(), framesMax:settings().framesMax, fps:settings().fps,
+      task:'plan', story, treatment:treatment||null, kind:p.kind||'ad', script:(p.script||'').trim(), images, framesMax:settings().framesMax, fps:settings().fps,
       scenes:p.scenes.map(s=>{ const guide=[buildSceneNote(s), buildEditorGuide(s).join(' ')].filter(Boolean).join(' '); return { hint:[s.hint||'', guide].filter(Boolean).join(' — '), durationSec:s.durationSec||moveSeconds(s) }; })
     })});
     const data=await res.json();
@@ -704,10 +707,11 @@ function renderPitch(t){
 }
 async function doPitch(note){
   const p=curProj(); if(!p)return;
-  $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is pitching the ad…','run');
+  $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is reading your piece & pitching…','run');
   try{
+    const images=await sceneImages(3);
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      task:'treatment', story:(p.story||'').trim(), kind:p.kind||'ad', script:(p.script||'').trim(), note:note||'',
+      task:'treatment', story:(p.story||'').trim(), kind:p.kind||'ad', script:(p.script||'').trim(), note:note||'', images,
       scenes:p.scenes.map(s=>({ hint:s.hint||'' }))
     })});
     const data=await res.json();
