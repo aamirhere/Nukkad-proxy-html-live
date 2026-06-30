@@ -195,6 +195,62 @@ function api(url, body) {
 <!-- ── Toast ─────────────────────────────────────────────── -->
 <div class="toast" id="toast"></div>
 
+<!-- ── Pill Discussion Modal ─────────────────────────────── -->
+<div id="pill-modal-overlay" onclick="if(event.target===this)closePillModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;width:min(720px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.2);">
+    <!-- header -->
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:800;color:var(--ink);">💬 Creative brief</div>
+        <div id="pill-modal-subtitle" style="font-size:10px;color:var(--muted);margin-top:1px;"></div>
+      </div>
+      <button onclick="closePillModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);line-height:1;">✕</button>
+    </div>
+    <!-- body: chat left, test images right -->
+    <div style="display:flex;flex:1;overflow:hidden;min-height:0;">
+      <!-- chat -->
+      <div style="flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);min-width:0;">
+        <div id="pill-modal-msgs" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="font-size:10px;color:var(--muted);text-align:center;padding:12px 8px;">Upload reference images and tell Claude what you have in mind. Discuss until the direction is clear, then finalize into a pill.</div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding:10px;flex-shrink:0;">
+          <div id="pill-modal-img-previews" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
+          <div style="display:flex;gap:6px;align-items:flex-end;">
+            <textarea id="pill-modal-input" placeholder="Describe the vibe, audience, mood… or ask Claude a question. Shift+Enter for new line."
+              style="flex:1;font-size:11px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;resize:none;height:52px;font-family:var(--fb);color:var(--ink);outline:none;"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPillDiscussion()}"></textarea>
+            <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+              <label title="Attach reference images" style="cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:6px 9px;font-size:13px;text-align:center;">
+                📎<input type="file" accept="image/*" multiple id="pill-modal-file" style="display:none;" onchange="attachPillImages(this)">
+              </label>
+              <button onclick="sendPillDiscussion()" id="pill-modal-send"
+                style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;">↑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- test uploads -->
+      <div style="width:200px;flex-shrink:0;display:flex;flex-direction:column;background:#fafafa;">
+        <div style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Test creatives</div>
+        <div id="pill-modal-tests" style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:10px;color:var(--muted);text-align:center;padding:8px;">Upload test images here to review what's working</div>
+        </div>
+        <div style="padding:8px;border-top:1px solid var(--border);flex-shrink:0;">
+          <label style="display:block;text-align:center;cursor:pointer;font-size:10px;padding:6px;border:1.5px dashed var(--border);border-radius:8px;color:var(--muted);">
+            + Upload test<input type="file" accept="image/*" multiple style="display:none;" onchange="addPillTestImages(this)">
+          </label>
+        </div>
+      </div>
+    </div>
+    <!-- footer -->
+    <div style="display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);flex-shrink:0;background:#fafafa;">
+      <button onclick="resetPillDiscussion()" style="background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:7px 14px;font-size:11px;color:var(--muted);cursor:pointer;">↺ Start over</button>
+      <button onclick="finalizePillDiscussion()" id="pill-modal-finalize"
+        style="flex:1;background:#d4541f;color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;">✓ Finalize strategy → create pill</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Toast ─────────────────────────────────────────────────
 let _toastTimer;
@@ -656,21 +712,8 @@ function tabContentHTML(parentHandle, handle) {
       </div>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;">Scene</div>
-    <div id="scenechips-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">${sceneChips}${customChips}
-      <button onclick="toggleAddScene('${handle}')" id="addscene-toggle-${handle}" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add</button>
-    </div>
-    <div id="addscene-form-${handle}" style="display:none;background:#fafafa;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Describe the vibe or scene — Claude will write the prompt and save it as a pill.</div>
-      <input id="addscene-desc-${handle}" placeholder="e.g. cozy café corner, minimal Scandinavian desk, golden hour balcony…"
-        style="width:100%;box-sizing:border-box;font-size:11px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;outline:none;font-family:var(--fb);color:var(--ink);margin-bottom:6px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <label style="font-size:10px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;">
-          <input type="file" accept="image/*" id="addscene-img-${handle}" style="display:none;" onchange="previewSceneRef('${handle}',this)">
-          📎 <span id="addscene-img-label-${handle}">Reference image (optional)</span>
-        </label>
-        <button onclick="createCustomScene('${handle}')" id="addscene-btn-${handle}"
-          style="margin-left:auto;font-size:10px;padding:5px 14px;background:var(--ink);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Create pill</button>
-      </div>
+    <div id="scenechips-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}${customChips}
+      <button onclick="openPillModal('${handle}')" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add</button>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Person</div>
@@ -719,41 +762,6 @@ function tabContentHTML(parentHandle, handle) {
       <div id="stgulresp-${handle}" style="margin-top:6px;font-size:10px;color:#5b21b6;display:none;padding:6px 8px;background:#ede9fe;border-radius:6px;"></div>
     </div>
     <div id="stimages-${handle}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
-
-    <div style="margin-top:12px;">
-      <button onclick="toggleDiscussion('${handle}')" id="discuss-toggle-${handle}"
-        style="width:100%;text-align:left;background:#fff8f0;border:1.5px solid #f6d5b8;border-radius:10px;padding:9px 12px;font-size:11px;font-weight:700;color:var(--brown);cursor:pointer;display:flex;align-items:center;gap:8px;">
-        <span>💬 Creative brief discussion</span>
-        <span id="discuss-badge-${handle}" style="display:none;background:#d4541f;color:#fff;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700;margin-left:auto;"></span>
-        <span id="discuss-arrow-${handle}" style="margin-left:auto;font-size:10px;color:var(--muted);">▶</span>
-      </button>
-      <div id="discuss-panel-${handle}" style="display:none;border:1.5px solid #f6d5b8;border-top:none;border-radius:0 0 10px 10px;background:#fff;">
-        <div id="discuss-msgs-${handle}" style="max-height:280px;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;">
-          <div style="font-size:10px;color:var(--muted);text-align:center;padding:8px;">Upload 1–2 images and describe what you're going for. Claude will help figure out what to create and for whom.</div>
-        </div>
-        <div style="border-top:1px solid #f6d5b8;padding:8px;display:flex;flex-direction:column;gap:6px;">
-          <div id="discuss-img-previews-${handle}" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
-          <div style="display:flex;gap:6px;align-items:flex-end;">
-            <textarea id="discuss-input-${handle}" placeholder="What are you thinking? Upload images and describe the vibe, audience, or question…"
-              style="flex:1;font-size:11px;padding:7px 9px;border:1.5px solid var(--border);border-radius:8px;resize:none;height:48px;font-family:var(--fb);color:var(--ink);outline:none;"
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendDiscussion('${handle}')}"></textarea>
-            <div style="display:flex;flex-direction:column;gap:4px;">
-              <label title="Attach images" style="cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:5px 8px;font-size:12px;text-align:center;">
-                📎<input type="file" accept="image/*" multiple id="discuss-file-${handle}" style="display:none;" onchange="attachDiscussionImages('${handle}',this)">
-              </label>
-              <button onclick="sendDiscussion('${handle}')" id="discuss-send-${handle}"
-                style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">↑</button>
-            </div>
-          </div>
-          <div style="display:flex;gap:5px;">
-            <button onclick="finalizeDiscussion('${handle}')" id="discuss-finalize-${handle}"
-              style="flex:1;background:#d4541f;color:#fff;border:none;border-radius:7px;padding:6px;font-size:11px;font-weight:700;cursor:pointer;">✓ Build prompt from discussion</button>
-            <button onclick="resetDiscussion('${handle}')"
-              style="background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:6px 10px;font-size:11px;color:var(--muted);cursor:pointer;">↺ Start over</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>`;
 }
 
@@ -1004,83 +1012,96 @@ async function writeGulPrompt(handle) {
   }
 }
 
-// ── DISCUSSION ────────────────────────────────────────────────────────────────
+// ── PILL DISCUSSION MODAL ─────────────────────────────────────────────────────
 
-function toggleDiscussion(handle) {
-  const panel = document.getElementById('discuss-panel-' + handle);
-  const arrow = document.getElementById('discuss-arrow-' + handle);
-  if (!panel) return;
-  const open = panel.style.display === 'none';
-  panel.style.display = open ? 'block' : 'none';
-  if (arrow) arrow.textContent = open ? '▼' : '▶';
+let _pillModalHandle = null;
+let _pillModalHistory = [];
+let _pillModalImages = [];
+
+function openPillModal(handle) {
+  _pillModalHandle = handle;
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  const sub = document.getElementById('pill-modal-subtitle');
+  if (sub) sub.textContent = (p?.title || handle) + ' — discuss then finalize as a new scene pill';
+  document.getElementById('pill-modal-overlay').style.display = 'flex';
+  document.getElementById('pill-modal-input')?.focus();
 }
 
-function attachDiscussionImages(handle, input) {
-  const previews = document.getElementById('discuss-img-previews-' + handle);
-  if (!previews) return;
-  if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
-  if (!studioState[handle].discussionImages) studioState[handle].discussionImages = [];
+function closePillModal() {
+  document.getElementById('pill-modal-overlay').style.display = 'none';
+}
 
-  Array.from(input.files).slice(0, 3).forEach(file => {
+function attachPillImages(input) {
+  const previews = document.getElementById('pill-modal-img-previews');
+  Array.from(input.files).slice(0, 4).forEach(file => {
     const reader = new FileReader();
     reader.onload = e => {
-      studioState[handle].discussionImages.push(e.target.result);
-      const img = document.createElement('div');
-      img.style.cssText = 'position:relative;display:inline-block;';
-      img.innerHTML = `<img src="${e.target.result}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);">
-        <button onclick="this.parentNode.remove();studioState['${handle}'].discussionImages.splice(${studioState[handle].discussionImages.length-1},1)"
+      _pillModalImages.push(e.target.result);
+      const idx = _pillModalImages.length - 1;
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block;';
+      wrap.innerHTML = `<img src="${e.target.result}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);">
+        <button onclick="this.parentNode.remove();_pillModalImages.splice(${idx},1)"
           style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:8px;cursor:pointer;line-height:14px;text-align:center;">✕</button>`;
-      previews.appendChild(img);
+      previews.appendChild(wrap);
     };
     reader.readAsDataURL(file);
   });
   input.value = '';
 }
 
-function addDiscussionMessage(handle, role, text) {
-  const container = document.getElementById('discuss-msgs-' + handle);
+function addPillMsg(role, text, hasImages) {
+  const container = document.getElementById('pill-modal-msgs');
   if (!container) return;
   const isUser = role === 'user';
-  const msg = document.createElement('div');
-  msg.style.cssText = `display:flex;flex-direction:column;align-items:${isUser?'flex-end':'flex-start'};`;
-  msg.innerHTML = `<div style="max-width:88%;background:${isUser?'var(--ink)':'#f5f5f5'};color:${isUser?'#fff':'var(--ink)'};border-radius:${isUser?'12px 12px 3px 12px':'12px 12px 12px 3px'};padding:8px 11px;font-size:11px;line-height:1.5;white-space:pre-wrap;">${esc(text)}</div>`;
-  container.appendChild(msg);
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `display:flex;flex-direction:column;align-items:${isUser?'flex-end':'flex-start'};`;
+  const label = hasImages ? text + ` <span style="opacity:.6;font-size:9px;">[+${hasImages} img]</span>` : esc(text);
+  wrap.innerHTML = `<div style="max-width:90%;background:${isUser?'var(--ink)':'#f0f0f0'};color:${isUser?'#fff':'var(--ink)'};border-radius:${isUser?'12px 12px 3px 12px':'12px 12px 12px 3px'};padding:8px 12px;font-size:11px;line-height:1.55;white-space:pre-wrap;">${isUser?label:esc(text)}</div>`;
+  container.appendChild(wrap);
   container.scrollTop = container.scrollHeight;
-  const badge = document.getElementById('discuss-badge-' + handle);
-  if (badge) {
-    if (!studioState[handle]) studioState[handle] = {};
-    studioState[handle].discussionCount = (studioState[handle].discussionCount||0) + 1;
-    badge.textContent = studioState[handle].discussionCount + ' msgs';
-    badge.style.display = 'inline';
-  }
 }
 
-async function sendDiscussion(handle) {
-  const inp = document.getElementById('discuss-input-' + handle);
+function addPillTestImages(input) {
+  const container = document.getElementById('pill-modal-tests');
+  const placeholder = container.querySelector('div');
+  if (placeholder) placeholder.remove();
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;';
+      wrap.innerHTML = `<img src="${e.target.result}" style="width:100%;border-radius:8px;border:1.5px solid var(--border);display:block;">
+        <button onclick="this.parentNode.remove()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:18px;text-align:center;">✕</button>`;
+      container.appendChild(wrap);
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+async function sendPillDiscussion() {
+  const inp = document.getElementById('pill-modal-input');
   const text = inp?.value?.trim();
   if (!text) return;
-  const btn = document.getElementById('discuss-send-' + handle);
+  const btn = document.getElementById('pill-modal-send');
   inp.value = '';
   if (btn) btn.disabled = true;
 
-  if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
-  if (!studioState[handle].discussionHistory) studioState[handle].discussionHistory = [];
+  const images = [..._pillModalImages];
+  _pillModalImages = [];
+  document.getElementById('pill-modal-img-previews').innerHTML = '';
 
-  const images = studioState[handle].discussionImages || [];
-  studioState[handle].discussionHistory.push({ role: 'user', content: text, images: images.length ? [...images] : undefined });
-  studioState[handle].discussionImages = [];
-  document.getElementById('discuss-img-previews-' + handle).innerHTML = '';
+  _pillModalHistory.push({ role: 'user', content: text });
+  addPillMsg('user', esc(text), images.length || 0);
 
-  addDiscussionMessage(handle, 'user', text + (images.length ? ` [${images.length} image${images.length>1?'s':''}]` : ''));
-
+  const handle = _pillModalHandle;
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   const quote = p?.title || p?.t || p?.tagline || '';
 
-  // show typing indicator
-  const container = document.getElementById('discuss-msgs-' + handle);
+  const container = document.getElementById('pill-modal-msgs');
   const typing = document.createElement('div');
-  typing.id = 'discuss-typing-' + handle;
-  typing.style.cssText = 'font-size:10px;color:var(--muted);padding:4px 8px;';
+  typing.style.cssText = 'font-size:10px;color:var(--muted);padding:4px 8px;font-style:italic;';
   typing.textContent = 'Claude is thinking…';
   container.appendChild(typing);
   container.scrollTop = container.scrollHeight;
@@ -1088,126 +1109,70 @@ async function sendDiscussion(handle) {
   try {
     const res = await api(AD_URL, {
       action: 'discuss',
-      quote,
-      product_title: p?.title || '',
+      quote, product_title: p?.title || '',
       taxonomy: taxonomyData[handle] || {},
-      history: studioState[handle].discussionHistory,
+      history: _pillModalHistory,
       images: images.map(b => b.replace(/^data:image\/\w+;base64,/, ''))
     });
     typing.remove();
-    if (res.ok && res.reply) {
-      studioState[handle].discussionHistory.push({ role: 'assistant', content: res.reply });
-      addDiscussionMessage(handle, 'assistant', res.reply);
-    } else {
-      addDiscussionMessage(handle, 'assistant', 'Error: ' + (res.error || 'Could not respond'));
-    }
+    const reply = res.ok ? res.reply : ('Error: ' + (res.error || 'no response'));
+    _pillModalHistory.push({ role: 'assistant', content: reply });
+    addPillMsg('assistant', reply, 0);
   } catch(e) {
     typing.remove();
-    addDiscussionMessage(handle, 'assistant', 'Error: ' + e.message);
+    addPillMsg('assistant', 'Error: ' + e.message, 0);
   } finally {
     if (btn) btn.disabled = false;
+    inp.focus();
   }
 }
 
-async function finalizeDiscussion(handle) {
-  const btn = document.getElementById('discuss-finalize-' + handle);
-  if (btn) { btn.disabled = true; btn.textContent = 'Building prompt…'; }
+async function finalizePillDiscussion() {
+  if (!_pillModalHistory.length) { toast('Have a discussion first'); return; }
+  const btn = document.getElementById('pill-modal-finalize');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building strategy…'; }
+  const handle = _pillModalHandle;
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   const quote = p?.title || p?.t || p?.tagline || '';
-  const history = studioState[handle]?.discussionHistory || [];
-  if (!history.length) { toast('Have a discussion first'); if (btn) { btn.disabled=false; btn.textContent='✓ Build prompt from discussion'; } return; }
   try {
-    const res = await api(AD_URL, { action: 'finalize_discussion', quote, product_title: p?.title||'', history });
+    const res = await api(AD_URL, { action: 'finalize_discussion', quote, product_title: p?.title||'', history: _pillModalHistory });
     if (res.ok && res.prompt) {
-      const ta = document.getElementById('stprompt-' + handle);
-      if (ta) ta.value = res.prompt;
-      toggleDiscussion(handle);
-      toast('✓ Prompt built from discussion');
-    } else { toast('Error: ' + (res.error||'No prompt returned')); }
+      if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
+      if (!studioState[handle].customScenes) studioState[handle].customScenes = [];
+      const lastUserMsg = [..._pillModalHistory].reverse().find(m=>m.role==='user')?.content || 'Custom';
+      const label = lastUserMsg.length > 18 ? lastUserMsg.slice(0,16)+'…' : lastUserMsg;
+      studioState[handle].customScenes.push({ label, prompt: res.prompt });
+      const idx = studioState[handle].customScenes.length - 1;
+      rebuildSceneChips(handle);
+      selectCustomScene(handle, idx);
+      closePillModal();
+      toast('✓ Pill created from discussion');
+    } else { toast('Error: ' + (res.error || 'No prompt returned')); }
   } catch(e) { toast('Error: ' + e.message); }
-  finally { if (btn) { btn.disabled=false; btn.textContent='✓ Build prompt from discussion'; } }
+  finally { if (btn) { btn.disabled=false; btn.textContent='✓ Finalize strategy → create pill'; } }
 }
 
-function resetDiscussion(handle) {
-  if (!studioState[handle]) return;
-  studioState[handle].discussionHistory = [];
-  studioState[handle].discussionImages = [];
-  studioState[handle].discussionCount = 0;
-  const container = document.getElementById('discuss-msgs-' + handle);
-  if (container) container.innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:8px;">Upload 1–2 images and describe what you\'re going for. Claude will help figure out what to create and for whom.</div>';
-  const previews = document.getElementById('discuss-img-previews-' + handle);
-  if (previews) previews.innerHTML = '';
-  const badge = document.getElementById('discuss-badge-' + handle);
-  if (badge) badge.style.display = 'none';
+function resetPillDiscussion() {
+  _pillModalHistory = [];
+  _pillModalImages = [];
+  document.getElementById('pill-modal-msgs').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:12px 8px;">Upload reference images and tell Claude what you have in mind. Discuss until the direction is clear, then finalize into a pill.</div>';
+  document.getElementById('pill-modal-img-previews').innerHTML = '';
+  document.getElementById('pill-modal-tests').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:8px;">Upload test images here to review what\'s working</div>';
   toast('Discussion cleared');
 }
 
-function toggleAddScene(handle) {
-  const form = document.getElementById('addscene-form-' + handle);
-  if (!form) return;
-  const open = form.style.display === 'none';
-  form.style.display = open ? 'block' : 'none';
-  if (open) document.getElementById('addscene-desc-' + handle)?.focus();
-}
-
-function previewSceneRef(handle, input) {
-  const label = document.getElementById('addscene-img-label-' + handle);
-  if (label && input.files[0]) label.textContent = input.files[0].name;
-}
-
-async function createCustomScene(handle) {
-  const desc = document.getElementById('addscene-desc-' + handle)?.value?.trim();
-  if (!desc) { toast('Describe the scene first'); return; }
-  const btn = document.getElementById('addscene-btn-' + handle);
-  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
-
+function openPillModal(handle) {
+  _pillModalHandle = handle;
+  _pillModalHistory = [];
+  _pillModalImages = [];
+  document.getElementById('pill-modal-msgs').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:12px 8px;">Upload reference images and tell Claude what you have in mind. Discuss until the direction is clear, then finalize into a pill.</div>';
+  document.getElementById('pill-modal-img-previews').innerHTML = '';
+  document.getElementById('pill-modal-tests').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:8px;">Upload test images here to review what\'s working</div>';
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
-  const quote = p?.title || p?.t || p?.tagline || '';
-  const tax = taxonomyData[handle] || {};
-
-  let ref_image_b64 = null;
-  const imgInput = document.getElementById('addscene-img-' + handle);
-  if (imgInput?.files[0]) {
-    ref_image_b64 = await new Promise(res => {
-      const reader = new FileReader();
-      reader.onload = e => res(e.target.result);
-      reader.readAsDataURL(imgInput.files[0]);
-    });
-  }
-
-  try {
-    const res = await api(AD_URL, {
-      action: 'write_prompt',
-      quote, product_title: p?.title || '',
-      taxonomy: tax,
-      user_brief: desc,
-      ref_image_b64
-    });
-    if (!res.ok || !res.prompt) throw new Error(res.error || 'No prompt returned');
-
-    if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
-    if (!studioState[handle].customScenes) studioState[handle].customScenes = [];
-
-    const label = desc.length > 20 ? desc.slice(0,18) + '…' : desc;
-    studioState[handle].customScenes.push({ label, prompt: res.prompt });
-    const idx = studioState[handle].customScenes.length - 1;
-
-    // close form, clear inputs
-    document.getElementById('addscene-form-' + handle).style.display = 'none';
-    document.getElementById('addscene-desc-' + handle).value = '';
-    if (imgInput) { imgInput.value = ''; }
-    const imgLabel = document.getElementById('addscene-img-label-' + handle);
-    if (imgLabel) imgLabel.textContent = 'Reference image (optional)';
-
-    // re-render chips and auto-select the new one
-    rebuildSceneChips(handle);
-    selectCustomScene(handle, idx);
-    toast('✓ Scene pill created');
-  } catch(e) {
-    toast('Error: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Create pill'; }
-  }
+  const sub = document.getElementById('pill-modal-subtitle');
+  if (sub) sub.textContent = (p?.title || handle) + ' — discuss then finalize as a new scene pill';
+  document.getElementById('pill-modal-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('pill-modal-input')?.focus(), 100);
 }
 
 function rebuildSceneChips(handle) {
