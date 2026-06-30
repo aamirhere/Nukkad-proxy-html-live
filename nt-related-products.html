@@ -215,18 +215,16 @@ function api(url, body) {
         </div>
         <div style="border-top:1px solid var(--border);padding:10px;flex-shrink:0;">
           <div id="pill-modal-img-previews" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
-          <div style="display:flex;gap:6px;align-items:flex-end;">
-            <textarea id="pill-modal-input" placeholder="Describe the vibe, audience, mood… Paste an image with Ctrl+V. Shift+Enter for new line."
-              style="flex:1;font-size:11px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;resize:none;height:52px;font-family:var(--fb);color:var(--ink);outline:none;"
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPillDiscussion()}"
-              onpaste="handlePillPaste(event)"></textarea>
-            <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-              <label title="Attach reference images" style="cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:6px 9px;font-size:13px;text-align:center;">
-                📎<input type="file" accept="image/*" multiple id="pill-modal-file" style="display:none;" onchange="attachPillImages(this)">
-              </label>
-              <button onclick="sendPillDiscussion()" id="pill-modal-send"
-                style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;">↑</button>
-            </div>
+          <textarea id="pill-modal-input" placeholder="Describe the vibe, audience, mood… Paste an image with Ctrl+V. Shift+Enter for new line."
+            style="width:100%;box-sizing:border-box;font-size:11px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;resize:none;height:56px;font-family:var(--fb);color:var(--ink);outline:none;display:block;margin-bottom:6px;"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPillDiscussion()}"
+            onpaste="handlePillPaste(event)"></textarea>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <label title="Attach reference images" style="cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:6px 12px;font-size:12px;white-space:nowrap;flex-shrink:0;">
+              📎 Attach<input type="file" accept="image/*" multiple id="pill-modal-file" style="display:none;" onchange="attachPillImages(this)">
+            </label>
+            <button onclick="sendPillDiscussion()" id="pill-modal-send"
+              style="flex:1;background:var(--ink);color:#fff;border:none;border-radius:7px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer;">Send ↑</button>
           </div>
         </div>
       </div>
