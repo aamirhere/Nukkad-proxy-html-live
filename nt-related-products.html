@@ -1823,8 +1823,8 @@ async function generateCollections() {
     if (!step1.ok) { toast(step1.error || 'Failed to define collections', true); return; }
     const schemas = step1.schemas || [];
 
-    // Step 2: Sonnet assigns ALL products in batches of 80 (Sonnet is slow — keep under 26s limit)
-    const BATCH = 80;
+    // Step 2: Sonnet assigns ALL products in batches of 60 (keeps output under maxTokens + 26s limit)
+    const BATCH = 60;
     const prods = allProducts.map(p => ({ handle: p.handle || p.h, title: p.title || p.t }));
     const allAssignments = {};
     const totalBatches = Math.ceil(prods.length / BATCH);
