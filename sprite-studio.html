@@ -1981,19 +1981,41 @@ async function pickOpenMouthIdx(frames, baseIdx, box){
   for(let i=0;i<frames.length;i++){ if(i===baseIdx) continue; const d=await _frameData(frames[i], S); if(!d) continue; let sum=0; for(let y=y0;y<y1;y++)for(let xx=x0;xx<x1;xx++){ const o=(y*S+xx)*4; sum+=Math.abs(base[o]-d[o])+Math.abs(base[o+1]-d[o+1])+Math.abs(base[o+2]-d[o+2])+Math.abs(base[o+3]-d[o+3]); } if(sum>bestD){ bestD=sum; best=i; } }
   return best;
 }
+// The library pose whose MOUTH is most unlike the open-beak pose = the closed-mouth one, even
+// if the user never tagged it. Lets talk find its "closed" state automatically.
+async function autoClosedLib(openSrc){
+  const p=curProj(); if(!p||!Array.isArray(p.expressions)) return null;
+  const tiles=p.expressions.filter(e=>e.pose && e.mood!=='talk'); if(!tiles.length) return null;
+  const S=160, od=await _frameData(openSrc, S); if(!od) return tiles[0].pose;
+  const box=await detectMouthBox(openSrc);
+  const x0=Math.max(0,Math.floor(box.x*S)), y0=Math.max(0,Math.floor(box.y*S)), x1=Math.min(S,Math.ceil((box.x+box.w)*S)), y1=Math.min(S,Math.ceil((box.y+box.h)*S));
+  let best=null, bestD=-1;
+  for(const t of tiles){ const d=await _frameData(t.pose, S); if(!d) continue; let sum=0; for(let y=y0;y<y1;y++)for(let xx=x0;xx<x1;xx++){ const o=(y*S+xx)*4; sum+=Math.abs(od[o]-d[o])+Math.abs(od[o+1]-d[o+1])+Math.abs(od[o+2]-d[o+2])+Math.abs(od[o+3]-d[o+3]); } if(sum>bestD){ bestD=sum; best=t.pose; } }
+  return best;
+}
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const fr=(sh.frames||[]); if(!fr.length) return;
   const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
   const box=await detectMouthBox(base);
-  // Prefer the library's open-beak pose (borrow just its beak); else find the most-open frame in the beat.
-  let openSource = libPose('talk');
-  if(!openSource){ let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : (fr.length>=2 ? await pickOpenMouthIdx(fr, baseIdx, box) : -1);
-    if(openIdx!=null && openIdx>=0 && openIdx<fr.length && openIdx!==baseIdx) openSource=fr[openIdx]; }
-  if(!openSource) return;                              // nothing to flap with → fall back to raw loop
-  let openComp=null; try{ openComp=(await rigComposite([base, openSource], 0, [box]))[1]; }catch(e){}
+  const libOpen=libPose('talk');
+  if(libOpen){
+    let openComp=null; try{ openComp=(await rigComposite([base, libOpen], 0, [box]))[1]; }catch(e){}
+    if(!openComp) return;
+    // Closed mouth: an explicit 'neutral' library pose, else auto-find the closed tile, else the
+    // beat's own resting frame. Whichever, only its MOUTH is borrowed; the body stays the frame.
+    let closedSrc = libPose('neutral') || await autoClosedLib(libOpen);
+    let closed = base;
+    if(closedSrc && closedSrc!==libOpen){ try{ const cc=(await rigComposite([base, closedSrc], 0, [box]))[1]; if(cc) closed=cc; }catch(e){} }
+    sh.talkCycle=[closed, openComp]; return;
+  }
+  // No library talk pose → use the beat's own most-open frame (base stays the closed mouth).
+  let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : (fr.length>=2 ? await pickOpenMouthIdx(fr, baseIdx, box) : -1);
+  if(openIdx==null || openIdx<0 || openIdx>=fr.length || openIdx===baseIdx) return;
+  let openComp=null; try{ openComp=(await rigComposite([base, fr[openIdx]], 0, [box]))[1]; }catch(e){}
   sh.talkCycle = openComp ? [base, openComp] : null;
 }
-function talkSig(sh){ const fr=sh.frames||[]; const lib=libPose('talk')||''; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+lib.length+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length); }
+function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
+function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length); }
 function talkRun(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
