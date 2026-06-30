@@ -1015,15 +1015,7 @@ async function writeGulPrompt(handle) {
 let _pillModalHandle = null;
 let _pillModalHistory = [];
 let _pillModalImages = [];
-
-function openPillModal(handle) {
-  _pillModalHandle = handle;
-  const p = allProducts.find(x=>(x.handle||x.h)===handle);
-  const sub = document.getElementById('pill-modal-subtitle');
-  if (sub) sub.textContent = (p?.title || handle) + ' — discuss then finalize as a new scene pill';
-  document.getElementById('pill-modal-overlay').style.display = 'flex';
-  document.getElementById('pill-modal-input')?.focus();
-}
+let _pillRefImages = [];
 
 function closePillModal() {
   document.getElementById('pill-modal-overlay').style.display = 'none';
@@ -1117,6 +1109,7 @@ async function sendPillDiscussion() {
   if (btn) btn.disabled = true;
 
   const images = [..._pillModalImages];
+  _pillRefImages.push(...images);
   _pillModalImages = [];
   document.getElementById('pill-modal-img-previews').innerHTML = '';
 
@@ -1163,7 +1156,7 @@ async function finalizePillDiscussion() {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   const quote = p?.title || p?.t || p?.tagline || '';
   try {
-    const res = await api(AD_URL, { action: 'finalize_discussion', quote, product_title: p?.title||'', history: _pillModalHistory });
+    const res = await api(AD_URL, { action: 'finalize_discussion', quote, product_title: p?.title||'', history: _pillModalHistory, images: _pillRefImages.slice(0,2).map(b=>b.replace(/^data:image\/\w+;base64,/,'')) });
     if (res.ok && res.prompt) {
       if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
       if (!studioState[handle].customScenes) studioState[handle].customScenes = [];
@@ -1183,6 +1176,7 @@ async function finalizePillDiscussion() {
 function resetPillDiscussion() {
   _pillModalHistory = [];
   _pillModalImages = [];
+  _pillRefImages = [];
   document.getElementById('pill-modal-msgs').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:12px 8px;">Upload reference images and tell Claude what you have in mind. Discuss until the direction is clear, then finalize into a pill.</div>';
   document.getElementById('pill-modal-img-previews').innerHTML = '';
   document.getElementById('pill-modal-tests').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:8px;">Upload test images here to review what\'s working</div>';
@@ -1193,6 +1187,7 @@ function openPillModal(handle) {
   _pillModalHandle = handle;
   _pillModalHistory = [];
   _pillModalImages = [];
+  _pillRefImages = [];
   document.getElementById('pill-modal-msgs').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:12px 8px;">Upload reference images and tell Claude what you have in mind. Discuss until the direction is clear, then finalize into a pill.</div>';
   document.getElementById('pill-modal-img-previews').innerHTML = '';
   document.getElementById('pill-modal-tests').innerHTML = '<div style="font-size:10px;color:var(--muted);text-align:center;padding:8px;">Upload test images here to review what\'s working</div>';
