@@ -649,7 +649,9 @@ async function runPlan(storyText, treatment){
   if(!story && !treatment && !p.scenes.length){ planMsg('Pitch an ad, write a story, or upload shots first.','err'); return; }
   $('planBtn').disabled=true; $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is breaking it into scenes & beats…','run');
   try{
-    const images=await sceneImages(3);
+    // An approved pitch already encodes what Claude read from the photo, so only send images
+    // when planning straight from the story (no treatment) — keeps the plan call fast/light.
+    const images= treatment ? [] : await sceneImages(2);
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       task:'plan', story, treatment:treatment||null, kind:p.kind||'ad', script:(p.script||'').trim(), images, framesMax:settings().framesMax, fps:settings().fps,
       scenes:p.scenes.map(s=>{ const guide=[buildSceneNote(s), buildEditorGuide(s).join(' ')].filter(Boolean).join(' '); return { hint:[s.hint||'', guide].filter(Boolean).join(' — '), durationSec:s.durationSec||moveSeconds(s) }; })
