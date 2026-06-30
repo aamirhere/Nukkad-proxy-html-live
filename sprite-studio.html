@@ -207,6 +207,7 @@ body.noscroll{overflow:hidden}
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setSizeLock" checked style="margin:0 7px 0 0"> Lock Gul to one size (scale every frame so she never grows/shrinks)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setIdle" checked style="margin:0 7px 0 0"> Living idle (gentle breath during holds, so pauses feel alive)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setEase" checked style="margin:0 7px 0 0"> Ease in / out (slow-in, slow-out timing like hand animation)</label>
+        <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setSmooth" checked style="margin:0 7px 0 0"> Extra smoothing (blended in-between steps — turn off if you see ghosting)</label>
         <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
       </div>
     </details>
@@ -304,8 +305,8 @@ function persist(){ clearTimeout(_persistTimer); _persistTimer=setTimeout(async(
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), kind:'ad', script:'', story:'', settings:{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true,ease:true}, scenes:[] }; }
-function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true,ease:true}; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), kind:'ad', script:'', story:'', settings:{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true,ease:true,smooth:true}, scenes:[] }; }
+function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true,ease:true,smooth:true}; }
 function gfps(){ return parseInt(settings().fps,10)||8; }   // Gul pose-change rate
 function vfps(){ return parseInt(settings().vfps,10)||24; } // video / timeline rate (export)
 
@@ -316,7 +317,7 @@ const synced=new Set();
 // Signature per framesKey so we only re-upload a beat's sliced frames when they change.
 const frameSigs={};
 function framesSig(fr){ return (fr||[]).length+':'+(fr||[]).reduce((a,f)=>a+f.length,0); }
-function defaults(){ return {framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true,ease:true}; }
+function defaults(){ return {framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true,ease:true,smooth:true}; }
 function setCloudStatus(t){ const e=$('cloudStatus'); if(e) e.textContent=t; }
 async function cloudGet(key){ const r=await fetch(STORE_URL+'?key='+encodeURIComponent(key)); const d=await r.json(); if(d.error) throw new Error(d.error); return d.value; }
 async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value})}); const d=await r.json(); if(d.error) throw new Error(d.error); }
@@ -423,10 +424,10 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; updateFpsNote(); }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked }; persist(); scheduleSave(); updateFpsNote(); }
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; $('setSmooth').checked=s.smooth!==false; updateFpsNote(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked, smooth:$('setSmooth').checked }; persist(); scheduleSave(); updateFpsNote(); }
 function updateFpsNote(){ const el=$('fpsNote'); if(!el)return; const v=vfps(), g=gfps(); if(v%g===0){ el.style.color='var(--muted)'; el.textContent='✓ Each Gul pose holds '+(v/g)+' video frame'+(v/g===1?'':'s')+' — exports clean at '+v+'fps.'; } else { el.style.color='var(--accent)'; el.textContent='⚠ '+v+'fps ÷ '+g+'fps isn’t whole — holds will be uneven (slightly jerky). Pick a Gul fps that divides '+v+' (e.g. '+[2,3,4,5,6,8,10,12,15].filter(x=>v%x===0).join(', ')+').'; } }
-['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase'].forEach(id=>$(id).addEventListener('change', saveSettings));
+['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase','setSmooth'].forEach(id=>$(id).addEventListener('change', saveSettings));
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -1442,7 +1443,7 @@ async function breathRun(url, startIdx, len){
   const key=url+'|'+startIdx+'|'+len+'|'+vfps(); if(_breathCache.has(key)) return _breathCache.get(key);
   const im=await loadImg(url).catch(()=>null); if(!im){ return Array(len).fill(url); }
   const W=im.naturalWidth||im.width, H=im.naturalHeight||im.height;
-  const period=Math.max(8, Math.round(vfps()*3.2)), ampS=0.009, ampY=0.007, res=[];
+  const period=Math.max(8, Math.round(vfps()*3.6)), ampS=0.005, ampY=0.004, res=[];
   for(let k=0;k<len;k++){ const ph=Math.sin(2*Math.PI*(startIdx+k)/period); const s=1+ampS*ph, dy=-H*ampY*ph;
     const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
     const dw=W*s, dh=H*s; ctx.drawImage(im, (W-dw)/2, (H-dh)/2+dy, dw, dh); res.push(c.toDataURL('image/png')); }
@@ -1454,12 +1455,18 @@ async function breatheHolds(frames){
     if(len>=MIN){ const br=await breathRun(out[i], i, len); for(let k=0;k<len;k++) out[i+k]=br[k]; } i=j+1; }
   return out;
 }
-// Export-time pipeline: size-lock (or uniform pad), then breathe the holds so still moments
-// feel alive. Each step honours its setting toggle.
+// Extra smoothing WITHOUT changing length/duration: convert motion "on twos" into interpolated
+// steps — a short run of a repeated pose followed by a DIFFERENT pose has its repeats nudged
+// toward that next pose (soft cross-step). Long runs (real holds) are left for the breath idle.
+const _blendCache=new Map();
+async function blendFrames(a,b,t){ const key=a+''+b+''+t.toFixed(2); if(_blendCache.has(key)) return _blendCache.get(key); const [ia,ib]=await Promise.all([loadImg(a).catch(()=>null), loadImg(b).catch(()=>null)]); if(!ia||!ib) return a; const aw=ia.naturalWidth||ia.width, ah=ia.naturalHeight||ia.height, bw=ib.naturalWidth||ib.width, bh=ib.naturalHeight||ib.height; const W=Math.max(aw,bw), H=Math.max(ah,bh); const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.globalAlpha=1; ctx.drawImage(ia, Math.round((W-aw)/2), Math.round((H-ah)/2)); ctx.globalAlpha=Math.min(0.85, Math.max(0.2, t)); ctx.drawImage(ib, Math.round((W-bw)/2), Math.round((H-bh)/2)); ctx.globalAlpha=1; const url=c.toDataURL('image/png'); _blendCache.set(key,url); return url; }
+async function smoothFrames(frames){ if(!frames||frames.length<3) return frames; const out=frames.slice(); let i=0; while(i<out.length){ let j=i; while(j+1<out.length && frames[j+1]===frames[i]) j++; const runLen=j-i+1; const next=(j+1<frames.length)?frames[j+1]:null; if(next && next!==frames[i] && runLen>=2 && runLen<=3){ for(let k=1;k<runLen;k++){ out[i+k]=await blendFrames(frames[i], next, k/runLen); } } i=j+1; } return out; }
+// Export-time pipeline: size-lock → optional blended smoothing (motion) → breathe the holds.
 async function exportFrames(frames){
   const s=settings(); if(!(frames&&frames.length)) return frames||[];
   if(s.sizeLock!==false){ const a=await projectBirdArea(); if(a) frames=await normalizeScale(frames, a); }
   else if(s.uniform!==false){ const {W,H}=projectMaxSize(); frames=await padFrames(frames, W, H); }
+  if(s.smooth!==false) frames=await smoothFrames(frames);
   if(s.idle!==false) frames=await breatheHolds(frames);
   return frames;
 }
