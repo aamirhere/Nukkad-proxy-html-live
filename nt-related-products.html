@@ -1818,30 +1818,40 @@ async function generateCollections() {
   btn.disabled = true; btn.textContent = '✦ Defining…';
   toast('Step 1: Claude defining collections…');
   try {
-    // Step 1: Claude returns collection schemas with keywords only (~3s)
+    // Step 1: Sonnet defines collection schemas
     const step1 = await api(AD_URL, { action: 'generate_collections' });
     if (!step1.ok) { toast(step1.error || 'Failed to define collections', true); return; }
-
-    btn.textContent = '✦ Assigning…';
-    toast('Step 2: Assigning products to collections…');
-
-    // Step 2: Client-side keyword matching — instant, no AI needed
     const schemas = step1.schemas || [];
-    const collections = schemas.map(schema => {
-      const kws = (schema.keywords || []).map(k => k.toLowerCase());
-      const handles = allProducts
-        .filter(p => {
-          const title = (p.title || p.t || '').toLowerCase();
-          const handle = (p.handle || p.h || '').toLowerCase();
-          return kws.some(k => title.includes(k) || handle.includes(k));
-        })
-        .map(p => p.handle || p.h);
-      // defaultStars = first 6 matches
-      const defaultStars = handles.slice(0, 6);
-      return { ...schema, handles, defaultStars };
-    }).filter(c => c.handles.length > 0);
 
-    // Build stars map: each product's related = its co-stars in same collection
+    // Step 2: Sonnet assigns ALL products in batches of 175
+    const BATCH = 175;
+    const prods = allProducts.map(p => ({ handle: p.handle || p.h, title: p.title || p.t }));
+    const allAssignments = {};
+    const totalBatches = Math.ceil(prods.length / BATCH);
+
+    for (let i = 0; i < prods.length; i += BATCH) {
+      const batchNum = Math.floor(i / BATCH) + 1;
+      btn.textContent = `✦ Assigning ${batchNum}/${totalBatches}…`;
+      toast(`Step 2: Assigning products (batch ${batchNum}/${totalBatches})…`);
+      const batch = prods.slice(i, i + BATCH);
+      const res = await api(AD_URL, { action: 'assign_collections', schemas, products: batch });
+      if (!res.ok) { toast(`Batch ${batchNum} failed: ${res.error || 'unknown error'}`, true); return; }
+      Object.assign(allAssignments, res.assignments || {});
+    }
+
+    // Build collections from assignments
+    const colMap = {};
+    for (const schema of schemas) colMap[schema.id] = { ...schema, handles: [] };
+    for (const [handle, colIds] of Object.entries(allAssignments)) {
+      for (const cid of colIds) {
+        if (colMap[cid]) colMap[cid].handles.push(handle);
+      }
+    }
+    const collections = Object.values(colMap)
+      .filter(c => c.handles.length > 0)
+      .map(c => ({ ...c, defaultStars: c.handles.slice(0, 6) }));
+
+    // Build stars map: each product's related = co-members of its defaultStars group
     const starsMap = {};
     for (const col of collections) {
       for (const h of col.defaultStars) {
@@ -1853,14 +1863,16 @@ async function generateCollections() {
     for (const [h, set] of Object.entries(starsMap)) stars[h] = [...set].slice(0, 8);
 
     // Step 3: Save to Redis
+    btn.textContent = '✦ Saving…';
     const save = await api(AD_URL, { action: 'save_collections', collections, stars });
-    if (!save.ok) { toast('Saved locally but Redis save failed', true); }
+    if (!save.ok) toast('Saved locally but Redis sync failed', true);
 
     _collections = collections;
     _stars = stars;
     _collectionsLoaded = true;
     renderColSidebar();
-    toast(`✓ Created ${collections.length} collections across ${allProducts.length} products`);
+    const total = Object.keys(allAssignments).length;
+    toast(`✓ ${collections.length} collections, ${total}/${allProducts.length} products assigned`);
   } catch(e) { toast('Error: ' + e.message, true); }
   finally { btn.disabled = false; btn.textContent = '✦ Generate'; }
 }
