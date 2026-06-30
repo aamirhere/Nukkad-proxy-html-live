@@ -350,7 +350,7 @@ function projectMeta(p){
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
-        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
+        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, talkMouthOnly: sh.talkMouthOnly!==false, talkOpenIdx: (sh.talkOpenIdx==null?-1:sh.talkOpenIdx), talkBaseIdx: sh.talkBaseIdx||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
         blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
@@ -391,7 +391,7 @@ async function loadCloud(id){
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
-        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
+        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, talkMouthOnly:sh.talkMouthOnly!==false, talkOpenIdx:(sh.talkOpenIdx==null||sh.talkOpenIdx<0?null:sh.talkOpenIdx), talkBaseIdx:sh.talkBaseIdx||0, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
@@ -1036,8 +1036,20 @@ function buildSceneCard(sc, idx){
       tin.addEventListener('input',()=>{ sh.talkSec=parseFloat(tin.value)||0; tv.textContent=sh.talkSec.toFixed(1)+'s'; });
       tin.addEventListener('change',()=>{ persist(); scheduleSave(); renderAll(); });
       tr.appendChild(tl); tr.appendChild(tin); tr.appendChild(tv);
-      const tnote=document.createElement('small'); tnote.className='note'; tnote.style.flexBasis='100%'; tnote.textContent='Loops the talk frames to this length (blinks flick in if long). Slide to the sweet spot.';
-      tr.appendChild(tnote); sd.appendChild(tr); }
+      const tnote=document.createElement('small'); tnote.className='note'; tnote.style.flexBasis='100%'; tnote.textContent='Loops her talk to this length (blinks flick in if long). Slide to the sweet spot.';
+      tr.appendChild(tnote); sd.appendChild(tr);
+      // Mouth-only talk: lock the body, flap just the beak — kills the chaotic whole-bird loop.
+      const mo=document.createElement('label'); mo.className='chip'; mo.style.cssText='display:flex;margin-top:6px'; mo.innerHTML='<input type="checkbox" '+(sh.talkMouthOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Mouth-only (lock the body, move just the beak — best for straight-facing talk)';
+      mo.querySelector('input').onchange=ev=>{ sh.talkMouthOnly=ev.target.checked; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }; sd.appendChild(mo);
+      if(sh.talkMouthOnly!==false){
+        const orow=document.createElement('div'); orow.className='row'; orow.style.cssText='margin-top:6px;align-items:center;gap:8px;flex-wrap:wrap';
+        const ol=document.createElement('span'); ol.style.cssText='font-size:11px;color:var(--ink2)'; ol.textContent='Open-beak frame:';
+        const osel=document.createElement('select'); osel.style.cssText='flex:1;min-width:120px';
+        osel.innerHTML='<option value="-1">Auto (most-open)</option>'+(sh.frames||[]).map((f,i)=>'<option value="'+i+'"'+((sh.talkOpenIdx===i)?' selected':'')+'>#'+(i+1)+'</option>').join('');
+        osel.onchange=()=>{ const v=parseInt(osel.value,10); sh.talkOpenIdx=(v<0?null:v); sh._talkSig=null; persist(); scheduleSave(); renderAll(); };
+        orow.appendChild(ol); orow.appendChild(osel); sd.appendChild(orow);
+        if(sh._talkSig===talkSig(sh) && !sh.talkCycle){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.textContent='⚠ Couldn’t isolate the beak — pick the open-beak frame above; otherwise it loops all frames.'; sd.appendChild(w); }
+      } }
     if(si>0 || idx>0){ const hb=document.createElement('button'); hb.className='btn sm ghost'; hb.style.cssText='margin-top:6px;width:100%'; hb.textContent='♻ Make this a HOLD of the previous pose (no generation)'; hb.title='If this beat is basically still, reuse the previous beat’s last frame instead of generating a near-duplicate that pulses'; hb.onclick=()=>{ sh.hold=true; persist(); scheduleSave(); renderAll(); }; sd.appendChild(hb); }
 
     // Free manual route. The action box above is the short direction (prompt 1, editable);
@@ -1916,6 +1928,8 @@ async function refreshBlinks(){
     if(sh.blinkPose && sh.blinkEyesOnly!==false){ const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; changed=true; } }
     else if(sh.blinkComposite){ sh.blinkComposite=null; sh._blinkSig=null; changed=true; }
     const msig=moodSig(sh); if(sh._moodSig!==msig){ await fitMood(sh); sh._moodSig=msig; changed=true; }
+    if(sh.talk && sh.talkMouthOnly!==false && (sh.frames&&sh.frames.length>=2)){ const tsig=talkSig(sh); if(sh._talkSig!==tsig){ await buildTalkCycle(sh); sh._talkSig=tsig; changed=true; } }
+    else if(sh.talkCycle){ sh.talkCycle=null; sh._talkSig=null; changed=true; }
     if(morphOn && !sh.hold && !(sh.transition&&sh.transition.length)){ const prevLast=lastFrameBefore(sh._si, sh._k); const fr0=(sh.frames||[])[0];
       if(prevLast && fr0 && prevLast!==fr0){ const sg=morphSig(prevLast,fr0); if(sh._morphSig!==sg){ sh.morphIn=await morphLead(prevLast, fr0); sh._morphSig=sg; changed=true; } }
       else if(sh.morphIn){ sh.morphIn=null; sh._morphSig=null; changed=true; } }
@@ -1925,11 +1939,43 @@ async function refreshBlinks(){
 }
 // A talking beat looped to a chosen length so she keeps speaking (gpt only gives a few frames).
 // Blinks flick in if it runs long, so it feels alive rather than a tight loop.
+// ===== Mouth-only talk: lock the body to ONE pose and move only the beak =====
+// gpt redraws the whole bird per talk frame, so looping them looks chaotic. Instead we keep one
+// stable base pose and swap ONLY the beak/mouth region between closed and open — a clean 2-pose
+// flap on an unchanging body. Works great for a straight-facing talking Gul.
+async function detectMouthBox(dataUrl){
+  const eb=await detectEyeBox(dataUrl);
+  if(!eb) return { x:0.34, y:0.5, w:0.32, h:0.22 };               // sensible centred fallback
+  const cxm=eb.x+eb.w/2, w=Math.min(0.6, eb.w*0.66), x=Math.max(0, cxm-w/2);
+  const y=Math.min(0.92, eb.y+eb.h*0.95), h=Math.min(1-y, eb.h*1.4);
+  return { x, y, w, h };
+}
+async function _frameData(url, S){ const im=await loadImg(url).catch(()=>null); if(!im) return null; const c=document.createElement('canvas'); c.width=S; c.height=S; const x=c.getContext('2d'); const iw=im.naturalWidth||im.width, ih=im.naturalHeight||im.height, s=Math.min(S/iw,S/ih); const dw=iw*s, dh=ih*s; x.drawImage(im,(S-dw)/2,(S-dh)/2,dw,dh); try{ return x.getImageData(0,0,S,S).data; }catch(e){ return null; } }
+// The frame whose MOUTH region differs most from the base = the most "open beak" pose.
+async function pickOpenMouthIdx(frames, baseIdx, box){
+  const S=160, base=await _frameData(frames[baseIdx], S); if(!base) return -1;
+  const x0=Math.max(0,Math.floor(box.x*S)), y0=Math.max(0,Math.floor(box.y*S)), x1=Math.min(S,Math.ceil((box.x+box.w)*S)), y1=Math.min(S,Math.ceil((box.y+box.h)*S));
+  let best=-1, bestD=-1;
+  for(let i=0;i<frames.length;i++){ if(i===baseIdx) continue; const d=await _frameData(frames[i], S); if(!d) continue; let sum=0; for(let y=y0;y<y1;y++)for(let xx=x0;xx<x1;xx++){ const o=(y*S+xx)*4; sum+=Math.abs(base[o]-d[o])+Math.abs(base[o+1]-d[o+1])+Math.abs(base[o+2]-d[o+2])+Math.abs(base[o+3]-d[o+3]); } if(sum>bestD){ bestD=sum; best=i; } }
+  return best;
+}
+async function buildTalkCycle(sh){
+  sh.talkCycle=null; const fr=(sh.frames||[]); if(fr.length<2) return;
+  const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
+  const box=await detectMouthBox(base);
+  let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : await pickOpenMouthIdx(fr, baseIdx, box);
+  if(openIdx==null || openIdx<0 || openIdx>=fr.length || openIdx===baseIdx) return;   // can't isolate a beak move → fall back
+  let openComp=null; try{ openComp=(await rigComposite([base, fr[openIdx]], 0, [box]))[1]; }catch(e){}
+  sh.talkCycle = openComp ? [base, openComp] : null;
+}
+function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length); }
 function talkRun(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
-  if(!sec) return framesTimed(fr);
-  const out=fillFrames(fr, sec, true);                       // loop the talk cycle to fill the time
+  // Mouth-only cycle (stable body) if available; else loop the raw frames.
+  const cycle = (sh && sh.talkMouthOnly!==false && sh.talkCycle && sh.talkCycle.length>=2) ? sh.talkCycle : fr;
+  if(!sec) return framesTimed(cycle);
+  const out=fillFrames(cycle, sec, true);                    // loop to fill the time
   const blink=(sh&&sh.blinkComposite)||(sh&&sh.blinkPose)||null, vf=vfps();
   if(blink && sec>=2){ const every=Math.round(vf*3.2), dur=Math.max(2,Math.round(vf*0.1)), firstAt=Math.round(vf*1.1);
     for(let i=firstAt;i<out.length;i++){ if(((i-firstAt)%every)<dur) out[i]=blink; } }
