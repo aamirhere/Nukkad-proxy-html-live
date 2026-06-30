@@ -324,7 +324,7 @@ async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST'
 async function cloudDel(key){ try{ await fetch(STORE_URL+'?key='+encodeURIComponent(key),{method:'DELETE'}); }catch(e){} }
 // meta = project structure with images replaced by their blob keys (one image per key)
 function projectMeta(p){
-  return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', kind:p.kind||'ad', script:p.script||'', treatment:p.treatment||null, settings:p.settings||defaults(),
+  return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', kind:p.kind||'ad', script:p.script||'', treatment:p.treatment||null, treatments:p.treatments||null, captionStyle:p.captionStyle||null, settings:p.settings||defaults(),
     scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved,
       pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null,
       refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
@@ -332,7 +332,7 @@ function projectMeta(p){
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
-        rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
+        overlay: sh.overlay||'', rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
 async function saveCloud(p){
@@ -359,13 +359,13 @@ async function loadCloud(id){
   setCloudStatus('☁ loading…');
   const raw=await cloudGet('p:'+id); if(!raw) throw new Error('not found in cloud');
   const meta=JSON.parse(raw);
-  const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', kind:meta.kind||'ad', script:meta.script||'', treatment:meta.treatment||null, settings:meta.settings||defaults(), scenes:[] };
+  const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', kind:meta.kind||'ad', script:meta.script||'', treatment:meta.treatment||null, treatments:Array.isArray(meta.treatments)?meta.treatments:null, captionStyle:meta.captionStyle||null, settings:meta.settings||defaults(), scenes:[] };
   for(const s of (meta.scenes||[])){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
-        rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
+        overlay:sh.overlay||'', rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
@@ -683,7 +683,7 @@ async function runPlan(storyText, treatment){
       sc.placement=ps.placement||'';
       sc.loop=ps.loop!==false;
       sc.approved=false;
-      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold }; });
+      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold, overlay:sh.overlay||'' }; });
     });
     persist(); renderAll(); scheduleSave();
     planMsg('✓ Planned '+planned.length+' scenes. Review the prompts, then generate Scene 1.','ok');
@@ -703,7 +703,18 @@ function treatmentToStory(t){
   return lines.join('\n');
 }
 function renderPitch(t){
-  const host=$('pitchPanel'); host.innerHTML=''; if(!t||!t.logline) return;
+  const host=$('pitchPanel'); host.innerHTML=''; const p=curProj();
+  // Back-fill the saved list for older projects that only stored a single treatment.
+  if(p && p.treatment){ if(!Array.isArray(p.treatments)||!p.treatments.length){ if(!p.treatment._id) p.treatment._id=uid(); p.treatments=[p.treatment]; } }
+  if(!t||!t.logline) return;
+  // Saved ideas — switch between them, or generate a fresh alternative. Choose the best one.
+  const opts=(p&&p.treatments)||[];
+  const sel=document.createElement('div'); sel.className='row'; sel.style.cssText='flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center';
+  const lab=document.createElement('span'); lab.style.cssText='font-size:11px;font-weight:700;color:var(--ink2)'; lab.textContent='Ideas:'; sel.appendChild(lab);
+  opts.forEach((o,i)=>{ const active=(o===t)||(o._id&&t._id&&o._id===t._id); const b=document.createElement('button'); b.className='chip'+(active?' active':''); b.style.fontSize='12px'; b.textContent='Idea '+(i+1); b.title=o.logline||''; b.onclick=()=>{ p.treatment=o; persist(); scheduleSave(); renderPitch(o); }; sel.appendChild(b); });
+  const more=document.createElement('button'); more.className='chip'; more.style.cssText='font-size:12px;border-style:dashed'; more.textContent='✨ Another idea'; more.onclick=()=>doPitch('',{alt:true}); sel.appendChild(more);
+  if(opts.length>1){ const del=document.createElement('button'); del.className='chip'; del.style.cssText='font-size:12px;color:var(--err)'; del.textContent='🗑'; del.title='Remove this idea'; del.onclick=()=>{ p.treatments=opts.filter(o=>o!==t); p.treatment=p.treatments[0]||null; persist(); scheduleSave(); renderShots(); }; sel.appendChild(del); }
+  host.appendChild(sel);
   const box=document.createElement('div'); box.className='eguide'; box.style.cssText='margin-top:10px;text-align:left';
   let h='<div style="font-weight:800;color:var(--accent);margin-bottom:4px">🎬 Gul\'s ad pitch</div>';
   h+='<div style="font-size:13px;color:var(--ink);margin-bottom:6px"><b>'+escapeHtml(t.logline)+'</b></div>';
@@ -723,19 +734,25 @@ function renderPitch(t){
   host.appendChild(box);
   const redo=$('pitchRedo'); if(redo) redo.onclick=()=>{ const v=($('pitchNote').value||'').trim(); doPitch(v); };
 }
-async function doPitch(note){
-  const p=curProj(); if(!p)return;
+async function doPitch(note, opts){
+  const p=curProj(); if(!p)return; opts=opts||{};
+  // "Another idea" → tell Claude the angles already pitched so it offers a genuinely different one.
+  let userNote=note||'';
+  if(opts.alt){ const prev=(p.treatments||[]).map(t=>t.logline).filter(Boolean); const extra='Pitch a DIFFERENT concept from these already-suggested angles'+(prev.length?(': '+prev.map(s=>'"'+s+'"').join('; ')):'')+'. New hook, a different emotional angle or occasion.'; userNote = note? (note+' — '+extra) : extra; }
   $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is reading your piece & pitching…','run');
   try{
     const images=await sceneImages(3);
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      task:'treatment', story:(p.story||'').trim(), kind:p.kind||'ad', script:(p.script||'').trim(), note:note||'', images,
+      task:'treatment', story:(p.story||'').trim(), kind:p.kind||'ad', script:(p.script||'').trim(), note:userNote, images,
       scenes:p.scenes.map(s=>({ hint:s.hint||'' }))
     })});
     const data=await res.json();
     if(data.error){ planMsg('✕ '+data.error,'err'); return; }
-    p.treatment=data; persist(); scheduleSave(); renderPitch(data);
-    planMsg('✓ Concept ready — approve it, tweak it, or skip to plan.','ok');
+    data._id=uid();
+    if(!Array.isArray(p.treatments)) p.treatments=[];
+    p.treatments.push(data); p.treatment=data;
+    persist(); scheduleSave(); renderPitch(data);
+    planMsg('✓ Idea '+p.treatments.length+' ready — switch between ideas, pitch another, or use this one.','ok');
   }catch(e){ planMsg('✕ '+e.message,'err'); }
   finally{ $('pitchBtn').disabled=false; }
 }
@@ -870,7 +887,11 @@ function buildSceneCard(sc, idx){
         let combI=null;
         if(hasPrev){ const ccb=document.createElement('label'); ccb.className='chip'; ccb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> with previous beats'; combI=ccb.querySelector('input'); pctr.appendChild(ccb); }
         pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox);
-        const pa=makeFramesAnimator([], pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
+        const pa=makeFramesAnimator([], pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; pa.overlay={text:sh.overlay||''}; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
+        const capWrap=document.createElement('label'); capWrap.className='f'; capWrap.style.cssText='margin-top:8px;color:var(--accent)'; capWrap.textContent='🅣 On-screen text (caption)';
+        const capIn=document.createElement('input'); capIn.type='text'; capIn.value=sh.overlay||''; capIn.placeholder='words to type on screen during this pause (optional)';
+        capIn.addEventListener('input',()=>{ sh.overlay=capIn.value; pa.overlay.text=capIn.value; }); capIn.addEventListener('change',()=>{ persist(); scheduleSave(); });
+        sd.appendChild(capWrap); sd.appendChild(capIn);
         const curHold=()=> (combI&&combI.checked) ? beatsPlayedUpTo(sc,si) : beatPlayed(sh);
         let tok=0;
         const rebuild=async()=>{ const my=++tok; const fr=await exportFrames(curHold()); if(my!==tok) return; pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=vfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ if(my!==tok)return; pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
@@ -879,11 +900,11 @@ function buildSceneCard(sc, idx){
         const baseName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
         const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
         const mk=(t,title,fn)=>{ const b=document.createElement('button'); b.className='btn sm ghost'; b.style.cssText='flex:1;min-width:96px'; b.textContent=t; b.title=title; b.onclick=fn; return b; };
-        drow.appendChild(mk('⏱ Pause','This pause held to '+vfps()+'fps, with the breath + blink idle (zip)',()=>dlFramesZip(beatPlayed(sh), baseName+'-pause', baseName+'-pause')));
-        drow.appendChild(mk('🎞 GIF','Animated GIF of this live pause',(e)=>dlFramesGif(beatPlayed(sh), baseName+'-pause', vfps(), e.target)));
+        drow.appendChild(mk('⏱ Pause','This pause held to '+vfps()+'fps, with the breath + blink idle and caption (zip)',async()=>dlFramesZip(await bakeCaps(beatCapTrack(sh)), baseName+'-pause', baseName+'-pause', true)));
+        drow.appendChild(mk('🎞 GIF','Animated GIF of this live pause with caption',async(e)=>dlFramesGif(await bakeCaps(beatCapTrack(sh)), baseName+'-pause', vfps(), e.target, true)));
         if(hasPrev){
-          drow.appendChild(mk('⬇ 1→'+(si+1),'Beats 1 through this pause, back to back — frames (zip)',()=>dlFramesZip(beatsPlayedUpTo(sc,si), baseName+'-combined', baseName+'-combined')));
-          drow.appendChild(mk('🎞 1→'+(si+1)+' GIF','GIF of beats 1 through this pause together',(e)=>dlFramesGif(beatsPlayedUpTo(sc,si), baseName+'-combined', vfps(), e.target)));
+          drow.appendChild(mk('⬇ 1→'+(si+1),'Beats 1 through this pause, back to back, captions baked in — frames (zip)',async()=>dlFramesZip(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', baseName+'-combined', true)));
+          drow.appendChild(mk('🎞 1→'+(si+1)+' GIF','GIF of beats 1 through this pause with captions',async(e)=>dlFramesGif(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', vfps(), e.target, true)));
         }
         sd.appendChild(drow);
       }
@@ -1018,7 +1039,12 @@ function buildSceneCard(sc, idx){
       // Real-time preview plays the beat WITH its hold pause (beatPlayed); combined preview
       // plays each prior beat with its own hold so you feel the rhythm/pauses you'll export.
       const curFrames=()=>{ if(!rcbI.checked) return baseFrames(); if(combineI&&combineI.checked){ const out=[]; for(let k=0;k<=si;k++){ const b=sc.sheets[k]; if(b&&b.frames&&b.frames.length) out.push(...beatPlayed(b)); } return out; } return beatPlayed(sh); };
-      const pa=makeFramesAnimator(curFrames(), pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
+      const pa=makeFramesAnimator(curFrames(), pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; pa.overlay={text:sh.overlay||''}; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
+      // On-screen caption (Gul's words / overlay) — typed live into the preview as you edit.
+      const capWrap=document.createElement('label'); capWrap.className='f'; capWrap.style.cssText='margin-top:8px;color:var(--accent)'; capWrap.textContent='🅣 On-screen text (caption)';
+      const capIn=document.createElement('input'); capIn.type='text'; capIn.value=sh.overlay||''; capIn.placeholder='words to type on screen this beat (optional)';
+      capIn.addEventListener('input',()=>{ sh.overlay=capIn.value; pa.overlay.text=capIn.value; }); capIn.addEventListener('change',()=>{ persist(); scheduleSave(); });
+      sd.appendChild(capWrap); sd.appendChild(capIn);
       // Run the preview through the SAME export pipeline (size-lock / uniform) so it shows
       // exactly what you'll download — Gul stays one size here too. Async, so set a token to
       // ignore a stale pass if the toggles change again before it finishes.
@@ -1040,9 +1066,9 @@ function buildSceneCard(sc, idx){
       const dlf=document.createElement('button'); dlf.className='btn sm ghost'; dlf.style.cssText='flex:1;min-width:96px'; dlf.textContent='⬇ Frames ('+sh.frames.length+')';
       dlf.title='Each unique pose as a numbered PNG (zip)'; dlf.onclick=()=>dlFramesZip(sh.frames, beatName, beatName);
       const dlft=document.createElement('button'); dlft.className='btn sm ghost'; dlft.style.cssText='flex:1;min-width:96px'; dlft.textContent='⏱ Timed ('+beatTimed(sh).length+')';
-      dlft.title='Poses held to '+vfps()+' fps — one play-through, frame-accurate (zip)'; dlft.onclick=()=>dlFramesZip(beatTimed(sh), beatName+'-timed', beatName+'-timed');
+      dlft.title='Poses held to '+vfps()+' fps — one play-through, with the on-screen caption baked in (zip)'; dlft.onclick=async()=>dlFramesZip(await bakeCaps(beatCapTrack(sh)), beatName+'-timed', beatName+'-timed', true);
       const dlg=document.createElement('button'); dlg.className='btn sm ghost'; dlg.style.cssText='flex:1;min-width:96px'; dlg.textContent='🎞 GIF';
-      dlg.title='Animated GIF preview of this beat'; dlg.onclick=()=>dlFramesGif(beatTimed(sh), beatName, vfps(), dlg);
+      dlg.title='Animated GIF of this beat with the caption baked in'; dlg.onclick=async()=>dlFramesGif(await bakeCaps(beatCapTrack(sh)), beatName, vfps(), dlg, true);
       const dlhd=document.createElement('button'); dlhd.className='btn sm ghost'; dlhd.style.cssText='flex:1;min-width:96px'; dlhd.textContent='🔍 HD ×2';
       dlhd.title='Upscale this beat ×2 on-device (free) and download as a zip — keeps transparency'; dlhd.onclick=()=>dlBeatHD(sh, beatName, dlhd);
       drow.appendChild(dlf); drow.appendChild(dlft); drow.appendChild(dlg); drow.appendChild(dlhd); sd.appendChild(drow);
@@ -1457,7 +1483,7 @@ function renderVideoPreview(){
   const lab=document.createElement('div'); lab.className='steps'; lab.style.marginTop='12px'; lab.innerHTML='<b>▶ Whole-video preview</b> — all generated scenes in order, timelines applied · '+frames.length+' frames ≈ '+secs+'s @'+fps+'fps (video rate)';
   host.appendChild(lab);
   const ab=document.createElement('div'); ab.className='anim-box'; const cv=document.createElement('canvas'); cv.width=240; cv.height=240; ab.appendChild(cv); host.appendChild(ab);
-  makeSeqAnimator(frames, cv);
+  const a=makeSeqAnimator(frames, cv); a.capTrack=videoCapTrack();
 }
 function compReady(a){ return a.getComp() && a.bg && a.bg.complete; }
 function layout(a){ const max=300; let w,h; if(compReady(a)){w=a.bg.width;h=a.bg.height;} else {w=a.dim.w;h=a.dim.h;} const sc=Math.min(max/w,max/h,1)||1; a.canvas.width=Math.max(40,Math.round(w*sc)); a.canvas.height=Math.max(40,Math.round(h*sc)); }
@@ -1466,6 +1492,9 @@ function tickA(a){
   const comp=compReady(a); if(comp) ctx.drawImage(a.bg,0,0,cv.width,cv.height);
   const im=a.imgs[a.idx];
   if(im&&im.complete){ if(comp){ const pin=a.pin||{x:.5,y:.5}; const s=0.5; const fh=cv.height*s, fw=fh*(a.dim.w/a.dim.h); ctx.drawImage(im,pin.x*cv.width-fw/2,pin.y*cv.height-fh/2,fw,fh); } else ctx.drawImage(im,0,0,cv.width,cv.height); }
+  // Live caption: a per-frame track (whole-video) wins; else a single-beat overlay typed by index.
+  if(a.capTrack && a.capTrack[a.idx]){ const c=a.capTrack[a.idx]; if(c.text) drawCaption(ctx, cv.width, cv.height, c.text, c.prog); }
+  else if(a.overlay && a.overlay.text){ const n=Math.max(1,a.imgs.length); const prog=n>1?Math.min(1, a.idx/Math.max(1,Math.round(n*0.55))):1; drawCaption(ctx, cv.width, cv.height, a.overlay.text, prog); }
   a.idx=(a.idx+1)%Math.max(1,a.imgs.length);
   const fps=a.fps||gfps();
   a.timer=setTimeout(()=>requestAnimationFrame(()=>tickA(a)), 1000/fps);
@@ -1673,6 +1702,44 @@ async function exportFrames(frames){
   if(s.idle!==false){ frames=await autoBlinkHolds(frames); frames=await breatheHolds(frames); }
   return frames;
 }
+// ===== On-screen captions (Gul's words / overlay text), typed onto the frame =====
+// Project-level look; sensible defaults match the pitch style (terracotta on a soft cream pill,
+// bottom-centre). Editable per project later via p.captionStyle.
+function capOpts(){ const p=curProj(); const c=(p&&p.captionStyle)||{}; return { color:c.color||'#c0531f', bg:c.bg||'rgba(253,245,236,.94)', y:(c.y!=null?c.y:0.86), size:(c.size||0.058), type:(c.type!==false) }; }
+function roundRect(ctx,x,y,w,h,r){ r=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+// Draw the caption onto ctx (canvas W×H). progress 0..1 reveals the text like typing.
+function drawCaption(ctx, W, H, text, progress, o){
+  if(!text) return; o=o||capOpts();
+  const shown = o.type===false ? text : text.slice(0, Math.max(0, Math.ceil(text.length*Math.min(1,Math.max(0,progress==null?1:progress)))));
+  if(!shown) return;
+  const fs=Math.max(13, Math.round(H*(o.size||0.058)));
+  ctx.save();
+  ctx.font='800 '+fs+'px Nunito, "Helvetica Neue", Arial, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  const maxW=W*0.86, words=shown.split(' '), lines=[]; let cur='';
+  words.forEach(w=>{ const t=cur?cur+' '+w:w; if(ctx.measureText(t).width>maxW && cur){ lines.push(cur); cur=w; } else cur=t; }); if(cur) lines.push(cur);
+  const lh=fs*1.28, padX=fs*0.7, padY=fs*0.42; let bw=0; lines.forEach(l=>bw=Math.max(bw, ctx.measureText(l).width)); bw+=padX*2; const bh=lines.length*lh+padY*2;
+  const cx=W/2, by=H*(o.y!=null?o.y:0.86)-bh/2, r=Math.min(bh/2, fs*0.7);
+  ctx.fillStyle=o.bg; roundRect(ctx, cx-bw/2, by, bw, bh, r); ctx.fill();
+  ctx.fillStyle=o.color; lines.forEach((l,i)=>ctx.fillText(l, cx, by+padY+lh/2+i*lh));
+  ctx.restore();
+}
+async function drawCaptionFrame(dataUrl, text, prog){ const im=await loadImg(dataUrl).catch(()=>null); if(!im) return dataUrl; const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0); drawCaption(ctx,w,h,text,prog,capOpts()); return c.toDataURL('image/png'); }
+// A caption "track" is one entry per played frame: the text to show and its typing progress.
+// Typing completes ~55% into a run, then holds — so the words land before the beat ends.
+function capRun(frames, text){ const n=frames.length, teer=Math.max(1,Math.round(n*0.55)); return frames.map((f,i)=>({ f, text:text||'', prog:(n>1?Math.min(1,i/teer):1) })); }
+function beatCapTrack(sh){ return capRun(beatPlayed(sh), sh.overlay); }
+function beatsPlayedCapTrack(sc, bi){ const out=[]; for(let k=0;k<=bi;k++){ const b=(sc.sheets||[])[k]; if(b&&b.frames&&b.frames.length) out.push(...capRun(beatPlayed(b), b.overlay)); } return out; }
+// Mirrors sceneTimed() EXACTLY (same frames/order/length) but carries each beat's caption.
+function sceneCapTrack(sc){
+  if(sc.timeline&&sc.timeline.length){ const out=[]; sc.timeline.forEach(seg=>{ const fr=beatFrames(sc, seg.beat); if(!fr.length) return; const sh=(sc.sheets||[])[seg.beat]; out.push(...capRun(fillFrames(fr, parseFloat(seg.sec)||0, seg.loop!==false), sh&&sh.overlay)); }); if(out.length) return out; return capRun(timedFrames(sc),''); }
+  if(beatHasHold(sc)){ const out=[]; (sc.sheets||[]).forEach(sh=>{ if(sh.frames&&sh.frames.length) out.push(...capRun(beatPlayed(sh), sh.overlay)); }); if(out.length) return out; }
+  return capRun(timedFrames(sc), (sc.sheets||[]).map(s=>s.overlay).find(Boolean)||'');
+}
+function videoCapTrack(){ const p=curProj(); const out=[]; (p&&p.scenes||[]).forEach(sc=>{ if(sceneGenerated(sc)) out.push(...sceneCapTrack(sc)); }); return out; }
+function trackHasCaption(track){ return track.some(t=>t.text); }
+// Run a caption track through the export pipeline (size-lock/smooth/idle keep 1:1 length) and
+// then burn the typed caption onto each frame. Returns plain frames ready to zip/gif (raw).
+async function bakeCaps(track){ let frames=track.map(t=>t.f); frames=await exportFrames(frames); if(!trackHasCaption(track)) return frames; return Promise.all(frames.map((f,i)=> track[i]&&track[i].text ? drawCaptionFrame(f, track[i].text, track[i].prog) : f)); }
 // Generic: zip any frame list (numbered PNGs) and download under fileName.
 // raw=true skips uniform-padding (used for already-upscaled HD frames).
 async function dlFramesZip(frames, fileName, folderName, raw){
@@ -1683,10 +1750,10 @@ async function dlFramesZip(frames, fileName, folderName, raw){
   const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(fileName)+'.zip'; a.click(); URL.revokeObjectURL(a.href);
 }
 // Generic GIF from any frame list, composited on white, at the given fps.
-async function dlFramesGif(frames, fileName, fps, btn){
+async function dlFramesGif(frames, fileName, fps, btn, raw){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — refresh and retry.'); return; }
   if(!frames.length) return; const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
-  frames=await exportFrames(frames);
+  if(!raw) frames=await exportFrames(frames);
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
   const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
   const w=Math.max(...valid.map(i=>i.width)), h=Math.max(...valid.map(i=>i.height));
@@ -1773,8 +1840,8 @@ async function dlBeatHD(sh, name, btn){
   finally{ btn.textContent=o; btn.disabled=false; }
 }
 async function downloadSceneZip(sc, idx, timed){
-  const p=curProj(); let frames= timed? sceneTimed(sc) : sceneFrames(sc);
-  if(!frames.length) return; frames=await exportFrames(frames);
+  const p=curProj(); let frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(sceneFrames(sc));
+  if(!frames.length) return;
   const tag = timed?'_timed':'';
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(sc.title||('scene'+(idx+1)))+'_'+pad3(i+1)+'.png')); return; }
   const zip=new JSZip(); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+tag);
@@ -1787,7 +1854,7 @@ async function downloadSceneGif(sc, idx, timed, btn){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — check your connection and refresh.'); return; }
   let frames = timed? sceneTimed(sc) : sceneFrames(sc); if(!frames.length) return;
   const fps= timed? vfps() : gfps(); const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
-  frames=await exportFrames(frames);
+  frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(frames);
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
   const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
   const w=Math.max(...valid.map(i=>i.width)), h=Math.max(...valid.map(i=>i.height));
@@ -1800,7 +1867,7 @@ async function downloadSceneGif(sc, idx, timed, btn){
 async function dlAllScenes(timed){
   const p=curProj(); if(typeof JSZip==='undefined'){ alert('Zip unavailable.'); return; }
   const zip=new JSZip(); let any=false;
-  for(let idx=0; idx<p.scenes.length; idx++){ const sc=p.scenes[idx]; let frames= timed? sceneTimed(sc) : sceneFrames(sc); if(!frames.length) continue; any=true; frames=await exportFrames(frames); const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); }
+  for(let idx=0; idx<p.scenes.length; idx++){ const sc=p.scenes[idx]; if(!sceneGenerated(sc) && !(sceneFrames(sc).length)) continue; let frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(sceneFrames(sc)); if(!frames.length) continue; any=true; const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); }
   if(!any){ alert('Generate a scene first.'); return; }
   const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_all-scenes'+(timed?'_timed':'')+'.zip'; a.click(); URL.revokeObjectURL(a.href);
 }
