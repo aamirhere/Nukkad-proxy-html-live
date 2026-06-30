@@ -208,6 +208,7 @@ body.noscroll{overflow:hidden}
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setIdle" checked style="margin:0 7px 0 0"> Living idle (gentle breath during holds, so pauses feel alive)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setEase" checked style="margin:0 7px 0 0"> Ease in / out (slow-in, slow-out timing like hand animation)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setSmooth" checked style="margin:0 7px 0 0"> Extra smoothing (blended in-between steps — turn off if you see ghosting)</label>
+        <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setBurnText" checked style="margin:0 7px 0 0"> Burn on-screen text into exports (off = clean, no text; use the “🅣 Text” buttons for a separate text track)</label>
         <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
       </div>
     </details>
@@ -429,10 +430,10 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; $('setSmooth').checked=s.smooth!==false; updateFpsNote(); }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked, smooth:$('setSmooth').checked }; persist(); scheduleSave(); updateFpsNote(); }
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; $('setSmooth').checked=s.smooth!==false; if($('setBurnText'))$('setBurnText').checked=s.burnText!==false; updateFpsNote(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked, smooth:$('setSmooth').checked, burnText:$('setBurnText')?$('setBurnText').checked:true }; persist(); scheduleSave(); updateFpsNote(); }
 function updateFpsNote(){ const el=$('fpsNote'); if(!el)return; const v=vfps(), g=gfps(); if(v%g===0){ el.style.color='var(--muted)'; el.textContent='✓ Each Gul pose holds '+(v/g)+' video frame'+(v/g===1?'':'s')+' — exports clean at '+v+'fps.'; } else { el.style.color='var(--accent)'; el.textContent='⚠ '+v+'fps ÷ '+g+'fps isn’t whole — holds will be uneven (slightly jerky). Pick a Gul fps that divides '+v+' (e.g. '+[2,3,4,5,6,8,10,12,15].filter(x=>v%x===0).join(', ')+').'; } }
-['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase','setSmooth'].forEach(id=>$(id).addEventListener('change', saveSettings));
+['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase','setSmooth','setBurnText'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', saveSettings); });
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -906,6 +907,7 @@ function buildSceneCard(sc, idx){
           drow.appendChild(mk('⬇ 1→'+(si+1),'Beats 1 through this pause, back to back, captions baked in — frames (zip)',async()=>dlFramesZip(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', baseName+'-combined', true)));
           drow.appendChild(mk('🎞 1→'+(si+1)+' GIF','GIF of beats 1 through this pause with captions',async(e)=>dlFramesGif(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', vfps(), e.target, true)));
         }
+        if(sh.overlay){ drow.appendChild(mk('🅣 Text only','The caption alone on a transparent PNG sequence for this pause — overlay it in your editor (zip)',async()=>dlFramesZip(await bakeCapsTextOnly(beatCapTrack(sh)), baseName+'-text', baseName+'-text', true))); }
         sd.appendChild(drow);
       }
       card.appendChild(sd); return;
@@ -1071,7 +1073,9 @@ function buildSceneCard(sc, idx){
       dlg.title='Animated GIF of this beat with the caption baked in'; dlg.onclick=async()=>dlFramesGif(await bakeCaps(beatCapTrack(sh)), beatName, vfps(), dlg, true);
       const dlhd=document.createElement('button'); dlhd.className='btn sm ghost'; dlhd.style.cssText='flex:1;min-width:96px'; dlhd.textContent='🔍 HD ×2';
       dlhd.title='Upscale this beat ×2 on-device (free) and download as a zip — keeps transparency'; dlhd.onclick=()=>dlBeatHD(sh, beatName, dlhd);
-      drow.appendChild(dlf); drow.appendChild(dlft); drow.appendChild(dlg); drow.appendChild(dlhd); sd.appendChild(drow);
+      drow.appendChild(dlf); drow.appendChild(dlft); drow.appendChild(dlg); drow.appendChild(dlhd);
+      if(sh.overlay){ const dltx=document.createElement('button'); dltx.className='btn sm ghost'; dltx.style.cssText='flex:1;min-width:96px'; dltx.textContent='🅣 Text only'; dltx.title='The caption alone on a transparent PNG sequence — overlay it on the clean animation in your editor (zip)'; dltx.onclick=async()=>dlFramesZip(await bakeCapsTextOnly(beatCapTrack(sh)), beatName+'-text', beatName+'-text', true); drow.appendChild(dltx); }
+      sd.appendChild(drow);
       if((sh.wide||[]).length){
         const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4';
         ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide — likely two Guls merged.</b>';
@@ -1143,7 +1147,9 @@ function buildSceneCard(sc, idx){
     const dlt=document.createElement('button'); dlt.className='btn sm ghost'; dlt.textContent='⏱ Timed (.zip)'; dlt.style.flex='1'; dlt.style.minWidth='92px';
     const gifb=document.createElement('button'); gifb.className='btn sm ghost'; gifb.textContent='🎞 GIF'; gifb.style.flex='1'; gifb.style.minWidth='92px';
     const appr=document.createElement('button'); appr.className='btn sm '+(sc.approved?'ok':''); appr.textContent=sc.approved?'✓ re-open':'Approve ▸'; appr.style.flex='1'; appr.style.minWidth='92px';
-    ar.appendChild(dl); ar.appendChild(dlt); ar.appendChild(gifb); ar.appendChild(appr); box.appendChild(ar);
+    ar.appendChild(dl); ar.appendChild(dlt); ar.appendChild(gifb);
+    if((sc.sheets||[]).some(s=>s.overlay)){ const txb=document.createElement('button'); txb.className='btn sm ghost'; txb.style.cssText='flex:1;min-width:92px'; txb.textContent='🅣 Text'; txb.title='This scene\'s captions alone on a transparent PNG sequence — overlay on the clean animation in your editor (zip)'; txb.onclick=async()=>{ const o=txb.textContent; txb.textContent='…'; txb.disabled=true; await dlFramesZip(await bakeCapsTextOnly(sceneCapTrack(sc)), slug(sc.title||('scene'+(idx+1)))+'-text', slug(sc.title||('scene'+(idx+1)))+'-text', true); txb.textContent=o; txb.disabled=false; }; ar.appendChild(txb); }
+    ar.appendChild(appr); box.appendChild(ar);
     const hasTL=()=>!!(sc.timeline&&sc.timeline.length);
     gifb.onclick=()=>downloadSceneGif(sc, idx, (!!sc.durationSec||hasTL()), gifb);
     if(sc.durationSec && !hasTL()){ const n=document.createElement('small'); n.className='note'; n.textContent='Timed = '+Math.round(sc.durationSec*vfps())+' frames at '+vfps()+'fps video rate ('+sc.durationSec+'s), '+(sc.loop===false?'time-stretched':'looped')+'; each Gul pose held '+(vfps()%gfps()===0?(vfps()/gfps())+' frames':'~'+(vfps()/gfps()).toFixed(1)+' frames')+'.'; box.appendChild(n); }
@@ -1739,7 +1745,12 @@ function videoCapTrack(){ const p=curProj(); const out=[]; (p&&p.scenes||[]).for
 function trackHasCaption(track){ return track.some(t=>t.text); }
 // Run a caption track through the export pipeline (size-lock/smooth/idle keep 1:1 length) and
 // then burn the typed caption onto each frame. Returns plain frames ready to zip/gif (raw).
-async function bakeCaps(track){ let frames=track.map(t=>t.f); frames=await exportFrames(frames); if(!trackHasCaption(track)) return frames; return Promise.all(frames.map((f,i)=> track[i]&&track[i].text ? drawCaptionFrame(f, track[i].text, track[i].prog) : f)); }
+// Honours the "Burn on-screen text into exports" setting — off → clean frames, no text.
+async function bakeCaps(track){ let frames=track.map(t=>t.f); frames=await exportFrames(frames); if(settings().burnText===false || !trackHasCaption(track)) return frames; return Promise.all(frames.map((f,i)=> track[i]&&track[i].text ? drawCaptionFrame(f, track[i].text, track[i].prog) : f)); }
+// Text ONLY, on a transparent canvas the same size as each finished frame — a separate caption
+// layer to drop OVER the clean animation in an editor. Empty-text frames stay fully transparent.
+async function drawCaptionOnlyFrame(dataUrl, text, prog){ const im=await loadImg(dataUrl).catch(()=>null); const w=(im&&(im.naturalWidth||im.width))||512, h=(im&&(im.naturalHeight||im.height))||512; const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); if(text) drawCaption(ctx,w,h,text,prog,capOpts()); return c.toDataURL('image/png'); }
+async function bakeCapsTextOnly(track){ let frames=track.map(t=>t.f); frames=await exportFrames(frames); return Promise.all(frames.map((f,i)=> drawCaptionOnlyFrame(f, track[i]&&track[i].text, track[i]&&track[i].prog))); }
 // Generic: zip any frame list (numbered PNGs) and download under fileName.
 // raw=true skips uniform-padding (used for already-upscaled HD frames).
 async function dlFramesZip(frames, fileName, folderName, raw){
