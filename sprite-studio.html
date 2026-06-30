@@ -206,6 +206,7 @@ body.noscroll{overflow:hidden}
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setUniform" checked style="margin:0 7px 0 0"> Uniform export size (every exported frame, all scenes, same canvas)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setSizeLock" checked style="margin:0 7px 0 0"> Lock Gul to one size (scale every frame so she never grows/shrinks)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setIdle" checked style="margin:0 7px 0 0"> Living idle (gentle breath during holds, so pauses feel alive)</label>
+        <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setAutoBlink" checked style="margin:0 7px 0 0"> Auto-blink in holds (synthesised — turn off if it looks wrong; she still breathes)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setEase" checked style="margin:0 7px 0 0"> Ease in / out (slow-in, slow-out timing like hand animation)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setSmooth" checked style="margin:0 7px 0 0"> Extra smoothing (blended in-between steps — turn off if you see ghosting)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setBurnText" checked style="margin:0 7px 0 0"> Burn on-screen text into exports (off = clean, no text; use the “🅣 Text” buttons for a separate text track)</label>
@@ -430,10 +431,10 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; $('setSmooth').checked=s.smooth!==false; if($('setBurnText'))$('setBurnText').checked=s.burnText!==false; updateFpsNote(); }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked, smooth:$('setSmooth').checked, burnText:$('setBurnText')?$('setBurnText').checked:true }; persist(); scheduleSave(); updateFpsNote(); }
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; $('setSmooth').checked=s.smooth!==false; if($('setBurnText'))$('setBurnText').checked=s.burnText!==false; if($('setAutoBlink'))$('setAutoBlink').checked=s.autoBlink!==false; updateFpsNote(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked, smooth:$('setSmooth').checked, burnText:$('setBurnText')?$('setBurnText').checked:true, autoBlink:$('setAutoBlink')?$('setAutoBlink').checked:true }; persist(); scheduleSave(); updateFpsNote(); }
 function updateFpsNote(){ const el=$('fpsNote'); if(!el)return; const v=vfps(), g=gfps(); if(v%g===0){ el.style.color='var(--muted)'; el.textContent='✓ Each Gul pose holds '+(v/g)+' video frame'+(v/g===1?'':'s')+' — exports clean at '+v+'fps.'; } else { el.style.color='var(--accent)'; el.textContent='⚠ '+v+'fps ÷ '+g+'fps isn’t whole — holds will be uneven (slightly jerky). Pick a Gul fps that divides '+v+' (e.g. '+[2,3,4,5,6,8,10,12,15].filter(x=>v%x===0).join(', ')+').'; } }
-['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase','setSmooth','setBurnText'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', saveSettings); });
+['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase','setSmooth','setBurnText','setAutoBlink'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', saveSettings); });
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -1606,10 +1607,11 @@ async function breatheHolds(frames){
     if(len>=MIN){ const br=await breathRun(out[i], i, len); for(let k=0;k<len;k++) out[i+k]=br[k]; } i=j+1; }
   return out;
 }
-// Auto-blink: synthesize an eyes-closed version of a still pose so holds blink on their OWN —
-// no manual marking. Find the dark pupils in the upper face, then "close" each eye by squashing
-// that little region to a thin slit (keeps her real colours, no guessed eyelid paint). Returns
-// the eyes-closed data URL, or null if eyes can't be located. Cached per pose.
+// Auto-blink: synthesize an eyes-closed version of a still pose so holds blink on their OWN.
+// CONSERVATIVE by design — it must find TWO small, tight, symmetric pupil blobs in the INNER
+// face (never the dark body outline) or it bails and returns null (no fake blink, just breath).
+// It closes each eye COLUMN-BY-COLUMN, squashing the pupil to a slit and filling the gap with
+// that column's own neighbouring pixels — so it blends into her real face, never a flat block.
 const _blinkCache=new Map();
 function synthBlink(dataUrl){
   if(_blinkCache.has(dataUrl)) return _blinkCache.get(dataUrl);
@@ -1622,28 +1624,35 @@ function synthBlink(dataUrl){
     for(let y=0;y<h;y++)for(let x=0;x<w;x++){ if(px[(y*w+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y; } }
     if(!any) return null;
     const bw=x1-x0+1, bh=y1-y0+1, cx=(x0+x1)/2;
-    const ey0=Math.round(y0+bh*0.12), ey1=Math.round(y0+bh*0.62);   // eyes live in the upper face
+    // Search the INNER face only — pull well away from the body edge so the dark outline is
+    // never mistaken for an eye.
+    const ix0=Math.round(x0+bw*0.20), ix1=Math.round(x1-bw*0.20);
+    const ey0=Math.round(y0+bh*0.18), ey1=Math.round(y0+bh*0.50);
     const eyes=[{minx:w,miny:h,maxx:0,maxy:0,n:0},{minx:w,miny:h,maxx:0,maxy:0,n:0}];
-    for(let y=ey0;y<=ey1;y++)for(let x=x0;x<=x1;x++){ const i=(y*w+x)*4; if(px[i+3]<128) continue; const lum=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]; if(lum<70){ const e=eyes[x<cx?0:1]; if(x<e.minx)e.minx=x; if(x>e.maxx)e.maxx=x; if(y<e.miny)e.miny=y; if(y>e.maxy)e.maxy=y; e.n++; } }
-    let closed=false;
+    for(let y=ey0;y<=ey1;y++)for(let x=ix0;x<=ix1;x++){ const i=(y*w+x)*4; if(px[i+3]<160) continue; const lum=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]; if(lum<60){ const e=eyes[x<cx?0:1]; if(x<e.minx)e.minx=x; if(x>e.maxx)e.maxx=x; if(y<e.miny)e.miny=y; if(y>e.maxy)e.maxy=y; e.n++; } }
+    // Both eyes must be present, compact (real pupils), and on roughly the same row.
+    for(const e of eyes){ if(e.n<6) return null; e.ew=e.maxx-e.minx+1; e.eh=e.maxy-e.miny+1; e.cy=(e.miny+e.maxy)/2;
+      if(e.ew<3||e.eh<3) return null;
+      if(e.ew>bw*0.22||e.eh>bh*0.20) return null;                   // too big → not a pupil (likely outline) — bail
+      if(e.n < e.ew*e.eh*0.25) return null;                         // too sparse → not a solid blob
+    }
+    if(Math.abs(eyes[0].cy-eyes[1].cy) > bh*0.10) return null;      // eyes not level → not confident
+    const src=ctx.getImageData(0,0,w,h).data;                       // immutable copy of the original
     eyes.forEach(e=>{
-      if(e.n < bw*bh*0.0006) return;                                // too few dark px — not an eye
-      const ew=e.maxx-e.minx+1, eh=e.maxy-e.miny+1;
-      if(ew>bw*0.6 || eh>bh*0.6 || ew<3 || eh<3) return;            // implausible blob — skip
-      const padx=Math.round(ew*0.28), pady=Math.round(eh*0.45);
-      const rx=Math.max(0,e.minx-padx), ry=Math.max(0,e.miny-pady);
-      const rw=Math.min(w-rx, ew+padx*2), rh=Math.min(h-ry, eh+pady*2);
-      const ecy=(e.miny+e.maxy)/2;
-      const region=document.createElement('canvas'); region.width=rw; region.height=rh; region.getContext('2d').drawImage(c, rx,ry,rw,rh, 0,0,rw,rh);
-      const corners=[[0,0],[rw-1,0],[0,rh-1],[rw-1,rh-1]].map(([a,b])=>{ const i=((ry+b)*w+(rx+a))*4; return px[i+3]>128?[px[i],px[i+1],px[i+2]]:null; }).filter(Boolean);
-      const fc = corners.length ? corners.reduce((s,v)=>[s[0]+v[0],s[1]+v[1],s[2]+v[2]],[0,0,0]).map(v=>Math.round(v/corners.length)) : null;
-      ctx.clearRect(rx,ry,rw,rh);
-      if(fc){ ctx.fillStyle='rgb('+fc[0]+','+fc[1]+','+fc[2]+')'; ctx.fillRect(rx,ry,rw,rh); }      // interior of the bird — opaque face
-      const dh=Math.max(2, eh*0.18);                                 // squash the eye to a thin slit (fraction of the EYE, not the padded box)
-      ctx.drawImage(region, 0,0,rw,rh, rx, ecy-dh/2, rw, dh);
-      closed=true;
+      const pad=Math.max(1,Math.round(e.eh*0.30));
+      const ty=Math.max(0,e.miny-pad), byy=Math.min(h-1,e.maxy+pad);
+      const slit=Math.max(1,Math.round(e.eh*0.18)), cyS=Math.round(e.cy-slit/2), cyE=Math.round(e.cy+slit/2);
+      for(let x=e.minx;x<=e.maxx;x++){
+        const top=((ty*w+x)*4), bot=((byy*w+x)*4);
+        for(let y=ty;y<=byy;y++){ const o=(y*w+x)*4; let s;
+          if(y>=cyS && y<=cyE){ const t=(y-cyS)/Math.max(1,(cyE-cyS)); const sy=Math.round(e.miny+t*(e.maxy-e.miny)); s=(sy*w+x)*4; }
+          else s = (y<cyS)? top : bot;                              // fill gap with this column's own edge pixel
+          px[o]=src[s]; px[o+1]=src[s+1]; px[o+2]=src[s+2]; px[o+3]=src[s+3];
+        }
+      }
     });
-    return closed ? c.toDataURL('image/png') : null;
+    ctx.putImageData(d,0,0);
+    return c.toDataURL('image/png');
   })();
   _blinkCache.set(dataUrl, pr); return pr;
 }
@@ -1651,6 +1660,7 @@ function synthBlink(dataUrl){
 // Runs before breath so the breath settles over the whole hold. Skips runs that already vary
 // (a hand-marked blink already broke them up).
 async function autoBlinkHolds(frames){
+  if(settings().autoBlink===false) return frames;
   if(!frames||frames.length<6) return frames; const vf=vfps(), out=frames.slice();
   const MIN=Math.max(6, Math.round(vf*1.2));
   let i=0;
