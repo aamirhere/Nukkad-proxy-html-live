@@ -1835,7 +1835,7 @@ async function generateCollections() {
       toast(`Step 2: Assigning products (batch ${batchNum}/${totalBatches})…`);
       const batch = prods.slice(i, i + BATCH);
       const res = await api(AD_URL, { action: 'assign_collections', schemas, products: batch });
-      if (!res.ok) { toast(`Batch ${batchNum} failed: ${res.error || 'unknown error'}`, true); return; }
+      if (!res.ok) { toast(`Batch ${batchNum} failed: ${res.error || 'unknown error'}. Raw: ${(res.raw||'').slice(0,120)}`, true); return; }
       Object.assign(allAssignments, res.assignments || {});
     }
 
