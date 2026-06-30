@@ -861,7 +861,8 @@ function buildSceneCard(sc, idx){
       const hl=document.createElement('label'); hl.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px'; hl.textContent='⏸ Hold for'; const hin=document.createElement('input'); hin.type='text'; hin.inputMode='decimal'; hin.value=sh.holdEnd||1.5; hin.style.cssText='width:56px;padding:3px 6px'; hin.addEventListener('input',()=>{sh.holdEnd=parseFloat(hin.value)||0;}); hin.addEventListener('change',()=>{persist();scheduleSave();renderAll();}); hl.appendChild(hin); hl.append('s'); hr.appendChild(hl);
       const norm=document.createElement('button'); norm.className='btn sm ghost'; norm.style.cssText='margin-left:auto'; norm.textContent='↩ Make it a normal beat'; norm.onclick=()=>{ sh.hold=false; sh.frames=null; sh.target=sh.target||9; const g=framesToGrid(sh.target); sh.cols=g.cols; sh.rows=g.rows; persist(); scheduleSave(); renderAll(); }; hr.appendChild(norm);
       sd.appendChild(hr);
-      if(pf){ const pbox=document.createElement('div'); pbox.style.marginTop='8px'; const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv); const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb); pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox); const pa=makeFramesAnimator(beatPlayed(sh), pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; }; }
+      if(pf){ const pbox=document.createElement('div'); pbox.style.marginTop='8px'; const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv); const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb); pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox); const pa=makeFramesAnimator([], pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
+        (async()=>{ const fr=await exportFrames(beatPlayed(sh)); pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=vfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); })(); }
       card.appendChild(sd); return;
     }
     const sd=document.createElement('div'); sd.className='sheet';
@@ -1543,6 +1544,61 @@ async function breatheHolds(frames){
     if(len>=MIN){ const br=await breathRun(out[i], i, len); for(let k=0;k<len;k++) out[i+k]=br[k]; } i=j+1; }
   return out;
 }
+// Auto-blink: synthesize an eyes-closed version of a still pose so holds blink on their OWN —
+// no manual marking. Find the dark pupils in the upper face, then "close" each eye by squashing
+// that little region to a thin slit (keeps her real colours, no guessed eyelid paint). Returns
+// the eyes-closed data URL, or null if eyes can't be located. Cached per pose.
+const _blinkCache=new Map();
+function synthBlink(dataUrl){
+  if(_blinkCache.has(dataUrl)) return _blinkCache.get(dataUrl);
+  const pr=(async()=>{
+    const im=await loadImg(dataUrl).catch(()=>null); if(!im) return null;
+    const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height;
+    const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0);
+    let d; try{ d=ctx.getImageData(0,0,w,h); }catch(e){ return null; }
+    const px=d.data; let x0=w,y0=h,x1=0,y1=0,any=false;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){ if(px[(y*w+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y; } }
+    if(!any) return null;
+    const bw=x1-x0+1, bh=y1-y0+1, cx=(x0+x1)/2;
+    const ey0=Math.round(y0+bh*0.12), ey1=Math.round(y0+bh*0.62);   // eyes live in the upper face
+    const eyes=[{minx:w,miny:h,maxx:0,maxy:0,n:0},{minx:w,miny:h,maxx:0,maxy:0,n:0}];
+    for(let y=ey0;y<=ey1;y++)for(let x=x0;x<=x1;x++){ const i=(y*w+x)*4; if(px[i+3]<128) continue; const lum=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]; if(lum<70){ const e=eyes[x<cx?0:1]; if(x<e.minx)e.minx=x; if(x>e.maxx)e.maxx=x; if(y<e.miny)e.miny=y; if(y>e.maxy)e.maxy=y; e.n++; } }
+    let closed=false;
+    eyes.forEach(e=>{
+      if(e.n < bw*bh*0.0006) return;                                // too few dark px — not an eye
+      const ew=e.maxx-e.minx+1, eh=e.maxy-e.miny+1;
+      if(ew>bw*0.6 || eh>bh*0.6 || ew<3 || eh<3) return;            // implausible blob — skip
+      const padx=Math.round(ew*0.28), pady=Math.round(eh*0.45);
+      const rx=Math.max(0,e.minx-padx), ry=Math.max(0,e.miny-pady);
+      const rw=Math.min(w-rx, ew+padx*2), rh=Math.min(h-ry, eh+pady*2);
+      const ecy=(e.miny+e.maxy)/2;
+      const region=document.createElement('canvas'); region.width=rw; region.height=rh; region.getContext('2d').drawImage(c, rx,ry,rw,rh, 0,0,rw,rh);
+      const corners=[[0,0],[rw-1,0],[0,rh-1],[rw-1,rh-1]].map(([a,b])=>{ const i=((ry+b)*w+(rx+a))*4; return px[i+3]>128?[px[i],px[i+1],px[i+2]]:null; }).filter(Boolean);
+      const fc = corners.length ? corners.reduce((s,v)=>[s[0]+v[0],s[1]+v[1],s[2]+v[2]],[0,0,0]).map(v=>Math.round(v/corners.length)) : null;
+      ctx.clearRect(rx,ry,rw,rh);
+      if(fc){ ctx.fillStyle='rgb('+fc[0]+','+fc[1]+','+fc[2]+')'; ctx.fillRect(rx,ry,rw,rh); }      // interior of the bird — opaque face
+      const dh=Math.max(2, rh*0.28);                                 // squash the eye to a thin slit
+      ctx.drawImage(region, 0,0,rw,rh, rx, ecy-dh/2, rw, dh);
+      closed=true;
+    });
+    return closed ? c.toDataURL('image/png') : null;
+  })();
+  _blinkCache.set(dataUrl, pr); return pr;
+}
+// Flick a synthesized blink into every long identical run (a hold) so she blinks unprompted.
+// Runs before breath so the breath settles over the whole hold. Skips runs that already vary
+// (a hand-marked blink already broke them up).
+async function autoBlinkHolds(frames){
+  if(!frames||frames.length<6) return frames; const vf=vfps(), out=frames.slice();
+  const MIN=Math.max(6, Math.round(vf*1.2));
+  let i=0;
+  while(i<out.length){ let j=i; while(j+1<out.length && out[j+1]===out[i]) j++; const len=j-i+1;
+    if(len>=MIN){ const blink=await synthBlink(out[i]);
+      if(blink){ const every=Math.max(MIN, Math.round(vf*3.4)), dur=Math.max(2,Math.round(vf*0.1)), firstAt=Math.round(vf*1.0);
+        for(let k=firstAt;k<len;k++){ if(((k-firstAt)%every)<dur) out[i+k]=blink; } } }
+    i=j+1; }
+  return out;
+}
 // Extra smoothing WITHOUT changing length/duration: convert motion "on twos" into interpolated
 // steps — a short run of a repeated pose followed by a DIFFERENT pose has its repeats nudged
 // toward that next pose (soft cross-step). Long runs (real holds) are left for the breath idle.
@@ -1587,7 +1643,7 @@ async function exportFrames(frames){
   if(s.sizeLock!==false){ const a=await projectBirdArea(); if(a) frames=await normalizeScale(frames, a); }
   else if(s.uniform!==false){ const {W,H}=projectMaxSize(); frames=await padFrames(frames, W, H); }
   if(s.smooth!==false) frames=await smoothFrames(frames);
-  if(s.idle!==false) frames=await breatheHolds(frames);
+  if(s.idle!==false){ frames=await autoBlinkHolds(frames); frames=await breatheHolds(frames); }
   return frames;
 }
 // Generic: zip any frame list (numbered PNGs) and download under fileName.
