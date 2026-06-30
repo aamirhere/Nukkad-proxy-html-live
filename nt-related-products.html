@@ -169,8 +169,29 @@ function api(url, body) {
     <button class="view-tab active" id="tab-products" onclick="switchView('products')">📦 Products</button>
     <button class="view-tab" id="tab-collections" onclick="switchView('collections')">🗂 Collections</button>
     <span id="headerStatus" style="font-size:10px;color:rgba(255,255,255,.55);font-weight:500;margin-left:8px;">Loading…</span>
+    <button onclick="toggleGlobalBrain()" id="global-brain-btn"
+      style="margin-left:10px;font-size:11px;padding:4px 12px;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;color:#fff;cursor:pointer;font-weight:700;">🧠 Brain</button>
   </div>
 </header>
+
+<!-- ── Global Brain Panel ────────────────────────────────── -->
+<div id="global-brain-panel" style="display:none;background:#1c1208;border-bottom:2px solid rgba(212,84,31,.5);padding:14px 20px;">
+  <div style="display:flex;align-items:flex-start;gap:12px;max-width:900px;">
+    <div style="flex:1;">
+      <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;">Global Brain — applies to every prompt, every product</div>
+      <textarea id="global-brain-ta" placeholder="e.g. Always keep scenes realistic. Indian home context. Never cartoon or illustrated. Product must always be sharp and clearly visible in the hero position."
+        style="width:100%;height:60px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 10px;font-size:11px;color:#fff;font-family:'DM Sans',sans-serif;resize:none;box-sizing:border-box;"
+        onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter')saveGlobalBrain()"></textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
+      <button onclick="saveGlobalBrain()" id="global-brain-save-btn"
+        style="font-size:11px;padding:7px 16px;background:#d4541f;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap;">Save (⌘↵)</button>
+      <button onclick="toggleGlobalBrain()"
+        style="font-size:11px;padding:6px 16px;background:transparent;color:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.15);border-radius:8px;cursor:pointer;">Close</button>
+    </div>
+  </div>
+  <div id="global-brain-status" style="font-size:10px;color:rgba(255,255,255,.35);margin-top:5px;min-height:14px;"></div>
+</div>
 
 <!-- ── Toolbar ───────────────────────────────────────────── -->
 <div class="toolbar">
@@ -348,6 +369,7 @@ function updateCardInPlace(p) {
 async function init() {
   document.getElementById('productsWrap').innerHTML =
     '<div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;"></div><p>Loading…</p></div>';
+  loadGlobalBrain(); // fire-and-forget — sets _globalBrain when ready
   try {
     const [catRes, relRes] = await Promise.all([
       api(CATALOG_URL, { action: 'load_approved' }),
@@ -806,10 +828,8 @@ function tabContentHTML(parentHandle, handle) {
       <button onclick="getStudioTaglines('${handle}')" style="font-size:10px;padding:3px 10px;background:#fff;border:1.5px solid var(--border);border-radius:20px;color:var(--brown);cursor:pointer;">💡 Taglines</button>
     </div>
     <div id="brain-panel-${handle}" style="display:none;margin-bottom:8px;border:1.5px solid var(--border);border-radius:10px;padding:10px;background:#fafaf8;">
-      <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;letter-spacing:.04em;">Global — applies to all products</div>
-      <textarea id="global-brain-ta-${handle}" placeholder="e.g. Always keep scenes realistic. Never show cartoon or illustrated styles. Indian home context." style="width:100%;height:44px;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:10px;resize:none;box-sizing:border-box;background:#fff;" oninput="syncGlobalBrainTA('${handle}')"></textarea>
-      <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:8px 0 4px;letter-spacing:.04em;">This product only</div>
-      <textarea id="brain-product-ta-${handle}" placeholder="e.g. This piece often gifted between siblings. Prefer warm, indoor settings." style="width:100%;height:44px;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:10px;resize:none;box-sizing:border-box;background:#fff;"></textarea>
+      <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;letter-spacing:.04em;">This product only</div>
+      <textarea id="brain-product-ta-${handle}" placeholder="e.g. This piece often gifted between siblings. Prefer warm, indoor settings." style="width:100%;height:56px;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:10px;resize:none;box-sizing:border-box;background:#fff;"></textarea>
       <button onclick="saveBrain('${handle}')" style="margin-top:8px;font-size:10px;padding:4px 14px;background:var(--orange);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Save</button>
     </div>
     <div id="stimages-${handle}" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
@@ -1222,43 +1242,76 @@ function hidePillThumb() {
 
 // ── BRAIN ─────────────────────────────────────────────────────────────────────
 
+let _globalBrain = ''; // in-memory, loaded from Redis on init
+
+function toggleGlobalBrain() {
+  const panel = document.getElementById('global-brain-panel');
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (opening) {
+    const ta = document.getElementById('global-brain-ta');
+    if (ta) ta.value = _globalBrain;
+    ta?.focus();
+  }
+}
+
+async function saveGlobalBrain() {
+  const ta = document.getElementById('global-brain-ta');
+  const val = ta?.value?.trim() || '';
+  const btn = document.getElementById('global-brain-save-btn');
+  const status = document.getElementById('global-brain-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await api(AD_URL, { action: 'save_brain', brain: val });
+    _globalBrain = val;
+    try { localStorage.setItem('nt_global_brain', val); } catch {}
+    if (status) status.textContent = '✓ Saved to cloud';
+    setTimeout(() => { if (status) status.textContent = ''; }, 2500);
+    toast('🧠 Global brain saved');
+  } catch(e) {
+    if (status) status.textContent = 'Error: ' + e.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save (⌘↵)'; }
+  }
+}
+
+async function loadGlobalBrain() {
+  // try Redis first, fall back to localStorage
+  try {
+    const res = await api(AD_URL, { action: 'get_brain' });
+    if (res.ok && res.brain) {
+      _globalBrain = res.brain;
+      try { localStorage.setItem('nt_global_brain', res.brain); } catch {}
+      return;
+    }
+  } catch {}
+  try { _globalBrain = localStorage.getItem('nt_global_brain') || ''; } catch {}
+}
+
 function toggleBrain(handle) {
   const panel = document.getElementById('brain-panel-' + handle);
   if (!panel) return;
   const opening = panel.style.display === 'none';
   panel.style.display = opening ? 'block' : 'none';
   if (opening) {
-    // populate global TA from localStorage
-    const globalVal = localStorage.getItem('nt_global_brain') || '';
-    const gta = document.getElementById('global-brain-ta-' + handle);
-    if (gta && !gta.dataset.synced) { gta.value = globalVal; gta.dataset.synced = '1'; }
-    // populate product brain from studioState
     const pta = document.getElementById('brain-product-ta-' + handle);
     if (pta) pta.value = studioState[handle]?.brain || '';
   }
 }
 
-function syncGlobalBrainTA(handle) {
-  // keep all visible global brain TAs in sync
-  const val = document.getElementById('global-brain-ta-' + handle)?.value || '';
-  document.querySelectorAll('[id^="global-brain-ta-"]').forEach(el => { el.value = val; });
-}
-
 function saveBrain(handle) {
-  const gta = document.getElementById('global-brain-ta-' + handle);
   const pta = document.getElementById('brain-product-ta-' + handle);
-  const globalBrain = gta?.value?.trim() || '';
   const productBrain = pta?.value?.trim() || '';
-  try { localStorage.setItem('nt_global_brain', globalBrain); } catch {}
   if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
   studioState[handle].brain = productBrain;
   savePillsToStorage();
   document.getElementById('brain-panel-' + handle).style.display = 'none';
-  toast('🧠 Brain saved');
+  toast('🧠 Product brain saved');
 }
 
 function getGlobalBrain() {
-  try { return localStorage.getItem('nt_global_brain') || ''; } catch { return ''; }
+  return _globalBrain;
 }
 
 function getProductBrain(handle) {
