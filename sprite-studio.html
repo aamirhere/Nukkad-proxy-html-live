@@ -216,6 +216,12 @@ body.noscroll{overflow:hidden}
       <div class="steps">FLOW: <b>1</b> upload shots → <b>2</b> write the story → <b>3</b> Claude plans the scenes → <b>4</b> per beat: generate via API, <em>or</em> copy prompt → make on ChatGPT → upload (free) → approve</div>
       <h2>1 · Shots &amp; story</h2>
       <p class="hint">Upload the stills from your video — each becomes a scene, in order. Add a one-line note on what each shot shows / what Gul should do. Then write the overall story and let Claude plan it.</p>
+      <label class="f">This is a…</label>
+      <div class="row" id="kindRow" style="margin-bottom:4px">
+        <button class="chip" data-kind="ad" id="kindAd">🛍 Ad (sells, Gul talks)</button>
+        <button class="chip" data-kind="reel" id="kindReel">🎞 Social reel (playful, saves)</button>
+      </div>
+      <p class="hint" style="margin-top:0">Ads → message-first, Gul usually talks, minimal strategic motion. Reels → visual, playful, hook for saves/shares.</p>
       <div class="row">
         <button class="btn sm ghost" id="uploadShotsBtn" style="flex:2">+ Upload shots as scenes</button>
         <button class="btn sm ghost" id="addEmptyBtn" style="flex:1">+ Empty scene</button>
@@ -223,6 +229,8 @@ body.noscroll{overflow:hidden}
       <input type="file" id="shotFile" accept="image/*" multiple hidden>
       <div id="shotList" style="margin-top:12px"></div>
 
+      <label class="f" style="margin-top:8px">Script — what Gul says (optional; if set, she talks and moves minimally)</label>
+      <textarea id="script" placeholder="e.g. Every house has walls. A home has a heartbeat. — leave blank if she doesn't speak." style="min-height:54px"></textarea>
       <label class="f" style="margin-top:8px">The story / rough idea (optional — Claude will improve it)</label>
       <textarea id="story" placeholder="e.g. a little bird makes this 'Home Sweet Home' piece feel cosy — or just leave blank and let Claude pitch a concept from your shot."></textarea>
       <button class="btn" id="pitchBtn" style="width:100%;margin-top:10px">🎬 Pitch the ad first (Claude)</button>
@@ -294,7 +302,7 @@ function persist(){ clearTimeout(_persistTimer); _persistTimer=setTimeout(async(
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function curProj(){ return DB.projects.find(p=>p.id===DB.activeProject)||null; }
 function curMascot(){ return DB.mascot || window.GUL_DEFAULT_MASCOT || null; }
-function newProject(name){ return { id:uid(), name, createdAt:Date.now(), story:'', settings:{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true}, scenes:[] }; }
+function newProject(name){ return { id:uid(), name, createdAt:Date.now(), kind:'ad', script:'', story:'', settings:{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true}, scenes:[] }; }
 function settings(){ const p=curProj(); return (p&&p.settings)||{framesMax:9,quality:"medium",fps:12,vfps:24,crop:"aligned",uniform:true,sizeLock:true,idle:true}; }
 function gfps(){ return parseInt(settings().fps,10)||8; }   // Gul pose-change rate
 function vfps(){ return parseInt(settings().vfps,10)||24; } // video / timeline rate (export)
@@ -313,14 +321,14 @@ async function cloudSet(key,value){ const r=await fetch(STORE_URL,{method:'POST'
 async function cloudDel(key){ try{ await fetch(STORE_URL+'?key='+encodeURIComponent(key),{method:'DELETE'}); }catch(e){} }
 // meta = project structure with images replaced by their blob keys (one image per key)
 function projectMeta(p){
-  return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', treatment:p.treatment||null, settings:p.settings||defaults(),
+  return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', kind:p.kind||'ad', script:p.script||'', treatment:p.treatment||null, settings:p.settings||defaults(),
     scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved,
       pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null,
       refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
-        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0 })) })) };
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk })) })) };
 }
 async function saveCloud(p){
   if(!cloudOn||!p) return;
@@ -345,12 +353,12 @@ async function loadCloud(id){
   setCloudStatus('☁ loading…');
   const raw=await cloudGet('p:'+id); if(!raw) throw new Error('not found in cloud');
   const meta=JSON.parse(raw);
-  const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', treatment:meta.treatment||null, settings:meta.settings||defaults(), scenes:[] };
+  const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', kind:meta.kind||'ad', script:meta.script||'', treatment:meta.treatment||null, settings:meta.settings||defaults(), scenes:[] };
   for(const s of (meta.scenes||[])){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0 };
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
@@ -426,6 +434,10 @@ $('shotFile').onchange=e=>{ const files=[...e.target.files]; const p=curProj(); 
 $('addEmptyBtn').onclick=()=>{ const p=curProj(); if(!p)return; p.scenes.push({id:uid(),refImage:null,hint:'',title:'',summary:'',sheets:[],approved:false}); persist(); renderAll(); scheduleSave(); };
 $('story').addEventListener('input',e=>{ const p=curProj(); if(p){p.story=e.target.value;} });
 $('story').addEventListener('change',()=>{persist();scheduleSave();});
+$('script').addEventListener('input',e=>{ const p=curProj(); if(p){p.script=e.target.value;} });
+$('script').addEventListener('change',()=>{persist();scheduleSave();});
+function renderKind(){ const p=curProj(); const k=(p&&p.kind)||'ad'; $('kindAd').classList.toggle('active', k==='ad'); $('kindReel').classList.toggle('active', k==='reel'); }
+['kindAd','kindReel'].forEach(id=>{ $(id).onclick=()=>{ const p=curProj(); if(!p)return; p.kind=$(id).dataset.kind; renderKind(); persist(); scheduleSave(); }; });
 
 function placementWords(pin){
   const h=pin.x<0.34?'left':pin.x>0.66?'right':'centre';
@@ -517,7 +529,7 @@ function openImageFull(ed){
   ov.appendChild(close); ov.appendChild(ed); ov.style.display='flex'; document.body.classList.add('noscroll');
 }
 function renderShots(){
-  const p=curProj(); const wrap=$('shotList'); wrap.innerHTML=''; $('story').value=p.story||'';
+  const p=curProj(); const wrap=$('shotList'); wrap.innerHTML=''; $('story').value=p.story||''; if($('script')) $('script').value=p.script||''; renderKind();
   const ovx=$('imgFull'); if(ovx){ ovx.style.display='none'; document.body.classList.remove('noscroll'); }
   if($('pitchPanel')){ if(p.treatment) renderPitch(p.treatment); else $('pitchPanel').innerHTML=''; }
   if(!p.scenes.length){ wrap.innerHTML='<div class="empty">No shots yet — upload stills (or add an empty scene), then write the story.</div>'; return; }
@@ -635,7 +647,7 @@ async function runPlan(storyText, treatment){
   $('planBtn').disabled=true; $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is breaking it into scenes & beats…','run');
   try{
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      task:'plan', story, treatment:treatment||null, framesMax:settings().framesMax, fps:settings().fps,
+      task:'plan', story, treatment:treatment||null, kind:p.kind||'ad', script:(p.script||'').trim(), framesMax:settings().framesMax, fps:settings().fps,
       scenes:p.scenes.map(s=>{ const guide=[buildSceneNote(s), buildEditorGuide(s).join(' ')].filter(Boolean).join(' '); return { hint:[s.hint||'', guide].filter(Boolean).join(' — '), durationSec:s.durationSec||moveSeconds(s) }; })
     })});
     const data=await res.json();
@@ -649,7 +661,7 @@ async function runPlan(storyText, treatment){
       sc.placement=ps.placement||'';
       sc.loop=ps.loop!==false;
       sc.approved=false;
-      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0 }; });
+      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0, say:sh.say||'', talk:!!sh.talk }; });
     });
     persist(); renderAll(); scheduleSave();
     planMsg('✓ Planned '+planned.length+' scenes. Review the prompts, then generate Scene 1.','ok');
@@ -665,7 +677,7 @@ function treatmentToStory(t){
   if(t.logline) lines.push('Concept: '+t.logline);
   if(t.hook) lines.push('Opening hook: '+t.hook);
   if(t.overlay) lines.push('On-screen text: '+t.overlay);
-  if(t.beats&&t.beats.length) lines.push('Beats (small motions, keep Gul close to the piece — no long flights):\n'+t.beats.map((b,i)=>(i+1)+'. '+(b.title?b.title+' — ':'')+b.action+(b.seconds?(' (~'+b.seconds+'s)'):'')).join('\n'));
+  if(t.beats&&t.beats.length) lines.push('Beats (small motions, keep Gul close to the piece — no long flights):\n'+t.beats.map((b,i)=>(i+1)+'. '+(b.title?b.title+' — ':'')+b.action+(b.say?(' [says: "'+b.say+'"]'):'')+(b.seconds?(' (~'+b.seconds+'s)'):'')).join('\n'));
   return lines.join('\n');
 }
 function renderPitch(t){
@@ -676,7 +688,7 @@ function renderPitch(t){
   if(t.hook) h+='<div style="font-size:12px;color:var(--ink2)"><b>Hook:</b> '+escapeHtml(t.hook)+'</div>';
   if(t.overlay) h+='<div style="font-size:12px;color:var(--ink2)"><b>On-screen text:</b> "'+escapeHtml(t.overlay)+'"</div>';
   if(t.why) h+='<div style="font-size:12px;color:var(--ink2);margin-top:3px"><b>Why it works:</b> '+escapeHtml(t.why)+'</div>';
-  if(t.beats&&t.beats.length){ h+='<div style="font-size:12px;color:var(--ink);margin-top:6px"><b>Shot list:</b></div><ol style="margin:4px 0 0 18px;padding:0;font-size:12px;color:var(--ink2)">'+t.beats.map(b=>'<li>'+(b.title?'<b>'+escapeHtml(b.title)+'</b> — ':'')+escapeHtml(b.action)+(b.seconds?(' <span style="color:var(--muted)">~'+b.seconds+'s</span>'):'')+'</li>').join('')+'</ol>'; }
+  if(t.beats&&t.beats.length){ h+='<div style="font-size:12px;color:var(--ink);margin-top:6px"><b>Shot list:</b></div><ol style="margin:4px 0 0 18px;padding:0;font-size:12px;color:var(--ink2)">'+t.beats.map(b=>'<li>'+(b.title?'<b>'+escapeHtml(b.title)+'</b> — ':'')+escapeHtml(b.action)+(b.say?(' <span style="color:var(--accent)">💬 “'+escapeHtml(b.say)+'”</span>'):'')+(b.seconds?(' <span style="color:var(--muted)">~'+b.seconds+'s</span>'):'')+'</li>').join('')+'</ol>'; }
   box.innerHTML=h;
   const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:10px;flex-wrap:wrap';
   const use=document.createElement('button'); use.className='btn sm'; use.style.cssText='flex:2;min-width:150px'; use.textContent='👍 Use Claude’s pitch → break into beats';
@@ -694,7 +706,7 @@ async function doPitch(note){
   $('pitchBtn').disabled=true; planMsg('<span class="spinner"></span>Claude is pitching the ad…','run');
   try{
     const res=await fetch(DIRECTOR_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      task:'treatment', story:(p.story||'').trim(), note:note||'',
+      task:'treatment', story:(p.story||'').trim(), kind:p.kind||'ad', script:(p.script||'').trim(), note:note||'',
       scenes:p.scenes.map(s=>({ hint:s.hint||'' }))
     })});
     const data=await res.json();
@@ -767,6 +779,9 @@ function buildSceneCard(sc, idx){
     const ta=document.createElement('textarea'); ta.value=sh.action||''; ta.placeholder='action for this beat';
     ta.addEventListener('input',()=>{sh.action=ta.value;}); ta.addEventListener('change',persist);
     sd.appendChild(ta);
+    if(sh.talk||sh.say){ const sy=document.createElement('label'); sy.className='f'; sy.style.cssText='margin-top:6px;color:var(--accent)'; sy.textContent='💬 Gul says (talking beat)';
+      const si2=document.createElement('input'); si2.type='text'; si2.value=sh.say||''; si2.placeholder='her spoken line'; si2.addEventListener('input',()=>{sh.say=si2.value; sh.talk=!!si2.value;}); si2.addEventListener('change',()=>{persist();scheduleSave();});
+      sd.appendChild(sy); sd.appendChild(si2); }
 
     // Free manual route. The action box above is the short direction (prompt 1, editable);
     // this panel is the FULL prompt that actually goes to ChatGPT (prompt 2, grid + transparency).
