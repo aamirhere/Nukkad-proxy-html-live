@@ -938,8 +938,9 @@ function buildSceneCard(sc, idx){
       const pf=lastFrameBefore(idx,si);
       const note=document.createElement('small'); note.className='note'; note.innerHTML= pf? '♻ <b>Holds the previous pose</b> — reuses that exact frame (rock-steady, no re-generation, no pulse) with the gentle breath/blink idle. Set how long it holds below.' : '⚠ No earlier beat to hold from — generate Beat 1 first, or make this a normal beat.'; sd.appendChild(note);
       // duration of the hold
+      if(sh.holdEnd==null) sh.holdEnd=1.5;
       const hr=document.createElement('div'); hr.className='row'; hr.style.cssText='margin-top:6px;align-items:center;gap:8px';
-      const hl=document.createElement('label'); hl.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px'; hl.textContent='⏸ Hold for'; const hin=document.createElement('input'); hin.type='text'; hin.inputMode='decimal'; hin.value=sh.holdEnd||1.5; hin.style.cssText='width:56px;padding:3px 6px'; hin.addEventListener('input',()=>{sh.holdEnd=parseFloat(hin.value)||0;}); hin.addEventListener('change',()=>{persist();scheduleSave();renderAll();}); hl.appendChild(hin); hl.append('s'); hr.appendChild(hl);
+      const hl=document.createElement('label'); hl.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:5px;flex:1;min-width:170px'; hl.textContent='⏸ Hold for'; const hin=document.createElement('input'); hin.type='range'; hin.min='0'; hin.max='6'; hin.step='0.1'; hin.value=(sh.holdEnd!=null?sh.holdEnd:1.5); hin.style.cssText='flex:1;min-width:90px'; const hrd=document.createElement('span'); hrd.style.cssText='font-weight:800;color:var(--accent);min-width:32px'; hrd.textContent=(parseFloat(hin.value)||0).toFixed(1)+'s'; hin.addEventListener('input',()=>{sh.holdEnd=parseFloat(hin.value)||0; hrd.textContent=sh.holdEnd.toFixed(1)+'s';}); hin.addEventListener('change',()=>{persist();scheduleSave();renderAll();}); hl.appendChild(hin); hl.appendChild(hrd); hr.appendChild(hl);
       const norm=document.createElement('button'); norm.className='btn sm ghost'; norm.style.cssText='margin-left:auto'; norm.textContent='↩ Make it a normal beat'; norm.onclick=()=>{ sh.hold=false; sh.frames=null; sh.target=sh.target||9; const g=framesToGrid(sh.target); sh.cols=g.cols; sh.rows=g.rows; persist(); scheduleSave(); renderAll(); }; hr.appendChild(norm);
       sd.appendChild(hr);
       if(pf){
@@ -989,10 +990,13 @@ function buildSceneCard(sc, idx){
       // Talk length: gpt only draws a few mouth frames; loop them to fill however long she talks.
       const tr=document.createElement('div'); tr.className='row'; tr.style.cssText='margin-top:6px;align-items:center;gap:8px;flex-wrap:wrap';
       const tl=document.createElement('span'); tl.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; tl.textContent='🗣 Talk for';
-      const tin=document.createElement('input'); tin.type='text'; tin.inputMode='decimal'; tin.value=(sh.talkSec!=null?sh.talkSec:''); tin.placeholder='0'; tin.style.cssText='width:56px;padding:3px 6px';
-      tin.addEventListener('input',()=>{ sh.talkSec=parseFloat(tin.value)||0; }); tin.addEventListener('change',()=>{ persist(); scheduleSave(); renderAll(); });
-      tr.appendChild(tl); tr.appendChild(tin); const ts=document.createElement('span'); ts.style.cssText='font-size:11px;color:var(--ink2)'; ts.textContent='s — loops the talk frames (blinks if long)'; tr.appendChild(ts);
-      sd.appendChild(tr); }
+      const tin=document.createElement('input'); tin.type='range'; tin.min='0'; tin.max='8'; tin.step='0.2'; tin.value=(parseFloat(sh.talkSec)||0); tin.style.cssText='flex:1;min-width:120px';
+      const tv=document.createElement('span'); tv.style.cssText='font-size:11px;font-weight:800;color:var(--accent);min-width:34px'; tv.textContent=(parseFloat(sh.talkSec)||0).toFixed(1)+'s';
+      tin.addEventListener('input',()=>{ sh.talkSec=parseFloat(tin.value)||0; tv.textContent=sh.talkSec.toFixed(1)+'s'; });
+      tin.addEventListener('change',()=>{ persist(); scheduleSave(); renderAll(); });
+      tr.appendChild(tl); tr.appendChild(tin); tr.appendChild(tv);
+      const tnote=document.createElement('small'); tnote.className='note'; tnote.style.flexBasis='100%'; tnote.textContent='Loops the talk frames to this length (blinks flick in if long). Slide to the sweet spot.';
+      tr.appendChild(tnote); sd.appendChild(tr); }
     if(si>0 || idx>0){ const hb=document.createElement('button'); hb.className='btn sm ghost'; hb.style.cssText='margin-top:6px;width:100%'; hb.textContent='♻ Make this a HOLD of the previous pose (no generation)'; hb.title='If this beat is basically still, reuse the previous beat’s last frame instead of generating a near-duplicate that pulses'; hb.onclick=()=>{ sh.hold=true; persist(); scheduleSave(); renderAll(); }; sd.appendChild(hb); }
 
     // Free manual route. The action box above is the short direction (prompt 1, editable);
@@ -1134,7 +1138,7 @@ function buildSceneCard(sc, idx){
       // Hold / pause: freeze the first or last pose for N seconds so a moment can land
       // (e.g. dwell on the awe after she tilts her head). This is timing, not new frames.
       const hold=document.createElement('div'); hold.className='row'; hold.style.cssText='margin-top:6px;align-items:center;gap:8px;flex-wrap:wrap';
-      const mkHold=(lab,key)=>{ const w=document.createElement('label'); w.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px'; w.textContent=lab; const inp=document.createElement('input'); inp.type='text'; inp.inputMode='decimal'; inp.value=sh[key]||''; inp.placeholder='0'; inp.style.cssText='width:52px;padding:3px 6px'; inp.addEventListener('input',()=>{ sh[key]=parseFloat(inp.value)||0; }); inp.addEventListener('change',()=>{ persist(); scheduleSave(); rebuildPrev(); }); w.appendChild(inp); w.append('s'); return w; };
+      const mkHold=(lab,key)=>{ const w=document.createElement('label'); w.style.cssText='font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:5px;flex:1;min-width:150px'; w.textContent=lab; const inp=document.createElement('input'); inp.type='range'; inp.min='0'; inp.max='5'; inp.step='0.1'; inp.value=(parseFloat(sh[key])||0); inp.style.cssText='flex:1;min-width:70px'; const rd=document.createElement('span'); rd.style.cssText='font-weight:800;color:var(--accent);min-width:30px'; rd.textContent=(parseFloat(sh[key])||0).toFixed(1)+'s'; inp.addEventListener('input',()=>{ sh[key]=parseFloat(inp.value)||0; rd.textContent=sh[key].toFixed(1)+'s'; }); inp.addEventListener('change',()=>{ persist(); scheduleSave(); rebuildPrev(); }); w.appendChild(inp); w.appendChild(rd); return w; };
       const hl=document.createElement('span'); hl.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; hl.textContent='⏸ Hold pause:';
       hold.appendChild(hl); hold.appendChild(mkHold('start','holdStart')); hold.appendChild(mkHold('end','holdEnd'));
       const hn=document.createElement('small'); hn.className='note'; hn.style.flexBasis='100%'; hn.textContent='Seconds to freeze the first / last pose — the pause that gives the moment depth (turn the real-time preview on to feel it).';
@@ -1844,13 +1848,19 @@ async function detectFaceBox(dataUrl){
 }
 async function composeExpr(rest, pose, box){ const out=await rigComposite([rest, pose], 0, [box]); return (out&&out[1])||null; }
 async function fitMood(sh){
-  sh.moodComposite=null;
+  sh.moodComposite=null; sh.moodBlink=null;
   const mood=beatMood(sh); const pose=exprPoseForMood(mood); if(!pose) return;
   const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
-  const box=await detectFaceBox(rest); if(!box){ sh.moodComposite=null; return; }
-  try{ sh.moodComposite=await composeExpr(rest, pose, box); }catch(e){ sh.moodComposite=null; }
+  const box=await detectFaceBox(rest); if(!box) return;
+  try{ sh.moodComposite=await composeExpr(rest, pose, box); }catch(e){ sh.moodComposite=null; return; }
+  // Blink ALWAYS breaks the pattern — even while she holds an expression. Close the eyes ON the
+  // expression face (eyes-only swap), or synth-blink it if there's no eyes-closed pose.
+  if(sh.moodComposite){ const eb=await detectEyeBox(sh.moodComposite);
+    if(sh.blinkPose && eb){ try{ sh.moodBlink=await composeEyeBlink(sh.moodComposite, sh.blinkPose, eb); }catch(e){} }
+    if(!sh.moodBlink){ try{ sh.moodBlink=await synthBlink(sh.moodComposite); }catch(e){} }
+  }
 }
-function moodSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const pose=exprPoseForMood(beatMood(sh))||''; return beatMood(sh)+'|'+rest.length+'|'+(pose?pose.length:0); }
+function moodSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const pose=exprPoseForMood(beatMood(sh))||''; return beatMood(sh)+'|'+rest.length+'|'+(pose?pose.length:0)+'|'+(sh.blinkPose?sh.blinkPose.length:0); }
 // Seam morph: a short cross-fade from the PREVIOUS beat's last pose into this beat's first
 // pose, so when gpt didn't draw the join exactly the cut dissolves instead of jerking.
 async function morphLead(prevLast, fr0){ const vf=vfps(); const N=Math.max(2, Math.round(vf*0.1)); const out=[]; for(let k=1;k<=N;k++) out.push(await blendFrames(prevLast, fr0, k/(N+1))); return out; }
@@ -1988,10 +1998,12 @@ function beatPlayed(sh){
   // hold the end pose. If Claude tagged a mood and the palette has it, hold that EXPRESSION face
   // through the pause (the emotion lands). Otherwise hold the rest pose and blink now and then.
   const endN=Math.round(h.e*vf);
-  if(endN>0){ const rest=fr[fr.length-1];
-    if(sh&&sh.moodComposite){ for(let i=0;i<endN;i++) out.push(sh.moodComposite); }
-    else { const every=Math.round(vf*2.8), dur=Math.max(3,Math.round(vf*0.12)), firstAt=Math.round(vf*0.6);
-      for(let i=0;i<endN;i++){ const isBlink= blink && i>=firstAt && ((i-firstAt)%every)<dur; out.push(isBlink?blink:rest); } } }
+  if(endN>0){ const every=Math.round(vf*2.8), dur=Math.max(3,Math.round(vf*0.12)), firstAt=Math.round(vf*0.6);
+    // Core of the pause = the held expression (if any), else the rest pose. Blink ALWAYS flicks
+    // in to break the static pattern — on the expression face if we have one, else on the rest.
+    const base = (sh&&sh.moodComposite) ? sh.moodComposite : fr[fr.length-1];
+    const wink = (sh&&sh.moodComposite) ? sh.moodBlink : blink;
+    for(let i=0;i<endN;i++){ const isBlink= wink && i>=firstAt && ((i-firstAt)%every)<dur; out.push(isBlink?wink:base); } }
   return out;
 }
 function beatHasHold(sc){ return (sc.sheets||[]).some(sh=>{ const h=beatHold(sh); return h.s>0||h.e>0; }); }
