@@ -1916,7 +1916,9 @@ async function fitBlink(sh){
   const src = sh.blinkPose || libPose('blink');       // per-beat override, else the library
   let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
   if(src && box){ try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; } }
-  if(!sh.blinkComposite){ try{ sh.blinkComposite=await synthBlink(rest); }catch(e){} }   // own-eyes squash, keeps the body
+  // Procedural squash ONLY as a last resort when there's NO real eyes-closed pose to use. With a
+  // library/override blink pose present it's a clean real swap or no blink — never a squash.
+  if(!sh.blinkComposite && !src){ try{ sh.blinkComposite=await synthBlink(rest); }catch(e){} }
 }
 function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye'); }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
