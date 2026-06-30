@@ -1906,16 +1906,17 @@ async function regionSwap(baseUrl, srcUrl, box){
 }
 // Blink: replace only the eye region with the eyes-closed pose's eyes (feature-aligned).
 async function composeEyeBlink(rest, closed, box){ return regionSwap(rest, closed, box); }
-// Bake sh.blinkComposite (eyes-only) from the beat's resting pose + its eyes-closed pose. Falls
-// back to the whole closed pose if eyes can't be located (or eyes-only is off).
+// Bake sh.blinkComposite — the REST frame with ONLY the eyes closed (body identical). Tries the
+// eyes-closed library/override pose (feature-aligned); if that can't be built, squashes the rest
+// frame's OWN eyes. Either way the body stays the rest frame — it never shows a foreign whole body.
 async function fitBlink(sh){
   sh.blinkComposite=null;
-  const src = sh.blinkPose || libPose('blink');                 // per-beat override, else the library
-  if(!sh || !src || sh.blinkEyesOnly===false) return;
+  if(!sh || sh.blinkEyesOnly===false) return;        // whole-pose swap mode is handled in beatPlayed
   const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
+  const src = sh.blinkPose || libPose('blink');       // per-beat override, else the library
   let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
-  if(!box) return;                                   // couldn't find eyes → leave null → whole-pose swap
-  try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; }
+  if(src && box){ try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; } }
+  if(!sh.blinkComposite){ try{ sh.blinkComposite=await synthBlink(rest); }catch(e){} }   // own-eyes squash, keeps the body
 }
 function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye'); }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
@@ -1947,8 +1948,8 @@ async function fitMood(sh){
   try{ sh.moodComposite=await composeExpr(rest, pose, box); }catch(e){ sh.moodComposite=null; return; }
   // Blink ALWAYS breaks the pattern — even while she holds an expression. Close the eyes ON the
   // expression face (eyes-only swap), or synth-blink it if there's no eyes-closed pose.
-  if(sh.moodComposite){ const eb=await detectEyeBox(sh.moodComposite);
-    if(sh.blinkPose && eb){ try{ sh.moodBlink=await composeEyeBlink(sh.moodComposite, sh.blinkPose, eb); }catch(e){} }
+  if(sh.moodComposite){ const eb=await detectEyeBox(sh.moodComposite); const bsrc=sh.blinkPose||libPose('blink');
+    if(bsrc && eb){ try{ sh.moodBlink=await composeEyeBlink(sh.moodComposite, bsrc, eb); }catch(e){} }
     if(!sh.moodBlink){ try{ sh.moodBlink=await synthBlink(sh.moodComposite); }catch(e){} }
   }
 }
@@ -2142,7 +2143,11 @@ function beatPlayed(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const vf=vfps(), h=beatHold(sh); const out=[];
   // Real blink: eyes-only composite (body identical) > whole eyes-closed pose > marked frame.
-  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blinkSrc=(sh&&sh.blinkPose)||libPose('blink'); const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : blinkSrc ? blinkSrc : ((bi>=0&&bi<fr.length)?fr[bi]:null);
+  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1;
+  // Eyes-only (default): use the eye-only composite. Only when the user turns eyes-only OFF do we
+  // swap the whole library/override pose — otherwise never show a foreign whole body for a blink.
+  const blinkWhole=(sh&&sh.blinkEyesOnly===false) ? ((sh&&sh.blinkPose)||libPose('blink')) : null;
+  const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : blinkWhole ? blinkWhole : ((bi>=0&&bi<fr.length)?fr[bi]:null);
   // Lead-in into the beat: real drawn transition frames if provided, else the auto cross-fade.
   if(sh&&sh.transition&&sh.transition.length) out.push(...framesTimed(sh.transition));
   else if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
