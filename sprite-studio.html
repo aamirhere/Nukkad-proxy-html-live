@@ -223,6 +223,7 @@ body.noscroll{overflow:hidden}
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setAutoBlink" checked style="margin:0 7px 0 0"> Auto-blink in holds (synthesised — turn off if it looks wrong; she still breathes)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setEase" checked style="margin:0 7px 0 0"> Ease in / out (slow-in, slow-out timing like hand animation)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setSmooth" checked style="margin:0 7px 0 0"> Extra smoothing (blended in-between steps — turn off if you see ghosting)</label>
+        <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setMorph" checked style="margin:0 7px 0 0"> Morph beat-to-beat seams (cross-fade the last pose into the next beat so cuts don’t jerk)</label>
         <label class="chip" style="margin-top:8px;display:flex"><input type="checkbox" id="setBurnText" checked style="margin:0 7px 0 0"> Burn on-screen text into exports (off = clean, no text; use the “🅣 Text” buttons for a separate text track)</label>
         <small class="note">Fewer frames per sheet = bigger, more accurate Gul. Use Medium/High for character match; Low is a rough draft only.</small>
       </div>
@@ -349,7 +350,7 @@ function projectMeta(p){
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
-        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
+        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
@@ -388,7 +389,7 @@ async function loadCloud(id){
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
-        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
+        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
@@ -471,10 +472,10 @@ if($('exprAddBtn')){
 }
 
 /* ===== settings ===== */
-function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; $('setSmooth').checked=s.smooth!==false; if($('setBurnText'))$('setBurnText').checked=s.burnText!==false; if($('setAutoBlink'))$('setAutoBlink').checked=s.autoBlink!==false; updateFpsNote(); }
-function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked, smooth:$('setSmooth').checked, burnText:$('setBurnText')?$('setBurnText').checked:true, autoBlink:$('setAutoBlink')?$('setAutoBlink').checked:true }; persist(); scheduleSave(); updateFpsNote(); }
+function loadSettingsUI(){ const s=settings(); $('setFramesMax').value=s.framesMax; $('setQuality').value=s.quality; $('setFps').value=s.fps; $("setVfps").value=s.vfps||24; $('setCrop').value=cropMode(s); $('setBgRemove').checked=s.bgRemove!==false; $('setUniform').checked=s.uniform!==false; $('setSizeLock').checked=s.sizeLock!==false; $('setIdle').checked=s.idle!==false; $('setEase').checked=s.ease!==false; $('setSmooth').checked=s.smooth!==false; if($('setBurnText'))$('setBurnText').checked=s.burnText!==false; if($('setAutoBlink'))$('setAutoBlink').checked=s.autoBlink!==false; if($('setMorph'))$('setMorph').checked=s.morph!==false; updateFpsNote(); }
+function saveSettings(){ const p=curProj(); if(!p)return; p.settings={ framesMax:parseInt($('setFramesMax').value,10)||18, quality:$('setQuality').value, fps:parseInt($('setFps').value,10)||8, vfps:parseInt($('setVfps').value,10)||30, crop:$('setCrop').value, bgRemove:$('setBgRemove').checked, uniform:$('setUniform').checked, sizeLock:$('setSizeLock').checked, idle:$('setIdle').checked, ease:$('setEase').checked, smooth:$('setSmooth').checked, burnText:$('setBurnText')?$('setBurnText').checked:true, autoBlink:$('setAutoBlink')?$('setAutoBlink').checked:true, morph:$('setMorph')?$('setMorph').checked:true }; persist(); scheduleSave(); updateFpsNote(); }
 function updateFpsNote(){ const el=$('fpsNote'); if(!el)return; const v=vfps(), g=gfps(); if(v%g===0){ el.style.color='var(--muted)'; el.textContent='✓ Each Gul pose holds '+(v/g)+' video frame'+(v/g===1?'':'s')+' — exports clean at '+v+'fps.'; } else { el.style.color='var(--accent)'; el.textContent='⚠ '+v+'fps ÷ '+g+'fps isn’t whole — holds will be uneven (slightly jerky). Pick a Gul fps that divides '+v+' (e.g. '+[2,3,4,5,6,8,10,12,15].filter(x=>v%x===0).join(', ')+').'; } }
-['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase','setSmooth','setBurnText','setAutoBlink'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', saveSettings); });
+['setFramesMax','setQuality','setFps','setVfps','setBgRemove','setUniform','setSizeLock','setIdle','setEase','setSmooth','setBurnText','setAutoBlink','setMorph'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', saveSettings); });
 $('setCrop').addEventListener('change', ()=>{ saveSettings(); recropAll(); }); // re-crop existing frames to the new mode
 
 /* ===== shots / story ===== */
@@ -725,7 +726,7 @@ async function runPlan(storyText, treatment){
       sc.placement=ps.placement||'';
       sc.loop=ps.loop!==false;
       sc.approved=false;
-      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold, overlay:sh.overlay||'', mood:(sh.mood||'neutral') }; });
+      sc.sheets=(ps.sheets||[]).map(sh=>{ const g=framesToGrid(sh.frames); return { id:uid(), action:sh.action||'', target:sh.frames, cols:g.cols, rows:g.rows, sheetImg:null, frames:null, holdStart:parseFloat(sh.holdStart)||0, holdEnd:parseFloat(sh.holdEnd)||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold, overlay:sh.overlay||'', mood:(sh.mood||'neutral'), talkSec: (sh.talk||(sh.say||'').trim()) ? Math.max(1.2, (sh.say||'').trim().split(/\s+/).filter(Boolean).length*0.4) : 0 }; });
     });
     persist(); renderAll(); scheduleSave();
     planMsg('✓ Planned '+planned.length+' scenes. Review the prompts, then generate Scene 1.','ok');
@@ -984,7 +985,14 @@ function buildSceneCard(sc, idx){
     sd.appendChild(ta);
     if(sh.talk||sh.say){ const sy=document.createElement('label'); sy.className='f'; sy.style.cssText='margin-top:6px;color:var(--accent)'; sy.textContent='💬 Gul says (talking beat)';
       const si2=document.createElement('input'); si2.type='text'; si2.value=sh.say||''; si2.placeholder='her spoken line'; si2.addEventListener('input',()=>{sh.say=si2.value; sh.talk=!!si2.value;}); si2.addEventListener('change',()=>{persist();scheduleSave();});
-      sd.appendChild(sy); sd.appendChild(si2); }
+      sd.appendChild(sy); sd.appendChild(si2);
+      // Talk length: gpt only draws a few mouth frames; loop them to fill however long she talks.
+      const tr=document.createElement('div'); tr.className='row'; tr.style.cssText='margin-top:6px;align-items:center;gap:8px;flex-wrap:wrap';
+      const tl=document.createElement('span'); tl.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; tl.textContent='🗣 Talk for';
+      const tin=document.createElement('input'); tin.type='text'; tin.inputMode='decimal'; tin.value=(sh.talkSec!=null?sh.talkSec:''); tin.placeholder='0'; tin.style.cssText='width:56px;padding:3px 6px';
+      tin.addEventListener('input',()=>{ sh.talkSec=parseFloat(tin.value)||0; }); tin.addEventListener('change',()=>{ persist(); scheduleSave(); renderAll(); });
+      tr.appendChild(tl); tr.appendChild(tin); const ts=document.createElement('span'); ts.style.cssText='font-size:11px;color:var(--ink2)'; ts.textContent='s — loops the talk frames (blinks if long)'; tr.appendChild(ts);
+      sd.appendChild(tr); }
     if(si>0 || idx>0){ const hb=document.createElement('button'); hb.className='btn sm ghost'; hb.style.cssText='margin-top:6px;width:100%'; hb.textContent='♻ Make this a HOLD of the previous pose (no generation)'; hb.title='If this beat is basically still, reuse the previous beat’s last frame instead of generating a near-duplicate that pulses'; hb.onclick=()=>{ sh.hold=true; persist(); scheduleSave(); renderAll(); }; sd.appendChild(hb); }
 
     // Free manual route. The action box above is the short direction (prompt 1, editable);
@@ -1843,16 +1851,37 @@ async function fitMood(sh){
   try{ sh.moodComposite=await composeExpr(rest, pose, box); }catch(e){ sh.moodComposite=null; }
 }
 function moodSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const pose=exprPoseForMood(beatMood(sh))||''; return beatMood(sh)+'|'+rest.length+'|'+(pose?pose.length:0); }
-// After a render, lazily bake stale blink + mood composites, then refresh the scene previews
-// once so they pick them up. Sig-guarded so it doesn't loop.
+// Seam morph: a short cross-fade from the PREVIOUS beat's last pose into this beat's first
+// pose, so when gpt didn't draw the join exactly the cut dissolves instead of jerking.
+async function morphLead(prevLast, fr0){ const vf=vfps(); const N=Math.max(2, Math.round(vf*0.1)); const out=[]; for(let k=1;k<=N;k++) out.push(await blendFrames(prevLast, fr0, k/(N+1))); return out; }
+function morphSig(prevLast, fr0){ return (prevLast?prevLast.length:0)+'|'+(fr0?fr0.length:0)+'|'+vfps(); }
+// After a render, lazily bake stale blink + mood + seam-morph composites, then refresh the
+// scene previews once so they pick them up. Sig-guarded so it doesn't loop.
 async function refreshBlinks(){
-  const p=curProj(); if(!p) return; let changed=false;
+  const p=curProj(); if(!p) return; let changed=false; const morphOn=settings().morph!==false;
+  (p.scenes||[]).forEach((sc,si)=>(sc.sheets||[]).forEach((sh,k)=>{ sh._si=si; sh._k=k; }));
   for(const sc of (p.scenes||[])) for(const sh of (sc.sheets||[])){
     if(sh.blinkPose && sh.blinkEyesOnly!==false){ const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; changed=true; } }
     else if(sh.blinkComposite){ sh.blinkComposite=null; sh._blinkSig=null; changed=true; }
     const msig=moodSig(sh); if(sh._moodSig!==msig){ await fitMood(sh); sh._moodSig=msig; changed=true; }
+    if(morphOn && !sh.hold){ const prevLast=lastFrameBefore(sh._si, sh._k); const fr0=(sh.frames||[])[0];
+      if(prevLast && fr0 && prevLast!==fr0){ const sg=morphSig(prevLast,fr0); if(sh._morphSig!==sg){ sh.morphIn=await morphLead(prevLast, fr0); sh._morphSig=sg; changed=true; } }
+      else if(sh.morphIn){ sh.morphIn=null; sh._morphSig=null; changed=true; } }
+    else if(sh.morphIn){ sh.morphIn=null; sh._morphSig=null; changed=true; }
   }
   if(changed) renderScenes();
+}
+// A talking beat looped to a chosen length so she keeps speaking (gpt only gives a few frames).
+// Blinks flick in if it runs long, so it feels alive rather than a tight loop.
+function talkRun(sh){
+  const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
+  const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
+  if(!sec) return framesTimed(fr);
+  const out=fillFrames(fr, sec, true);                       // loop the talk cycle to fill the time
+  const blink=(sh&&sh.blinkComposite)||(sh&&sh.blinkPose)||null, vf=vfps();
+  if(blink && sec>=2){ const every=Math.round(vf*3.2), dur=Math.max(2,Math.round(vf*0.1)), firstAt=Math.round(vf*1.1);
+    for(let i=firstAt;i<out.length;i++){ if(((i-firstAt)%every)<dur) out[i]=blink; } }
+  return out;
 }
 // Export-time pipeline: size-lock → optional blended smoothing (motion) → breathe the holds.
 async function exportFrames(frames){
@@ -1953,8 +1982,9 @@ function beatPlayed(sh){
   const vf=vfps(), h=beatHold(sh); const out=[];
   // Real blink: eyes-only composite (body identical) > whole eyes-closed pose > marked frame.
   const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : (sh&&sh.blinkPose) ? sh.blinkPose : ((bi>=0&&bi<fr.length)?fr[bi]:null);
+  if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
   for(let i=0;i<Math.round(h.s*vf);i++) out.push(fr[0]);
-  out.push(...framesTimed(fr));
+  out.push(...((sh&&sh.talk&&parseFloat(sh.talkSec)>0) ? talkRun(sh) : framesTimed(fr)));  // talk = looped to length
   // hold the end pose. If Claude tagged a mood and the palette has it, hold that EXPRESSION face
   // through the pause (the emotion lands). Otherwise hold the rest pose and blink now and then.
   const endN=Math.round(h.e*vf);
