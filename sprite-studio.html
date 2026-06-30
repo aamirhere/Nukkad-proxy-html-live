@@ -331,7 +331,9 @@ function projectMeta(p){
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
-        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold })) })) };
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
+        rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
+        rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
 async function saveCloud(p){
   if(!cloudOn||!p) return;
@@ -343,6 +345,7 @@ async function saveCloud(p){
       for(const sh of (s.sheets||[])){
         if(sh.sheetImg && sh.sheetKey && !synced.has(sh.sheetKey)){ await cloudSet(sh.sheetKey,sh.sheetImg); synced.add(sh.sheetKey); }
         if(sh.frames && sh.frames.length && sh.framesKey){ const sig=framesSig(sh.frames); if(frameSigs[sh.framesKey]!==sig){ await cloudSet(sh.framesKey, JSON.stringify(sh.frames)); frameSigs[sh.framesKey]=sig; } }
+        if(sh.rawFrames && sh.rawFrames.length && sh.rawFramesKey){ const sig=framesSig(sh.rawFrames); if(frameSigs[sh.rawFramesKey]!==sig){ await cloudSet(sh.rawFramesKey, JSON.stringify(sh.rawFrames)); frameSigs[sh.rawFramesKey]=sig; } }
       }
     }
     await cloudSet('p:'+p.id, JSON.stringify(meta));
@@ -361,8 +364,10 @@ async function loadCloud(id){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold };
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
+        rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
+      if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
       if(sh.framesKey){ try{ const fr=await cloudGet(sh.framesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.frames=arr; frameSigs[sh.framesKey]=framesSig(arr); } }catch(e){} }
@@ -756,6 +761,57 @@ function lastFrameBefore(sceneIdx, sheetIdx){
 // doesn't pulse. Resolve them in order so each picks up the already-resolved prior frame.
 function applyHolds(){ const p=curProj(); if(!p) return; (p.scenes||[]).forEach((sc,si)=>(sc.sheets||[]).forEach((sh,k)=>{ if(sh.hold){ const f=lastFrameBefore(si,k); sh.frames= f?[f]:[]; sh.target=sh.frames.length; sh.cols=1; sh.rows=1; sh.wide=[]; } })); }
 
+// Per-beat rig editor: pick the still body pose, drag boxes over the parts that should move,
+// Apply to bake the locked-body animation into sh.frames (originals kept in sh.rawFrames).
+function buildRigPanel(sc, idx, sh, si){
+  const det=document.createElement('details'); det.className='fullprompt';
+  const sum=document.createElement('summary'); sum.textContent= sh.rig?'🎭 Body locked — only marked parts move (edit)':'🎭 Lock body, animate only parts (mouth / tail / eyes) — experimental';
+  det.appendChild(sum);
+  const body=document.createElement('div'); body.style.padding='10px';
+  const note=document.createElement('small'); note.className='note';
+  note.innerHTML='Freeze Gul\'s body to ONE pose and let only the boxes you draw move (beak/mouth, tail, eyes) — kills the whole-bird shimmer. Pick the still pose, drag a box over each moving part, then Apply. Works best when the poses are already close in size/position.';
+  body.appendChild(note);
+  const src = (sh.rawFrames && sh.rawFrames.length) ? sh.rawFrames : sh.frames;
+  if(!src || !src.length){ det.appendChild(body); return det; }
+  if(!Array.isArray(sh.rigRegions)) sh.rigRegions=[];
+  if(sh.rigBase==null || sh.rigBase>=src.length) sh.rigBase=Math.floor((src.length-1)/2);
+  // base-pose picker
+  const baseRow=document.createElement('div'); baseRow.className='row'; baseRow.style.cssText='margin-top:8px;align-items:center;gap:8px';
+  const blab=document.createElement('span'); blab.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; blab.textContent='Still body = frame';
+  const bnum=document.createElement('input'); bnum.type='number'; bnum.min='1'; bnum.max=String(src.length); bnum.value=String((sh.rigBase|0)+1); bnum.style.cssText='width:56px;padding:3px 6px';
+  baseRow.appendChild(blab); baseRow.appendChild(bnum); body.appendChild(baseRow);
+  // box editor over the base frame
+  const ov=document.createElement('div'); ov.style.cssText='position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;touch-action:none';
+  const img=document.createElement('img'); img.style.cssText='width:100%;display:block'; img.src=src[sh.rigBase]||src[0]; ov.appendChild(img);
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(NS,'svg'); svg.setAttribute('class','pinsvg'); svg.style.cssText='position:absolute;inset:0;width:100%;height:100%'; ov.appendChild(svg);
+  const drawBoxes=(extra)=>{ svg.innerHTML=''; (sh.rigRegions||[]).concat(extra?[extra]:[]).forEach(r=>{ const rect=document.createElementNS(NS,'rect'); rect.setAttribute('x',(r.x*100)+'%'); rect.setAttribute('y',(r.y*100)+'%'); rect.setAttribute('width',(r.w*100)+'%'); rect.setAttribute('height',(r.h*100)+'%'); rect.setAttribute('fill','rgba(212,84,31,.18)'); rect.setAttribute('stroke','#d4541f'); rect.setAttribute('stroke-width','2'); svg.appendChild(rect); }); };
+  drawBoxes();
+  let drawing=false, sx=0, sy=0;
+  const rel=e=>{ const r=img.getBoundingClientRect(); return { x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)) }; };
+  ov.style.cursor='crosshair';
+  ov.addEventListener('pointerdown',e=>{ drawing=true; const p=rel(e); sx=p.x; sy=p.y; try{ov.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
+  ov.addEventListener('pointermove',e=>{ if(!drawing)return; const p=rel(e); drawBoxes({x:Math.min(sx,p.x),y:Math.min(sy,p.y),w:Math.abs(p.x-sx),h:Math.abs(p.y-sy)}); });
+  const endDraw=e=>{ if(!drawing)return; drawing=false; const p=rel(e); const r={x:Math.min(sx,p.x),y:Math.min(sy,p.y),w:Math.abs(p.x-sx),h:Math.abs(p.y-sy)}; if(r.w>0.03&&r.h>0.03){ sh.rigRegions.push(r); persist(); scheduleSave(); } drawBoxes(); };
+  ov.addEventListener('pointerup',endDraw); ov.addEventListener('pointercancel',endDraw);
+  body.appendChild(ov);
+  bnum.addEventListener('change',()=>{ sh.rigBase=Math.max(0,Math.min(src.length-1,(parseInt(bnum.value,10)||1)-1)); img.src=src[sh.rigBase]||src[0]; persist(); scheduleSave(); });
+  const brow=document.createElement('div'); brow.className='row'; brow.style.cssText='margin-top:8px;flex-wrap:wrap';
+  const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.style.cssText='flex:1;min-width:84px'; clr.textContent='Clear boxes'; clr.onclick=()=>{ sh.rigRegions=[]; persist(); scheduleSave(); drawBoxes(); };
+  const apply=document.createElement('button'); apply.className='btn sm'; apply.style.cssText='flex:2;min-width:120px'; apply.textContent= sh.rig?'🎭 Re-apply rig':'🎭 Apply — lock body';
+  apply.onclick=async()=>{ if(!sh.rigRegions.length){ showToast('Draw at least one box first'); return; } apply.textContent='… rigging'; apply.disabled=true;
+    const base=(sh.rawFrames&&sh.rawFrames.length)?sh.rawFrames.slice():sh.frames.slice(); sh.rawFrames=base.slice();
+    const rigged=await rigComposite(base, sh.rigBase, sh.rigRegions);
+    if(rigged&&rigged.length){ sh.frames=rigged; sh.rig=true; } persist(); scheduleSave(); renderAll(); showToast('✓ Body locked — only the boxes move'); };
+  brow.appendChild(clr); brow.appendChild(apply);
+  if(sh.rig){ const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.style.cssText='flex:1;min-width:84px'; rm.textContent='↩ Remove'; rm.onclick=()=>{ if(sh.rawFrames&&sh.rawFrames.length) sh.frames=sh.rawFrames.slice(); sh.rig=false; persist(); scheduleSave(); renderAll(); }; brow.appendChild(rm); }
+  body.appendChild(brow);
+  const bn=document.createElement('small'); bn.className='note'; bn.style.marginTop='6px';
+  bn.textContent='Tip: draw small, tight boxes (just the beak, just the tail). Big boxes let more of the regenerated frame through and can re-introduce shimmer. Re-slicing the sheet clears the rig.';
+  body.appendChild(bn);
+  det.appendChild(body); return det;
+}
+
 function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); maybeResume(); }
 
 function renderScenes(){
@@ -842,9 +898,9 @@ function buildSceneCard(sc, idx){
     const up=mkBtn((sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload');
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
-    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ up.textContent='… processing'; showToast('⏳ Processing sheet…'); await ingestSheet(sh, d); persist(); scheduleSave(); renderAll(); showToast('✓ Sheet updated — '+((sh.frames||[]).length)+' frames'); }); e.target.value=''; };
+    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ up.textContent='… processing'; showToast('⏳ Processing sheet…'); await ingestSheet(sh, d); clearRig(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Sheet updated — '+((sh.frames||[]).length)+' frames'); }); e.target.value=''; };
     man.appendChild(up); man.appendChild(fi);
-    if(sh.sheetImg){ const ct=mkBtn('✂ Cutout'); ct.onclick=async()=>{ ct.textContent='…'; sh.sheetImg=await removeBg(sh.sheetImg); sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); persist(); scheduleSave(); renderAll(); }; man.appendChild(ct); }
+    if(sh.sheetImg){ const ct=mkBtn('✂ Cutout'); ct.onclick=async()=>{ ct.textContent='…'; sh.sheetImg=await removeBg(sh.sheetImg); sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); clearRig(sh); persist(); scheduleSave(); renderAll(); }; man.appendChild(ct); }
     sd.appendChild(man);
     const mn=document.createElement('small'); mn.className='note'; mn.textContent= seedFrame
       ? 'Free route: Copy Gul + Copy seed + Copy prompt → paste all in ChatGPT (seed = where this beat continues from) → upload the PNG here ('+sh.cols+'×'+sh.rows+' grid).'
@@ -869,10 +925,10 @@ function buildSceneCard(sc, idx){
       const upd=()=>drawGrid(parseInt(cIn.value,10)||1, parseInt(rIn.value,10)||1);
       cIn.addEventListener('input',upd); rIn.addEventListener('input',upd);
       const apply=document.createElement('button'); apply.className='btn sm'; apply.style.marginTop='8px'; apply.style.width='100%'; apply.textContent='Re-slice with this grid';
-      apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); sh.wide=[]; sh.detected=false; persist(); scheduleSave(); renderAll(); };
+      apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); sh.wide=[]; sh.detected=false; clearRig(sh); persist(); scheduleSave(); renderAll(); };
       gbody.appendChild(apply);
       const det2=document.createElement('button'); det2.className='btn sm ghost'; det2.style.marginTop='6px'; det2.style.width='100%'; det2.textContent='🔎 Auto-detect frames (ignore grid)';
-      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.frames.length){ sh.frames=out.frames; sh.wide=out.wide; sh.detected=true; sh.target=out.frames.length; markForReview(sh); persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
+      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.frames.length){ sh.frames=out.frames; sh.wide=out.wide; sh.detected=true; sh.target=out.frames.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
       gbody.appendChild(det2);
       const dn=document.createElement('small'); dn.className='note'; dn.textContent='Auto-detect finds each Gul as a separate shape — use it when ChatGPT laid the frames out unevenly (different sizes, arrows, no clean grid).';
       gbody.appendChild(dn);
@@ -891,7 +947,7 @@ function buildSceneCard(sc, idx){
       const setArm=(dir,btn)=>{ armDir=(armDir===dir)?null:dir; vb.classList.toggle('active', armDir==='v'); hb.classList.toggle('active', armDir==='h'); vb.style.background= armDir==='v'?'var(--accent)':''; vb.style.color=armDir==='v'?'#fff':''; hb.style.background= armDir==='h'?'var(--accent)':''; hb.style.color=armDir==='h'?'#fff':''; showToast(armDir?('Tap the image to add a '+(armDir==='v'?'vertical':'horizontal')+' cut'):'Manual cut off'); };
       vb.onclick=()=>setArm('v'); hb.onclick=()=>setArm('h');
       const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.style.cssText='flex:1;min-width:70px'; clr.textContent='Clear cuts'; clr.onclick=()=>{ sh.cuts={x:[],y:[]}; armDir=null; persist(); scheduleSave(); reflow(); };
-      const slc=document.createElement('button'); slc.className='btn sm'; slc.style.cssText='flex:1;min-width:90px'; slc.textContent='✂ Slice by cuts'; slc.onclick=async()=>{ if(!sh.cuts.x.length && !sh.cuts.y.length){ showToast('Add cut lines first'); return; } slc.textContent='… slicing'; let fr=await manualSlice(sh.sheetImg, sh.cuts.x, sh.cuts.y); fr=await normalizeFrames(fr); if(fr.length){ sh.frames=fr; sh.detected=true; sh.wide=[]; sh.target=fr.length; markForReview(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Sliced into '+fr.length+' frames'); } else { slc.textContent='✂ Slice by cuts'; showToast('No frames found in those cuts'); } };
+      const slc=document.createElement('button'); slc.className='btn sm'; slc.style.cssText='flex:1;min-width:90px'; slc.textContent='✂ Slice by cuts'; slc.onclick=async()=>{ if(!sh.cuts.x.length && !sh.cuts.y.length){ showToast('Add cut lines first'); return; } slc.textContent='… slicing'; let fr=await manualSlice(sh.sheetImg, sh.cuts.x, sh.cuts.y); fr=await normalizeFrames(fr); if(fr.length){ sh.frames=fr; sh.detected=true; sh.wide=[]; sh.target=fr.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Sliced into '+fr.length+' frames'); } else { slc.textContent='✂ Slice by cuts'; showToast('No frames found in those cuts'); } };
       mrow.appendChild(vb); mrow.appendChild(hb); mrow.appendChild(clr); mrow.appendChild(slc); gbody.appendChild(mrow);
       const mn=document.createElement('small'); mn.className='note'; mn.textContent='Manual slice: tap “+ Vertical/Horizontal cut”, then tap the image where the gaps between frames are. “Slice by cuts” cuts on those blue lines (uneven spacing is fine).';
       gbody.appendChild(mn);
@@ -919,6 +975,7 @@ function buildSceneCard(sc, idx){
       sd.appendChild(strip);
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder, 👁 to mark the eyes-closed pose (used for subtle idle blinks). (Re-slicing or changing crop resets these.)';
       sd.appendChild(fn);
+      if(sh.frames.length>=2) sd.appendChild(buildRigPanel(sc, idx, sh, si));
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
       const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
@@ -969,7 +1026,7 @@ function buildSceneCard(sc, idx){
         ww.innerHTML='<b style="color:var(--accent)">⚠ Frame'+(sh.wide.length>1?'s':'')+' #'+sh.wide.join(', #')+' look unusually wide — likely two Guls merged.</b>';
         const wrow=document.createElement('div'); wrow.className='row'; wrow.style.cssText='margin-top:8px;flex-wrap:wrap';
         const sp=document.createElement('button'); sp.className='btn sm'; sp.style.cssText='flex:1;min-width:130px'; sp.textContent='✂ Split into separate frames';
-        sp.onclick=async()=>{ sp.textContent='… splitting'; sp.disabled=true; const wides=(sh.wide||[]).slice().sort((a,b)=>b-a); for(const idx1 of wides){ const i=idx1-1; const parts=await splitFrame(sh.frames[i]); if(parts) sh.frames.splice(i,1,parts[0],parts[1]); } sh.frames=await normalizeFrames(sh.frames); sh.wide=[]; sh.target=sh.frames.length; markForReview(sh); persist(); scheduleSave(); renderAll(); };
+        sp.onclick=async()=>{ sp.textContent='… splitting'; sp.disabled=true; const wides=(sh.wide||[]).slice().sort((a,b)=>b-a); for(const idx1 of wides){ const i=idx1-1; const parts=await splitFrame(sh.frames[i]); if(parts) sh.frames.splice(i,1,parts[0],parts[1]); } sh.frames=await normalizeFrames(sh.frames); sh.wide=[]; sh.target=sh.frames.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); };
         const gs2=document.createElement('button'); gs2.className='btn sm ghost'; gs2.style.cssText='flex:1;min-width:130px'; gs2.textContent='⊞ Re-slice on grid';
         gs2.onclick=()=>{ const g=sd.querySelector('details.gridslice'); if(g){ g.open=true; g.scrollIntoView({behavior:'smooth',block:'center'}); } };
         wrow.appendChild(sp); wrow.appendChild(gs2); ww.appendChild(wrow);
@@ -1492,6 +1549,38 @@ async function breatheHolds(frames){
 const _blendCache=new Map();
 async function blendFrames(a,b,t){ const key=a+''+b+''+t.toFixed(2); if(_blendCache.has(key)) return _blendCache.get(key); const [ia,ib]=await Promise.all([loadImg(a).catch(()=>null), loadImg(b).catch(()=>null)]); if(!ia||!ib) return a; const aw=ia.naturalWidth||ia.width, ah=ia.naturalHeight||ia.height, bw=ib.naturalWidth||ib.width, bh=ib.naturalHeight||ib.height; const W=Math.max(aw,bw), H=Math.max(ah,bh); const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.globalAlpha=1; ctx.drawImage(ia, Math.round((W-aw)/2), Math.round((H-ah)/2)); ctx.globalAlpha=Math.min(0.85, Math.max(0.2, t)); ctx.drawImage(ib, Math.round((W-bw)/2), Math.round((H-bh)/2)); ctx.globalAlpha=1; const url=c.toDataURL('image/png'); _blendCache.set(key,url); return url; }
 async function smoothFrames(frames){ if(!frames||frames.length<3) return frames; const out=frames.slice(); let i=0; while(i<out.length){ let j=i; while(j+1<out.length && frames[j+1]===frames[i]) j++; const runLen=j-i+1; const next=(j+1<frames.length)?frames[j+1]:null; if(next && next!==frames[i] && runLen>=2 && runLen<=3){ for(let k=1;k<runLen;k++){ out[i+k]=await blendFrames(frames[i], next, k/runLen); } } i=j+1; } return out; }
+// Partial rig — the thing that stops the whole bird "boiling". Freeze the body to ONE base
+// pose and let ONLY the marked region boxes (beak/mouth, tail, eyes) move. For every frame we
+// draw the stable base, then — clipped to each box — paint that frame ALIGNED to the base by
+// body-core centroid + core scale (so the bodies line up seamlessly) and clear the base inside
+// the box first so the moving part's transparency shows. Result: identical body every frame,
+// only the boxes animate. Regions are fractional {x,y,w,h} in the base frame's own canvas.
+async function rigComposite(frames, baseIdx, regions){
+  if(!frames||!frames.length||!regions||!regions.length) return frames;
+  const boxes=await Promise.all(frames.map(measureBox));
+  const bi=Math.max(0,Math.min(frames.length-1, baseIdx|0));
+  const bm=boxes[bi]; if(!bm||!bm.im) return frames;
+  const W=bm.w, H=bm.h, out=[];
+  for(let i=0;i<frames.length;i++){
+    const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(bm.im,0,0,W,H);
+    const m=boxes[i];
+    if(m && m.im && i!==bi){
+      const s=Math.max(.5,Math.min(2,Math.sqrt(bm.core/Math.max(1,m.core))));
+      const dx=bm.ccx-m.ccx*s, dy=bm.ccy-m.ccy*s;
+      ctx.save(); ctx.beginPath();
+      regions.forEach(r=>ctx.rect(r.x*W, r.y*H, r.w*W, r.h*H));
+      ctx.clip(); ctx.clearRect(0,0,W,H);
+      ctx.drawImage(m.im, dx, dy, m.w*s, m.h*s);
+      ctx.restore();
+    }
+    out.push(c.toDataURL('image/png'));
+  }
+  return out;
+}
+// When frames are re-sliced/detected/split/uploaded the stored base + rawFrames no longer
+// match, so drop the rig rather than composite stale art.
+function clearRig(sh){ if(sh){ sh.rig=false; sh.rawFrames=null; } }
 // Export-time pipeline: size-lock → optional blended smoothing (motion) → breathe the holds.
 async function exportFrames(frames){
   const s=settings(); if(!(frames&&frames.length)) return frames||[];
