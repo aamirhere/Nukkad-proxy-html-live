@@ -216,9 +216,10 @@ function api(url, body) {
         <div style="border-top:1px solid var(--border);padding:10px;flex-shrink:0;">
           <div id="pill-modal-img-previews" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
           <div style="display:flex;gap:6px;align-items:flex-end;">
-            <textarea id="pill-modal-input" placeholder="Describe the vibe, audience, mood… or ask Claude a question. Shift+Enter for new line."
+            <textarea id="pill-modal-input" placeholder="Describe the vibe, audience, mood… Paste an image with Ctrl+V. Shift+Enter for new line."
               style="flex:1;font-size:11px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;resize:none;height:52px;font-family:var(--fb);color:var(--ink);outline:none;"
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPillDiscussion()}"></textarea>
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPillDiscussion()}"
+              onpaste="handlePillPaste(event)"></textarea>
             <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
               <label title="Attach reference images" style="cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:7px;padding:6px 9px;font-size:13px;text-align:center;">
                 📎<input type="file" accept="image/*" multiple id="pill-modal-file" style="display:none;" onchange="attachPillImages(this)">
@@ -1048,6 +1049,31 @@ function attachPillImages(input) {
     reader.readAsDataURL(file);
   });
   input.value = '';
+}
+
+function handlePillPaste(event) {
+  const items = event.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      event.preventDefault();
+      const file = item.getAsFile();
+      if (!file) continue;
+      const reader = new FileReader();
+      reader.onload = e => {
+        _pillModalImages.push(e.target.result);
+        const idx = _pillModalImages.length - 1;
+        const previews = document.getElementById('pill-modal-img-previews');
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;display:inline-block;';
+        wrap.innerHTML = `<img src="${e.target.result}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1.5px solid var(--border);">
+          <button onclick="this.parentNode.remove();_pillModalImages.splice(${idx},1)"
+            style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:8px;cursor:pointer;line-height:14px;text-align:center;">✕</button>`;
+        previews.appendChild(wrap);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
 }
 
 function addPillMsg(role, text, hasImages) {
