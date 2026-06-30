@@ -335,6 +335,7 @@ function projectMeta(p){
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
         overlay: sh.overlay||'', rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
+        takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
 async function saveCloud(p){
@@ -348,6 +349,7 @@ async function saveCloud(p){
         if(sh.sheetImg && sh.sheetKey && !synced.has(sh.sheetKey)){ await cloudSet(sh.sheetKey,sh.sheetImg); synced.add(sh.sheetKey); }
         if(sh.frames && sh.frames.length && sh.framesKey){ const sig=framesSig(sh.frames); if(frameSigs[sh.framesKey]!==sig){ await cloudSet(sh.framesKey, JSON.stringify(sh.frames)); frameSigs[sh.framesKey]=sig; } }
         if(sh.rawFrames && sh.rawFrames.length && sh.rawFramesKey){ const sig=framesSig(sh.rawFrames); if(frameSigs[sh.rawFramesKey]!==sig){ await cloudSet(sh.rawFramesKey, JSON.stringify(sh.rawFrames)); frameSigs[sh.rawFramesKey]=sig; } }
+        for(const t of (sh.takes||[])){ if(t.frames && t.frames.length && t.framesKey){ const sig=framesSig(t.frames); if(frameSigs[t.framesKey]!==sig){ await cloudSet(t.framesKey, JSON.stringify(t.frames)); frameSigs[t.framesKey]=sig; } } }
       }
     }
     await cloudSet('p:'+p.id, JSON.stringify(meta));
@@ -370,6 +372,8 @@ async function loadCloud(id){
         overlay:sh.overlay||'', rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
+      beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
+      beat.takes=beat.takes.filter(t=>t.frames&&t.frames.length);
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
       if(sh.framesKey){ try{ const fr=await cloudGet(sh.framesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.frames=arr; frameSigs[sh.framesKey]=framesSig(arr); } }catch(e){} }
@@ -831,6 +835,46 @@ function buildRigPanel(sc, idx, sh, si){
   det.appendChild(body); return det;
 }
 
+// ===== Takes: keep every generated/uploaded version of a beat, then mix the best frames =====
+// gpt never redraws a beat pixel-identically, so a second attempt is a fresh "take". We keep
+// them all instead of overwriting, and let you (or Claude) assemble one best sequence.
+function ensureTakes(sh){ if(!Array.isArray(sh.takes)) sh.takes=[]; if(!sh.takes.length && sh.frames && sh.frames.length) sh.takes.push({ id:uid(), frames:sh.frames.slice() }); }
+async function claudeMix(sh, btn){
+  ensureTakes(sh); if(!sh.takes || sh.takes.length<2){ showToast('Add another version first'); return; }
+  const o=btn?btn.textContent:''; if(btn){ btn.textContent='… mixing'; btn.disabled=true; }
+  try{
+    const combined=[]; sh.takes.forEach(t=>t.frames.forEach(f=>combined.push(f)));
+    const montage=await buildMontage(combined);
+    let start=1; const bounds=sh.takes.map((t,ti)=>{ const a=start, b=start+t.frames.length-1; start=b+1; return 'take '+(ti+1)+' = #'+a+'..#'+b; });
+    const note='These numbered frames are '+sh.takes.length+' ALTERNATE TAKES of the SAME beat ('+bounds.join('; ')+') — the same motion redrawn each time, so poses repeat across takes but are never pixel-identical. Build ONE smoothest sequence: for each step of the motion choose the single BEST version from ANY take, drop the weaker duplicates and any awkward/off-model frame, and return the chosen frame numbers IN ORDER in "order".';
+    const r=await fetch(ANALYZE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image:montage, count:combined.length, action:sh.action||'', note })});
+    const d=await r.json(); if(d.error){ showToast('✕ '+d.error); return; }
+    const order=(d.order||[]).map(n=>parseInt(n,10)).filter(n=>n>=1&&n<=combined.length);
+    if(order.length>=2){ sh.frames=order.map(n=>combined[n-1]); sh.wide=[]; sh.detected=true; sh.target=sh.frames.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); showToast('🪄 Claude mixed '+order.length+' best frames'+(d.notes?(' — '+d.notes):'')); }
+    else showToast('Claude couldn’t pick a mix — assemble manually below');
+  }catch(e){ showToast('✕ '+e.message); }
+  finally{ if(btn){ btn.textContent=o; btn.disabled=false; } }
+}
+function buildMixPanel(sc, idx, sh, si){
+  const det=document.createElement('details'); det.className='fullprompt';
+  const sum=document.createElement('summary'); sum.textContent='🔀 Versions & mix ('+sh.takes.length+' takes) — pick the best frames across them'; det.appendChild(sum);
+  const body=document.createElement('div'); body.style.padding='10px';
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='Each upload is kept as its own <b>take</b>. Build the final beat from the best frames of any take — tap <b>＋</b> to append a frame to the working strip above, or <b>Use all</b> to start from a whole take. Reorder/drop in the strip above. Or let Claude assemble the smoothest mix across takes.';
+  body.appendChild(note);
+  const mixBtn=document.createElement('button'); mixBtn.className='btn sm'; mixBtn.style.cssText='width:100%;margin-top:8px'; mixBtn.textContent='🪄 Let Claude pick the best mix'; mixBtn.onclick=()=>claudeMix(sh, mixBtn); body.appendChild(mixBtn);
+  sh.takes.forEach((t,ti)=>{
+    const hd=document.createElement('div'); hd.style.cssText='display:flex;align-items:center;gap:8px;margin-top:10px';
+    const lab=document.createElement('b'); lab.style.cssText='font-size:12px;color:var(--ink)'; lab.textContent='Take '+(ti+1)+' ('+t.frames.length+'f)'; hd.appendChild(lab);
+    const useAll=document.createElement('button'); useAll.className='btn sm ghost'; useAll.style.cssText='margin-left:auto'; useAll.textContent='Use all'; useAll.onclick=()=>{ sh.frames=t.frames.slice(); sh.wide=[]; sh.detected=true; sh.target=sh.frames.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); }; hd.appendChild(useAll);
+    if(sh.takes.length>1){ const del=document.createElement('button'); del.className='btn sm ghost'; del.style.color='var(--err)'; del.textContent='🗑'; del.title='Remove this take'; del.onclick=()=>{ sh.takes.splice(ti,1); persist(); scheduleSave(); renderAll(); }; hd.appendChild(del); }
+    body.appendChild(hd);
+    const strip=document.createElement('div'); strip.className='framestrip';
+    t.frames.forEach((f,i)=>{ const fr=document.createElement('div'); fr.className='fr'; fr.innerHTML='<div class="box"><img src="'+f+'"></div><div class="lab">#'+(i+1)+'</div>'; const add=document.createElement('button'); add.className='btn sm ghost'; add.style.cssText='padding:2px 0;font-size:10px;width:100%;margin-top:3px'; add.textContent='＋ add'; add.onclick=()=>{ if(!Array.isArray(sh.frames))sh.frames=[]; sh.frames.push(f); sh.target=sh.frames.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); }; fr.appendChild(add); strip.appendChild(fr); });
+    body.appendChild(strip);
+  });
+  det.appendChild(body); return det;
+}
+
 function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); maybeResume(); }
 
 function renderScenes(){
@@ -944,10 +988,15 @@ function buildSceneCard(sc, idx){
     ci.title=seedFrame?'Copies the previous beat’s last frame so Gul continues seamlessly':'Copies the master flat Gul';
     ci.onclick=()=>copyImage(ref, ci, seedFrame?'gul-continues.png':'gul-reference.png');
     man.appendChild(cp); man.appendChild(ci);
-    const up=mkBtn((sh.frames&&sh.frames.length)?'⬆ Replace':'⬆ Upload');
+    const hadFrames=sh.frames&&sh.frames.length;
+    const up=mkBtn(hadFrames?'➕ Add version':'⬆ Upload');
+    up.title=hadFrames?'Keep this beat and add another version — then mix the best frames across takes':'Upload the sprite sheet from ChatGPT';
     const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true;
     up.onclick=()=>fi.click();
-    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ up.textContent='… processing'; showToast('⏳ Processing sheet…'); await ingestSheet(sh, d); clearRig(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Sheet updated — '+((sh.frames||[]).length)+' frames'); }); e.target.value=''; };
+    fi.onchange=e=>{ const f=e.target.files[0]; if(!f) return; fileToDataURL(f, async d=>{ up.textContent='… processing';
+      if(hadFrames){ showToast('⏳ Processing new version…'); ensureTakes(sh); const tmp={cols:sh.cols, rows:sh.rows}; await ingestSheet(tmp, d); if(tmp.frames&&tmp.frames.length){ sh.takes.push({ id:uid(), frames:tmp.frames.slice() }); sh.sheetImg=tmp.sheetImg; showToast('✓ Added Take '+sh.takes.length+' — mix the best frames below'); } else showToast('Couldn’t read that sheet'); }
+      else { showToast('⏳ Processing sheet…'); await ingestSheet(sh, d); ensureTakes(sh); showToast('✓ Sheet uploaded — '+((sh.frames||[]).length)+' frames'); }
+      clearRig(sh); persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
     man.appendChild(up); man.appendChild(fi);
     if(sh.sheetImg){ const ct=mkBtn('✂ Cutout'); ct.onclick=async()=>{ ct.textContent='…'; sh.sheetImg=await removeBg(sh.sheetImg); sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); clearRig(sh); persist(); scheduleSave(); renderAll(); }; man.appendChild(ct); }
     sd.appendChild(man);
@@ -1025,6 +1074,7 @@ function buildSceneCard(sc, idx){
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder, 👁 to mark the eyes-closed pose (used for subtle idle blinks). (Re-slicing or changing crop resets these.)';
       sd.appendChild(fn);
       if(sh.frames.length>=2) sd.appendChild(buildRigPanel(sc, idx, sh, si));
+      if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
       const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
