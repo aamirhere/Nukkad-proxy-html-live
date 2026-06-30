@@ -1823,8 +1823,8 @@ async function generateCollections() {
     if (!step1.ok) { toast(step1.error || 'Failed to define collections', true); return; }
     const schemas = step1.schemas || [];
 
-    // Step 2: Sonnet assigns ALL products in batches of 175
-    const BATCH = 175;
+    // Step 2: Sonnet assigns ALL products in batches of 80 (Sonnet is slow — keep under 26s limit)
+    const BATCH = 80;
     const prods = allProducts.map(p => ({ handle: p.handle || p.h, title: p.title || p.t }));
     const allAssignments = {};
     const totalBatches = Math.ceil(prods.length / BATCH);
@@ -1835,7 +1835,7 @@ async function generateCollections() {
       toast(`Step 2: Assigning products (batch ${batchNum}/${totalBatches})…`);
       const batch = prods.slice(i, i + BATCH);
       const res = await api(AD_URL, { action: 'assign_collections', schemas, products: batch });
-      if (!res.ok) { toast(`Batch ${batchNum} failed: ${res.error || 'unknown error'}`, true); return; }
+      if (!res.ok) { toast(`Batch ${batchNum} failed: ${res.error || 'unknown error'}. Raw: ${(res.raw||'').slice(0,120)}`, true); return; }
       Object.assign(allAssignments, res.assignments || {});
     }
 
