@@ -352,6 +352,7 @@ function projectMeta(p){
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
         overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
+        transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
         blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
@@ -369,6 +370,7 @@ async function saveCloud(p){
         if(sh.rawFrames && sh.rawFrames.length && sh.rawFramesKey){ const sig=framesSig(sh.rawFrames); if(frameSigs[sh.rawFramesKey]!==sig){ await cloudSet(sh.rawFramesKey, JSON.stringify(sh.rawFrames)); frameSigs[sh.rawFramesKey]=sig; } }
         for(const t of (sh.takes||[])){ if(t.frames && t.frames.length && t.framesKey){ const sig=framesSig(t.frames); if(frameSigs[t.framesKey]!==sig){ await cloudSet(t.framesKey, JSON.stringify(t.frames)); frameSigs[t.framesKey]=sig; } } }
         if(sh.blinkPose && sh.blinkPoseKey){ const sig=framesSig([sh.blinkPose]); if(frameSigs[sh.blinkPoseKey]!==sig){ await cloudSet(sh.blinkPoseKey, sh.blinkPose); frameSigs[sh.blinkPoseKey]=sig; } }
+        if(sh.transition && sh.transition.length && sh.transitionKey){ const sig=framesSig(sh.transition); if(frameSigs[sh.transitionKey]!==sig){ await cloudSet(sh.transitionKey, JSON.stringify(sh.transition)); frameSigs[sh.transitionKey]=sig; } }
       }
     }
     await cloudSet('p:'+p.id, JSON.stringify(meta));
@@ -395,6 +397,7 @@ async function loadCloud(id){
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
       beat.takes=beat.takes.filter(t=>t.frames&&t.frames.length);
       beat.blinkPose=null; beat.blinkPoseKey=sh.blinkPoseKey||null; beat.blinkEyesOnly=sh.blinkEyesOnly!==false; if(sh.blinkPoseKey){ try{ const bp=await cloudGet(sh.blinkPoseKey); if(bp){ beat.blinkPose=bp; frameSigs[sh.blinkPoseKey]=framesSig([bp]); } }catch(e){} }
+      beat.transition=null; beat.transitionKey=sh.transitionKey||null; if(sh.transitionKey){ try{ const tr=await cloudGet(sh.transitionKey); const arr=tr?JSON.parse(tr):null; if(Array.isArray(arr)&&arr.length){ beat.transition=arr; frameSigs[sh.transitionKey]=framesSig(arr); } }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
       if(sh.framesKey){ try{ const fr=await cloudGet(sh.framesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.frames=arr; frameSigs[sh.framesKey]=framesSig(arr); } }catch(e){} }
@@ -892,6 +895,44 @@ function buildBlinkControl(sc, idx, sh, si){
   body.appendChild(up); body.appendChild(fi);
   det.appendChild(body); return det;
 }
+// A prompt to draw the IN-BETWEEN frames that morph the previous beat's last pose into this
+// beat's first pose — for when the auto cross-fade isn't enough and you want real drawn frames.
+function buildTransitionPrompt(n){
+  n=n||4;
+  return `Draw EXACTLY ${n} animation IN-BETWEEN frames of the SAME bird "Gul" (a small round chubby orange sparrow, cream belly, peach cheeks, orange beak) smoothly MORPHING from the pose in the FIRST reference image (the START pose) to the pose in the SECOND reference image (the END pose).
+KEEP HER EXACTLY ON-MODEL — identical bird, same flat clean cel/vector style (solid colour fills, smooth outline, gentle soft-3D shading), only the POSE changes.
+LAYOUT: one image, a STRICT single row of ${n} cells (${n} across, 1 down), each the same size, the bird centred and the SAME scale in every cell, a clear transparent gap between cells so they can be cut out. Fully TRANSPARENT background. NO grid lines, numbers, text, arrows or speed-lines, and NO shadow of any kind (nothing on the ground).
+These ${n} frames are evenly-spaced steps of ONE smooth motion: frame 1 is just AFTER the start pose, the last frame is just BEFORE the end pose, with gentle slow-in/slow-out and only SMALL changes between consecutive frames. Draw her COMPLETE body, fully visible, never cropped, in every cell.`;
+}
+// Per-seam transition: copy a morph prompt + the two endpoint references, or upload drawn
+// in-between frames. When present they play as the lead-in instead of the auto cross-fade.
+function buildTransitionPanel(sc, idx, sh, si){
+  const prevLast=lastFrameBefore(idx, si); const B=(sh.frames||[])[0];
+  if(!prevLast || !B) return null;
+  const det=document.createElement('details'); det.className='fullprompt';
+  const has=sh.transition&&sh.transition.length;
+  const sum=document.createElement('summary'); sum.textContent= has?('🔀 Beat transition — '+sh.transition.length+' drawn frames'):'🔀 Beat transition — fix a jumpy join (optional)'; det.appendChild(sum);
+  const body=document.createElement('div'); body.style.padding='10px';
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='If the join into this beat jerks (gpt didn’t match the previous pose), draw real in-between frames: copy the prompt + both end poses into ChatGPT, then upload the strip. They replace the auto cross-fade. <b>A → B</b> below are the two ends.';
+  body.appendChild(note);
+  const ends=document.createElement('div'); ends.style.cssText='display:flex;gap:8px;align-items:center;margin-top:8px';
+  const cell=(u,lab)=>'<div style="text-align:center"><div class="box" style="width:74px;height:74px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+u+'" style="width:100%;height:100%;object-fit:contain"></div><div style="font-size:10px;color:var(--ink2)">'+lab+'</div></div>';
+  ends.innerHTML=cell(prevLast,'A (prev end)')+'<div style="font-size:20px;color:var(--muted)">→</div>'+cell(B,'B (this start)');
+  body.appendChild(ends);
+  const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
+  const mk=(t,fn)=>{ const b=document.createElement('button'); b.className='btn sm ghost'; b.style.cssText='flex:1;min-width:96px'; b.textContent=t; b.onclick=fn; return b; };
+  const cp=mk('📋 Copy prompt', ()=>copyText(buildTransitionPrompt(4), cp));
+  const ca=mk('🖼 Copy A', ()=>copyImage(prevLast, ca, 'gul-A.png'));
+  const cb=mk('🖼 Copy B', ()=>copyImage(B, cb, 'gul-B.png'));
+  row.appendChild(cp); row.appendChild(ca); row.appendChild(cb); body.appendChild(row);
+  const up=document.createElement('button'); up.className='btn sm'; up.style.cssText='margin-top:8px;width:100%'; up.textContent= has?'⬆ Replace transition frames':'⬆ Upload transition frames';
+  const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true; up.onclick=()=>fi.click();
+  fi.onchange=e=>{ const f=e.target.files[0]; if(!f)return; fileToDataURL(f, async d=>{ up.textContent='… processing'; const tmp={cols:4,rows:1}; await ingestSheet(tmp,d); if(tmp.frames&&tmp.frames.length){ sh.transition=tmp.frames.slice(); showToast('✓ Transition set — '+sh.transition.length+' frames'); } else showToast('Couldn’t read that strip'); persist(); scheduleSave(); renderAll(); }); e.target.value=''; };
+  body.appendChild(up); body.appendChild(fi);
+  if(has){ const strip=document.createElement('div'); strip.className='framestrip'; sh.transition.forEach((f,i)=>{ const fr=document.createElement('div'); fr.className='fr'; fr.innerHTML='<div class="box"><img src="'+f+'"></div><div class="lab">#'+(i+1)+'</div>'; strip.appendChild(fr); }); body.appendChild(strip);
+    const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.style.cssText='margin-top:6px;width:100%;color:var(--err)'; clr.textContent='✕ Remove transition (back to auto cross-fade)'; clr.onclick=()=>{ sh.transition=null; sh.transitionKey=null; persist(); scheduleSave(); renderAll(); }; body.appendChild(clr); }
+  det.appendChild(body); return det;
+}
 
 function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); renderExpressions(); maybeResume(); refreshBlinks(); }
 
@@ -1105,6 +1146,7 @@ function buildSceneCard(sc, idx){
       sd.appendChild(fn);
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
       sd.appendChild(buildBlinkControl(sc, idx, sh, si));
+      { const tp=buildTransitionPanel(sc, idx, sh, si); if(tp) sd.appendChild(tp); }
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
       const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
@@ -1874,7 +1916,7 @@ async function refreshBlinks(){
     if(sh.blinkPose && sh.blinkEyesOnly!==false){ const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; changed=true; } }
     else if(sh.blinkComposite){ sh.blinkComposite=null; sh._blinkSig=null; changed=true; }
     const msig=moodSig(sh); if(sh._moodSig!==msig){ await fitMood(sh); sh._moodSig=msig; changed=true; }
-    if(morphOn && !sh.hold){ const prevLast=lastFrameBefore(sh._si, sh._k); const fr0=(sh.frames||[])[0];
+    if(morphOn && !sh.hold && !(sh.transition&&sh.transition.length)){ const prevLast=lastFrameBefore(sh._si, sh._k); const fr0=(sh.frames||[])[0];
       if(prevLast && fr0 && prevLast!==fr0){ const sg=morphSig(prevLast,fr0); if(sh._morphSig!==sg){ sh.morphIn=await morphLead(prevLast, fr0); sh._morphSig=sg; changed=true; } }
       else if(sh.morphIn){ sh.morphIn=null; sh._morphSig=null; changed=true; } }
     else if(sh.morphIn){ sh.morphIn=null; sh._morphSig=null; changed=true; }
@@ -1992,7 +2034,9 @@ function beatPlayed(sh){
   const vf=vfps(), h=beatHold(sh); const out=[];
   // Real blink: eyes-only composite (body identical) > whole eyes-closed pose > marked frame.
   const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : (sh&&sh.blinkPose) ? sh.blinkPose : ((bi>=0&&bi<fr.length)?fr[bi]:null);
-  if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
+  // Lead-in into the beat: real drawn transition frames if provided, else the auto cross-fade.
+  if(sh&&sh.transition&&sh.transition.length) out.push(...framesTimed(sh.transition));
+  else if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
   for(let i=0;i<Math.round(h.s*vf);i++) out.push(fr[0]);
   out.push(...((sh&&sh.talk&&parseFloat(sh.talkSec)>0) ? talkRun(sh) : framesTimed(fr)));  // talk = looped to length
   // hold the end pose. If Claude tagged a mood and the palette has it, hold that EXPRESSION face
