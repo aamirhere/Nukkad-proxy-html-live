@@ -336,6 +336,7 @@ function projectMeta(p){
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
         overlay: sh.overlay||'', rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
+        blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null,
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
 async function saveCloud(p){
@@ -350,6 +351,7 @@ async function saveCloud(p){
         if(sh.frames && sh.frames.length && sh.framesKey){ const sig=framesSig(sh.frames); if(frameSigs[sh.framesKey]!==sig){ await cloudSet(sh.framesKey, JSON.stringify(sh.frames)); frameSigs[sh.framesKey]=sig; } }
         if(sh.rawFrames && sh.rawFrames.length && sh.rawFramesKey){ const sig=framesSig(sh.rawFrames); if(frameSigs[sh.rawFramesKey]!==sig){ await cloudSet(sh.rawFramesKey, JSON.stringify(sh.rawFrames)); frameSigs[sh.rawFramesKey]=sig; } }
         for(const t of (sh.takes||[])){ if(t.frames && t.frames.length && t.framesKey){ const sig=framesSig(t.frames); if(frameSigs[t.framesKey]!==sig){ await cloudSet(t.framesKey, JSON.stringify(t.frames)); frameSigs[t.framesKey]=sig; } } }
+        if(sh.blinkPose && sh.blinkPoseKey){ const sig=framesSig([sh.blinkPose]); if(frameSigs[sh.blinkPoseKey]!==sig){ await cloudSet(sh.blinkPoseKey, sh.blinkPose); frameSigs[sh.blinkPoseKey]=sig; } }
       }
     }
     await cloudSet('p:'+p.id, JSON.stringify(meta));
@@ -374,6 +376,7 @@ async function loadCloud(id){
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
       beat.takes=beat.takes.filter(t=>t.frames&&t.frames.length);
+      beat.blinkPose=null; beat.blinkPoseKey=sh.blinkPoseKey||null; if(sh.blinkPoseKey){ try{ const bp=await cloudGet(sh.blinkPoseKey); if(bp){ beat.blinkPose=bp; frameSigs[sh.blinkPoseKey]=framesSig([bp]); } }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
       if(sh.framesKey){ try{ const fr=await cloudGet(sh.framesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.frames=arr; frameSigs[sh.framesKey]=framesSig(arr); } }catch(e){} }
@@ -875,6 +878,26 @@ function buildMixPanel(sc, idx, sh, si){
   det.appendChild(body); return det;
 }
 
+// Real blink: let the user give Gul an actual eyes-closed POSE for this beat (pick a frame from
+// any take, or upload one). The hold then flicks it in for a genuine blink — no synth guesswork.
+function buildBlinkControl(sc, idx, sh, si){
+  const det=document.createElement('details'); det.className='fullprompt';
+  const sum=document.createElement('summary'); sum.textContent= sh.blinkPose?'👁 Eyes-closed pose set — she blinks for real during holds':'👁 Eyes-closed pose (real blink) — optional'; det.appendChild(sum);
+  const body=document.createElement('div'); body.style.padding='10px';
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='For a real blink, give Gul an <b>eyes-closed version of this same pose</b> (same body, eyes shut). The hold flicks it in now and then. Best results: generate a sheet that includes this pose with eyes closed, then pick that frame here — or upload one. (Without it, blinking is only the rough auto-synth.)';
+  body.appendChild(note);
+  if(sh.blinkPose){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px'; pv.innerHTML='<div class="box" style="width:90px;height:90px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+sh.blinkPose+'" style="width:100%;height:100%;object-fit:contain"></div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.textContent='Clear'; rm.onclick=()=>{ sh.blinkPose=null; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); }; pv.appendChild(rm); body.appendChild(pv); }
+  const pool=[]; (sh.frames||[]).forEach(f=>pool.push(f)); (sh.takes||[]).forEach(t=>(t.frames||[]).forEach(f=>pool.push(f)));
+  const uniq=[...new Set(pool)];
+  if(uniq.length){ const lab=document.createElement('div'); lab.style.cssText='font-size:11px;font-weight:700;color:var(--ink2);margin-top:8px'; lab.textContent='Pick the eyes-closed frame (from this beat or its takes):'; body.appendChild(lab);
+    const strip=document.createElement('div'); strip.className='framestrip'; uniq.forEach(f=>{ const fr=document.createElement('div'); fr.className='fr'; fr.style.cursor='pointer'; fr.innerHTML='<div class="box"'+(sh.blinkPose===f?' style="outline:2px solid #2f6fd4"':'')+'><img src="'+f+'"></div>'; fr.onclick=()=>{ sh.blinkPose=f; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); showToast('👁 Eyes-closed pose set'); }; strip.appendChild(fr); }); body.appendChild(strip); }
+  const up=document.createElement('button'); up.className='btn sm ghost'; up.style.cssText='margin-top:8px;width:100%'; up.textContent='⬆ Upload an eyes-closed image';
+  const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true; up.onclick=()=>fi.click();
+  fi.onchange=e=>{ const f=e.target.files[0]; if(!f)return; fileToDataURL(f, async d=>{ up.textContent='…'; if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d); sh.blinkPose=d; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); showToast('👁 Eyes-closed pose uploaded'); }); e.target.value=''; };
+  body.appendChild(up); body.appendChild(fi);
+  det.appendChild(body); return det;
+}
+
 function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); maybeResume(); }
 
 function renderScenes(){
@@ -938,6 +961,7 @@ function buildSceneCard(sc, idx){
         const capIn=document.createElement('input'); capIn.type='text'; capIn.value=sh.overlay||''; capIn.placeholder='words to type on screen during this pause (optional)';
         capIn.addEventListener('input',()=>{ sh.overlay=capIn.value; pa.overlay.text=capIn.value; }); capIn.addEventListener('change',()=>{ persist(); scheduleSave(); });
         sd.appendChild(capWrap); sd.appendChild(capIn);
+        sd.appendChild(buildBlinkControl(sc, idx, sh, si));
         const curHold=()=> (combI&&combI.checked) ? beatsPlayedUpTo(sc,si) : beatPlayed(sh);
         let tok=0;
         const rebuild=async()=>{ const my=++tok; const fr=await exportFrames(curHold()); if(my!==tok) return; pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=vfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ if(my!==tok)return; pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
@@ -1075,6 +1099,7 @@ function buildSceneCard(sc, idx){
       sd.appendChild(fn);
       if(sh.frames.length>=2) sd.appendChild(buildRigPanel(sc, idx, sh, si));
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
+      sd.appendChild(buildBlinkControl(sc, idx, sh, si));
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
       const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
@@ -1856,12 +1881,13 @@ function beatHold(sh){ return { s:Math.max(0,parseFloat(sh&&sh.holdStart)||0), e
 function beatPlayed(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const vf=vfps(), h=beatHold(sh); const out=[];
-  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(bi>=0&&bi<fr.length)?fr[bi]:null;
+  // Real blink = a designated eyes-closed POSE (best). Falls back to a marked frame index.
+  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(sh&&sh.blinkPose) ? sh.blinkPose : ((bi>=0&&bi<fr.length)?fr[bi]:null);
   for(let i=0;i<Math.round(h.s*vf);i++) out.push(fr[0]);
   out.push(...framesTimed(fr));
-  // hold the end pose; during it, blink subtly now and then (reuses the eyes-closed pose)
+  // hold the end pose; during it, blink now and then by flicking in the eyes-closed pose
   const endN=Math.round(h.e*vf);
-  if(endN>0){ const rest=fr[fr.length-1], every=Math.round(vf*3.6), dur=Math.max(2,Math.round(vf*0.09)), firstAt=Math.round(vf*1.2);
+  if(endN>0){ const rest=fr[fr.length-1], every=Math.round(vf*2.8), dur=Math.max(3,Math.round(vf*0.12)), firstAt=Math.round(vf*0.6);
     for(let i=0;i<endN;i++){ const isBlink= blink && i>=firstAt && ((i-firstAt)%every)<dur; out.push(isBlink?blink:rest); } }
   return out;
 }
