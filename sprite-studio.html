@@ -165,16 +165,18 @@ body.noscroll{overflow:hidden}
     </details>
 
     <details class="card fold" id="exprFold">
-      <summary><span>Gul's expressions (for pauses)</span></summary>
+      <summary><span>Gul's expression library</span></summary>
       <div class="foldbody">
-        <p class="hint">Build a little palette of Gul faces once — eyes-closed, happy, content, excited, sad… Claude tags each pause with a mood and drops the matching <b>face</b> in (body stays the same). Reusable across every post.</p>
+        <p class="hint">Upload your expression sheet once — it auto-cuts, then you tag each face: <b>blink</b> (eyes-closed), <b>talk</b> (open beak), and moods (happy / content / excited / sad…). The whole studio borrows eyes/beak/face from here automatically (body stays the real frame). Reusable across every post.</p>
         <div id="exprList"></div>
-        <div class="row" style="margin-top:10px;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" id="exprSheetBtn" style="margin-top:10px;width:100%">⬆ Add an expression sheet (auto-cut)</button>
+        <input type="file" id="exprSheetFile" accept="image/*" hidden>
+        <div class="row" style="margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap">
           <select id="exprMood" style="flex:1;min-width:120px"></select>
-          <button class="btn sm ghost" id="exprAddBtn" style="flex:1;min-width:120px">⬆ Add a pose for this mood</button>
+          <button class="btn sm ghost" id="exprAddBtn" style="flex:1;min-width:120px">⬆ Add one pose for this role</button>
           <input type="file" id="exprFile" accept="image/*" hidden>
         </div>
-        <small class="note">Tip: generate one sheet of Gul’s face in a few moods (same body, just the face/eyes/mouth changing), cut them, and add each here against its mood.</small>
+        <small class="note">Best sheet: the same Gul, same body/size/position, only the face changing. After cutting, set each tile’s role in its dropdown.</small>
       </div>
     </details>
 
@@ -461,17 +463,30 @@ $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 /* ===== expression palette ===== */
 function projExpr(){ const p=curProj(); if(!p) return []; if(!Array.isArray(p.expressions)) p.expressions=[]; return p.expressions; }
 function renderExpressions(){
-  const sel=$('exprMood'); if(sel && !sel._filled){ sel.innerHTML=MOODS.filter(m=>m!=='neutral').map(m=>'<option value="'+m+'">'+m+'</option>').join(''); sel._filled=true; }
+  const sel=$('exprMood'); if(sel && !sel._filled){ sel.innerHTML=LIB_ROLES.map(r=>'<option value="'+r+'">'+r+'</option>').join(''); sel._filled=true; }
   const host=$('exprList'); if(!host) return; host.innerHTML='';
   const list=projExpr();
-  if(!list.length){ host.innerHTML='<small class="note">No expressions yet — pick a mood below and add a pose.</small>'; return; }
+  if(!list.length){ host.innerHTML='<small class="note">No poses yet — upload your expression sheet below, then tag each face.</small>'; return; }
+  const have=new Set(list.map(e=>e.mood).filter(Boolean));
+  const flags=[]; if(!have.has('blink')) flags.push('blink'); if(!have.has('talk')) flags.push('talk');
+  if(flags.length){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.textContent='Tag a tile as '+flags.join(' and ')+' so she can '+(flags.includes('blink')?'blink':'')+(flags.length>1?' & ':'')+(flags.includes('talk')?'talk':'')+'.'; host.appendChild(w); }
   const strip=document.createElement('div'); strip.className='framestrip';
-  list.forEach((e,i)=>{ const fr=document.createElement('div'); fr.className='fr'; fr.innerHTML='<div class="box"><img src="'+e.pose+'"></div><div class="lab">'+escapeHtml(e.mood)+'</div>'; const del=document.createElement('button'); del.className='btn sm ghost'; del.style.cssText='padding:2px 0;font-size:10px;width:100%;margin-top:3px;color:var(--err)'; del.textContent='✕ remove'; del.onclick=()=>{ list.splice(i,1); persist(); scheduleSave(); renderAll(); }; fr.appendChild(del); strip.appendChild(fr); });
+  list.forEach((e,i)=>{ const fr=document.createElement('div'); fr.className='fr';
+    fr.innerHTML='<div class="box"'+(e.mood?' style="outline:2px solid #2f6fd4"':'')+'><img src="'+e.pose+'"></div>';
+    const rs=document.createElement('select'); rs.style.cssText='width:100%;font-size:10px;margin-top:3px';
+    rs.innerHTML='<option value="">— role —</option>'+LIB_ROLES.map(r=>'<option value="'+r+'"'+((e.mood===r)?' selected':'')+'>'+r+'</option>').join('');
+    rs.onchange=()=>{ e.mood=rs.value; persist(); scheduleSave(); renderAll(); };
+    const del=document.createElement('button'); del.className='btn sm ghost'; del.style.cssText='padding:2px 0;font-size:10px;width:100%;margin-top:2px;color:var(--err)'; del.textContent='✕'; del.onclick=()=>{ list.splice(i,1); persist(); scheduleSave(); renderAll(); };
+    fr.appendChild(rs); fr.appendChild(del); strip.appendChild(fr); });
   host.appendChild(strip);
 }
 if($('exprAddBtn')){
   $('exprAddBtn').onclick=()=>$('exprFile').click();
-  $('exprFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const mood=$('exprMood').value||'happy'; fileToDataURL(f, async d=>{ if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d); const list=projExpr(); list.push({ id:uid(), mood, pose:d }); persist(); scheduleSave(); renderAll(); showToast('✓ Added a '+mood+' expression'); }); e.target.value=''; };
+  $('exprFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const mood=$('exprMood').value||'happy'; fileToDataURL(f, async d=>{ if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d); const list=projExpr(); list.push({ id:uid(), mood, pose:d }); persist(); scheduleSave(); renderAll(); showToast('✓ Added a '+mood+' pose'); }); e.target.value=''; };
+}
+if($('exprSheetBtn')){
+  $('exprSheetBtn').onclick=()=>$('exprSheetFile').click();
+  $('exprSheetFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const btn=$('exprSheetBtn'); const o=btn.textContent; btn.textContent='… cutting'; fileToDataURL(f, async d=>{ if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d); let out=await detectFrames(d); let frames = (out.frames&&out.frames.length>=2) ? out.frames : await cropSheet(d,3,2,cropMode()); const list=projExpr(); frames.forEach(fr=>list.push({ id:uid(), mood:'', pose:fr })); persist(); scheduleSave(); renderAll(); btn.textContent=o; showToast('✓ Cut '+frames.length+' faces — tag each (blink / talk / mood)'); }); e.target.value=''; };
 }
 
 /* ===== settings ===== */
@@ -879,7 +894,7 @@ function buildBlinkControl(sc, idx, sh, si){
   msel.onchange=()=>{ sh.moodOverride=msel.value; sh._moodSig=null; persist(); scheduleSave(); renderAll(); };
   moodRow.appendChild(ml); moodRow.appendChild(msel); body.appendChild(moodRow);
   if(useMood!=='neutral' && !exprPoseForMood(useMood)){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.innerHTML='⚠ No “'+useMood+'” pose in the palette yet — add one in <b>Gul’s expressions</b> (top) and the pause will hold that face.'; body.appendChild(w); }
-  const note=document.createElement('small'); note.className='note'; note.style.marginTop='6px'; note.innerHTML='During a pause she holds the mood’s face (from the palette). If there’s no mood face, she blinks instead — <b>automatic</b>; Claude finds an eyes-closed frame. Override the blink below if you like.';
+  const note=document.createElement('small'); note.className='note'; note.style.marginTop='6px'; note.innerHTML='During a pause she holds the mood’s face (from the library). If there’s no mood face, she blinks — <b>automatic</b>, borrowing the eyes from the library’s <b>blink</b> pose. Override the blink below only if you want a specific one for this beat.';
   body.appendChild(note);
   const eo=document.createElement('label'); eo.className='chip'; eo.style.cssText='display:flex;margin-top:8px'; eo.innerHTML='<input type="checkbox" '+(sh.blinkEyesOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Replace only the eyes (keep the body identical — the open/closed frames don’t need to match exactly)';
   eo.querySelector('input').onchange=e=>{ sh.blinkEyesOnly=e.target.checked; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; body.appendChild(eo);
@@ -1879,18 +1894,25 @@ async function composeEyeBlink(rest, closed, box){ const out=await rigComposite(
 // back to the whole closed pose if eyes can't be located (or eyes-only is off).
 async function fitBlink(sh){
   sh.blinkComposite=null;
-  if(!sh || !sh.blinkPose || sh.blinkEyesOnly===false) return;
+  const src = sh.blinkPose || libPose('blink');                 // per-beat override, else the library
+  if(!sh || !src || sh.blinkEyesOnly===false) return;
   const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
   let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
   if(!box) return;                                   // couldn't find eyes → leave null → whole-pose swap
-  try{ sh.blinkComposite=await composeEyeBlink(rest, sh.blinkPose, box); }catch(e){ sh.blinkComposite=null; }
+  try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; }
 }
-function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; return (sh.blinkPose?sh.blinkPose.length:0)+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye'); }
+function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye'); }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
 // pause with a mood; we drop the matching expression's FACE onto the resting body (body locked)
 // so the pause holds that emotion. Build the palette once, reuse on every beat/post. =====
 const MOODS=['neutral','happy','content','excited','sad','surprised','love','sleepy','proud','playful'];
+// The library can also hold special roles used by the rig: 'blink' (eyes-closed) and 'talk'
+// (open beak). Everything else is a mood for pauses.
+const LIB_ROLES=['blink','talk','neutral','happy','content','excited','sad','surprised','love','sleepy','proud','playful'];
 function exprPoseForMood(mood){ const p=curProj(); if(!p||!Array.isArray(p.expressions)||!mood||mood==='neutral') return null; const e=p.expressions.find(x=>x.mood===mood && x.pose); return e?e.pose:null; }
+// Any library pose tagged with a given role ('blink' / 'talk' / a mood). The studio borrows the
+// eyes from the 'blink' pose and the beak from the 'talk' pose, overlaying them on real frames.
+function libPose(role){ const p=curProj(); if(!p||!Array.isArray(p.expressions)) return null; const e=p.expressions.find(x=>x.mood===role && x.pose); return e?e.pose:null; }
 function beatMood(sh){ const m=(sh&&sh.moodOverride)||(sh&&sh.mood)||'neutral'; return m; }
 // Face box = the eye region grown down to cover the beak/cheeks, so an expression swap changes
 // the whole face (eyes + mouth) while the body stays the rest pose.
@@ -1928,7 +1950,7 @@ async function refreshBlinks(){
     if(sh.blinkPose && sh.blinkEyesOnly!==false){ const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; changed=true; } }
     else if(sh.blinkComposite){ sh.blinkComposite=null; sh._blinkSig=null; changed=true; }
     const msig=moodSig(sh); if(sh._moodSig!==msig){ await fitMood(sh); sh._moodSig=msig; changed=true; }
-    if(sh.talk && sh.talkMouthOnly!==false && (sh.frames&&sh.frames.length>=2)){ const tsig=talkSig(sh); if(sh._talkSig!==tsig){ await buildTalkCycle(sh); sh._talkSig=tsig; changed=true; } }
+    if(sh.talk && sh.talkMouthOnly!==false && (sh.frames&&sh.frames.length>=1)){ const tsig=talkSig(sh); if(sh._talkSig!==tsig){ await buildTalkCycle(sh); sh._talkSig=tsig; changed=true; } }
     else if(sh.talkCycle){ sh.talkCycle=null; sh._talkSig=null; changed=true; }
     if(morphOn && !sh.hold && !(sh.transition&&sh.transition.length)){ const prevLast=lastFrameBefore(sh._si, sh._k); const fr0=(sh.frames||[])[0];
       if(prevLast && fr0 && prevLast!==fr0){ const sg=morphSig(prevLast,fr0); if(sh._morphSig!==sg){ sh.morphIn=await morphLead(prevLast, fr0); sh._morphSig=sg; changed=true; } }
@@ -1960,15 +1982,18 @@ async function pickOpenMouthIdx(frames, baseIdx, box){
   return best;
 }
 async function buildTalkCycle(sh){
-  sh.talkCycle=null; const fr=(sh.frames||[]); if(fr.length<2) return;
+  sh.talkCycle=null; const fr=(sh.frames||[]); if(!fr.length) return;
   const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
   const box=await detectMouthBox(base);
-  let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : await pickOpenMouthIdx(fr, baseIdx, box);
-  if(openIdx==null || openIdx<0 || openIdx>=fr.length || openIdx===baseIdx) return;   // can't isolate a beak move → fall back
-  let openComp=null; try{ openComp=(await rigComposite([base, fr[openIdx]], 0, [box]))[1]; }catch(e){}
+  // Prefer the library's open-beak pose (borrow just its beak); else find the most-open frame in the beat.
+  let openSource = libPose('talk');
+  if(!openSource){ let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : (fr.length>=2 ? await pickOpenMouthIdx(fr, baseIdx, box) : -1);
+    if(openIdx!=null && openIdx>=0 && openIdx<fr.length && openIdx!==baseIdx) openSource=fr[openIdx]; }
+  if(!openSource) return;                              // nothing to flap with → fall back to raw loop
+  let openComp=null; try{ openComp=(await rigComposite([base, openSource], 0, [box]))[1]; }catch(e){}
   sh.talkCycle = openComp ? [base, openComp] : null;
 }
-function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length); }
+function talkSig(sh){ const fr=sh.frames||[]; const lib=libPose('talk')||''; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+lib.length+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length); }
 function talkRun(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
@@ -2079,7 +2104,7 @@ function beatPlayed(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const vf=vfps(), h=beatHold(sh); const out=[];
   // Real blink: eyes-only composite (body identical) > whole eyes-closed pose > marked frame.
-  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : (sh&&sh.blinkPose) ? sh.blinkPose : ((bi>=0&&bi<fr.length)?fr[bi]:null);
+  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blinkSrc=(sh&&sh.blinkPose)||libPose('blink'); const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : blinkSrc ? blinkSrc : ((bi>=0&&bi<fr.length)?fr[bi]:null);
   // Lead-in into the beat: real drawn transition frames if provided, else the auto cross-fade.
   if(sh&&sh.transition&&sh.transition.length) out.push(...framesTimed(sh.transition));
   else if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
