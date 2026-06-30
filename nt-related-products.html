@@ -1820,8 +1820,7 @@ async function generateCollections() {
   try {
     const res = await api(AD_URL, { action: 'generate_collections', products: allProducts.map(p => ({
       handle: p.handle || p.h,
-      title: p.title || p.t || p.handle,
-      tags: Object.values(taxonomyData[p.handle||p.h] || {}).flat().filter(t => typeof t === 'string')
+      title: p.title || p.t || p.handle
     })) });
     if (res.ok) {
       _collections = res.collections || [];
