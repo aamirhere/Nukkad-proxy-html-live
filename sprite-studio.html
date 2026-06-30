@@ -787,57 +787,6 @@ function lastFrameBefore(sceneIdx, sheetIdx){
 // doesn't pulse. Resolve them in order so each picks up the already-resolved prior frame.
 function applyHolds(){ const p=curProj(); if(!p) return; (p.scenes||[]).forEach((sc,si)=>(sc.sheets||[]).forEach((sh,k)=>{ if(sh.hold){ const f=lastFrameBefore(si,k); sh.frames= f?[f]:[]; sh.target=sh.frames.length; sh.cols=1; sh.rows=1; sh.wide=[]; } })); }
 
-// Per-beat rig editor: pick the still body pose, drag boxes over the parts that should move,
-// Apply to bake the locked-body animation into sh.frames (originals kept in sh.rawFrames).
-function buildRigPanel(sc, idx, sh, si){
-  const det=document.createElement('details'); det.className='fullprompt';
-  const sum=document.createElement('summary'); sum.textContent= sh.rig?'🎭 Body locked — only marked parts move (edit)':'🎭 Lock body, animate only parts (mouth / tail / eyes) — experimental';
-  det.appendChild(sum);
-  const body=document.createElement('div'); body.style.padding='10px';
-  const note=document.createElement('small'); note.className='note';
-  note.innerHTML='Freeze Gul\'s body to ONE pose and let only the boxes you draw move (beak/mouth, tail, eyes) — kills the whole-bird shimmer. Pick the still pose, drag a box over each moving part, then Apply. Works best when the poses are already close in size/position.';
-  body.appendChild(note);
-  const src = (sh.rawFrames && sh.rawFrames.length) ? sh.rawFrames : sh.frames;
-  if(!src || !src.length){ det.appendChild(body); return det; }
-  if(!Array.isArray(sh.rigRegions)) sh.rigRegions=[];
-  if(sh.rigBase==null || sh.rigBase>=src.length) sh.rigBase=Math.floor((src.length-1)/2);
-  // base-pose picker
-  const baseRow=document.createElement('div'); baseRow.className='row'; baseRow.style.cssText='margin-top:8px;align-items:center;gap:8px';
-  const blab=document.createElement('span'); blab.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; blab.textContent='Still body = frame';
-  const bnum=document.createElement('input'); bnum.type='number'; bnum.min='1'; bnum.max=String(src.length); bnum.value=String((sh.rigBase|0)+1); bnum.style.cssText='width:56px;padding:3px 6px';
-  baseRow.appendChild(blab); baseRow.appendChild(bnum); body.appendChild(baseRow);
-  // box editor over the base frame
-  const ov=document.createElement('div'); ov.style.cssText='position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;touch-action:none';
-  const img=document.createElement('img'); img.style.cssText='width:100%;display:block'; img.src=src[sh.rigBase]||src[0]; ov.appendChild(img);
-  const NS='http://www.w3.org/2000/svg';
-  const svg=document.createElementNS(NS,'svg'); svg.setAttribute('class','pinsvg'); svg.style.cssText='position:absolute;inset:0;width:100%;height:100%'; ov.appendChild(svg);
-  const drawBoxes=(extra)=>{ svg.innerHTML=''; (sh.rigRegions||[]).concat(extra?[extra]:[]).forEach(r=>{ const rect=document.createElementNS(NS,'rect'); rect.setAttribute('x',(r.x*100)+'%'); rect.setAttribute('y',(r.y*100)+'%'); rect.setAttribute('width',(r.w*100)+'%'); rect.setAttribute('height',(r.h*100)+'%'); rect.setAttribute('fill','rgba(212,84,31,.18)'); rect.setAttribute('stroke','#d4541f'); rect.setAttribute('stroke-width','2'); svg.appendChild(rect); }); };
-  drawBoxes();
-  let drawing=false, sx=0, sy=0;
-  const rel=e=>{ const r=img.getBoundingClientRect(); return { x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)) }; };
-  ov.style.cursor='crosshair';
-  ov.addEventListener('pointerdown',e=>{ drawing=true; const p=rel(e); sx=p.x; sy=p.y; try{ov.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
-  ov.addEventListener('pointermove',e=>{ if(!drawing)return; const p=rel(e); drawBoxes({x:Math.min(sx,p.x),y:Math.min(sy,p.y),w:Math.abs(p.x-sx),h:Math.abs(p.y-sy)}); });
-  const endDraw=e=>{ if(!drawing)return; drawing=false; const p=rel(e); const r={x:Math.min(sx,p.x),y:Math.min(sy,p.y),w:Math.abs(p.x-sx),h:Math.abs(p.y-sy)}; if(r.w>0.03&&r.h>0.03){ sh.rigRegions.push(r); persist(); scheduleSave(); } drawBoxes(); };
-  ov.addEventListener('pointerup',endDraw); ov.addEventListener('pointercancel',endDraw);
-  body.appendChild(ov);
-  bnum.addEventListener('change',()=>{ sh.rigBase=Math.max(0,Math.min(src.length-1,(parseInt(bnum.value,10)||1)-1)); img.src=src[sh.rigBase]||src[0]; persist(); scheduleSave(); });
-  const brow=document.createElement('div'); brow.className='row'; brow.style.cssText='margin-top:8px;flex-wrap:wrap';
-  const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.style.cssText='flex:1;min-width:84px'; clr.textContent='Clear boxes'; clr.onclick=()=>{ sh.rigRegions=[]; persist(); scheduleSave(); drawBoxes(); };
-  const apply=document.createElement('button'); apply.className='btn sm'; apply.style.cssText='flex:2;min-width:120px'; apply.textContent= sh.rig?'🎭 Re-apply rig':'🎭 Apply — lock body';
-  apply.onclick=async()=>{ if(!sh.rigRegions.length){ showToast('Draw at least one box first'); return; } apply.textContent='… rigging'; apply.disabled=true;
-    const base=(sh.rawFrames&&sh.rawFrames.length)?sh.rawFrames.slice():sh.frames.slice(); sh.rawFrames=base.slice();
-    const rigged=await rigComposite(base, sh.rigBase, sh.rigRegions);
-    if(rigged&&rigged.length){ sh.frames=rigged; sh.rig=true; } persist(); scheduleSave(); renderAll(); showToast('✓ Body locked — only the boxes move'); };
-  brow.appendChild(clr); brow.appendChild(apply);
-  if(sh.rig){ const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.style.cssText='flex:1;min-width:84px'; rm.textContent='↩ Remove'; rm.onclick=()=>{ if(sh.rawFrames&&sh.rawFrames.length) sh.frames=sh.rawFrames.slice(); sh.rig=false; persist(); scheduleSave(); renderAll(); }; brow.appendChild(rm); }
-  body.appendChild(brow);
-  const bn=document.createElement('small'); bn.className='note'; bn.style.marginTop='6px';
-  bn.textContent='Tip: draw small, tight boxes (just the beak, just the tail). Big boxes let more of the regenerated frame through and can re-introduce shimmer. Re-slicing the sheet clears the rig.';
-  body.appendChild(bn);
-  det.appendChild(body); return det;
-}
-
 // ===== Takes: keep every generated/uploaded version of a beat, then mix the best frames =====
 // gpt never redraws a beat pixel-identically, so a second attempt is a fresh "take". We keep
 // them all instead of overwriting, and let you (or Claude) assemble one best sequence.
@@ -882,13 +831,13 @@ function buildMixPanel(sc, idx, sh, si){
 // any take, or upload one). The hold then flicks it in for a genuine blink — no synth guesswork.
 function buildBlinkControl(sc, idx, sh, si){
   const det=document.createElement('details'); det.className='fullprompt';
-  const sum=document.createElement('summary'); sum.textContent= sh.blinkPose?'👁 Eyes-closed pose set — she blinks for real during holds':'👁 Eyes-closed pose (real blink) — optional'; det.appendChild(sum);
+  const sum=document.createElement('summary'); sum.textContent= sh.blinkPose?'👁 Blink — on (Claude found the eyes-closed pose) · tap to override':'👁 Blink in pauses — automatic · tap to add your own'; det.appendChild(sum);
   const body=document.createElement('div'); body.style.padding='10px';
-  const note=document.createElement('small'); note.className='note'; note.innerHTML='For a real blink, give Gul an <b>eyes-closed version of this pose</b>, then she blinks during holds. Best: generate a sheet that includes this pose with eyes closed and pick that frame — or upload one.';
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='Blinking is <b>automatic</b> — when a beat has a pause, Claude finds an eyes-closed frame in it and blinks (eyes-only, body unchanged). You only need this if you want to <b>override</b> it: pick a different eyes-closed frame or upload one — cherry on top.';
   body.appendChild(note);
-  const eo=document.createElement('label'); eo.className='chip'; eo.style.cssText='display:flex;margin-top:8px'; eo.innerHTML='<input type="checkbox" '+(sh.blinkEyesOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Replace only the eyes (keep the body identical — best; the open/closed frames don’t need to match exactly)';
+  const eo=document.createElement('label'); eo.className='chip'; eo.style.cssText='display:flex;margin-top:8px'; eo.innerHTML='<input type="checkbox" '+(sh.blinkEyesOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Replace only the eyes (keep the body identical — the open/closed frames don’t need to match exactly)';
   eo.querySelector('input').onchange=e=>{ sh.blinkEyesOnly=e.target.checked; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; body.appendChild(eo);
-  if(sh.blinkPose && sh.blinkEyesOnly!==false && !sh.blinkComposite){ const warn=document.createElement('small'); warn.className='note'; warn.style.color='var(--accent)'; warn.innerHTML='⚠ Couldn’t auto-find the eyes on the resting pose — using the whole closed pose instead. Tip: draw an eye box in the 🎭 rig panel (first box) and it’ll use that.'; body.appendChild(warn); }
+  if(sh.blinkPose && sh.blinkEyesOnly!==false && !sh.blinkComposite){ const warn=document.createElement('small'); warn.className='note'; warn.style.color='var(--accent)'; warn.innerHTML='⚠ Couldn’t auto-locate the eyes on the resting pose — using the whole closed pose for the blink instead.'; body.appendChild(warn); }
   if(sh.blinkPose){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px'; pv.innerHTML='<div class="box" style="width:90px;height:90px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+sh.blinkPose+'" style="width:100%;height:100%;object-fit:contain"></div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.textContent='Clear'; rm.onclick=()=>{ sh.blinkPose=null; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); }; pv.appendChild(rm); body.appendChild(pv); }
   const pool=[]; (sh.frames||[]).forEach(f=>pool.push(f)); (sh.takes||[]).forEach(t=>(t.frames||[]).forEach(f=>pool.push(f)));
   const uniq=[...new Set(pool)];
@@ -1100,7 +1049,6 @@ function buildSceneCard(sc, idx){
       sd.appendChild(strip);
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder, 👁 to mark the eyes-closed pose (used for subtle idle blinks). (Re-slicing or changing crop resets these.)';
       sd.appendChild(fn);
-      if(sh.frames.length>=2) sd.appendChild(buildRigPanel(sc, idx, sh, si));
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
       sd.appendChild(buildBlinkControl(sc, idx, sh, si));
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
@@ -1490,6 +1438,9 @@ async function analyzeSheet(sh, note){
     const reordered = order.length>0 && (order.length!==N || order.some((n,i)=>n!==i+1)); // a real reorder or drop
     // Auto-fill the blink pose for subtle idle blinks if the user hasn't set one and we're not reordering.
     if(d.blink && inRange(d.blink) && !reordered && !(sh.blinkFrame>0)){ sh.blinkFrame=d.blink; }
+    // Claude decides the blink: if it spotted an eyes-closed frame in this beat, auto-use it as
+    // the blink pose (eyes-only swap) so pauses blink on their own — no manual picking needed.
+    if(d.blink && inRange(d.blink) && !sh.blinkPose && sh.frames[d.blink-1]){ sh.blinkPose=sh.frames[d.blink-1]; sh.blinkPoseKey=null; sh._blinkSig=null; }
     return { bad, dups, gaps, order, reordered, notes:d.notes||'', good:(bad.length===0 && dups.length===0 && !reordered) };
   }catch(e){ return {error:e.message}; }
 }
