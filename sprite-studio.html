@@ -336,7 +336,7 @@ function projectMeta(p){
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
         overlay: sh.overlay||'', rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
-        blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null,
+        blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
 async function saveCloud(p){
@@ -376,7 +376,7 @@ async function loadCloud(id){
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
       beat.takes=beat.takes.filter(t=>t.frames&&t.frames.length);
-      beat.blinkPose=null; beat.blinkPoseKey=sh.blinkPoseKey||null; if(sh.blinkPoseKey){ try{ const bp=await cloudGet(sh.blinkPoseKey); if(bp){ beat.blinkPose=bp; frameSigs[sh.blinkPoseKey]=framesSig([bp]); } }catch(e){} }
+      beat.blinkPose=null; beat.blinkPoseKey=sh.blinkPoseKey||null; beat.blinkEyesOnly=sh.blinkEyesOnly!==false; if(sh.blinkPoseKey){ try{ const bp=await cloudGet(sh.blinkPoseKey); if(bp){ beat.blinkPose=bp; frameSigs[sh.blinkPoseKey]=framesSig([bp]); } }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
       if(sh.framesKey){ try{ const fr=await cloudGet(sh.framesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.frames=arr; frameSigs[sh.framesKey]=framesSig(arr); } }catch(e){} }
@@ -884,8 +884,11 @@ function buildBlinkControl(sc, idx, sh, si){
   const det=document.createElement('details'); det.className='fullprompt';
   const sum=document.createElement('summary'); sum.textContent= sh.blinkPose?'👁 Eyes-closed pose set — she blinks for real during holds':'👁 Eyes-closed pose (real blink) — optional'; det.appendChild(sum);
   const body=document.createElement('div'); body.style.padding='10px';
-  const note=document.createElement('small'); note.className='note'; note.innerHTML='For a real blink, give Gul an <b>eyes-closed version of this same pose</b> (same body, eyes shut). The hold flicks it in now and then. Best results: generate a sheet that includes this pose with eyes closed, then pick that frame here — or upload one. (Without it, blinking is only the rough auto-synth.)';
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='For a real blink, give Gul an <b>eyes-closed version of this pose</b>, then she blinks during holds. Best: generate a sheet that includes this pose with eyes closed and pick that frame — or upload one.';
   body.appendChild(note);
+  const eo=document.createElement('label'); eo.className='chip'; eo.style.cssText='display:flex;margin-top:8px'; eo.innerHTML='<input type="checkbox" '+(sh.blinkEyesOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Replace only the eyes (keep the body identical — best; the open/closed frames don’t need to match exactly)';
+  eo.querySelector('input').onchange=e=>{ sh.blinkEyesOnly=e.target.checked; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; body.appendChild(eo);
+  if(sh.blinkPose && sh.blinkEyesOnly!==false && !sh.blinkComposite){ const warn=document.createElement('small'); warn.className='note'; warn.style.color='var(--accent)'; warn.innerHTML='⚠ Couldn’t auto-find the eyes on the resting pose — using the whole closed pose instead. Tip: draw an eye box in the 🎭 rig panel (first box) and it’ll use that.'; body.appendChild(warn); }
   if(sh.blinkPose){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px'; pv.innerHTML='<div class="box" style="width:90px;height:90px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+sh.blinkPose+'" style="width:100%;height:100%;object-fit:contain"></div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.textContent='Clear'; rm.onclick=()=>{ sh.blinkPose=null; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); }; pv.appendChild(rm); body.appendChild(pv); }
   const pool=[]; (sh.frames||[]).forEach(f=>pool.push(f)); (sh.takes||[]).forEach(t=>(t.frames||[]).forEach(f=>pool.push(f)));
   const uniq=[...new Set(pool)];
@@ -898,7 +901,7 @@ function buildBlinkControl(sc, idx, sh, si){
   det.appendChild(body); return det;
 }
 
-function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); maybeResume(); }
+function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); maybeResume(); refreshBlinks(); }
 
 function renderScenes(){
   const p=curProj(); const wrap=$('scenesWrap'); wrap.innerHTML='';
@@ -1784,6 +1787,56 @@ async function rigComposite(frames, baseIdx, regions){
 // When frames are re-sliced/detected/split/uploaded the stored base + rawFrames no longer
 // match, so drop the rig rather than composite stale art.
 function clearRig(sh){ if(sh){ sh.rig=false; sh.rawFrames=null; } }
+// Find Gul's eye region (a fractional box) in a pose — used to swap ONLY the eyes for a blink.
+// Same conservative pupil-finder as the synth blink: two tight, level dark blobs in the inner
+// face; returns null if not confident.
+async function detectEyeBox(dataUrl){
+  const im=await loadImg(dataUrl).catch(()=>null); if(!im) return null;
+  const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height;
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0);
+  let d; try{ d=ctx.getImageData(0,0,w,h).data; }catch(e){ return null; }
+  let x0=w,y0=h,x1=0,y1=0,any=false;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ if(d[(y*w+x)*4+3]>ALPHA_THRESHOLD){ any=true; if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y; } }
+  if(!any) return null;
+  const bw=x1-x0+1, bh=y1-y0+1, cx=(x0+x1)/2;
+  const ix0=Math.round(x0+bw*0.18), ix1=Math.round(x1-bw*0.18);
+  const by0=Math.round(y0+bh*0.16), by1=Math.round(y0+bh*0.54);
+  const eyes=[{minx:w,miny:h,maxx:0,maxy:0,n:0},{minx:w,miny:h,maxx:0,maxy:0,n:0}];
+  for(let y=by0;y<=by1;y++)for(let x=ix0;x<=ix1;x++){ const i=(y*w+x)*4; if(d[i+3]<160) continue; const lum=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; if(lum<60){ const e=eyes[x<cx?0:1]; if(x<e.minx)e.minx=x; if(x>e.maxx)e.maxx=x; if(y<e.miny)e.miny=y; if(y>e.maxy)e.maxy=y; e.n++; } }
+  for(const e of eyes){ if(e.n<6) return null; const ew=e.maxx-e.minx+1, eh=e.maxy-e.miny+1; if(ew>bw*0.24||eh>bh*0.22) return null; e.cy=(e.miny+e.maxy)/2; }
+  if(Math.abs(eyes[0].cy-eyes[1].cy) > bh*0.10) return null;
+  // union of both eyes + generous vertical pad (lids/brows move a bit) and a little horizontal pad
+  const ux0=Math.min(eyes[0].minx,eyes[1].minx), ux1=Math.max(eyes[0].maxx,eyes[1].maxx);
+  const uy0=Math.min(eyes[0].miny,eyes[1].miny), uy1=Math.max(eyes[0].maxy,eyes[1].maxy);
+  const padx=(ux1-ux0)*0.22, pady=(uy1-uy0)*0.7;
+  return { x:Math.max(0,(ux0-padx))/w, y:Math.max(0,(uy0-pady))/h, w:Math.min(w,(ux1-ux0+1+padx*2))/w, h:Math.min(h,(uy1-uy0+1+pady*2))/h };
+}
+// A real blink that keeps the body IDENTICAL: take the resting pose and replace ONLY the eye
+// box with the eyes-closed pose's eyes, aligned by body-core so they sit exactly right. This is
+// why open/closed frames don't need to match pixel-for-pixel — the whole body stays the rest
+// frame; only the little eye rectangle is swapped.
+async function composeEyeBlink(rest, closed, box){ const out=await rigComposite([rest, closed], 0, [box]); return (out&&out[1])||closed; }
+// Bake sh.blinkComposite (eyes-only) from the beat's resting pose + its eyes-closed pose. Falls
+// back to the whole closed pose if eyes can't be located (or eyes-only is off).
+async function fitBlink(sh){
+  sh.blinkComposite=null;
+  if(!sh || !sh.blinkPose || sh.blinkEyesOnly===false) return;
+  const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
+  let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
+  if(!box) return;                                   // couldn't find eyes → leave null → whole-pose swap
+  try{ sh.blinkComposite=await composeEyeBlink(rest, sh.blinkPose, box); }catch(e){ sh.blinkComposite=null; }
+}
+function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; return (sh.blinkPose?sh.blinkPose.length:0)+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye'); }
+// After a render, lazily bake any eyes-only blink composites that are stale, then refresh the
+// scene previews once so they pick up the real blink. Sig-guarded so it doesn't loop.
+async function refreshBlinks(){
+  const p=curProj(); if(!p) return; let changed=false;
+  for(const sc of (p.scenes||[])) for(const sh of (sc.sheets||[])){
+    if(sh.blinkPose && sh.blinkEyesOnly!==false){ const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; changed=true; } }
+    else if(sh.blinkComposite){ sh.blinkComposite=null; sh._blinkSig=null; changed=true; }
+  }
+  if(changed) renderScenes();
+}
 // Export-time pipeline: size-lock → optional blended smoothing (motion) → breathe the holds.
 async function exportFrames(frames){
   const s=settings(); if(!(frames&&frames.length)) return frames||[];
@@ -1881,8 +1934,8 @@ function beatHold(sh){ return { s:Math.max(0,parseFloat(sh&&sh.holdStart)||0), e
 function beatPlayed(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const vf=vfps(), h=beatHold(sh); const out=[];
-  // Real blink = a designated eyes-closed POSE (best). Falls back to a marked frame index.
-  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(sh&&sh.blinkPose) ? sh.blinkPose : ((bi>=0&&bi<fr.length)?fr[bi]:null);
+  // Real blink: eyes-only composite (body identical) > whole eyes-closed pose > marked frame.
+  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : (sh&&sh.blinkPose) ? sh.blinkPose : ((bi>=0&&bi<fr.length)?fr[bi]:null);
   for(let i=0;i<Math.round(h.s*vf);i++) out.push(fr[0]);
   out.push(...framesTimed(fr));
   // hold the end pose; during it, blink now and then by flicking in the eyes-closed pose
