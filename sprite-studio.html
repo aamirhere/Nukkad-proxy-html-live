@@ -1022,11 +1022,11 @@ function buildSceneCard(sc, idx){
         const baseName=(sc.title||('scene'+(idx+1)))+'-beat'+(si+1);
         const drow=document.createElement('div'); drow.className='row'; drow.style.cssText='margin-top:8px;flex-wrap:wrap';
         const mk=(t,title,fn)=>{ const b=document.createElement('button'); b.className='btn sm ghost'; b.style.cssText='flex:1;min-width:96px'; b.textContent=t; b.title=title; b.onclick=fn; return b; };
-        drow.appendChild(mk('⏱ Pause','This pause held to '+vfps()+'fps, with the breath + blink idle and caption (zip)',async()=>dlFramesZip(await bakeCaps(beatCapTrack(sh)), baseName+'-pause', baseName+'-pause', true)));
-        drow.appendChild(mk('🎞 GIF','Animated GIF of this live pause with caption',async(e)=>dlFramesGif(await bakeCaps(beatCapTrack(sh)), baseName+'-pause', vfps(), e.target, true)));
+        drow.appendChild(mk('⏱ Pause','This pause held to '+vfps()+'fps, with the breath + blink idle and caption (zip)',async()=>{ await ensureBeatRig(sh); dlFramesZip(await bakeCaps(beatCapTrack(sh)), baseName+'-pause', baseName+'-pause', true); }));
+        drow.appendChild(mk('🎞 GIF','Animated GIF of this live pause with caption',async(e)=>{ await ensureBeatRig(sh); dlFramesGif(await bakeCaps(beatCapTrack(sh)), baseName+'-pause', vfps(), e.target, true); }));
         if(hasPrev){
-          drow.appendChild(mk('⬇ 1→'+(si+1),'Beats 1 through this pause, back to back, captions baked in — frames (zip)',async()=>dlFramesZip(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', baseName+'-combined', true)));
-          drow.appendChild(mk('🎞 1→'+(si+1)+' GIF','GIF of beats 1 through this pause with captions',async(e)=>dlFramesGif(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', vfps(), e.target, true)));
+          drow.appendChild(mk('⬇ 1→'+(si+1),'Beats 1 through this pause, back to back, captions baked in — frames (zip)',async()=>{ await ensureSceneRig(sc); dlFramesZip(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', baseName+'-combined', true); }));
+          drow.appendChild(mk('🎞 1→'+(si+1)+' GIF','GIF of beats 1 through this pause with captions',async(e)=>{ await ensureSceneRig(sc); dlFramesGif(await bakeCaps(beatsPlayedCapTrack(sc,si)), baseName+'-combined', vfps(), e.target, true); }));
         }
         if(sh.overlay){ drow.appendChild(mk('🅣 Text only','The caption alone on a transparent PNG sequence for this pause — overlay it in your editor (zip)',async()=>dlFramesZip(await bakeCapsTextOnly(beatCapTrack(sh)), baseName+'-text', baseName+'-text', true))); }
         sd.appendChild(drow);
@@ -1218,13 +1218,13 @@ function buildSceneCard(sc, idx){
       const dlf=document.createElement('button'); dlf.className='btn sm ghost'; dlf.style.cssText='flex:1;min-width:96px'; dlf.textContent='⬇ Frames ('+sh.frames.length+')';
       dlf.title='Each unique pose as a numbered PNG (zip)'; dlf.onclick=()=>dlFramesZip(sh.frames, beatName, beatName);
       const dlft=document.createElement('button'); dlft.className='btn sm ghost'; dlft.style.cssText='flex:1;min-width:96px'; dlft.textContent='⏱ Timed ('+beatTimed(sh).length+')';
-      dlft.title='Poses held to '+vfps()+' fps — one play-through, with the on-screen caption baked in (zip)'; dlft.onclick=async()=>dlFramesZip(await bakeCaps(beatCapTrack(sh)), beatName+'-timed', beatName+'-timed', true);
+      dlft.title='Poses held to '+vfps()+' fps — one play-through, with the on-screen caption baked in (zip)'; dlft.onclick=async()=>{ await ensureBeatRig(sh); dlFramesZip(await bakeCaps(beatCapTrack(sh)), beatName+'-timed', beatName+'-timed', true); };
       const dlg=document.createElement('button'); dlg.className='btn sm ghost'; dlg.style.cssText='flex:1;min-width:96px'; dlg.textContent='🎞 GIF';
-      dlg.title='Animated GIF of this beat with the caption baked in'; dlg.onclick=async()=>dlFramesGif(await bakeCaps(beatCapTrack(sh)), beatName, vfps(), dlg, true);
+      dlg.title='Animated GIF of this beat with the caption baked in'; dlg.onclick=async()=>{ await ensureBeatRig(sh); dlFramesGif(await bakeCaps(beatCapTrack(sh)), beatName, vfps(), dlg, true); };
       const dlhd=document.createElement('button'); dlhd.className='btn sm ghost'; dlhd.style.cssText='flex:1;min-width:96px'; dlhd.textContent='🔍 HD ×2';
       dlhd.title='Upscale this beat ×2 on-device (free) and download as a zip — keeps transparency'; dlhd.onclick=()=>dlBeatHD(sh, beatName, dlhd);
       drow.appendChild(dlf); drow.appendChild(dlft); drow.appendChild(dlg); drow.appendChild(dlhd);
-      if(sh.overlay){ const dltx=document.createElement('button'); dltx.className='btn sm ghost'; dltx.style.cssText='flex:1;min-width:96px'; dltx.textContent='🅣 Text only'; dltx.title='The caption alone on a transparent PNG sequence — overlay it on the clean animation in your editor (zip)'; dltx.onclick=async()=>dlFramesZip(await bakeCapsTextOnly(beatCapTrack(sh)), beatName+'-text', beatName+'-text', true); drow.appendChild(dltx); }
+      if(sh.overlay){ const dltx=document.createElement('button'); dltx.className='btn sm ghost'; dltx.style.cssText='flex:1;min-width:96px'; dltx.textContent='🅣 Text only'; dltx.title='The caption alone on a transparent PNG sequence — overlay it on the clean animation in your editor (zip)'; dltx.onclick=async()=>{ await ensureBeatRig(sh); dlFramesZip(await bakeCapsTextOnly(beatCapTrack(sh)), beatName+'-text', beatName+'-text', true); }; drow.appendChild(dltx); }
       sd.appendChild(drow);
       if((sh.wide||[]).length){
         const ww=document.createElement('div'); ww.className='eguide'; ww.style.cssText='margin:8px 0;background:rgba(212,84,31,.08);border-color:#f0d2c4';
@@ -1966,8 +1966,9 @@ async function refreshBlinks(){
   const p=curProj(); if(!p) return; let changed=false; const morphOn=settings().morph!==false;
   (p.scenes||[]).forEach((sc,si)=>(sc.sheets||[]).forEach((sh,k)=>{ sh._si=si; sh._k=k; }));
   for(const sc of (p.scenes||[])) for(const sh of (sc.sheets||[])){
-    if(sh.blinkPose && sh.blinkEyesOnly!==false){ const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; changed=true; } }
-    else if(sh.blinkComposite){ sh.blinkComposite=null; sh._blinkSig=null; changed=true; }
+    // Build the blink whenever there's ANY source (per-beat override OR the library blink) — not
+    // only when a per-beat pose is set (that was the bug that kept library blinks from firing).
+    { const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; changed=true; } }
     const msig=moodSig(sh); if(sh._moodSig!==msig){ await fitMood(sh); sh._moodSig=msig; changed=true; }
     if(sh.talk && sh.talkMouthOnly!==false && (sh.frames&&sh.frames.length>=1)){ const tsig=talkSig(sh); if(sh._talkSig!==tsig){ await buildTalkCycle(sh); sh._talkSig=tsig; changed=true; } }
     else if(sh.talkCycle){ sh.talkCycle=null; sh._talkSig=null; changed=true; }
@@ -1978,6 +1979,16 @@ async function refreshBlinks(){
   }
   if(changed) renderScenes();
 }
+// Build a single beat's rig composites NOW (blink + mood + talk), sig-guarded. Called right
+// before an export so the download always reflects the current library/settings (no staleness).
+async function ensureBeatRig(sh){
+  if(!sh) return;
+  { const sig=blinkSig(sh); if(sh._blinkSig!==sig){ await fitBlink(sh); sh._blinkSig=sig; } }
+  { const sig=moodSig(sh); if(sh._moodSig!==sig){ await fitMood(sh); sh._moodSig=sig; } }
+  if(sh.talk && sh.talkMouthOnly!==false && (sh.frames&&sh.frames.length>=1)){ const sig=talkSig(sh); if(sh._talkSig!==sig){ await buildTalkCycle(sh); sh._talkSig=sig; } }
+  else if(sh.talkCycle){ sh.talkCycle=null; sh._talkSig=null; }
+}
+async function ensureSceneRig(sc){ for(const sh of ((sc&&sc.sheets)||[])) await ensureBeatRig(sh); }
 // A talking beat looped to a chosen length so she keeps speaking (gpt only gives a few frames).
 // Blinks flick in if it runs long, so it feels alive rather than a tight loop.
 // ===== Mouth-only talk: lock the body to ONE pose and move only the beak =====
@@ -2224,7 +2235,7 @@ async function dlBeatHD(sh, name, btn){
   finally{ btn.textContent=o; btn.disabled=false; }
 }
 async function downloadSceneZip(sc, idx, timed){
-  const p=curProj(); let frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(sceneFrames(sc));
+  const p=curProj(); if(timed) await ensureSceneRig(sc); let frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(sceneFrames(sc));
   if(!frames.length) return;
   const tag = timed?'_timed':'';
   if(typeof JSZip==='undefined'){ frames.forEach((f,i)=>downloadDataUrl(f, slug(sc.title||('scene'+(idx+1)))+'_'+pad3(i+1)+'.png')); return; }
@@ -2238,6 +2249,7 @@ async function downloadSceneGif(sc, idx, timed, btn){
   if(typeof GIF==='undefined'){ alert('GIF library not loaded — check your connection and refresh.'); return; }
   let frames = timed? sceneTimed(sc) : sceneFrames(sc); if(!frames.length) return;
   const fps= timed? vfps() : gfps(); const o=btn?btn.textContent:''; if(btn){ btn.textContent='… building'; btn.disabled=true; }
+  if(timed) await ensureSceneRig(sc);
   frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(frames);
   const imgs=await Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src=f; })));
   const valid=imgs.filter(Boolean); if(!valid.length){ if(btn){ btn.textContent=o; btn.disabled=false; } return; }
@@ -2251,7 +2263,7 @@ async function downloadSceneGif(sc, idx, timed, btn){
 async function dlAllScenes(timed){
   const p=curProj(); if(typeof JSZip==='undefined'){ alert('Zip unavailable.'); return; }
   const zip=new JSZip(); let any=false;
-  for(let idx=0; idx<p.scenes.length; idx++){ const sc=p.scenes[idx]; if(!sceneGenerated(sc) && !(sceneFrames(sc).length)) continue; let frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(sceneFrames(sc)); if(!frames.length) continue; any=true; const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); }
+  for(let idx=0; idx<p.scenes.length; idx++){ const sc=p.scenes[idx]; if(!sceneGenerated(sc) && !(sceneFrames(sc).length)) continue; if(timed) await ensureSceneRig(sc); let frames= timed? await bakeCaps(sceneCapTrack(sc)) : await exportFrames(sceneFrames(sc)); if(!frames.length) continue; any=true; const folder=zip.folder(pad2(idx+1)+'_'+slug(sc.title||('scene'+(idx+1)))+(timed?'_timed':'')); frames.forEach((f,i)=>folder.file(pad3(i+1)+'.png', dataUrlBytes(f), {base64:true})); }
   if(!any){ alert('Generate a scene first.'); return; }
   const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=slug(p.name)+'_all-scenes'+(timed?'_timed':'')+'.zip'; a.click(); URL.revokeObjectURL(a.href);
 }
