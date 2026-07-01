@@ -2034,7 +2034,11 @@ async function compositePart(baseUrl, partUrl, t){
   const tw=Math.round(pw), th=Math.round(ph);
   const tmp=document.createElement('canvas'); tmp.width=tw; tmp.height=th; const tc=tmp.getContext('2d'); tc.imageSmoothingEnabled=true; tc.drawImage(pp,0,0,tw,th);
   const feather=(t&&t.feather!=null)?t.feather:0.12;
-  if(feather>0){ const inset=Math.max(1,Math.round(Math.min(tw,th)*feather)); const mask=document.createElement('canvas'); mask.width=tw; mask.height=th; const mc=mask.getContext('2d'); mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; roundRect(mc, inset, inset, tw-2*inset, th-2*inset, inset); mc.fill(); tc.globalCompositeOperation='destination-in'; tc.drawImage(mask,0,0); tc.globalCompositeOperation='source-over'; }
+  if(feather>0){ const inset=Math.max(1,Math.round(Math.min(tw,th)*feather)); const mask=document.createElement('canvas'); mask.width=tw; mask.height=th; const mc=mask.getContext('2d'); mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff';
+    // OVAL mask (not a rectangle): edges fade on all sides so the patch's background can't spill
+    // square corners onto the beak/cheek — it melts into the face.
+    mc.beginPath(); mc.ellipse(tw/2, th/2, Math.max(1,(tw/2-inset)), Math.max(1,(th/2-inset)), 0, 0, 2*Math.PI); mc.fill();
+    tc.globalCompositeOperation='destination-in'; tc.drawImage(mask,0,0); tc.globalCompositeOperation='source-over'; }
   const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
   ctx.drawImage(b,0,0,W,H);
   ctx.save(); ctx.translate((t&&t.x!=null?t.x:0.5)*W, (t&&t.y!=null?t.y:0.4)*H); if(t&&t.rot) ctx.rotate(t.rot*Math.PI/180); if(t&&t.flip) ctx.scale(-1,1); ctx.drawImage(tmp, -tw/2, -th/2); ctx.restore();
