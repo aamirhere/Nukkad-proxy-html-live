@@ -606,6 +606,7 @@ function buildManualPrompt(sc, idx, sh, si){
   L.push('COUNT & LAYOUT: draw EXACTLY '+total+' poses of Gul — no more, no fewer — laid out as ONE image in a STRICT grid of EXACTLY '+cols+' columns × '+rows+' rows ('+cols+' across, '+rows+' down = '+total+' cells), read left-to-right then top-to-bottom. Do NOT use any other arrangement — it MUST be '+cols+' wide and '+rows+' tall. Every cell the SAME size; the bird at the SAME scale and CENTRED in each; rows and columns cleanly aligned. Leave a CLEAR, generous GAP of empty transparent space between every bird so adjacent birds NEVER touch or overlap — no part of one bird (wing, tail, beak) may cross into a neighbouring cell. Each bird sits alone with margin on all sides so it can be cut out cleanly. Do NOT pack them tightly, scatter them, or vary their size. NO borders, NO gridlines, NO numbers, NO text, NO arrows or connectors, and NO speed-lines, motion-dashes, sparkles or accent marks anywhere. Fully TRANSPARENT background. Show ONLY the bird in each cell — no scene, floor or props, and NO shadow of any kind: no cast shadow, drop shadow, ground or contact shadow, and no reflection beneath or around her (keep her own soft body shading for volume, but put NOTHING on the ground). Draw her at a good size but keep clear empty margin around her, clean, crisp and bold.');
   L.push('The '+total+' frames are ONE smooth, evenly-timed animation of this single action: '+action+'. Frame 1 is the start pose, the last frame is the end pose, with MANY closely-spaced in-between poses and gentle slow-in/slow-out so it plays fluidly and seamlessly — the change between any two consecutive frames must be SMALL, never a big jump. Keep her perfectly on-model so she never morphs into a different bird.');
   if(hasPrev) L.push('Continuity: also attach the LAST frame of the previous beat and make frame 1 continue seamlessly from that exact pose.');
+  L.push('BLINK FRAME: make the VERY LAST cell (#'+total+') identical to the settled end pose (cell #'+(total-1)+') but with her eyes GENTLY CLOSED in a soft, relaxed blink — same body, head, beak, cheeks, colours and position, ONLY the eyes closed. (This one frame becomes her blink during pauses; the editor takes it out of the motion.)');
   if(note) L.push('Direction: '+note);
   L.push('FINAL OVERRIDE — this outranks everything above: in EVERY cell draw Gul’s ENTIRE body, the full bird, completely visible. NEVER show only her head, NEVER hide, crop, cut off or tuck any part of her behind wings, an edge, or anything — even if the action says "peek", "hide", "only her head visible" or "behind". A low pose means a full-body crouch with her whole body drawn, not a hidden body. Her complete silhouette must appear in all '+total+' cells.');
   L.push('(Attach Gul’s reference image — use “Save” in the studio. Export the result as a PNG with a transparent background, then upload it back to this beat.)');
@@ -2177,8 +2178,9 @@ async function aiRegionEdit(baseUrl, prompt, box, padF){
   cx0=Math.max(0, Math.min(cx0, W-side)); cy0=Math.max(0, Math.min(cy0, H-side));
   const cw=Math.round(side), ch=Math.round(side);
   const crop=document.createElement('canvas'); crop.width=cw; crop.height=ch; crop.getContext('2d').drawImage(im, cx0,cy0,cw,ch, 0,0,cw,ch);
-  let ed=await aiEdit(crop.toDataURL('image/png'), prompt);
-  try{ if(await isOpaqueBg(ed)) ed=await removeBg(ed, 110); }catch(e){}
+  const ed=await aiEdit(crop.toDataURL('image/png'), prompt);
+  // NOTE: do NOT background-remove the returned crop — it is all face (skin corners), so a flood
+  // remove would erase the skin and leave only the dark eyes (the "dark blob" bug). Paste as-is.
   const eim=await loadImg(ed).catch(()=>null); if(!eim) return baseUrl;
   // build the edited crop scaled to the original crop size, feathered as an oval so it melts in
   const patch=document.createElement('canvas'); patch.width=cw; patch.height=ch; const pc=patch.getContext('2d'); pc.imageSmoothingEnabled=true; pc.drawImage(eim, 0,0,cw,ch);
@@ -2342,23 +2344,18 @@ async function buildTalkCycle(sh){
     if(bcP && bct && bct.on!==false){ const ct=Object.assign({}, bct, {skin:bct.skin!==false}); const cc=await compositePart(settled, bcP, ct); if(cc) closed=cc; }
     if(open){ sh.talkCycle=[closed, open]; return; }
   }catch(e){} }
-  const box=await detectMouthBox(base);
-  const libOpen=libPose('talk');
-  if(libOpen){
-    let openComp=null; try{ openComp=await regionSwap2(base, libOpen, box, (await detectMouthBox(libOpen))||box); }catch(e){}
-    if(!openComp) return;
-    // Closed mouth: an explicit 'neutral' library pose, else auto-find the closed tile, else the
-    // beat's own resting frame. Whichever, only its MOUTH is borrowed; the body stays the frame.
-    let closedSrc = libPose('neutral') || await autoClosedLib(libOpen);
-    let closed = base;
-    if(closedSrc && closedSrc!==libOpen){ try{ const cc=await regionSwap2(base, closedSrc, box, (await detectMouthBox(closedSrc))||box); if(cc) closed=cc; }catch(e){} }
-    sh.talkCycle=[closed, openComp]; return;
-  }
-  // No library talk pose → use the beat's own most-open frame (base stays the closed mouth).
+  // FRAME-BASED (default) — take the SETTLED pose as the one stable base and replace ONLY the beak
+  // with the beak from the beat's own open-mouth frame (gpt's own art, correct proportions). One
+  // base pose, beak swapped → no repeated talking frames, no library overlap of eyes+beak.
+  const box=await detectMouthBox(settled);
   let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : (fr.length>=2 ? await pickOpenMouthIdx(fr, baseIdx, box) : -1);
-  if(openIdx==null || openIdx<0 || openIdx>=fr.length || openIdx===baseIdx) return;
-  let openComp=null; try{ openComp=await regionSwap2(base, fr[openIdx], box, (await detectMouthBox(fr[openIdx]))||box); }catch(e){}
-  sh.talkCycle = openComp ? [base, openComp] : null;
+  if(openIdx!=null && openIdx>=0 && openIdx<fr.length){
+    let openComp=null; try{ openComp=await regionSwap2(settled, fr[openIdx], box, (await detectMouthBox(fr[openIdx]))||box); }catch(e){}
+    if(openComp){ sh.talkCycle=[settled, openComp]; return; }
+  }
+  // Last resort ONLY if the beat has no usable open-mouth frame — borrow a library 'talk' mouth.
+  const libOpen=libPose('talk');
+  if(libOpen){ let openComp=null; try{ openComp=await regionSwap2(settled, libOpen, box, (await detectMouthBox(libOpen))||box); }catch(e){} if(openComp) sh.talkCycle=[settled, openComp]; }
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
 function talkSig(sh){ const fr=sh.frames||[]; const bp=(partImg('beakOpen')||'').length+':'+(partImg('beakClosed')||'').length; const bt=(sh.place&&sh.place.beak?JSON.stringify(sh.place.beak):'')+(sh.place&&sh.place.beakClosed?JSON.stringify(sh.place.beakClosed):''); return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'+'+((sh.aiTalkClosed||'').length)+'@'+(sh.aiTalkFor||0)):'')+'|'+restSig(sh); }
