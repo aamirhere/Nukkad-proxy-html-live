@@ -499,11 +499,13 @@ function buildPlacePanel(sc, idx, sh, si){
   const det=document.createElement('details'); det.className='fullprompt';
   const sum=document.createElement('summary'); sum.textContent='🎯 Place blink / talk parts on this beat'; det.appendChild(sum);
   const body=document.createElement('div'); body.style.padding='10px';
-  const base=(sh.frames||[])[sh.talkBaseIdx||0] || (sh.frames||[])[0];
+  const frs=sh.frames||[]; const base=frs[frs.length-1] || frs[0];   // the SETTLED/held pose (what a pause shows)
   const parts=projParts();
-  if(!base || !(parts.eyesClosed||parts.beakOpen)){ const n=document.createElement('small'); n.className='note'; n.textContent='Add an Eyes-closed and/or Beak-open part in “Gul’s moving parts” (top) first.'; body.appendChild(n); det.appendChild(body); return det; }
+  const isTalk=!!(sh.talk||sh.say);                                  // beak/talk only matters on talking beats
+  const showEye=!!parts.eyesClosed, showBeak=isTalk&&!!parts.beakOpen;
+  if(!base || !(showEye||showBeak)){ const n=document.createElement('small'); n.className='note'; n.textContent = parts.eyesClosed||parts.beakOpen ? 'Nothing to place here — this isn’t a talking beat and no eyes-closed part is set.' : 'Add an Eyes-closed and/or Beak-open part in “Gul’s moving parts” (top) first.'; body.appendChild(n); det.appendChild(body); return det; }
   if(!sh.place) sh.place={};
-  const note=document.createElement('small'); note.className='note'; note.innerHTML='Drag each part onto Gul, then size/rotate. <b>Blink</b> stamps the eyes-closed part during pauses; <b>talk</b> flaps the beak-open part. Per beat — use “auto-place” to start.';
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='Placed on the beat’s <b>settled pose</b>. <b>Blink</b> stamps the eyes-closed part during pauses'+(isTalk?'; <b>talk</b> flaps the beak-open part':' (this beat doesn’t talk, so only the eyes)')+'. Each part is independent — use its checkbox to turn it on/off, “auto-place” to start.';
   body.appendChild(note);
   const ov=document.createElement('div'); ov.style.cssText='position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;touch-action:none;user-select:none';
   const img=document.createElement('img'); img.src=base; img.style.cssText='width:100%;display:block;pointer-events:none'; ov.appendChild(img);
@@ -524,8 +526,8 @@ function buildPlacePanel(sc, idx, sh, si){
     el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
     const o={t,lay}; made.push(o); return o;
   }
-  const eyeO = parts.eyesClosed ? makeOverlay('eye','eyesClosed') : null;
-  const beakO = parts.beakOpen ? makeOverlay('beak','beakOpen') : null;
+  const eyeO = showEye ? makeOverlay('eye','eyesClosed') : null;
+  const beakO = showBeak ? makeOverlay('beak','beakOpen') : null;
   det.addEventListener('toggle',()=>{ if(det.open) made.forEach(o=>o.lay()); });
   function controls(which, label, o){
     if(!o) return; const t=sh.place[which];
@@ -2180,9 +2182,10 @@ async function autoClosedLib(openSrc){
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const fr=(sh.frames||[]); if(!fr.length) return;
   const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
-  // PRIORITY 1 — manually-placed beak-open part: flap base ↔ base+beak (reliable, no detection).
+  // PRIORITY 1 — manually-placed beak-open part, on the SETTLED pose (same frame the editor shows).
+  const settled=fr[fr.length-1]||base;
   const beakP=partImg('beakOpen'), bt=sh.place&&sh.place.beak;
-  if(beakP && bt && bt.on!==false){ try{ const open=await compositePart(base, beakP, bt); if(open){ sh.talkCycle=[base, open]; return; } }catch(e){} }
+  if(beakP && bt && bt.on!==false){ try{ const open=await compositePart(settled, beakP, bt); if(open){ sh.talkCycle=[settled, open]; return; } }catch(e){} }
   const box=await detectMouthBox(base);
   const libOpen=libPose('talk');
   if(libOpen){
