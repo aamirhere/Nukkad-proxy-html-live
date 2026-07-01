@@ -859,7 +859,20 @@ function toggleTax(handle) {
   if (btn) btn.textContent = (open ? '▶' : '▼') + ' Taxonomy';
 }
 
-function regenPrompt(handle) {
+// Applies brain to a base prompt via Claude refine_prompt — sets textarea instantly
+// with base then silently rewrites with brain woven in.
+async function applyBrainToPrompt(handle, basePrompt) {
+  const brain = getFullBrain(handle);
+  const ta = document.getElementById('stprompt-' + handle);
+  if (ta) ta.value = basePrompt;
+  if (!brain) return;
+  try {
+    const res = await api(AD_URL, { action: 'refine_prompt', current_prompt: basePrompt, direction: brain });
+    if (res.ok && res.prompt && ta) ta.value = res.prompt;
+  } catch {}
+}
+
+async function regenPrompt(handle) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   if (!p) return;
   const quote = p.title || p.t || p.tagline || p.tl || '';
@@ -867,17 +880,15 @@ function regenPrompt(handle) {
   const tax = taxonomyData[handle] || {};
   const el = document.getElementById('stprompt-' + handle);
   if (!el) return;
-  const brain = getFullBrain(handle);
-  const brainSuffix = brain ? `\n\nBrain: ${brain}` : '';
   const base = buildStudioPrompt(quote, scene, tax);
   const variations = [
-    `Product lifestyle ad photography. A handmade wooden piece with the quote '${quote}' sits as the clear hero. ${base} Shot from a slightly lower angle, emphasising the product's texture and depth.${brainSuffix}`,
-    `Indian gifting brand ad. The wooden quote piece '${quote}' — sharp, realistic, engraved text clearly visible — is the first thing the eye finds. ${base} Golden hour light. Bokeh background.${brainSuffix}`,
-    base + ` Shallow depth of field. Close crop on product. Colour palette: warm terracottas and creams.${brainSuffix}`,
+    `Product lifestyle ad photography. A handmade wooden piece with the quote '${quote}' sits as the clear hero. ${base} Shot from a slightly lower angle, emphasising the product's texture and depth.`,
+    `Indian gifting brand ad. The wooden quote piece '${quote}' — sharp, realistic, engraved text clearly visible — is the first thing the eye finds. ${base} Golden hour light. Bokeh background.`,
+    base + ` Shallow depth of field. Close crop on product. Colour palette: warm terracottas and creams.`,
   ];
   const current = el.value;
   const pick = variations.find(v => v !== current) || variations[0];
-  el.value = pick;
+  applyBrainToPrompt(handle, pick); // instant set + async brain merge
   toast('✓ Prompt variation loaded');
 }
 
@@ -1015,9 +1026,8 @@ function clearPersonality(handle) {
   const quote = p?.title || p?.t || p?.tagline || '';
   const scene = studioState[handle]?.scene || 'desk';
   const tax = taxonomyData[handle] || {};
-  const ta = document.getElementById('stprompt-' + handle);
-  const brain = getFullBrain(handle);
-  if (ta) ta.value = buildStudioPrompt(quote, scene, tax) + (brain ? `\n\nBrain: ${brain}` : '');
+  const base = buildStudioPrompt(quote, scene, tax);
+  applyBrainToPrompt(handle, base);
   toast('Person cleared — using base prompt');
 }
 
@@ -1198,9 +1208,17 @@ function savePill() {
   const brain = getFullBrain(handle);
 
   const basePrompt = buildStudioPrompt(quote, scene, tax);
-  const contextPart = context ? `\n\nDirector's note: ${context}` : '';
-  const brainPart   = brain   ? `\n\nBrain: ${brain}` : '';
-  const prompt = basePrompt + contextPart + brainPart;
+  const direction = [context, brain].filter(Boolean).join('\n');
+  const btn = document.getElementById('pill-save-btn');
+  closePillModal(); // close immediately for snappy UX
+
+  let prompt = basePrompt;
+  if (direction) {
+    try {
+      const res = await api(AD_URL, { action: 'refine_prompt', current_prompt: basePrompt, direction });
+      if (res.ok && res.prompt) prompt = res.prompt;
+    } catch {}
+  }
 
   const pill = { label, context, prompt, refImage: _pillRefDataUrl || null };
 
@@ -1216,7 +1234,6 @@ function savePill() {
 
   savePillsToStorage();
   rebuildSceneChips(handle);
-  closePillModal();
 }
 
 // ── PILL THUMBNAIL hover ──────────────────────────────────────────────────────
@@ -1419,12 +1436,10 @@ function setScene(handle, scene) {
   studioState[handle].scene = scene;
   studioState[handle].activeCustomScene = null;
   rebuildSceneChips(handle);
-  const ta = document.getElementById('stprompt-' + handle);
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
-  if (ta && p) {
-    const tax = taxonomyData[handle]||{};
-    const brain = getFullBrain(handle);
-    ta.value = buildStudioPrompt(p.title||p.t||p.tagline||p.tl||'', scene, tax) + (brain ? `\n\nBrain: ${brain}` : '');
+  if (p) {
+    const base = buildStudioPrompt(p.title||p.t||p.tagline||p.tl||'', scene, taxonomyData[handle]||{});
+    applyBrainToPrompt(handle, base);
   }
 }
 
