@@ -2306,29 +2306,34 @@ async function autoClosedLib(openSrc){
   return best;
 }
 async function buildTalkCycle(sh){
-  sh.talkCycle=null; const fr=(sh.frames||[]); if(!fr.length) return;
-  const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
-  const settled=restSettled(sh)||base;
-  // FRAME-BASED (default) — take the SETTLED pose as the one stable base and replace ONLY the beak
-  // with the beak from the beat's own open-mouth frame (gpt's own art, correct proportions). One
-  // base pose, beak swapped → no repeated talking frames, no library overlap of eyes+beak.
+  sh.talkCycle=null; const allFr=(sh.frames||[]); if(!allFr.length) return;
+  const fr=motionFramesOf(sh); if(!fr.length) return;
+  // ONE frozen base pose (the settled frame); only the beak is swapped on top of it. The body —
+  // legs, wings, everything — stays identical, so nothing pulses. The beak comes from whichever of
+  // the beat's own frames has the most-different mouth from the settled pose (gpt's own art).
+  const settled=restSettled(sh)||fr[fr.length-1];
+  const sIdx=Math.max(0, fr.indexOf(settled));
   const box=await detectMouthBox(settled);
-  let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : (fr.length>=2 ? await pickOpenMouthIdx(fr, baseIdx, box) : -1);
-  if(openIdx!=null && openIdx>=0 && openIdx<fr.length){
-    let openComp=null; try{ openComp=await regionSwap2(settled, fr[openIdx], box, (await detectMouthBox(fr[openIdx]))||box); }catch(e){}
-    if(openComp){ sh.talkCycle=[settled, openComp]; return; }
+  let openSrc = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0 && sh.talkOpenIdx<allFr.length) ? allFr[sh.talkOpenIdx] : null;
+  if(!openSrc && fr.length>=2){ const oi=await pickOpenMouthIdx(fr, sIdx, box); if(oi>=0 && fr[oi]!==settled) openSrc=fr[oi]; }
+  if(openSrc && openSrc!==settled){
+    let openComp=null; try{ openComp=await regionSwap2(settled, openSrc, box, (await detectMouthBox(openSrc))||box); }catch(e){}
+    if(openComp && openComp!==settled){ sh.talkCycle=[settled, openComp]; return; }
   }
-  // Last resort ONLY if the beat has no usable open-mouth frame — borrow a library 'talk' mouth.
+  // Last resort — borrow a library 'talk' mouth (only if the beat has no distinct open-mouth frame).
   const libOpen=libPose('talk');
-  if(libOpen){ let openComp=null; try{ openComp=await regionSwap2(settled, libOpen, box, (await detectMouthBox(libOpen))||box); }catch(e){} if(openComp) sh.talkCycle=[settled, openComp]; }
+  if(libOpen){ let openComp=null; try{ openComp=await regionSwap2(settled, libOpen, box, (await detectMouthBox(libOpen))||box); }catch(e){} if(openComp && openComp!==settled) sh.talkCycle=[settled, openComp]; }
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
 function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+blinkIdxOf(sh); }
 function talkRun(sh){
   const fr=motionFramesOf(sh); if(!fr.length) return [];   // exclude the eyes-closed frame from the loop
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
-  // Mouth-only cycle (stable body) if available; else loop the raw frames.
-  const cycle = (sh && sh.talkMouthOnly!==false && sh.talkCycle && sh.talkCycle.length>=2) ? sh.talkCycle : fr;
+  const mouthOnly = sh && sh.talkMouthOnly!==false;
+  const settled = restSettled(sh) || fr[fr.length-1];
+  // Mouth-only = frozen body: use the beak-flap cycle if we built one, else hold ONE pose (never
+  // loop the raw frames — that's what made the legs pulse). Full-body loop only when mouth-only off.
+  const cycle = mouthOnly ? ((sh.talkCycle && sh.talkCycle.length>=2) ? sh.talkCycle : [settled]) : fr;
   if(!sec) return framesTimed(cycle);
   const out=fillFrames(cycle, sec, true);                    // loop to fill the time
   const bi=blinkIdxOf(sh); const blink=(bi>=0)?((sh.frames||[])[bi]):((sh&&sh.blinkComposite)||(sh&&sh.blinkPose)||null), vf=vfps();
@@ -2446,7 +2451,8 @@ function beatPlayed(sh){
   if(sh&&sh.transition&&sh.transition.length) out.push(...framesTimed(sh.transition));
   else if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
   for(let i=0;i<Math.round(h.s*vf);i++) out.push(fr[0]);
-  out.push(...((sh&&sh.talk&&parseFloat(sh.talkSec)>0) ? talkRun(sh) : framesTimed(fr)));  // talk = looped to length
+  const talking = sh&&sh.talk && (sh.talkMouthOnly!==false || parseFloat(sh.talkSec)>0);   // mouth-only freezes the body
+  out.push(...(talking ? talkRun(sh) : framesTimed(fr)));
   // hold the end pose. If Claude tagged a mood and the palette has it, hold that EXPRESSION face
   // through the pause (the emotion lands). Otherwise hold the rest pose and blink now and then.
   const endN=Math.round(h.e*vf);
