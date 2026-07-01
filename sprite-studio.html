@@ -934,7 +934,9 @@ function buildPauseControls(sc, idx, sh, si){
   const aiTalkBtn=document.createElement('button'); aiTalkBtn.className='btn sm'; aiTalkBtn.style.cssText='flex:1;min-width:130px'; aiTalkBtn.textContent = sh.aiTalkOpen ? '✨ Redo AI talk' : '✨ AI talk (mouth)';
   aiTalkBtn.onclick=async()=>{ const o=aiTalkBtn.textContent; aiTalkBtn.disabled=true; aiTalkBtn.textContent='✨ opening mouth…'; try{ await aiTalk(sh); showToast('✨ AI talk added'); renderAll(); }catch(err){ aiTalkBtn.disabled=false; aiTalkBtn.textContent=o; alert('AI talk failed: '+err.message); } };
   aiBtnRow.appendChild(aiBtn); aiBtnRow.appendChild(aiTalkBtn); wrap.appendChild(aiBtnRow);
-  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='6px'; aiNote.innerHTML='AI edits <b>only the eyes</b> (blink) or <b>only the mouth</b> (talk) on this beat’s settled pose and merges just that region back onto your original — the rest stays pixel-identical. She blinks automatically during the pause. ~₹3 blink / ~₹6 talk, reused all beat.';
+  const freeNote=document.createElement('small'); freeNote.className='note'; freeNote.style.cssText='margin-top:8px;color:var(--ink2)'; freeNote.innerHTML='<b>Free (uses gpt’s own frames — recommended):</b> for the <b>blink</b>, mark gpt’s eyes-closed frame with <b>👁</b> above. For <b>talk</b>, turn on this beat’s talk + “Mouth-only” and the beak is swapped from your open-mouth frame. Only use the ✨ AI buttons if you don’t have those frames.';
+  wrap.appendChild(freeNote);
+  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='4px'; aiNote.innerHTML='✨ AI (optional, paid): edits only the eyes / only the mouth on the settled pose. ~₹3 blink / ~₹6 talk.';
   wrap.appendChild(aiNote);
   return wrap;
 }
@@ -1207,7 +1209,7 @@ function buildSceneCard(sc, idx){
         fr.appendChild(fc); strip.appendChild(fr);
       });
       sd.appendChild(strip);
-      const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder, 👁 to mark the eyes-closed pose (used for subtle idle blinks). (Re-slicing or changing crop resets these.)';
+      const fn=document.createElement('small'); fn.className='note'; fn.innerHTML='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. <b>👁 marks gpt’s eyes-closed frame</b> — that frame becomes the blink in the pause (and is taken out of the motion), so no AI needed. Ask gpt for one extra frame: the settled pose with eyes gently closed. (Re-slicing / changing crop resets these.)';
       sd.appendChild(fn);
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
       { const tp=buildTransitionPanel(sc, idx, sh, si); if(tp) sd.appendChild(tp); }
@@ -2107,7 +2109,12 @@ async function composeEyeBlink(rest, closed, box){
 // The beat's SETTLED look for the pause: the last frame, but with clean open eyes stamped on if
 // the user placed an eyes-open part (sh.restComposite). Everything downstream (blink, mood, talk,
 // the end-hold) builds on this, so a placed open eye fixes the held pose and the blink alike.
-function restSettled(sh){ const fr=(sh&&sh.frames)||[]; return (sh&&sh.restComposite)||fr[fr.length-1]||null; }
+// The marked eyes-closed frame (👁) — gpt's own eyes-closed version of the settled pose, used as
+// the blink. It is EXCLUDED from the motion/settled so the pause holds the open pose and only
+// flicks to the closed frame for the blink.
+function blinkIdxOf(sh){ const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const fr=(sh&&sh.frames)||[]; return (bi>=0&&bi<fr.length)?bi:-1; }
+function motionFramesOf(sh){ const fr=(sh&&sh.frames)||[]; const bi=blinkIdxOf(sh); return (bi>=0 && fr.length>1) ? fr.filter((_,i)=>i!==bi) : fr; }
+function restSettled(sh){ if(sh&&sh.restComposite) return sh.restComposite; const m=motionFramesOf(sh); return m[m.length-1]||null; }
 async function fitRest(sh){
   sh.restComposite=null; if(!sh) return;
   const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
@@ -2356,13 +2363,13 @@ async function buildTalkCycle(sh){
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
 function talkSig(sh){ const fr=sh.frames||[]; const bp=(partImg('beakOpen')||'').length+':'+(partImg('beakClosed')||'').length; const bt=(sh.place&&sh.place.beak?JSON.stringify(sh.place.beak):'')+(sh.place&&sh.place.beakClosed?JSON.stringify(sh.place.beakClosed):''); return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'+'+((sh.aiTalkClosed||'').length)+'@'+(sh.aiTalkFor||0)):'')+'|'+restSig(sh); }
 function talkRun(sh){
-  const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
+  const fr=motionFramesOf(sh); if(!fr.length) return [];   // exclude the eyes-closed frame from the loop
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
   // Mouth-only cycle (stable body) if available; else loop the raw frames.
   const cycle = (sh && sh.talkMouthOnly!==false && sh.talkCycle && sh.talkCycle.length>=2) ? sh.talkCycle : fr;
   if(!sec) return framesTimed(cycle);
   const out=fillFrames(cycle, sec, true);                    // loop to fill the time
-  const blink=(sh&&sh.blinkComposite)||(sh&&sh.blinkPose)||null, vf=vfps();
+  const bi=blinkIdxOf(sh); const blink=(bi>=0)?((sh.frames||[])[bi]):((sh&&sh.blinkComposite)||(sh&&sh.blinkPose)||null), vf=vfps();
   if(blink && sec>=2){ const every=Math.round(vf*3.2), dur=Math.max(2,Math.round(vf*0.1)), firstAt=Math.round(vf*1.1);
     for(let i=firstAt;i<out.length;i++){ if(((i-firstAt)%every)<dur) out[i]=blink; } }
   return out;
@@ -2462,14 +2469,17 @@ function framesTimed(frames){ if(!frames||!frames.length) return frames||[]; ret
 // land (e.g. dwell on the awe after a head-tilt). holdStart/holdEnd are seconds.
 function beatHold(sh){ return { s:Math.max(0,parseFloat(sh&&sh.holdStart)||0), e:Math.max(0,parseFloat(sh&&sh.holdEnd)||0) }; }
 function beatPlayed(sh){
-  const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
+  const allFr=(sh&&sh.frames)||[]; if(!allFr.length) return [];
   const vf=vfps(), h=beatHold(sh); const out=[];
-  // Real blink: eyes-only composite (body identical) > whole eyes-closed pose > marked frame.
-  const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1;
-  // Eyes-only (default): use the eye-only composite. Only when the user turns eyes-only OFF do we
-  // swap the whole library/override pose — otherwise never show a foreign whole body for a blink.
+  const bi=blinkIdxOf(sh);
+  const fr = motionFramesOf(sh);                       // motion excludes the eyes-closed (blink) frame
+  if(!fr.length) return [];
+  // Blink source, in priority order the user asked for:
+  //   1. gpt's OWN eyes-closed frame (marked with 👁) — same pose, body matches perfectly
+  //   2. an AI-generated blink (only the eyes edited) if they made one
+  //   3. a library / whole eyes-closed pose fallback
   const blinkWhole=(sh&&sh.blinkEyesOnly===false) ? ((sh&&sh.blinkPose)||libPose('blink')) : null;
-  const blink=(sh&&sh.blinkComposite) ? sh.blinkComposite : blinkWhole ? blinkWhole : ((bi>=0&&bi<fr.length)?fr[bi]:null);
+  const blink = (bi>=0) ? allFr[bi] : ((sh&&sh.blinkComposite) ? sh.blinkComposite : (blinkWhole||null));
   // Lead-in into the beat: real drawn transition frames if provided, else the auto cross-fade.
   if(sh&&sh.transition&&sh.transition.length) out.push(...framesTimed(sh.transition));
   else if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
@@ -2479,8 +2489,6 @@ function beatPlayed(sh){
   // through the pause (the emotion lands). Otherwise hold the rest pose and blink now and then.
   const endN=Math.round(h.e*vf);
   if(endN>0){ const every=Math.round(vf*2.8), dur=Math.max(3,Math.round(vf*0.12)), firstAt=Math.round(vf*0.6);
-    // Core of the pause = the held expression (if any), else the rest pose. Blink ALWAYS flicks
-    // in to break the static pattern — on the expression face if we have one, else on the rest.
     const base = (sh&&sh.moodComposite) ? sh.moodComposite : (restSettled(sh)||fr[fr.length-1]);
     const wink = (sh&&sh.moodComposite) ? sh.moodBlink : blink;
     for(let i=0;i<endN;i++){ const isBlink= wink && i>=firstAt && ((i-firstAt)%every)<dur; out.push(isBlink?wink:base); } }
