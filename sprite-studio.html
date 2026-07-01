@@ -2071,7 +2071,8 @@ async function fitBlink(sh){
   const src = sh.blinkPose || libPose('blink');       // per-beat override, else the library
   let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
   if(src && box){ try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; } }
-  if(!sh.blinkComposite && !src){ try{ sh.blinkComposite=await synthBlink(rest); }catch(e){} }
+  // No crude procedural squash fallback — if there's no placed part and no clean pose, she just
+  // doesn't blink this beat (steady) rather than showing a distorted squash.
 }
 function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const et=(sh.place&&sh.place.eye)?JSON.stringify(sh.place.eye):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+et; }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
@@ -2220,7 +2221,7 @@ async function exportFrames(frames){
   if(s.sizeLock!==false){ const a=await projectBirdArea(); if(a) frames=await normalizeScale(frames, a); }
   else if(s.uniform!==false){ const {W,H}=projectMaxSize(); frames=await padFrames(frames, W, H); }
   if(s.smooth!==false) frames=await smoothFrames(frames);
-  if(s.idle!==false){ frames=await autoBlinkHolds(frames); frames=await breatheHolds(frames); }
+  if(s.idle!==false){ frames=await breatheHolds(frames); }   // blinks come from placed/real parts in beatPlayed, not a synth squash
   return frames;
 }
 // ===== On-screen captions (Gul's words / overlay text), typed onto the frame =====
