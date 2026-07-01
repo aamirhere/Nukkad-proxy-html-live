@@ -8,38 +8,38 @@
 <style>
   :root{--cream:#fdf6f0;--brown:#3d2b1a;--orange:#c47a45;--muted:#8c7b6e;--border:#e8d5c0;--sand:#f5ede0;--green:#2d7d46;--red:#c0392b;}
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--cream);font-family:'DM Sans',sans-serif;color:var(--brown);min-height:100vh;}
+  body{background:var(--cream);font-family:'DM Sans',sans-serif;color:var(--brown);min-height:100vh;font-size:13px;}
   header{background:var(--brown);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
   header h1{font-family:'Poppins',sans-serif;font-weight:900;font-size:16px;color:#fff;}
   .toolbar{background:var(--sand);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:45px;z-index:99;}
   .toolbar input[type=text]{flex:1;min-width:180px;border:1.5px solid var(--border);border-radius:8px;padding:7px 12px;font-family:'DM Sans',sans-serif;font-size:12px;background:#fff;color:var(--brown);}
   .toolbar input[type=text]:focus{outline:none;border-color:var(--orange);}
-  .btn{border:none;border-radius:8px;padding:7px 13px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:opacity .15s;}
+  .btn{border:none;border-radius:8px;padding:7px 13px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:opacity .15s;}
   .btn:hover{opacity:.85;}
   .btn:disabled{opacity:.5;cursor:not-allowed;}
   .btn-primary{background:var(--orange);color:#fff;}
   .btn-green{background:var(--green);color:#fff;}
   .btn-ghost{background:rgba(61,43,26,.08);color:var(--brown);}
   .btn-blue{background:#2563eb;color:#fff;}
-  .btn-sm{padding:4px 10px;font-size:10px;}
+  .btn-sm{padding:5px 11px;font-size:11px;}
   .stats{display:flex;gap:8px;padding:12px 20px;flex-wrap:wrap;}
   .stat{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
-  .stat-n{font-family:'Poppins',sans-serif;font-weight:900;font-size:22px;color:var(--brown);}
-  .stat-l{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
-  .list-meta{padding:6px 20px 4px;font-size:11px;color:var(--muted);font-weight:600;}
+  .stat-n{font-family:'Poppins',sans-serif;font-weight:900;font-size:24px;color:var(--brown);}
+  .stat-l{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
+  .list-meta{padding:6px 20px 4px;font-size:12px;color:var(--muted);font-weight:600;}
   .products-wrap{padding:12px 20px 40px;}
   .product-card{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;transition:border-color .15s;}
   .product-card.matched{border-color:#b8dfc8;}
   .product-card.loading{opacity:.6;pointer-events:none;}
   .product-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--sand);border:1px solid var(--border);}
   .product-thumb-placeholder{width:52px;height:52px;border-radius:8px;flex-shrink:0;background:var(--sand);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--border);}
-  .product-title{font-weight:700;font-size:13px;margin-bottom:2px;}
-  .product-handle{font-size:9px;color:var(--muted);font-family:monospace;}
-  .badge{font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;text-transform:uppercase;display:inline-block;}
+  .product-title{font-weight:700;font-size:14px;margin-bottom:2px;}
+  .product-handle{font-size:10px;color:var(--muted);font-family:monospace;}
+  .badge{font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;text-transform:uppercase;display:inline-block;}
   .badge-matched{background:#e8f5ec;color:var(--green);}
   .badge-pending{background:#fff3e0;color:var(--orange);}
   .related-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
-  .related-chip{font-family:monospace;font-size:9px;background:#f0f4ff;border:1px solid #c7d7fb;color:#2563eb;border-radius:6px;padding:2px 7px;white-space:nowrap;}
+  .related-chip{font-family:monospace;font-size:10px;background:#f0f4ff;border:1px solid #c7d7fb;color:#2563eb;border-radius:6px;padding:2px 7px;white-space:nowrap;}
   .matched-at{font-size:9px;color:var(--muted);margin-top:5px;}
   .card-row{display:flex;align-items:flex-start;gap:10px;}
   .card-body{flex:1;min-width:0;}
@@ -58,7 +58,7 @@
   .view-tab.active{background:#fff;color:var(--brown);}
   .view-tab:not(.active){background:transparent;color:rgba(255,255,255,.65);}
   .col-sidebar{width:220px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--sand);}
-  .col-item{padding:8px 14px;cursor:pointer;border-radius:8px;margin:2px 6px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px;transition:background .1s;}
+  .col-item{padding:8px 14px;cursor:pointer;border-radius:8px;margin:2px 6px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;transition:background .1s;}
   .col-item:hover{background:#efe4d4;}
   .col-item.active{background:#d4541f;color:#fff;}
   .col-item .col-count{font-size:9px;font-weight:700;background:rgba(0,0,0,.08);border-radius:10px;padding:1px 6px;margin-left:auto;}
@@ -326,10 +326,14 @@ function api(url, body) {
           <div style="font-size:10px;color:var(--muted);line-height:1.5;padding-top:2px;">Upload or paste (Ctrl+V) a reference photo — Claude reads the shot and fills in the brief automatically.</div>
         </div>
       </div>
+      <div id="pill-analysis-wrap" style="display:none;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Shot analysis</div>
+        <div id="pill-analysis-text" style="background:#f7f3ee;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.65;color:var(--brown);white-space:pre-wrap;"></div>
+      </div>
       <div>
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;">Scene brief <span id="pill-brief-hint" style="font-weight:400;text-transform:none;font-style:italic;">— add your instruction, e.g. "product on her desk" or "she's holding it"</span></div>
-        <textarea id="pill-context-input" placeholder="Upload a reference image above — Claude will fill this in. Then add one line: where/how the product appears."
-          style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;resize:vertical;height:90px;font-family:var(--fb);"></textarea>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Your instruction <span style="font-weight:400;text-transform:none;font-style:italic;font-size:11px;">— where / how the product appears</span></div>
+        <textarea id="pill-context-input" placeholder='e.g. "product sitting on her desk" or "she is holding it in her hands"'
+          style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:8px;padding:9px 11px;font-size:13px;resize:vertical;height:72px;font-family:var(--fb);"></textarea>
       </div>
     </div>
     <div style="display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:#fafafa;border-radius:0 0 16px 16px;">
@@ -1193,6 +1197,14 @@ function openPillModal(handle, editIdx) {
     if (cs) {
       if (labelEl) labelEl.value = cs.label || '';
       if (ctxEl)   ctxEl.value   = cs.context || '';
+      const analysisWrap = document.getElementById('pill-analysis-wrap');
+      const analysisText = document.getElementById('pill-analysis-text');
+      if (cs.analysis) {
+        if (analysisText) analysisText.textContent = cs.analysis;
+        if (analysisWrap) analysisWrap.style.display = 'block';
+      } else {
+        if (analysisWrap) analysisWrap.style.display = 'none';
+      }
       if (cs.refImage) {
         _pillRefDataUrl = cs.refImage;
         if (previewImg)  previewImg.src = cs.refImage;
@@ -1205,6 +1217,8 @@ function openPillModal(handle, editIdx) {
   } else {
     if (labelEl) labelEl.value = '';
     if (ctxEl)   ctxEl.value   = '';
+    const analysisWrap = document.getElementById('pill-analysis-wrap');
+    if (analysisWrap) analysisWrap.style.display = 'none';
     if (previewWrap) previewWrap.style.display = 'none';
     if (saveBtn) saveBtn.textContent = '✓ Save pill';
   }
@@ -1244,18 +1258,17 @@ function clearPillRef() {
 
 async function analyzeRefImage(dataUrl) {
   const status = document.getElementById('pill-analyze-status');
-  const ctx = document.getElementById('pill-context-input');
+  const analysisWrap = document.getElementById('pill-analysis-wrap');
+  const analysisText = document.getElementById('pill-analysis-text');
   if (status) status.textContent = 'Reading shot…';
+  if (analysisWrap) analysisWrap.style.display = 'none';
   try {
     const b64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
     const res = await api(AD_URL, { action: 'analyze_shot', image_b64: b64 });
     if (res.ok && res.analysis) {
-      if (ctx) {
-        // prepend analysis; keep anything the user already typed after it
-        const existing = ctx.value.trim();
-        ctx.value = res.analysis + (existing ? '\n\n' + existing : '');
-      }
-      if (status) status.textContent = '✓ Shot read — add your product placement below';
+      if (analysisText) analysisText.textContent = res.analysis;
+      if (analysisWrap) analysisWrap.style.display = 'block';
+      if (status) status.textContent = '✓ Shot read';
     } else {
       if (status) status.textContent = '';
     }
@@ -1295,7 +1308,9 @@ async function savePill() {
   const context = ctxEl?.value?.trim() || '';
   if (!label) { toast('Give this pill a label first'); labelEl?.focus(); return; }
 
-  const pill = { label, context, refImage: _pillRefDataUrl || null };
+  const analysisText = document.getElementById('pill-analysis-text');
+  const analysis = analysisText?.textContent?.trim() || null;
+  const pill = { label, context, analysis, refImage: _pillRefDataUrl || null };
 
   if (_pillEditIdx != null) {
     globalPills[_pillEditIdx] = pill;
@@ -1481,14 +1496,16 @@ async function selectGlobalPill(handle, idx) {
 
   const ta = document.getElementById('stprompt-' + handle);
   const { directives: brainDirs, appends: brainAppends } = getMergedBrain(handle);
-  const context = cs.context || '';
-  const contextParsed = parseBrain(context);
+  // combine analysis + user instruction into the scene directive
+  const analysisPart = cs.analysis ? cs.analysis.trim() : '';
+  const userPart = cs.context ? cs.context.trim() : '';
+  const fullContext = [analysisPart, userPart].filter(Boolean).join('\n\n');
+  const contextParsed = parseBrain(userPart); // only parse user part for directives
   const mergedDirs = {};
   for (const d of brainDirs) mergedDirs[d.type] = d.text;
   for (const d of contextParsed.directives) mergedDirs[d.type] = d.text;
-  // treat untagged pill context as a /scene directive
-  if (context && !contextParsed.directives.length && !contextParsed.appends.length) {
-    mergedDirs['scene'] = context;
+  if (fullContext && !contextParsed.directives.length && !contextParsed.appends.length) {
+    mergedDirs['scene'] = fullContext;
   }
   const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
   const allAppends = [...brainAppends, ...contextParsed.appends];
