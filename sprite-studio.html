@@ -185,7 +185,7 @@ body.noscroll{overflow:hidden}
       <div class="foldbody">
         <p class="hint">Give me clean <b>transparent</b> cut-outs — <b>eyes-closed</b> and <b>beak-open</b>. No solid background: the studio <b>feathers</b> the edges so each part melts into the face (no box, nothing hidden). On each beat you place them once (drag / size / rotate / blend), and blink & talk stamp them on top — no auto-detection. Reusable across every post.</p>
         <div id="partsList"></div>
-        <small class="note"><b>Eye-closed = ONE eye</b> (with a little surrounding skin) — I place it on both sides (right auto-mirrored) so you size/position each eye separately. <b>Beak-open:</b> a clean cut-out of just the open beak. The “blend” slider softens the edges.</small>
+        <small class="note"><b>Eyes-closed = both eyes</b> — I auto-crop it into a left and right eye you place separately. <b>Beak-open:</b> a clean cut-out of just the open beak. Each part has a “blend” slider to soften its edges into the face.</small>
       </div>
     </details>
 
@@ -475,7 +475,7 @@ $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 /* ===== expression palette ===== */
 /* ===== moving parts (blink/talk cutouts) ===== */
 function projParts(){ const p=curProj(); if(!p) return {}; if(!p.parts) p.parts={}; return p.parts; }
-const PART_SLOTS=[['eyesClosed','Eye-closed — ONE eye (blink)'],['beakOpen','Beak-open (talk)'],['eyesOpen','Eye-open (optional)'],['beakClosed','Beak-closed (optional)']];
+const PART_SLOTS=[['eyesClosed','Eyes-closed — both eyes (auto-split)'],['beakOpen','Beak-open (talk)'],['eyesOpen','Eyes-open (optional)'],['beakClosed','Beak-closed (optional)']];
 function renderParts(){
   const host=$('partsList'); if(!host) return; host.innerHTML='';
   const parts=projParts();
@@ -511,9 +511,9 @@ function buildPlacePanel(sc, idx, sh, si){
   const img=document.createElement('img'); img.src=base; img.style.cssText='width:100%;display:block;pointer-events:none'; ov.appendChild(img);
   body.appendChild(ov);
   const made=[]; const saveOnly=()=>{ sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); };
-  function makeOverlay(which, key, mirror){
-    const src=parts[key]; if(!src) return null;
-    if(!sh.place[which]){ const defs = which==='beak' ? {x:0.5,y:0.55,w:0.18} : {x:(mirror?0.58:0.42),y:0.4,w:0.16}; sh.place[which]=Object.assign({rot:0,feather:0.12,on:true}, defs); }
+  function makeOverlay(which, src, mirror){
+    if(!src) return null;
+    if(!sh.place[which]){ const defs = which==='beak' ? {x:0.5,y:0.55,w:0.18} : {x:(which==='eyeR'?0.58:0.42),y:0.4,w:0.16}; sh.place[which]=Object.assign({rot:0,feather:0.12,on:true}, defs); }
     const t=sh.place[which];
     const el=document.createElement('img'); el.src=src; el.draggable=false; el.style.cssText='position:absolute;left:0;top:0;cursor:grab';
     ov.appendChild(el);
@@ -524,11 +524,13 @@ function buildPlacePanel(sc, idx, sh, si){
     el.addEventListener('pointermove',e=>{ if(!drag)return; const r=ov.getBoundingClientRect(); t.x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); t.y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)); lay(); });
     const end=()=>{ if(!drag)return; drag=false; el.style.cursor='grab'; saveOnly(); };  // no renderAll → panel stays open
     el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
-    const o={t,lay,mirror,which}; made.push(o); return o;
+    const o={t,lay,which,setSrc:(u)=>{ el.onload=lay; el.src=u; }}; made.push(o); return o;
   }
-  const eyeLO = showEye ? makeOverlay('eyeL','eyesClosed', false) : null;
-  const eyeRO = showEye ? makeOverlay('eyeR','eyesClosed', true) : null;
-  const beakO = showBeak ? makeOverlay('beak','beakOpen', false) : null;
+  const eyeLO = showEye ? makeOverlay('eyeL', parts.eyesClosed, false) : null;
+  const eyeRO = showEye ? makeOverlay('eyeR', parts.eyesClosed, false) : null;
+  const beakO = showBeak ? makeOverlay('beak', parts.beakOpen, false) : null;
+  // Auto-crop the both-eyes part into a real left & right eye, then swap each overlay to its half.
+  if(showEye) splitEyes(parts.eyesClosed).then(sp=>{ if(sp){ if(eyeLO)eyeLO.setSrc(sp.left); if(eyeRO)eyeRO.setSrc(sp.right); } });
   // Only apply to the animation (full re-render) when the panel is COLLAPSED — so editing never
   // yanks it shut mid-drag.
   det.addEventListener('toggle',()=>{ if(det.open){ made.forEach(o=>o.lay()); } else { renderAll(); } });
@@ -2038,6 +2040,24 @@ async function compositePart(baseUrl, partUrl, t){
   ctx.save(); ctx.translate((t&&t.x!=null?t.x:0.5)*W, (t&&t.y!=null?t.y:0.4)*H); if(t&&t.rot) ctx.rotate(t.rot*Math.PI/180); if(t&&t.flip) ctx.scale(-1,1); ctx.drawImage(tmp, -tw/2, -th/2); ctx.restore();
   return c.toDataURL('image/png');
 }
+// Auto-crop a BOTH-eyes cutout into a real left eye and right eye: find the content, split at
+// its horizontal midpoint, trim each side to its own bounds. Cached per source URL.
+const _eyeSplitCache=new Map();
+function splitEyes(url){
+  if(_eyeSplitCache.has(url)) return _eyeSplitCache.get(url);
+  const pr=(async()=>{
+    const im=await loadImg(url).catch(()=>null); if(!im) return {left:url,right:url};
+    const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height;
+    const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0);
+    let d; try{ d=x.getImageData(0,0,w,h).data; }catch(e){ return {left:url,right:url}; }
+    let gx0=w,gx1=0,any=false; for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){ if(d[(yy*w+xx)*4+3]>ALPHA_THRESHOLD){ any=true; if(xx<gx0)gx0=xx; if(xx>gx1)gx1=xx; } }
+    if(!any) return {left:url,right:url};
+    const mid=Math.round((gx0+gx1)/2);
+    const crop=(xa,xb)=>{ let x0=xb,y0=h,x1=xa,y1=0,f=false; for(let yy=0;yy<h;yy++)for(let xx=xa;xx<xb;xx++){ if(d[(yy*w+xx)*4+3]>ALPHA_THRESHOLD){ f=true; if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy; } } if(!f) return url; const cw=x1-x0+1, ch=y1-y0+1; const cc=document.createElement('canvas'); cc.width=cw; cc.height=ch; cc.getContext('2d').drawImage(im, x0,y0,cw,ch, 0,0,cw,ch); return cc.toDataURL('image/png'); };
+    return { left:crop(gx0, mid), right:crop(mid, gx1+1) };
+  })();
+  _eyeSplitCache.set(url, pr); return pr;
+}
 // Seed a placement transform from the auto-detected eye/mouth box on the base (a starting point).
 async function seedPlace(baseUrl, which){
   if(which==='beak'){ const box=await detectMouthBox(baseUrl); if(box) return {x:box.x+box.w/2,y:box.y+box.h/2,w:Math.min(0.9,box.w*1.2),rot:0,feather:0.12,on:true}; return {x:0.5,y:0.55,w:0.18,rot:0,feather:0.12,on:true}; }
@@ -2074,9 +2094,9 @@ async function fitBlink(sh){
   // PRIORITY 1 — manually-placed eyes-closed part: stamp the single-eye part at left and right
   // (right auto-mirrored), each placed independently.
   const eyeP=partImg('eyesClosed'), L=sh.place&&sh.place.eyeL, R=sh.place&&sh.place.eyeR;
-  if(eyeP && ((L&&L.on!==false)||(R&&R.on!==false))){ let img=rest;
-    if(L&&L.on!==false){ try{ img=await compositePart(img, eyeP, L); }catch(e){} }
-    if(R&&R.on!==false){ try{ img=await compositePart(img, eyeP, Object.assign({}, R, {flip:true})); }catch(e){} }
+  if(eyeP && ((L&&L.on!==false)||(R&&R.on!==false))){ const sp=await splitEyes(eyeP); let img=rest;
+    if(L&&L.on!==false){ try{ img=await compositePart(img, sp.left, L); }catch(e){} }
+    if(R&&R.on!==false){ try{ img=await compositePart(img, sp.right, R); }catch(e){} }
     if(img!==rest){ sh.blinkComposite=img; return; } }
   if(sh.blinkEyesOnly===false) return;               // whole-pose swap mode is handled in beatPlayed
   const src = sh.blinkPose || libPose('blink');       // per-beat override, else the library
