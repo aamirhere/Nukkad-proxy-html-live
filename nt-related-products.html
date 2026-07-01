@@ -874,10 +874,10 @@ function toggleTax(handle) {
 function parseBrain(brain) {
   const appends = [];
   const directives = [];
-  for (const raw of brain.split('\n')) {
+  for (const raw of (brain || '').split('\n')) {
     const line = raw.trim();
     if (!line) continue;
-    const m = line.match(/^\/(\w+)\s+(.*)/);
+    const m = line.match(/^\/(\w+)\s+(.*)/s);
     if (m && m[1] === 'append') {
       appends.push(m[2].trim());
     } else if (m) {
@@ -889,16 +889,33 @@ function parseBrain(brain) {
   return { appends, directives };
 }
 
-// Applies brain to a base prompt:
-// 1. If directives exist → Claude rewrites prompt following them
-// 2. /append lines added verbatim after
+// Merges global + product brain with product-wins-per-type logic:
+// - For /style /character /scene etc: product overrides global for that type
+// - /append: both global and product appends are kept (additive)
+function getMergedBrain(handle) {
+  const g = parseBrain(getGlobalBrain());
+  const p = parseBrain(getProductBrain(handle));
+
+  // product overrides global per directive type
+  const merged = {};
+  for (const d of g.directives) merged[d.type] = d.text;
+  for (const d of p.directives) merged[d.type] = d.text; // product wins
+
+  return {
+    directives: Object.entries(merged).map(([type, text]) => ({ type, text })),
+    appends: [...g.appends, ...p.appends], // both stack
+  };
+}
+
+// Applies merged brain to a base prompt:
+// 1. Directives → Claude rewrites prompt following them
+// 2. /append lines added verbatim after (exact text, no AI)
 // Sets textarea instantly with base, updates silently when Claude responds.
 async function applyBrainToPrompt(handle, basePrompt) {
-  const brain = getFullBrain(handle);
   const ta = document.getElementById('stprompt-' + handle);
   if (ta) ta.value = basePrompt;
-  if (!brain) return;
-  const { appends, directives } = parseBrain(brain);
+  const { directives, appends } = getMergedBrain(handle);
+  if (!directives.length && !appends.length) return;
   let prompt = basePrompt;
   if (directives.length) {
     try {
@@ -1248,20 +1265,25 @@ async function savePill() {
 
   const basePrompt = buildStudioPrompt(quote, scene, tax);
   closePillModal();
-  // apply context (pill-level brief) + brain directives
-  const combined = [context, brain].filter(Boolean).join('\n');
+  // merge brain (global+product with product-wins) + pill context
+  const { directives: brainDirs, appends: brainAppends } = getMergedBrain(handle);
+  const contextDirs = context ? parseBrain(context).directives : [];
+  const contextAppends = context ? parseBrain(context).appends : (context ? [context] : []);
+  // pill context overrides brain per type too
+  const mergedDirs = {};
+  for (const d of brainDirs) mergedDirs[d.type] = d.text;
+  for (const d of contextDirs) mergedDirs[d.type] = d.text;
+  const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
+  const allAppends = [...brainAppends, ...contextAppends];
   let prompt = basePrompt;
-  if (combined) {
-    const { appends, directives } = parseBrain(combined);
-    if (directives.length) {
-      try {
-        const directiveText = directives.map(d => `/${d.type} ${d.text}`).join('\n');
-        const res = await api(AD_URL, { action: 'apply_brain', base_prompt: prompt, brain: directiveText });
-        if (res.ok && res.prompt) prompt = res.prompt;
-      } catch {}
-    }
-    if (appends.length) prompt = prompt + '\n' + appends.join(' ');
+  if (allDirs.length) {
+    try {
+      const directiveText = allDirs.map(d => `/${d.type} ${d.text}`).join('\n');
+      const res = await api(AD_URL, { action: 'apply_brain', base_prompt: prompt, brain: directiveText });
+      if (res.ok && res.prompt) prompt = res.prompt;
+    } catch {}
   }
+  if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
 
   const pill = { label, context, prompt, refImage: _pillRefDataUrl || null };
 
