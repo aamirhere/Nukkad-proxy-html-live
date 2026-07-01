@@ -1921,12 +1921,23 @@ async function regionSwap2(baseUrl, srcUrl, baseBox, srcBox){
   ctx.restore();
   return c.toDataURL('image/png');
 }
+// Take a feature box detected on a REFERENCE image and express it on a TARGET image by the same
+// position relative to each bird's own body bounds — so a closed-eye tile's eye box can be found
+// from the neutral tile even if the two tiles are drawn at different sizes/positions.
+async function relFeatureBox(refUrl, refBox, targetUrl){
+  const [mr, mt]=await Promise.all([measureBox(refUrl), measureBox(targetUrl)]);
+  if(!mr||!mt||!mr.bw||!mr.bh) return null;
+  const fx=refBox.x*mr.w, fy=refBox.y*mr.h, fw=refBox.w*mr.w, fh=refBox.h*mr.h;
+  const rx=(fx-mr.x0)/mr.bw, ry=(fy-mr.y0)/mr.bh, rw=fw/mr.bw, rh=fh/mr.bh;
+  return { x:(mt.x0+rx*mt.bw)/mt.w, y:(mt.y0+ry*mt.bh)/mt.h, w:(rw*mt.bw)/mt.w, h:(rh*mt.bh)/mt.h };
+}
 // Blink: replace only the eye region with the eyes-closed pose's eyes. The closed-eye tile has
-// no detectable pupils, so we locate its eyes via the library's NEUTRAL (open-eye) tile — same
-// framing — then map that box precisely onto the base's eyes.
+// no detectable pupils, so we find WHERE its eyes are from the NEUTRAL (open-eye) tile's eye
+// position — mapped by body proportion so it's robust to the two tiles differing in size — then
+// map that precisely onto the base's eyes.
 async function composeEyeBlink(rest, closed, box){
   let srcBox=await detectEyeBox(closed);
-  if(!srcBox){ const nb=libPose('neutral'); if(nb) srcBox=await detectEyeBox(nb); }
+  if(!srcBox){ const nb=libPose('neutral'); if(nb){ const neb=await detectEyeBox(nb); if(neb) srcBox=await relFeatureBox(nb, neb, closed); } }
   return regionSwap2(rest, closed, box, srcBox||box);
 }
 // Bake sh.blinkComposite — the REST frame with ONLY the eyes closed (body identical). Tries the
