@@ -180,15 +180,6 @@ body.noscroll{overflow:hidden}
       </div>
     </details>
 
-    <details class="card fold" id="partsFold">
-      <summary><span>Gul's moving parts (blink / talk)</span></summary>
-      <div class="foldbody">
-        <p class="hint">Give me clean <b>transparent</b> cut-outs — <b>eyes-closed</b>, <b>eyes-open</b> and <b>beak-open</b>. <b>No background at all</b> — just the lid/eye/beak on transparency. On each beat the studio <b>auto-snaps</b> them to Gul’s eyes (position, size & head tilt), paints this frame’s own skin behind the eye (<b>match skin</b>, so it always matches — free), and stamps them on. Reusable across every post.</p>
-        <div id="partsList"></div>
-        <small class="note"><b>Eyes-closed / Eyes-open = both eyes</b> — I auto-crop each into a left & right eye you can nudge separately. <b>For talking, give BOTH a beak-closed and a beak-open cut-out</b> — the flap goes closed↔open, and match-skin reconstructs the face behind the beak so the frame’s own mouth never doubles through. Each part auto-places; tweak size / rotate / blend and toggle <b>match skin</b>.</small>
-      </div>
-    </details>
-
     <details class="card fold" id="setFold">
       <summary><span>Settings</span></summary>
       <div class="foldbody">
@@ -503,79 +494,6 @@ function renderParts(){
     strip.appendChild(cell);
   });
   host.appendChild(strip);
-}
-// Per-beat placement editor: drag the eyes-closed / beak-open parts onto Gul, size + rotate.
-function buildPlacePanel(sc, idx, sh, si){
-  const det=document.createElement('details'); det.className='fullprompt';
-  const sum=document.createElement('summary'); sum.textContent='🎯 Place blink / talk parts on this beat'; det.appendChild(sum);
-  const body=document.createElement('div'); body.style.padding='10px';
-  const frs=sh.frames||[]; const base=frs[frs.length-1] || frs[0];   // the SETTLED/held pose (what a pause shows)
-  const parts=projParts();
-  const isTalk=!!(sh.talk||sh.say);                                  // beak/talk only matters on talking beats
-  const showEye=!!parts.eyesClosed, showBeak=isTalk&&!!parts.beakOpen, showOpen=!!parts.eyesOpen, showBeakC=isTalk&&!!parts.beakClosed;
-  if(!base || !(showEye||showBeak||showOpen||showBeakC)){ const n=document.createElement('small'); n.className='note'; n.textContent = (parts.eyesClosed||parts.beakOpen||parts.eyesOpen||parts.beakClosed) ? 'Nothing to place here — this isn’t a talking beat and no eyes part is set.' : 'Add an Eyes-closed / Eyes-open and/or Beak-open part in “Gul’s moving parts” (top) first.'; body.appendChild(n); det.appendChild(body); return det; }
-  if(!sh.place) sh.place={};
-  const note=document.createElement('small'); note.className='note'; note.innerHTML='Placed on the beat’s <b>settled pose</b>, auto-snapped to Gul’s eyes (position, size & tilt). Left & right eyes place <b>independently</b>. With <b>match skin</b> on, the part sits on this frame’s own skin colour — no background mismatch. Changes apply when you <b>collapse this panel</b>.';
-  body.appendChild(note);
-  const ov=document.createElement('div'); ov.style.cssText='position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;touch-action:none;user-select:none';
-  const img=document.createElement('img'); img.src=base; img.style.cssText='width:100%;display:block;pointer-events:none'; ov.appendChild(img);
-  body.appendChild(ov);
-  const made=[]; const saveOnly=()=>{ sh._blinkSig=null; sh._talkSig=null; sh._moodSig=null; sh._restSig=null; persist(); scheduleSave(); };
-  function makeOverlay(which, src, mirror, seedKind){
-    if(!src) return null;
-    let fresh=false;
-    if(!sh.place[which]){ fresh=true; const isBeak=/beak/i.test(which); const defs = isBeak ? {x:0.5,y:0.55,w:0.18} : {x:(/R$/.test(which)?0.58:0.42),y:0.4,w:0.16}; sh.place[which]=Object.assign({rot:0,feather:0.14,on:true,skin:true}, defs); }
-    const t=sh.place[which];
-    const el=document.createElement('img'); el.src=src; el.draggable=false; el.style.cssText='position:absolute;left:0;top:0;cursor:grab';
-    ov.appendChild(el);
-    function lay(){ const rw=ov.clientWidth||ov.getBoundingClientRect().width, rh=ov.clientHeight||ov.getBoundingClientRect().height; if(!rw) return; el.style.width=(t.w*rw)+'px'; el.style.height='auto'; el.style.left=(t.x*rw)+'px'; el.style.top=(t.y*rh)+'px'; el.style.transform='translate(-50%,-50%) rotate('+(t.rot||0)+'deg)'+(mirror?' scaleX(-1)':''); el.style.opacity=(t.on===false?0.3:1); }
-    if(el.complete) lay(); else el.onload=lay;
-    let drag=false;
-    el.addEventListener('pointerdown',e=>{ drag=true; el.style.cursor='grabbing'; try{el.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
-    el.addEventListener('pointermove',e=>{ if(!drag)return; const r=ov.getBoundingClientRect(); t.x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); t.y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)); lay(); });
-    const end=()=>{ if(!drag)return; drag=false; el.style.cursor='grab'; saveOnly(); };  // no renderAll → panel stays open
-    el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
-    const o={t,lay,which,setSrc:(u)=>{ el.onload=lay; el.src=u; }}; made.push(o);
-    // First time this part is added → auto-snap it to Gul's detected eye (position, size, tilt).
-    if(fresh && seedKind){ seedPlace(base, seedKind).then(s=>{ Object.keys(s).forEach(k=>t[k]=s[k]); lay(); saveOnly(); }); }
-    return o;
-  }
-  const eyeLO = showEye ? makeOverlay('eyeL', parts.eyesClosed, false, 'eyeL') : null;
-  const eyeRO = showEye ? makeOverlay('eyeR', parts.eyesClosed, false, 'eyeR') : null;
-  const openLO = showOpen ? makeOverlay('openL', parts.eyesOpen, false, 'eyeL') : null;
-  const openRO = showOpen ? makeOverlay('openR', parts.eyesOpen, false, 'eyeR') : null;
-  const beakO = showBeak ? makeOverlay('beak', parts.beakOpen, false, 'beak') : null;
-  const beakCO = showBeakC ? makeOverlay('beakClosed', parts.beakClosed, false, 'beak') : null;
-  // Auto-crop each both-eyes part into a real left & right eye, then swap each overlay to its half.
-  if(showEye) splitEyes(parts.eyesClosed).then(sp=>{ if(sp){ if(eyeLO)eyeLO.setSrc(sp.left); if(eyeRO)eyeRO.setSrc(sp.right); } });
-  if(showOpen) splitEyes(parts.eyesOpen).then(sp=>{ if(sp){ if(openLO)openLO.setSrc(sp.left); if(openRO)openRO.setSrc(sp.right); } });
-  // Only apply to the animation (full re-render) when the panel is COLLAPSED — so editing never
-  // yanks it shut mid-drag.
-  det.addEventListener('toggle',()=>{ if(det.open){ made.forEach(o=>o.lay()); } else { renderAll(); } });
-  function controls(o, label, seedKind){
-    if(!o) return; const t=o.t;
-    const row=document.createElement('div'); row.style.cssText='margin-top:8px';
-    const h=document.createElement('div'); h.style.cssText='display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--ink)';
-    const on=document.createElement('input'); on.type='checkbox'; on.checked=t.on!==false; on.onchange=()=>{ t.on=on.checked; o.lay(); saveOnly(); };
-    h.appendChild(on); const sp=document.createElement('span'); sp.textContent=label; h.appendChild(sp);
-    const seed=document.createElement('button'); seed.className='btn sm ghost'; seed.style.cssText='margin-left:auto;font-size:10px;padding:2px 8px'; seed.textContent='auto-place'; seed.onclick=async()=>{ const s=await seedPlace(base, seedKind); Object.keys(s).forEach(k=>t[k]=s[k]); o.lay(); saveOnly(); }; h.appendChild(seed);
-    row.appendChild(h);
-    const mk=(lab,mn,mx,st,val,fn)=>{ const w=document.createElement('label'); w.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2);margin-top:4px'; w.append(lab); const r=document.createElement('input'); r.type='range'; r.min=mn; r.max=mx; r.step=st; r.value=val; r.style.flex='1'; r.addEventListener('input',()=>{ fn(parseFloat(r.value)); o.lay(); }); r.addEventListener('change',saveOnly); w.appendChild(r); return w; };
-    row.appendChild(mk('size',0.03,0.7,0.005,t.w,v=>t.w=v));
-    row.appendChild(mk('rotate',-40,40,1,(t.rot||0),v=>t.rot=v));
-    row.appendChild(mk('blend',0,0.45,0.02,(t.feather!=null?t.feather:0.12),v=>t.feather=v));
-    // Match skin (Option A): fill this frame's own skin behind the part so nothing mismatches.
-    const sk=document.createElement('label'); sk.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2);margin-top:4px';
-    const skc=document.createElement('input'); skc.type='checkbox'; skc.checked=t.skin!==false; skc.onchange=()=>{ t.skin=skc.checked; saveOnly(); }; sk.appendChild(skc); sk.append('match skin (fill this frame’s colour behind the part)'); row.appendChild(sk);
-    body.appendChild(row);
-  }
-  controls(openLO,'👁 Left eye — open (rest)', 'eyeL');
-  controls(openRO,'👁 Right eye — open (rest)', 'eyeR');
-  controls(eyeLO,'👁 Left eye — closed (blink)', 'eyeL');
-  controls(eyeRO,'👁 Right eye — closed (blink)', 'eyeR');
-  controls(beakCO,'🅑 Beak — closed (rest)', 'beak');
-  controls(beakO,'🅑 Beak — open (talk)', 'beak');
-  det.appendChild(body); return det;
 }
 function projExpr(){ const p=curProj(); if(!p) return []; if(!Array.isArray(p.expressions)) p.expressions=[]; return p.expressions; }
 function renderExpressions(){
@@ -997,54 +915,38 @@ function buildMixPanel(sc, idx, sh, si){
 
 // Real blink: let the user give Gul an actual eyes-closed POSE for this beat (pick a frame from
 // any take, or upload one). The hold then flicks it in for a genuine blink — no synth guesswork.
-function buildBlinkControl(sc, idx, sh, si){
-  const det=document.createElement('details'); det.className='fullprompt';
+// Pause controls (AI-first): pick the pause expression, and add an AI blink / talking mouth.
+// The generated frames show to the RIGHT of the preview (buildAiThumbs); she blinks automatically
+// during the pause. No manual eye/beak fiddling — the AI edit only touches that region.
+function buildPauseControls(sc, idx, sh, si){
+  const wrap=document.createElement('div'); wrap.style.cssText='margin-top:10px;padding:10px;border:1px dashed var(--accent);border-radius:10px';
   const am=sh.mood||'neutral'; const useMood=beatMood(sh);
-  const sum=document.createElement('summary'); sum.textContent='😊 Pause expression & blink — auto'+(useMood&&useMood!=='neutral'?(' ('+useMood+')'):'')+' · tap to tweak'; det.appendChild(sum);
-  const body=document.createElement('div'); body.style.padding='10px';
-  // Pause mood — Claude decides; override here (cherry on top). The palette supplies the face.
   const moodRow=document.createElement('div'); moodRow.className='row'; moodRow.style.cssText='align-items:center;gap:8px;flex-wrap:wrap';
-  const ml=document.createElement('span'); ml.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; ml.textContent='Pause mood:';
+  const ml=document.createElement('span'); ml.style.cssText='font-size:11px;font-weight:700;color:var(--ink)'; ml.textContent='Pause expression:';
   const msel=document.createElement('select'); msel.style.cssText='flex:1;min-width:140px';
   msel.innerHTML='<option value="">Auto — Claude: '+am+'</option>'+MOODS.map(m=>'<option value="'+m+'"'+((sh.moodOverride===m)?' selected':'')+'>'+m+'</option>').join('');
   msel.onchange=()=>{ sh.moodOverride=msel.value; sh._moodSig=null; persist(); scheduleSave(); renderAll(); };
-  moodRow.appendChild(ml); moodRow.appendChild(msel); body.appendChild(moodRow);
-  if(useMood!=='neutral' && !exprPoseForMood(useMood)){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.innerHTML='⚠ No “'+useMood+'” pose in the palette yet — add one in <b>Gul’s expressions</b> (top) and the pause will hold that face.'; body.appendChild(w); }
-  const note=document.createElement('small'); note.className='note'; note.style.marginTop='6px'; note.innerHTML='During a pause she holds the mood’s face (from the library). If there’s no mood face, she blinks — <b>automatic</b>, borrowing the eyes from the library’s <b>blink</b> pose. Override the blink below only if you want a specific one for this beat.';
-  body.appendChild(note);
-  // ✨ AI close-eyes (Option B): one cheap targeted edit — the model only closes the eyes, then we
-  // merge back ONLY the eye pixels so the rest of Gul stays your exact original. Reused in the pause.
-  const aiRow=document.createElement('div'); aiRow.style.cssText='margin-top:10px;padding:8px;border:1px dashed var(--accent);border-radius:8px';
-  const aiBtnRow=document.createElement('div'); aiBtnRow.className='row'; aiBtnRow.style.cssText='gap:8px;flex-wrap:wrap';
-  const aiBtn=document.createElement('button'); aiBtn.className='btn sm'; aiBtn.style.cssText='flex:1;min-width:130px'; aiBtn.textContent = sh.aiBlink ? '✨ Redo AI blink' : '✨ AI close eyes';
-  aiBtn.onclick=async()=>{ const o=aiBtn.textContent; aiBtn.disabled=true; aiBtn.textContent='✨ closing eyes…'; try{ await aiCloseEyes(sh); showToast('✨ AI blink ready'); renderAll(); }catch(err){ aiBtn.disabled=false; aiBtn.textContent=o; alert('AI close-eyes failed: '+err.message); } };
-  aiBtnRow.appendChild(aiBtn);
+  moodRow.appendChild(ml); moodRow.appendChild(msel); wrap.appendChild(moodRow);
+  if(useMood!=='neutral' && !exprPoseForMood(useMood)){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.innerHTML='⚠ No “'+useMood+'” pose in the palette yet — add one in <b>Gul’s expressions</b> (top) and the pause holds that face.'; wrap.appendChild(w); }
+  const aiBtnRow=document.createElement('div'); aiBtnRow.className='row'; aiBtnRow.style.cssText='gap:8px;flex-wrap:wrap;margin-top:8px';
+  const aiBtn=document.createElement('button'); aiBtn.className='btn sm'; aiBtn.style.cssText='flex:1;min-width:130px'; aiBtn.textContent = sh.aiBlink ? '✨ Redo AI blink' : '✨ AI close eyes (blink)';
+  aiBtn.onclick=async()=>{ const o=aiBtn.textContent; aiBtn.disabled=true; aiBtn.textContent='✨ closing eyes…'; try{ await aiCloseEyes(sh); showToast('✨ AI blink added'); renderAll(); }catch(err){ aiBtn.disabled=false; aiBtn.textContent=o; alert('AI close-eyes failed: '+err.message); } };
   const aiTalkBtn=document.createElement('button'); aiTalkBtn.className='btn sm'; aiTalkBtn.style.cssText='flex:1;min-width:130px'; aiTalkBtn.textContent = sh.aiTalkOpen ? '✨ Redo AI talk' : '✨ AI talk (mouth)';
-  aiTalkBtn.onclick=async()=>{ const o=aiTalkBtn.textContent; aiTalkBtn.disabled=true; aiTalkBtn.textContent='✨ opening mouth…'; try{ await aiTalk(sh); showToast('✨ AI talk ready'); renderAll(); }catch(err){ aiTalkBtn.disabled=false; aiTalkBtn.textContent=o; alert('AI talk failed: '+err.message); } };
-  aiBtnRow.appendChild(aiTalkBtn);
-  aiRow.appendChild(aiBtnRow);
-  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='6px'; aiNote.innerHTML='AI edits <b>only the eyes</b> (blink) or <b>only the mouth</b> (talk) on this beat’s settled pose, then merges just that region back onto your original — the rest stays pixel-identical. ~₹3 per blink, ~₹6 per talk; reused through the beat.';
-  aiRow.appendChild(aiNote);
-  const aiPv=[];
-  if(sh.aiBlink) aiPv.push(['AI blink', sh.aiBlink, ()=>{ sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; }]);
-  if(sh.aiTalkOpen) aiPv.push(['AI talk (open)', sh.aiTalkOpen, ()=>{ sh.aiTalkOpen=null; sh.aiTalkClosed=null; sh.aiTalkFor=0; sh._talkSig=null; }]);
-  if(aiPv.length){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
-    aiPv.forEach(([lab,img,clr])=>{ const cell=document.createElement('div'); cell.style.cssText='text-align:center'; cell.innerHTML='<div class="box" style="width:80px;height:80px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+img+'" style="width:100%;height:100%;object-fit:contain"></div><div style="font-size:9px;color:var(--ink2)">'+lab+'</div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.style.cssText='font-size:9px;padding:1px 6px;margin-top:2px;color:var(--err)'; rm.textContent='remove'; rm.onclick=()=>{ clr(); persist(); scheduleSave(); renderAll(); }; cell.appendChild(rm); pv.appendChild(cell); });
-    aiRow.appendChild(pv); }
-  body.appendChild(aiRow);
-  const eo=document.createElement('label'); eo.className='chip'; eo.style.cssText='display:flex;margin-top:8px'; eo.innerHTML='<input type="checkbox" '+(sh.blinkEyesOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Replace only the eyes (keep the body identical — the open/closed frames don’t need to match exactly)';
-  eo.querySelector('input').onchange=e=>{ sh.blinkEyesOnly=e.target.checked; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; body.appendChild(eo);
-  if(sh.blinkPose && sh.blinkEyesOnly!==false && !sh.blinkComposite){ const warn=document.createElement('small'); warn.className='note'; warn.style.color='var(--accent)'; warn.innerHTML='⚠ Couldn’t auto-locate the eyes on the resting pose — using the whole closed pose for the blink instead.'; body.appendChild(warn); }
-  if(sh.blinkPose){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px'; pv.innerHTML='<div class="box" style="width:90px;height:90px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+sh.blinkPose+'" style="width:100%;height:100%;object-fit:contain"></div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.textContent='Clear'; rm.onclick=()=>{ sh.blinkPose=null; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); }; pv.appendChild(rm); body.appendChild(pv); }
-  const pool=[]; (sh.frames||[]).forEach(f=>pool.push(f)); (sh.takes||[]).forEach(t=>(t.frames||[]).forEach(f=>pool.push(f)));
-  const uniq=[...new Set(pool)];
-  if(uniq.length){ const lab=document.createElement('div'); lab.style.cssText='font-size:11px;font-weight:700;color:var(--ink2);margin-top:8px'; lab.textContent='Pick the eyes-closed frame (from this beat or its takes):'; body.appendChild(lab);
-    const strip=document.createElement('div'); strip.className='framestrip'; uniq.forEach(f=>{ const fr=document.createElement('div'); fr.className='fr'; fr.style.cursor='pointer'; fr.innerHTML='<div class="box"'+(sh.blinkPose===f?' style="outline:2px solid #2f6fd4"':'')+'><img src="'+f+'"></div>'; fr.onclick=()=>{ sh.blinkPose=f; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); showToast('👁 Eyes-closed pose set'); }; strip.appendChild(fr); }); body.appendChild(strip); }
-  const up=document.createElement('button'); up.className='btn sm ghost'; up.style.cssText='margin-top:8px;width:100%'; up.textContent='⬆ Upload an eyes-closed image';
-  const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true; up.onclick=()=>fi.click();
-  fi.onchange=e=>{ const f=e.target.files[0]; if(!f)return; fileToDataURL(f, async d=>{ up.textContent='…'; if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d); sh.blinkPose=d; sh.blinkPoseKey=null; persist(); scheduleSave(); renderAll(); showToast('👁 Eyes-closed pose uploaded'); }); e.target.value=''; };
-  body.appendChild(up); body.appendChild(fi);
-  det.appendChild(body); return det;
+  aiTalkBtn.onclick=async()=>{ const o=aiTalkBtn.textContent; aiTalkBtn.disabled=true; aiTalkBtn.textContent='✨ opening mouth…'; try{ await aiTalk(sh); showToast('✨ AI talk added'); renderAll(); }catch(err){ aiTalkBtn.disabled=false; aiTalkBtn.textContent=o; alert('AI talk failed: '+err.message); } };
+  aiBtnRow.appendChild(aiBtn); aiBtnRow.appendChild(aiTalkBtn); wrap.appendChild(aiBtnRow);
+  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='6px'; aiNote.innerHTML='AI edits <b>only the eyes</b> (blink) or <b>only the mouth</b> (talk) on this beat’s settled pose and merges just that region back onto your original — the rest stays pixel-identical. She blinks automatically during the pause. ~₹3 blink / ~₹6 talk, reused all beat.';
+  wrap.appendChild(aiNote);
+  return wrap;
+}
+// The AI-generated frames for this beat, shown to the RIGHT of the preview box.
+function buildAiThumbs(sh){
+  const col=document.createElement('div'); col.style.cssText='display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:center;flex:1;min-width:120px;flex-wrap:wrap';
+  const items=[];
+  if(sh.aiBlink) items.push(['👁 AI blink', sh.aiBlink, ()=>{ sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; }]);
+  if(sh.aiTalkOpen) items.push(['🅑 AI talk', sh.aiTalkOpen, ()=>{ sh.aiTalkOpen=null; sh.aiTalkClosed=null; sh.aiTalkFor=0; sh._talkSig=null; }]);
+  if(!items.length){ const hint=document.createElement('small'); hint.className='note'; hint.style.cssText='text-align:center;color:var(--muted);max-width:150px'; hint.innerHTML='AI blink / talk frames appear here.<br>Use the ✨ buttons below the preview.'; col.appendChild(hint); return col; }
+  items.forEach(([lab,img,clr])=>{ const cell=document.createElement('div'); cell.style.cssText='text-align:center'; cell.innerHTML='<div class="box" style="width:96px;height:96px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+img+'" style="width:100%;height:100%;object-fit:contain"></div><div style="font-size:10px;color:var(--ink2);margin-top:2px">'+lab+'</div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.style.cssText='font-size:9px;padding:1px 8px;margin-top:2px;color:var(--err)'; rm.textContent='remove'; rm.onclick=()=>{ clr(); persist(); scheduleSave(); renderAll(); }; cell.appendChild(rm); col.appendChild(cell); });
+  return col;
 }
 // A prompt to draw the IN-BETWEEN frames that morph the previous beat's last pose into this
 // beat's first pose — for when the auto cross-fade isn't enough and you want real drawn frames.
@@ -1137,19 +1039,19 @@ function buildSceneCard(sc, idx){
       sd.appendChild(hr);
       if(pf){
         const hasPrev = sc.sheets.slice(0,si).some(b=>b&&b.frames&&b.frames.length);
-        const pbox=document.createElement('div'); pbox.style.marginTop='8px';
+        const pbox=document.createElement('div'); pbox.style.cssText='margin-top:8px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap';
         const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
         const pctr=document.createElement('div'); pctr.className='controls';
         const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb);
         let combI=null;
         if(hasPrev){ const ccb=document.createElement('label'); ccb.className='chip'; ccb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> with previous beats'; combI=ccb.querySelector('input'); pctr.appendChild(ccb); }
-        pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox);
+        pab.appendChild(pctr); pbox.appendChild(pab); pbox.appendChild(buildAiThumbs(sh)); sd.appendChild(pbox);
+        sd.appendChild(buildPauseControls(sc, idx, sh, si));
         const pa=makeFramesAnimator([], pcv, ()=>pcbI.checked, sc.refImage); if(sc.previewPin) pa.pin=sc.previewPin; pa.overlay={text:sh.overlay||''}; wireDrag(pcv, pa, sc); pcbI.onchange=()=>{ layout(pa); pcv.style.cursor=pcbI.checked?'grab':''; };
         const capWrap=document.createElement('label'); capWrap.className='f'; capWrap.style.cssText='margin-top:8px;color:var(--accent)'; capWrap.textContent='🅣 On-screen text (caption)';
         const capIn=document.createElement('input'); capIn.type='text'; capIn.value=sh.overlay||''; capIn.placeholder='words to type on screen during this pause (optional)';
         capIn.addEventListener('input',()=>{ sh.overlay=capIn.value; pa.overlay.text=capIn.value; }); capIn.addEventListener('change',()=>{ persist(); scheduleSave(); });
         sd.appendChild(capWrap); sd.appendChild(capIn);
-        sd.appendChild(buildBlinkControl(sc, idx, sh, si));
         const curHold=()=> (combI&&combI.checked) ? beatsPlayedUpTo(sc,si) : beatPlayed(sh);
         let tok=0;
         const rebuild=async()=>{ const my=++tok; const fr=await exportFrames(curHold()); if(my!==tok) return; pa.imgs=imgsForFrames(fr); pa.idx=0; pa.fps=vfps(); const f0=pa.imgs[0]; if(f0){ const setDim=()=>{ if(my!==tok)return; pa.dim={w:f0.width||220,h:f0.height||220}; layout(pa); }; if(f0.complete) setDim(); else f0.onload=setDim; } layout(pa); };
@@ -1308,11 +1210,9 @@ function buildSceneCard(sc, idx){
       const fn=document.createElement('small'); fn.className='note'; fn.textContent='Tap ✕ to drop a bad frame, ◀ ▶ to reorder, 👁 to mark the eyes-closed pose (used for subtle idle blinks). (Re-slicing or changing crop resets these.)';
       sd.appendChild(fn);
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
-      sd.appendChild(buildBlinkControl(sc, idx, sh, si));
-      if(hasParts()) sd.appendChild(buildPlacePanel(sc, idx, sh, si));
       { const tp=buildTransitionPanel(sc, idx, sh, si); if(tp) sd.appendChild(tp); }
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
-      const pbox=document.createElement('div'); pbox.style.marginTop='8px';
+      const pbox=document.createElement('div'); pbox.style.cssText='margin-top:8px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap';
       const pab=document.createElement('div'); pab.className='anim-box'; const pcv=document.createElement('canvas'); pcv.width=160; pcv.height=160; pab.appendChild(pcv);
       const pctr=document.createElement('div'); pctr.className='controls'; const pcb=document.createElement('label'); pcb.className='chip'; pcb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> over still'; const pcbI=pcb.querySelector('input'); pctr.appendChild(pcb);
       // Real-time toggle: play at the video rate (vfps), each pose held vfps/gfps frames —
@@ -1323,7 +1223,8 @@ function buildSceneCard(sc, idx){
       const hasPrevBeat = si>0 && sc.sheets.slice(0,si).some(s=>s.frames&&s.frames.length);
       let combineI=null;
       if(hasPrevBeat){ const ccb=document.createElement('label'); ccb.className='chip'; ccb.innerHTML='<input type="checkbox" style="margin:0 5px 0 0"> with previous beats'; combineI=ccb.querySelector('input'); pctr.appendChild(ccb); }
-      pab.appendChild(pctr); pbox.appendChild(pab); sd.appendChild(pbox);
+      pab.appendChild(pctr); pbox.appendChild(pab); pbox.appendChild(buildAiThumbs(sh)); sd.appendChild(pbox);
+      sd.appendChild(buildPauseControls(sc, idx, sh, si));
       const baseFrames=()=> (combineI&&combineI.checked) ? beatsUpTo(sc, si) : sh.frames;
       // Real-time preview plays the beat WITH its hold pause (beatPlayed); combined preview
       // plays each prior beat with its own hold so you feel the rhythm/pauses you'll export.
