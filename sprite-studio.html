@@ -185,7 +185,7 @@ body.noscroll{overflow:hidden}
       <div class="foldbody">
         <p class="hint">Give me clean <b>transparent</b> cut-outs — <b>eyes-closed</b> and <b>beak-open</b>. No solid background: the studio <b>feathers</b> the edges so each part melts into the face (no box, nothing hidden). On each beat you place them once (drag / size / rotate / blend), and blink & talk stamp them on top — no auto-detection. Reusable across every post.</p>
         <div id="partsList"></div>
-        <small class="note"><b>Eyes-closed:</b> include a little of the surrounding face skin so it covers the open eye. <b>Beak-open:</b> a clean cut-out of just the open beak (a touch of chin is fine) — placed over her beak it merges. The “blend” slider softens the edges.</small>
+        <small class="note"><b>Eye-closed = ONE eye</b> (with a little surrounding skin) — I place it on both sides (right auto-mirrored) so you size/position each eye separately. <b>Beak-open:</b> a clean cut-out of just the open beak. The “blend” slider softens the edges.</small>
       </div>
     </details>
 
@@ -475,7 +475,7 @@ $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 /* ===== expression palette ===== */
 /* ===== moving parts (blink/talk cutouts) ===== */
 function projParts(){ const p=curProj(); if(!p) return {}; if(!p.parts) p.parts={}; return p.parts; }
-const PART_SLOTS=[['eyesClosed','Eyes-closed (blink)'],['beakOpen','Beak-open (talk)'],['eyesOpen','Eyes-open (optional)'],['beakClosed','Beak-closed (optional)']];
+const PART_SLOTS=[['eyesClosed','Eye-closed — ONE eye (blink)'],['beakOpen','Beak-open (talk)'],['eyesOpen','Eye-open (optional)'],['beakClosed','Beak-closed (optional)']];
 function renderParts(){
   const host=$('partsList'); if(!host) return; host.innerHTML='';
   const parts=projParts();
@@ -505,46 +505,50 @@ function buildPlacePanel(sc, idx, sh, si){
   const showEye=!!parts.eyesClosed, showBeak=isTalk&&!!parts.beakOpen;
   if(!base || !(showEye||showBeak)){ const n=document.createElement('small'); n.className='note'; n.textContent = parts.eyesClosed||parts.beakOpen ? 'Nothing to place here — this isn’t a talking beat and no eyes-closed part is set.' : 'Add an Eyes-closed and/or Beak-open part in “Gul’s moving parts” (top) first.'; body.appendChild(n); det.appendChild(body); return det; }
   if(!sh.place) sh.place={};
-  const note=document.createElement('small'); note.className='note'; note.innerHTML='Placed on the beat’s <b>settled pose</b>. <b>Blink</b> stamps the eyes-closed part during pauses'+(isTalk?'; <b>talk</b> flaps the beak-open part':' (this beat doesn’t talk, so only the eyes)')+'. Each part is independent — use its checkbox to turn it on/off, “auto-place” to start.';
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='Placed on the beat’s <b>settled pose</b>. Left & right eyes place <b>independently</b> (right eye is auto-mirrored). Adjust freely — nothing closes; changes apply to the animation when you <b>collapse this panel</b>.';
   body.appendChild(note);
   const ov=document.createElement('div'); ov.style.cssText='position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;touch-action:none;user-select:none';
   const img=document.createElement('img'); img.src=base; img.style.cssText='width:100%;display:block;pointer-events:none'; ov.appendChild(img);
   body.appendChild(ov);
-  const made=[];
-  function makeOverlay(which, key){
+  const made=[]; const saveOnly=()=>{ sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); };
+  function makeOverlay(which, key, mirror){
     const src=parts[key]; if(!src) return null;
-    if(!sh.place[which]) sh.place[which]={x:0.5,y:(which==='beak'?0.52:0.4),w:(which==='beak'?0.18:0.5),rot:0,feather:0.12,on:true};
+    if(!sh.place[which]){ const defs = which==='beak' ? {x:0.5,y:0.55,w:0.18} : {x:(mirror?0.58:0.42),y:0.4,w:0.16}; sh.place[which]=Object.assign({rot:0,feather:0.12,on:true}, defs); }
     const t=sh.place[which];
     const el=document.createElement('img'); el.src=src; el.draggable=false; el.style.cssText='position:absolute;left:0;top:0;cursor:grab';
     ov.appendChild(el);
-    function lay(){ const rw=ov.clientWidth||ov.getBoundingClientRect().width, rh=ov.clientHeight||ov.getBoundingClientRect().height; if(!rw) return; el.style.width=(t.w*rw)+'px'; el.style.height='auto'; el.style.left=(t.x*rw)+'px'; el.style.top=(t.y*rh)+'px'; el.style.transform='translate(-50%,-50%) rotate('+(t.rot||0)+'deg)'; el.style.opacity=(t.on===false?0.3:1); }
+    function lay(){ const rw=ov.clientWidth||ov.getBoundingClientRect().width, rh=ov.clientHeight||ov.getBoundingClientRect().height; if(!rw) return; el.style.width=(t.w*rw)+'px'; el.style.height='auto'; el.style.left=(t.x*rw)+'px'; el.style.top=(t.y*rh)+'px'; el.style.transform='translate(-50%,-50%) rotate('+(t.rot||0)+'deg)'+(mirror?' scaleX(-1)':''); el.style.opacity=(t.on===false?0.3:1); }
     if(el.complete) lay(); else el.onload=lay;
     let drag=false;
     el.addEventListener('pointerdown',e=>{ drag=true; el.style.cursor='grabbing'; try{el.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
     el.addEventListener('pointermove',e=>{ if(!drag)return; const r=ov.getBoundingClientRect(); t.x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); t.y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)); lay(); });
-    const end=()=>{ if(!drag)return; drag=false; el.style.cursor='grab'; sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); };
+    const end=()=>{ if(!drag)return; drag=false; el.style.cursor='grab'; saveOnly(); };  // no renderAll → panel stays open
     el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
-    const o={t,lay}; made.push(o); return o;
+    const o={t,lay,mirror,which}; made.push(o); return o;
   }
-  const eyeO = showEye ? makeOverlay('eye','eyesClosed') : null;
-  const beakO = showBeak ? makeOverlay('beak','beakOpen') : null;
-  det.addEventListener('toggle',()=>{ if(det.open) made.forEach(o=>o.lay()); });
-  function controls(which, label, o){
-    if(!o) return; const t=sh.place[which];
+  const eyeLO = showEye ? makeOverlay('eyeL','eyesClosed', false) : null;
+  const eyeRO = showEye ? makeOverlay('eyeR','eyesClosed', true) : null;
+  const beakO = showBeak ? makeOverlay('beak','beakOpen', false) : null;
+  // Only apply to the animation (full re-render) when the panel is COLLAPSED — so editing never
+  // yanks it shut mid-drag.
+  det.addEventListener('toggle',()=>{ if(det.open){ made.forEach(o=>o.lay()); } else { renderAll(); } });
+  function controls(o, label, seedKind){
+    if(!o) return; const t=o.t;
     const row=document.createElement('div'); row.style.cssText='margin-top:8px';
     const h=document.createElement('div'); h.style.cssText='display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--ink)';
-    const on=document.createElement('input'); on.type='checkbox'; on.checked=t.on!==false; on.onchange=()=>{ t.on=on.checked; sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); };
+    const on=document.createElement('input'); on.type='checkbox'; on.checked=t.on!==false; on.onchange=()=>{ t.on=on.checked; o.lay(); saveOnly(); };
     h.appendChild(on); const sp=document.createElement('span'); sp.textContent=label; h.appendChild(sp);
-    const seed=document.createElement('button'); seed.className='btn sm ghost'; seed.style.cssText='margin-left:auto;font-size:10px;padding:2px 8px'; seed.textContent='auto-place'; seed.onclick=async()=>{ sh.place[which]=await seedPlace(base, which==='beak'?'beak':'eye'); sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }; h.appendChild(seed);
+    const seed=document.createElement('button'); seed.className='btn sm ghost'; seed.style.cssText='margin-left:auto;font-size:10px;padding:2px 8px'; seed.textContent='auto-place'; seed.onclick=async()=>{ const s=await seedPlace(base, seedKind); Object.keys(s).forEach(k=>t[k]=s[k]); o.lay(); saveOnly(); }; h.appendChild(seed);
     row.appendChild(h);
-    const mk=(lab,mn,mx,st,val,fn)=>{ const w=document.createElement('label'); w.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2);margin-top:4px'; w.append(lab); const r=document.createElement('input'); r.type='range'; r.min=mn; r.max=mx; r.step=st; r.value=val; r.style.flex='1'; r.addEventListener('input',()=>{ fn(parseFloat(r.value)); o.lay(); }); r.addEventListener('change',()=>{ sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }); w.appendChild(r); return w; };
-    row.appendChild(mk('size',0.05,1,0.01,t.w,v=>t.w=v));
-    row.appendChild(mk('rotate',-30,30,1,(t.rot||0),v=>t.rot=v));
+    const mk=(lab,mn,mx,st,val,fn)=>{ const w=document.createElement('label'); w.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2);margin-top:4px'; w.append(lab); const r=document.createElement('input'); r.type='range'; r.min=mn; r.max=mx; r.step=st; r.value=val; r.style.flex='1'; r.addEventListener('input',()=>{ fn(parseFloat(r.value)); o.lay(); }); r.addEventListener('change',saveOnly); w.appendChild(r); return w; };
+    row.appendChild(mk('size',0.03,0.7,0.005,t.w,v=>t.w=v));
+    row.appendChild(mk('rotate',-40,40,1,(t.rot||0),v=>t.rot=v));
     row.appendChild(mk('blend',0,0.45,0.02,(t.feather!=null?t.feather:0.12),v=>t.feather=v));
     body.appendChild(row);
   }
-  controls('eye','👁 Eyes-closed (blink)', eyeO);
-  controls('beak','🅑 Beak-open (talk)', beakO);
+  controls(eyeLO,'👁 Left eye (blink)', 'eyeL');
+  controls(eyeRO,'👁 Right eye (blink)', 'eyeR');
+  controls(beakO,'🅑 Beak (talk)', 'beak');
   det.appendChild(body); return det;
 }
 function projExpr(){ const p=curProj(); if(!p) return []; if(!Array.isArray(p.expressions)) p.expressions=[]; return p.expressions; }
@@ -2031,14 +2035,15 @@ async function compositePart(baseUrl, partUrl, t){
   if(feather>0){ const inset=Math.max(1,Math.round(Math.min(tw,th)*feather)); const mask=document.createElement('canvas'); mask.width=tw; mask.height=th; const mc=mask.getContext('2d'); mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; roundRect(mc, inset, inset, tw-2*inset, th-2*inset, inset); mc.fill(); tc.globalCompositeOperation='destination-in'; tc.drawImage(mask,0,0); tc.globalCompositeOperation='source-over'; }
   const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
   ctx.drawImage(b,0,0,W,H);
-  ctx.save(); ctx.translate((t&&t.x!=null?t.x:0.5)*W, (t&&t.y!=null?t.y:0.4)*H); if(t&&t.rot) ctx.rotate(t.rot*Math.PI/180); ctx.drawImage(tmp, -tw/2, -th/2); ctx.restore();
+  ctx.save(); ctx.translate((t&&t.x!=null?t.x:0.5)*W, (t&&t.y!=null?t.y:0.4)*H); if(t&&t.rot) ctx.rotate(t.rot*Math.PI/180); if(t&&t.flip) ctx.scale(-1,1); ctx.drawImage(tmp, -tw/2, -th/2); ctx.restore();
   return c.toDataURL('image/png');
 }
 // Seed a placement transform from the auto-detected eye/mouth box on the base (a starting point).
 async function seedPlace(baseUrl, which){
-  const box = which==='beak' ? await detectMouthBox(baseUrl) : await detectEyeBox(baseUrl);
-  if(box) return { x:box.x+box.w/2, y:box.y+box.h/2, w:Math.min(0.9,box.w*1.2), rot:0, feather:0.12, on:true };
-  return { x:0.5, y: which==='beak'?0.52:0.4, w: which==='beak'?0.18:0.5, rot:0, feather:0.12, on:true };
+  if(which==='beak'){ const box=await detectMouthBox(baseUrl); if(box) return {x:box.x+box.w/2,y:box.y+box.h/2,w:Math.min(0.9,box.w*1.2),rot:0,feather:0.12,on:true}; return {x:0.5,y:0.55,w:0.18,rot:0,feather:0.12,on:true}; }
+  const eb=await detectEyeBox(baseUrl);            // union of both eyes → seed each side to its half
+  if(eb){ const w=Math.max(0.06, eb.w*0.5), y=eb.y+eb.h/2; return which==='eyeR' ? {x:eb.x+eb.w*0.75,y,w,rot:0,feather:0.12,on:true} : {x:eb.x+eb.w*0.25,y,w,rot:0,feather:0.12,on:true}; }
+  return { x: which==='eyeR'?0.58:0.42, y:0.4, w:0.16, rot:0, feather:0.12, on:true };
 }
 // Take a feature box detected on a REFERENCE image and express it on a TARGET image by the same
 // position relative to each bird's own body bounds — so a closed-eye tile's eye box can be found
@@ -2066,9 +2071,13 @@ async function fitBlink(sh){
   sh.blinkComposite=null;
   if(!sh) return;
   const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
-  // PRIORITY 1 — manually-placed eyes-closed part (the reliable route). Just stamp it on the base.
-  const eyeP=partImg('eyesClosed'), et=sh.place&&sh.place.eye;
-  if(eyeP && et && et.on!==false){ try{ sh.blinkComposite=await compositePart(rest, eyeP, et); return; }catch(e){} }
+  // PRIORITY 1 — manually-placed eyes-closed part: stamp the single-eye part at left and right
+  // (right auto-mirrored), each placed independently.
+  const eyeP=partImg('eyesClosed'), L=sh.place&&sh.place.eyeL, R=sh.place&&sh.place.eyeR;
+  if(eyeP && ((L&&L.on!==false)||(R&&R.on!==false))){ let img=rest;
+    if(L&&L.on!==false){ try{ img=await compositePart(img, eyeP, L); }catch(e){} }
+    if(R&&R.on!==false){ try{ img=await compositePart(img, eyeP, Object.assign({}, R, {flip:true})); }catch(e){} }
+    if(img!==rest){ sh.blinkComposite=img; return; } }
   if(sh.blinkEyesOnly===false) return;               // whole-pose swap mode is handled in beatPlayed
   const src = sh.blinkPose || libPose('blink');       // per-beat override, else the library
   let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
@@ -2076,7 +2085,7 @@ async function fitBlink(sh){
   // No crude procedural squash fallback — if there's no placed part and no clean pose, she just
   // doesn't blink this beat (steady) rather than showing a distorted squash.
 }
-function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const et=(sh.place&&sh.place.eye)?JSON.stringify(sh.place.eye):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+et; }
+function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const el=(sh.place&&sh.place.eyeL)?JSON.stringify(sh.place.eyeL):''; const er=(sh.place&&sh.place.eyeR)?JSON.stringify(sh.place.eyeR):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+el+'|'+er; }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
 // pause with a mood; we drop the matching expression's FACE onto the resting body (body locked)
 // so the pause holds that emotion. Build the palette once, reuse on every beat/post. =====
