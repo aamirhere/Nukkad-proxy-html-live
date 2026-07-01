@@ -1523,7 +1523,7 @@ async function selectGlobalPill(handle, idx) {
   // if pill has a reference scene, use a minimal base so the scene analysis drives everything
   const hasRefScene = !!(cs.analysis || cs.context);
   const basePrompt = hasRefScene
-    ? `Product lifestyle photography. A handmade 3D wooden quote piece reading "${quote}" — engraved text crisp and clearly visible. The product sits at a rule-of-thirds position, occupying roughly one-third of the frame — not a close-up, not filling the image. The frame breathes. No clutter, no busy backgrounds. No distortion to the engraved text or shape. Soft editorial lighting, warm tones, shallow depth of field. High-converting ad quality.`
+    ? `Product lifestyle photography. A handmade painted wooden keepsake — a flat rectangular wooden board approximately 5 inches wide and 1 inch thick, standing upright on its base, with the words "${quote}" hand-painted and engraved on its face in clean lettering. The board has a matte painted finish in warm earthy tones. It is NOT floating letters, NOT 3D text, NOT plastic — it is a solid, real object with weight and texture, sitting flat. The product sits at a rule-of-thirds position, occupying roughly one-third of the frame — clearly visible but not zoomed in, the frame breathes around it. Photorealistic, shot on camera, natural imperfections. Soft editorial lighting, warm tones, shallow depth of field.`
     : buildStudioPrompt(quote, 'desk', tax);
 
   const ta = document.getElementById('stprompt-' + handle);
@@ -1591,7 +1591,7 @@ function buildStudioPrompt(quote, scene, tax) {
   const profKey = (tax.professions||[])[0] || '';
   const props = profProps[profKey] || 'A ceramic coffee mug, a small succulent, and a minimal desk organiser nearby. Soft warm light.';
 
-  return `Product lifestyle photography. A handmade 3D wooden quote piece reading "${quote}" is placed ${placement}. ${props} Keep the scene minimal — one or two supporting elements only, plenty of negative space. The product sits at a rule-of-thirds position, occupying roughly one-third of the frame — not a close-up, not filling the image. The frame breathes. Surface, light, and one human detail tell the story. No clutter, no busy backgrounds. No distortion to the engraved text or shape. Soft editorial lighting, warm tones. Clean contemporary home — modern, not traditional. High-converting ad quality, shallow depth of field.`;
+  return `Product lifestyle photography. A handmade painted wooden keepsake — a flat rectangular wooden board approximately 5 inches wide and 1 inch thick, standing upright on its base, with the words "${quote}" hand-painted and engraved on its face in clean lettering — is placed ${placement}. The board has a matte painted finish in warm earthy tones; it is NOT floating letters, NOT 3D text, NOT plastic. It sits flat and solid like a real object with weight and texture. ${props} Keep the scene minimal — one or two supporting elements only, plenty of negative space. The product sits at a rule-of-thirds position, occupying roughly one-third of the frame — not a close-up, not filling the image. The frame breathes. Surface, light, and one human detail tell the story. No clutter, no busy backgrounds. Soft editorial lighting, warm tones. Clean contemporary home — modern, not traditional. Photorealistic, shot on camera, natural imperfections. High-converting ad quality, shallow depth of field.`;
 }
 
 function setScene(handle, scene) {
