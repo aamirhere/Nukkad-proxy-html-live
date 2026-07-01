@@ -185,7 +185,7 @@ body.noscroll{overflow:hidden}
       <div class="foldbody">
         <p class="hint">Give me clean <b>transparent</b> cut-outs — <b>eyes-closed</b>, <b>eyes-open</b> and <b>beak-open</b>. <b>No background at all</b> — just the lid/eye/beak on transparency. On each beat the studio <b>auto-snaps</b> them to Gul’s eyes (position, size & head tilt), paints this frame’s own skin behind the eye (<b>match skin</b>, so it always matches — free), and stamps them on. Reusable across every post.</p>
         <div id="partsList"></div>
-        <small class="note"><b>Eyes-closed / Eyes-open = both eyes</b> — I auto-crop each into a left & right eye you can nudge separately. <b>Beak-open:</b> a clean cut-out of just the open beak. Each part auto-places, then you can tweak size / rotate / blend and toggle <b>match skin</b>.</small>
+        <small class="note"><b>Eyes-closed / Eyes-open = both eyes</b> — I auto-crop each into a left & right eye you can nudge separately. <b>For talking, give BOTH a beak-closed and a beak-open cut-out</b> — the flap goes closed↔open, and match-skin reconstructs the face behind the beak so the frame’s own mouth never doubles through. Each part auto-places; tweak size / rotate / blend and toggle <b>match skin</b>.</small>
       </div>
     </details>
 
@@ -475,7 +475,7 @@ $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 /* ===== expression palette ===== */
 /* ===== moving parts (blink/talk cutouts) ===== */
 function projParts(){ const p=curProj(); if(!p) return {}; if(!p.parts) p.parts={}; return p.parts; }
-const PART_SLOTS=[['eyesClosed','Eyes-closed — both, transparent (blink)'],['eyesOpen','Eyes-open — both, transparent (rest)'],['beakOpen','Beak-open (talk)'],['beakClosed','Beak-closed (optional)']];
+const PART_SLOTS=[['eyesClosed','Eyes-closed — both, transparent (blink)'],['eyesOpen','Eyes-open — both, transparent (rest)'],['beakClosed','Beak-closed — transparent (rest)'],['beakOpen','Beak-open — transparent (talk)']];
 function renderParts(){
   const host=$('partsList'); if(!host) return; host.innerHTML='';
   const parts=projParts();
@@ -502,8 +502,8 @@ function buildPlacePanel(sc, idx, sh, si){
   const frs=sh.frames||[]; const base=frs[frs.length-1] || frs[0];   // the SETTLED/held pose (what a pause shows)
   const parts=projParts();
   const isTalk=!!(sh.talk||sh.say);                                  // beak/talk only matters on talking beats
-  const showEye=!!parts.eyesClosed, showBeak=isTalk&&!!parts.beakOpen, showOpen=!!parts.eyesOpen;
-  if(!base || !(showEye||showBeak||showOpen)){ const n=document.createElement('small'); n.className='note'; n.textContent = (parts.eyesClosed||parts.beakOpen||parts.eyesOpen) ? 'Nothing to place here — this isn’t a talking beat and no eyes part is set.' : 'Add an Eyes-closed / Eyes-open and/or Beak-open part in “Gul’s moving parts” (top) first.'; body.appendChild(n); det.appendChild(body); return det; }
+  const showEye=!!parts.eyesClosed, showBeak=isTalk&&!!parts.beakOpen, showOpen=!!parts.eyesOpen, showBeakC=isTalk&&!!parts.beakClosed;
+  if(!base || !(showEye||showBeak||showOpen||showBeakC)){ const n=document.createElement('small'); n.className='note'; n.textContent = (parts.eyesClosed||parts.beakOpen||parts.eyesOpen||parts.beakClosed) ? 'Nothing to place here — this isn’t a talking beat and no eyes part is set.' : 'Add an Eyes-closed / Eyes-open and/or Beak-open part in “Gul’s moving parts” (top) first.'; body.appendChild(n); det.appendChild(body); return det; }
   if(!sh.place) sh.place={};
   const note=document.createElement('small'); note.className='note'; note.innerHTML='Placed on the beat’s <b>settled pose</b>, auto-snapped to Gul’s eyes (position, size & tilt). Left & right eyes place <b>independently</b>. With <b>match skin</b> on, the part sits on this frame’s own skin colour — no background mismatch. Changes apply when you <b>collapse this panel</b>.';
   body.appendChild(note);
@@ -514,7 +514,7 @@ function buildPlacePanel(sc, idx, sh, si){
   function makeOverlay(which, src, mirror, seedKind){
     if(!src) return null;
     let fresh=false;
-    if(!sh.place[which]){ fresh=true; const isBeak=which==='beak'; const defs = isBeak ? {x:0.5,y:0.55,w:0.18} : {x:(/R$/.test(which)?0.58:0.42),y:0.4,w:0.16}; sh.place[which]=Object.assign({rot:0,feather:0.14,on:true,skin:!isBeak}, defs); }
+    if(!sh.place[which]){ fresh=true; const isBeak=/beak/i.test(which); const defs = isBeak ? {x:0.5,y:0.55,w:0.18} : {x:(/R$/.test(which)?0.58:0.42),y:0.4,w:0.16}; sh.place[which]=Object.assign({rot:0,feather:0.14,on:true,skin:true}, defs); }
     const t=sh.place[which];
     const el=document.createElement('img'); el.src=src; el.draggable=false; el.style.cssText='position:absolute;left:0;top:0;cursor:grab';
     ov.appendChild(el);
@@ -535,6 +535,7 @@ function buildPlacePanel(sc, idx, sh, si){
   const openLO = showOpen ? makeOverlay('openL', parts.eyesOpen, false, 'eyeL') : null;
   const openRO = showOpen ? makeOverlay('openR', parts.eyesOpen, false, 'eyeR') : null;
   const beakO = showBeak ? makeOverlay('beak', parts.beakOpen, false, 'beak') : null;
+  const beakCO = showBeakC ? makeOverlay('beakClosed', parts.beakClosed, false, 'beak') : null;
   // Auto-crop each both-eyes part into a real left & right eye, then swap each overlay to its half.
   if(showEye) splitEyes(parts.eyesClosed).then(sp=>{ if(sp){ if(eyeLO)eyeLO.setSrc(sp.left); if(eyeRO)eyeRO.setSrc(sp.right); } });
   if(showOpen) splitEyes(parts.eyesOpen).then(sp=>{ if(sp){ if(openLO)openLO.setSrc(sp.left); if(openRO)openRO.setSrc(sp.right); } });
@@ -562,7 +563,8 @@ function buildPlacePanel(sc, idx, sh, si){
   controls(openRO,'👁 Right eye — open (rest)', 'eyeR');
   controls(eyeLO,'👁 Left eye — closed (blink)', 'eyeL');
   controls(eyeRO,'👁 Right eye — closed (blink)', 'eyeR');
-  controls(beakO,'🅑 Beak (talk)', 'beak');
+  controls(beakCO,'🅑 Beak — closed (rest)', 'beak');
+  controls(beakO,'🅑 Beak — open (talk)', 'beak');
   det.appendChild(body); return det;
 }
 function projExpr(){ const p=curProj(); if(!p) return []; if(!Array.isArray(p.expressions)) p.expressions=[]; return p.expressions; }
@@ -2016,24 +2018,33 @@ async function detectEyes(dataUrl){
 // eye pixels excluded) and fill the placement oval with it — so the frame's real open eye is
 // covered by matching native skin, and the closed lid sits on colour that always matches the
 // frame. Free, in-browser, zero cost per use.
-function sampleSkinRing(ctx, W, H, cx, cy, rx, ry, rot){
+// Sample the skin ABOVE and BELOW the placement separately, so the fill can be a vertical
+// gradient. Over the eyes both bands are orange face (gradient ≈ flat). Over the BEAK the top
+// band is orange face and the bottom band is white chest — the gradient reconstructs that edge,
+// so the frame's own open beak underneath is fully hidden (not a muddy flat average). Returns
+// {top, bottom} rgb strings, or null.
+function sampleSkin(ctx, W, H, cx, cy, rx, ry, rot){
   let d; try{ d=ctx.getImageData(0,0,W,H).data; }catch(e){ return null; }
-  const cos=Math.cos(rot||0), sin=Math.sin(rot||0); let r=0,g=0,b=0,n=0;
+  const cos=Math.cos(rot||0), sin=Math.sin(rot||0);
+  const T={r:0,g:0,b:0,n:0}, B={r:0,g:0,b:0,n:0};
   for(let a=0;a<360;a+=6){ const rad=a*Math.PI/180, ca=Math.cos(rad), sa=Math.sin(rad);
-    for(const s of [1.18,1.34,1.5]){ const lx=ca*rx*s, ly=sa*ry*s;
+    for(const s of [1.15,1.32,1.5]){ const lx=ca*rx*s, ly=sa*ry*s;
       const px=Math.round(cx+lx*cos-ly*sin), py=Math.round(cy+lx*sin+ly*cos);
       if(px<0||py<0||px>=W||py>=H) continue;
       const i=(py*W+px)*4; if(d[i+3]<200) continue;
-      const lum=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; if(lum<75) continue;   // skip dark eye/outline
-      r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; } }
-  if(n<8) return null;
-  return 'rgb('+Math.round(r/n)+','+Math.round(g/n)+','+Math.round(b/n)+')';
+      const lum=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; if(lum<70) continue;   // skip dark eye/beak-cavity/outline
+      const bin = ly<0 ? T : B; bin.r+=d[i]; bin.g+=d[i+1]; bin.b+=d[i+2]; bin.n++; } }
+  const avg=o=>o.n? 'rgb('+Math.round(o.r/o.n)+','+Math.round(o.g/o.n)+','+Math.round(o.b/o.n)+')' : null;
+  const t=avg(T), b=avg(B); if(!t&&!b) return null;
+  return { top:t||b, bottom:b||t };
 }
-function skinFillCanvas(color, fw, fh, feather){
+function skinFillCanvas(fill, fw, fh, feather){
   fw=Math.max(2,Math.round(fw)); fh=Math.max(2,Math.round(fh));
   const m=Math.max(2, Math.round(Math.min(fw,fh)*(feather!=null?feather:0.2)));
   const cv=document.createElement('canvas'); cv.width=fw; cv.height=fh; const c=cv.getContext('2d');
-  c.fillStyle=color; c.fillRect(0,0,fw,fh);
+  if(typeof fill==='string'){ c.fillStyle=fill; }
+  else { const g=c.createLinearGradient(0,0,0,fh); g.addColorStop(0, fill.top); g.addColorStop(1, fill.bottom); c.fillStyle=g; }
+  c.fillRect(0,0,fw,fh);
   const mk=document.createElement('canvas'); mk.width=fw; mk.height=fh; const mc=mk.getContext('2d');
   mc.filter='blur('+m+'px)'; mc.fillStyle='#fff'; mc.beginPath(); mc.ellipse(fw/2,fh/2, Math.max(1,fw/2-m), Math.max(1,fh/2-m), 0,0,2*Math.PI); mc.fill();
   c.globalCompositeOperation='destination-in'; c.drawImage(mk,0,0); c.globalCompositeOperation='source-over';
@@ -2105,7 +2116,7 @@ async function compositePart(baseUrl, partUrl, t){
   const cx=(t&&t.x!=null?t.x:0.5)*W, cy=(t&&t.y!=null?t.y:0.4)*H, rot=(t&&t.rot)?t.rot*Math.PI/180:0;
   // Option A — paint this frame's own skin behind the part first, so the transparent lid sits on
   // matching native colour (covers the frame's real open eye) with no baked-background mismatch.
-  if(t&&t.skin){ const skin=sampleSkinRing(ctx, W, H, cx, cy, tw/2, th/2, rot);
+  if(t&&t.skin){ const skin=sampleSkin(ctx, W, H, cx, cy, tw/2, th/2, rot);
     if(skin){ const fw=tw*1.1, fh=th*1.1, fill=skinFillCanvas(skin, fw, fh, Math.max(0.22,(feather||0.12)+0.08));
       ctx.save(); ctx.translate(cx,cy); if(rot) ctx.rotate(rot); ctx.drawImage(fill, -fw/2, -fh/2); ctx.restore(); } }
   ctx.save(); ctx.translate(cx, cy); if(rot) ctx.rotate(rot); if(t&&t.flip) ctx.scale(-1,1); ctx.drawImage(tmp, -tw/2, -th/2); ctx.restore();
@@ -2131,7 +2142,7 @@ function splitEyes(url){
 }
 // Seed a placement transform from the auto-detected eye/mouth box on the base (a starting point).
 async function seedPlace(baseUrl, which){
-  if(which==='beak'){ const box=await detectMouthBox(baseUrl); if(box) return {x:box.x+box.w/2,y:box.y+box.h/2,w:Math.min(0.9,box.w*1.2),rot:0,feather:0.12,on:true,skin:false}; return {x:0.5,y:0.55,w:0.18,rot:0,feather:0.12,on:true,skin:false}; }
+  if(which==='beak'){ const box=await detectMouthBox(baseUrl); if(box) return {x:box.x+box.w/2,y:box.y+box.h/2,w:Math.min(0.9,box.w*1.2),rot:0,feather:0.14,on:true,skin:true}; return {x:0.5,y:0.55,w:0.18,rot:0,feather:0.14,on:true,skin:true}; }
   // Eyes: snap to the EXACT detected eye (centre + size) and rotate with the head tilt.
   const ep=await detectEyes(baseUrl);
   if(ep){ const e = which==='eyeR' ? ep.R : ep.L; const w=Math.max(0.08, Math.min(0.42, e.w*2.2));
@@ -2303,10 +2314,20 @@ async function autoClosedLib(openSrc){
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const fr=(sh.frames||[]); if(!fr.length) return;
   const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
-  // PRIORITY 1 — manually-placed beak-open part, on the SETTLED pose (same frame the editor shows).
+  // PRIORITY 1 — manually-placed beak parts on the SETTLED pose. The open beak is stamped WITH
+  // skin-fill on, so the frame's own beak underneath is reconstructed away first (no open-on-open
+  // doubling). The CLOSED phase uses a placed beak-closed part when given (clean flap); without
+  // one it falls back to the raw settled pose.
   const settled=restSettled(sh)||base;
   const beakP=partImg('beakOpen'), bt=sh.place&&sh.place.beak;
-  if(beakP && bt && bt.on!==false){ try{ const open=await compositePart(settled, beakP, bt); if(open){ sh.talkCycle=[settled, open]; return; } }catch(e){} }
+  if(beakP && bt && bt.on!==false){ try{
+    const ot=Object.assign({}, bt, {skin:bt.skin!==false});
+    const open=await compositePart(settled, beakP, ot);
+    let closed=settled;
+    const bcP=partImg('beakClosed'), bct=sh.place&&sh.place.beakClosed;
+    if(bcP && bct && bct.on!==false){ const ct=Object.assign({}, bct, {skin:bct.skin!==false}); const cc=await compositePart(settled, bcP, ct); if(cc) closed=cc; }
+    if(open){ sh.talkCycle=[closed, open]; return; }
+  }catch(e){} }
   const box=await detectMouthBox(base);
   const libOpen=libPose('talk');
   if(libOpen){
@@ -2326,7 +2347,7 @@ async function buildTalkCycle(sh){
   sh.talkCycle = openComp ? [base, openComp] : null;
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; const bp=partImg('beakOpen')||''; const bt=(sh.place&&sh.place.beak)?JSON.stringify(sh.place.beak):''; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp.length+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+restSig(sh); }
+function talkSig(sh){ const fr=sh.frames||[]; const bp=(partImg('beakOpen')||'').length+':'+(partImg('beakClosed')||'').length; const bt=(sh.place&&sh.place.beak?JSON.stringify(sh.place.beak):'')+(sh.place&&sh.place.beakClosed?JSON.stringify(sh.place.beakClosed):''); return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+restSig(sh); }
 function talkRun(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
