@@ -929,27 +929,12 @@ function buildPauseControls(sc, idx, sh, si){
   msel.onchange=()=>{ sh.moodOverride=msel.value; sh._moodSig=null; persist(); scheduleSave(); renderAll(); };
   moodRow.appendChild(ml); moodRow.appendChild(msel); wrap.appendChild(moodRow);
   if(useMood!=='neutral' && !exprPoseForMood(useMood)){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.innerHTML='⚠ No “'+useMood+'” pose in the palette yet — add one in <b>Gul’s expressions</b> (top) and the pause holds that face.'; wrap.appendChild(w); }
-  const aiBtnRow=document.createElement('div'); aiBtnRow.className='row'; aiBtnRow.style.cssText='gap:8px;flex-wrap:wrap;margin-top:8px';
-  const aiBtn=document.createElement('button'); aiBtn.className='btn sm'; aiBtn.style.cssText='flex:1;min-width:130px'; aiBtn.textContent = sh.aiBlink ? '✨ Redo AI blink' : '✨ AI close eyes (blink)';
-  aiBtn.onclick=async()=>{ const o=aiBtn.textContent; aiBtn.disabled=true; aiBtn.textContent='✨ closing eyes…'; try{ await aiCloseEyes(sh); showToast('✨ AI blink added'); renderAll(); }catch(err){ aiBtn.disabled=false; aiBtn.textContent=o; alert('AI close-eyes failed: '+err.message); } };
-  const aiTalkBtn=document.createElement('button'); aiTalkBtn.className='btn sm'; aiTalkBtn.style.cssText='flex:1;min-width:130px'; aiTalkBtn.textContent = sh.aiTalkOpen ? '✨ Redo AI talk' : '✨ AI talk (mouth)';
-  aiTalkBtn.onclick=async()=>{ const o=aiTalkBtn.textContent; aiTalkBtn.disabled=true; aiTalkBtn.textContent='✨ opening mouth…'; try{ await aiTalk(sh); showToast('✨ AI talk added'); renderAll(); }catch(err){ aiTalkBtn.disabled=false; aiTalkBtn.textContent=o; alert('AI talk failed: '+err.message); } };
-  aiBtnRow.appendChild(aiBtn); aiBtnRow.appendChild(aiTalkBtn); wrap.appendChild(aiBtnRow);
-  const freeNote=document.createElement('small'); freeNote.className='note'; freeNote.style.cssText='margin-top:8px;color:var(--ink2)'; freeNote.innerHTML='<b>Free (uses gpt’s own frames — recommended):</b> for the <b>blink</b>, mark gpt’s eyes-closed frame with <b>👁</b> above. For <b>talk</b>, turn on this beat’s talk + “Mouth-only” and the beak is swapped from your open-mouth frame. Only use the ✨ AI buttons if you don’t have those frames.';
+  const freeNote=document.createElement('small'); freeNote.className='note'; freeNote.style.cssText='margin-top:8px;color:var(--ink2)'; freeNote.innerHTML='<b>Blink:</b> mark gpt’s eyes-closed frame with <b>👁</b> above — it becomes the blink in the pause. <b>Talk:</b> turn on this beat’s talk + “Mouth-only” and the beak is swapped from your open-mouth frame. Both use gpt’s own frames — no AI, nothing extra to place.';
   wrap.appendChild(freeNote);
-  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='4px'; aiNote.innerHTML='✨ AI (optional, paid): edits only the eyes / only the mouth on the settled pose. ~₹3 blink / ~₹6 talk.';
-  wrap.appendChild(aiNote);
   return wrap;
 }
-// The AI-generated frames for this beat, shown to the RIGHT of the preview box.
-function buildAiThumbs(sh){
-  const col=document.createElement('div'); col.style.cssText='display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:center;flex:1;min-width:120px;flex-wrap:wrap';
-  const items=[];
-  if(sh.aiBlink) items.push(['👁 AI blink', sh.aiBlink, ()=>{ sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; }]);
-  if(sh.aiTalkOpen) items.push(['🅑 AI talk', sh.aiTalkOpen, ()=>{ sh.aiTalkOpen=null; sh.aiTalkClosed=null; sh.aiTalkFor=0; sh._talkSig=null; }]);
-  if(!items.length){ const hint=document.createElement('small'); hint.className='note'; hint.style.cssText='text-align:center;color:var(--muted);max-width:150px'; hint.innerHTML='AI blink / talk frames appear here.<br>Use the ✨ buttons below the preview.'; col.appendChild(hint); return col; }
-  items.forEach(([lab,img,clr])=>{ const cell=document.createElement('div'); cell.style.cssText='text-align:center'; cell.innerHTML='<div class="box" style="width:96px;height:96px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+img+'" style="width:100%;height:100%;object-fit:contain"></div><div style="font-size:10px;color:var(--ink2);margin-top:2px">'+lab+'</div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.style.cssText='font-size:9px;padding:1px 8px;margin-top:2px;color:var(--err)'; rm.textContent='remove'; rm.onclick=()=>{ clr(); persist(); scheduleSave(); renderAll(); }; cell.appendChild(rm); col.appendChild(cell); });
-  return col;
+// (Removed) AI-generated blink/talk thumbnails — the rig uses gpt's own frames now.
+function buildAiThumbs(sh){ const d=document.createElement('div'); d.style.display='none'; return d;
 }
 // A prompt to draw the IN-BETWEEN frames that morph the previous beat's last pose into this
 // beat's first pose — for when the auto cross-fade isn't enough and you want real drawn frames.
@@ -992,8 +977,20 @@ function buildTransitionPanel(sc, idx, sh, si){
 
 function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); renderExpressions(); renderParts(); maybeResume(); refreshBlinks(); }
 
+// One-time cleanup: strip legacy manual-placement parts + AI overlay data that could still be
+// stamped onto old beats (the persistent eye/beak blobs). The rig now uses gpt's own frames only.
+function purgeLegacyRig(p){
+  if(!p||p._rigPurged) return false; let ch=false;
+  if(p.parts && Object.keys(p.parts).length){ p.parts={}; p._partKeys={}; ch=true; }
+  (p.scenes||[]).forEach(sc=>(sc.sheets||[]).forEach(sh=>{
+    ['place','aiBlink','aiBlinkKey','aiBlinkFor','aiTalkOpen','aiTalkOpenKey','aiTalkClosed','aiTalkClosedKey','aiTalkFor','restComposite','blinkComposite','talkCycle'].forEach(k=>{ if(sh[k]!=null){ delete sh[k]; ch=true; } });
+    sh._blinkSig=null; sh._talkSig=null; sh._restSig=null;
+  }));
+  p._rigPurged=true; return ch;
+}
 function renderScenes(){
-  const p=curProj(); const wrap=$('scenesWrap'); wrap.innerHTML='';
+  const p=curProj(); if(p && purgeLegacyRig(p)){ persist(); scheduleSave(); }
+  const wrap=$('scenesWrap'); wrap.innerHTML='';
   const planned=p.scenes.filter(s=>s.sheets&&s.sheets.length);
   const show=planned.some(sceneGenerated);
   $('finishCard').style.display = show?'block':'none';
@@ -2115,37 +2112,21 @@ async function composeEyeBlink(rest, closed, box){
 // flicks to the closed frame for the blink.
 function blinkIdxOf(sh){ const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const fr=(sh&&sh.frames)||[]; return (bi>=0&&bi<fr.length)?bi:-1; }
 function motionFramesOf(sh){ const fr=(sh&&sh.frames)||[]; const bi=blinkIdxOf(sh); return (bi>=0 && fr.length>1) ? fr.filter((_,i)=>i!==bi) : fr; }
-function restSettled(sh){ if(sh&&sh.restComposite) return sh.restComposite; const m=motionFramesOf(sh); return m[m.length-1]||null; }
-async function fitRest(sh){
-  sh.restComposite=null; if(!sh) return;
-  const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
-  const openP=partImg('eyesOpen'); const L=sh.place&&sh.place.openL, R=sh.place&&sh.place.openR;
-  if(openP && ((L&&L.on!==false)||(R&&R.on!==false))){ const sp=await splitEyes(openP); let img=rest;
-    if(L&&L.on!==false){ try{ img=await compositePart(img, sp.left, L); }catch(e){} }
-    if(R&&R.on!==false){ try{ img=await compositePart(img, sp.right, R); }catch(e){} }
-    if(img!==rest) sh.restComposite=img; }
-}
-function restSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const op=partImg('eyesOpen')||''; const l=(sh.place&&sh.place.openL)?JSON.stringify(sh.place.openL):''; const r=(sh.place&&sh.place.openR)?JSON.stringify(sh.place.openR):''; return rest.length+'|'+op.length+'|'+l+'|'+r; }
+function restSettled(sh){ const m=motionFramesOf(sh); return m[m.length-1]||null; }
+async function fitRest(sh){ if(sh) sh.restComposite=null; }   // legacy placed open-eye parts removed
+function restSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').length+'|'+blinkIdxOf(sh); }
+// Blink composite = ONLY the library / per-beat eyes-closed pose (eyes-only swap). The primary
+// blink is the 👁-marked gpt frame, handled in beatPlayed; this is just a fallback. No placed
+// parts, no AI — those legacy overlays are purged.
 async function fitBlink(sh){
   sh.blinkComposite=null;
   if(!sh) return;
+  if(blinkIdxOf(sh)>=0) return;                        // gpt's marked eyes-closed frame is the blink
   const rest=restSettled(sh); if(!rest) return;
-  // PRIORITY 0 — an AI-generated closed-eye frame for this beat (only the eyes were changed and
-  // merged back onto the original), as long as the underlying settled pose hasn't changed.
-  if(sh.aiBlink && sh.aiBlinkFor===(rest||'').length){ sh.blinkComposite=sh.aiBlink; return; }
-  // PRIORITY 1 — manually-placed eyes-closed part: stamp the single-eye part at left and right
-  // (right auto-mirrored), each placed independently.
-  const eyeP=partImg('eyesClosed'), L=sh.place&&sh.place.eyeL, R=sh.place&&sh.place.eyeR;
-  if(eyeP && ((L&&L.on!==false)||(R&&R.on!==false))){ const sp=await splitEyes(eyeP); let img=rest;
-    if(L&&L.on!==false){ try{ img=await compositePart(img, sp.left, L); }catch(e){} }
-    if(R&&R.on!==false){ try{ img=await compositePart(img, sp.right, R); }catch(e){} }
-    if(img!==rest){ sh.blinkComposite=img; return; } }
-  if(sh.blinkEyesOnly===false) return;               // whole-pose swap mode is handled in beatPlayed
-  const src = sh.blinkPose || libPose('blink');       // per-beat override, else the library
+  if(sh.blinkEyesOnly===false) return;
+  const src = sh.blinkPose || libPose('blink');
   let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
   if(src && box){ try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; } }
-  // No crude procedural squash fallback — if there's no placed part and no clean pose, she just
-  // doesn't blink this beat (steady) rather than showing a distorted squash.
 }
 // ===== Option B: AI edits ONE frame (close eyes / open beak), then we merge back ONLY that
 // region onto the ORIGINAL, feathered — so everything outside is the original's exact pixels (no
@@ -2218,7 +2199,7 @@ async function aiTalk(sh){
   persist(); scheduleSave();
   return sh.aiTalkOpen;
 }
-function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const el=(sh.place&&sh.place.eyeL)?JSON.stringify(sh.place.eyeL):''; const er=(sh.place&&sh.place.eyeR)?JSON.stringify(sh.place.eyeR):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+el+'|'+er+'|'+(sh.aiBlink?('ai'+sh.aiBlink.length+'@'+(sh.aiBlinkFor||0)):'')+'|'+restSig(sh); }
+function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+blinkIdxOf(sh); }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
 // pause with a mood; we drop the matching expression's FACE onto the resting body (body locked)
 // so the pause holds that emotion. Build the palette once, reuse on every beat/post. =====
@@ -2327,23 +2308,7 @@ async function autoClosedLib(openSrc){
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const fr=(sh.frames||[]); if(!fr.length) return;
   const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
-  // PRIORITY 1 — manually-placed beak parts on the SETTLED pose. The open beak is stamped WITH
-  // skin-fill on, so the frame's own beak underneath is reconstructed away first (no open-on-open
-  // doubling). The CLOSED phase uses a placed beak-closed part when given (clean flap); without
-  // one it falls back to the raw settled pose.
   const settled=restSettled(sh)||base;
-  // PRIORITY 0 — AI-generated open/closed mouth (only the mouth region changed, merged back onto
-  // the original). Clean closed<->open flap, no doubling, no cut-outs needed.
-  if(sh.aiTalkOpen && sh.aiTalkFor===(settled||'').length){ sh.talkCycle=[ sh.aiTalkClosed||settled, sh.aiTalkOpen ]; return; }
-  const beakP=partImg('beakOpen'), bt=sh.place&&sh.place.beak;
-  if(beakP && bt && bt.on!==false){ try{
-    const ot=Object.assign({}, bt, {skin:bt.skin!==false});
-    const open=await compositePart(settled, beakP, ot);
-    let closed=settled;
-    const bcP=partImg('beakClosed'), bct=sh.place&&sh.place.beakClosed;
-    if(bcP && bct && bct.on!==false){ const ct=Object.assign({}, bct, {skin:bct.skin!==false}); const cc=await compositePart(settled, bcP, ct); if(cc) closed=cc; }
-    if(open){ sh.talkCycle=[closed, open]; return; }
-  }catch(e){} }
   // FRAME-BASED (default) — take the SETTLED pose as the one stable base and replace ONLY the beak
   // with the beak from the beat's own open-mouth frame (gpt's own art, correct proportions). One
   // base pose, beak swapped → no repeated talking frames, no library overlap of eyes+beak.
@@ -2358,7 +2323,7 @@ async function buildTalkCycle(sh){
   if(libOpen){ let openComp=null; try{ openComp=await regionSwap2(settled, libOpen, box, (await detectMouthBox(libOpen))||box); }catch(e){} if(openComp) sh.talkCycle=[settled, openComp]; }
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; const bp=(partImg('beakOpen')||'').length+':'+(partImg('beakClosed')||'').length; const bt=(sh.place&&sh.place.beak?JSON.stringify(sh.place.beak):'')+(sh.place&&sh.place.beakClosed?JSON.stringify(sh.place.beakClosed):''); return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'+'+((sh.aiTalkClosed||'').length)+'@'+(sh.aiTalkFor||0)):'')+'|'+restSig(sh); }
+function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+blinkIdxOf(sh); }
 function talkRun(sh){
   const fr=motionFramesOf(sh); if(!fr.length) return [];   // exclude the eyes-closed frame from the loop
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
