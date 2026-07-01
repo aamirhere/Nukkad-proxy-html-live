@@ -796,7 +796,8 @@ function tabContentHTML(parentHandle, handle) {
       </div>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;">Scene</div>
-    <div id="scenechips-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
+    <div id="scenechips-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">${sceneChips}</div>
+    <div id="pill-ref-bar-${handle}" style="display:none;margin-bottom:10px;"></div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Person</div>
       <button onclick="loadPersonalities('${handle}')" style="font-size:9px;padding:2px 7px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">✦ Suggest</button>
@@ -1462,6 +1463,31 @@ function rebuildSceneChips(handle) {
   }).join('');
   container.innerHTML = presets + pills +
     `<button onclick="openPillModal('${handle}')" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add pill</button>`;
+
+  // ref image bar — shown when active pill has a reference image
+  const refBar = document.getElementById('pill-ref-bar-' + handle);
+  if (refBar) {
+    const activePill = s.activeGlobalPill != null ? globalPills[s.activeGlobalPill] : null;
+    if (activePill?.refImage) {
+      refBar.style.display = 'flex';
+      refBar.style.alignItems = 'center';
+      refBar.style.gap = '10px';
+      refBar.style.background = '#fdf5ec';
+      refBar.style.border = '1px solid var(--border)';
+      refBar.style.borderRadius = '8px';
+      refBar.style.padding = '8px 10px';
+      refBar.innerHTML = `
+        <img src="${activePill.refImage}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">Reference scene</div>
+          <div style="font-size:11px;color:var(--brown);">Attach this to your image generator alongside the prompt</div>
+        </div>
+        <button onclick="copyRefImageToClipboard('${handle}')" id="copy-ref-btn-${handle}"
+          style="flex-shrink:0;font-size:11px;padding:5px 12px;background:#fff;border:1.5px solid var(--border);border-radius:7px;color:var(--brown);cursor:pointer;font-weight:600;white-space:nowrap;">📋 Copy image</button>`;
+    } else {
+      refBar.style.display = 'none';
+    }
+  }
 }
 
 function rebuildAllSceneChips() {
@@ -1530,6 +1556,10 @@ async function selectGlobalPill(handle, idx) {
     } catch {}
   }
   if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
+  // if pill has a reference image, tell the generator a scene reference photo is attached
+  if (cs.refImage) {
+    prompt = prompt + '\n\nIMPORTANT: A reference scene photo is attached — replicate its exact setting, lighting, environment, and person. Also attach the NukkadTales product reference image separately so the product colour and finish are accurate.';
+  }
   if (ta) { ta.placeholder = 'Click ✦ Generate to build your prompt'; ta.value = prompt; }
 }
 
@@ -1625,6 +1655,26 @@ async function copyImageToClipboard(url, btn) {
   } catch(e) {
     btn.textContent = orig;
     toast('Copy failed — try downloading instead', true);
+  }
+}
+
+async function copyRefImageToClipboard(handle) {
+  const btn = document.getElementById('copy-ref-btn-' + handle);
+  const s = studioState[handle];
+  const pill = s?.activeGlobalPill != null ? globalPills[s.activeGlobalPill] : null;
+  if (!pill?.refImage) return;
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  try {
+    const res = await fetch(pill.refImage);
+    const blob = await res.blob();
+    const pngBlob = blob.type === 'image/png' ? blob : await convertToPng(blob);
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+    if (btn) btn.textContent = '✅ Copied!';
+    toast('✓ Reference image copied — paste in Gemini alongside the prompt');
+    setTimeout(() => { if (btn) { btn.textContent = '📋 Copy image'; btn.disabled = false; } }, 2500);
+  } catch(e) {
+    if (btn) { btn.textContent = '📋 Copy image'; btn.disabled = false; }
+    toast('Could not copy — right-click the image thumbnail and copy manually', true);
   }
 }
 
