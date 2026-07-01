@@ -368,6 +368,7 @@ function projectMeta(p){
         transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
         blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
         aiBlinkKey: sh.aiBlink ? (sh.aiBlinkKey||(sh.aiBlinkKey='aib_'+uid())) : null, aiBlinkFor: sh.aiBlinkFor||0,
+        aiTalkOpenKey: sh.aiTalkOpen ? (sh.aiTalkOpenKey||(sh.aiTalkOpenKey='ato_'+uid())) : null, aiTalkClosedKey: sh.aiTalkClosed ? (sh.aiTalkClosedKey||(sh.aiTalkClosedKey='atc_'+uid())) : null, aiTalkFor: sh.aiTalkFor||0,
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
 async function saveCloud(p){
@@ -386,6 +387,8 @@ async function saveCloud(p){
         for(const t of (sh.takes||[])){ if(t.frames && t.frames.length && t.framesKey){ const sig=framesSig(t.frames); if(frameSigs[t.framesKey]!==sig){ await cloudSet(t.framesKey, JSON.stringify(t.frames)); frameSigs[t.framesKey]=sig; } } }
         if(sh.blinkPose && sh.blinkPoseKey){ const sig=framesSig([sh.blinkPose]); if(frameSigs[sh.blinkPoseKey]!==sig){ await cloudSet(sh.blinkPoseKey, sh.blinkPose); frameSigs[sh.blinkPoseKey]=sig; } }
         if(sh.aiBlink && sh.aiBlinkKey){ const sig=framesSig([sh.aiBlink]); if(frameSigs[sh.aiBlinkKey]!==sig){ await cloudSet(sh.aiBlinkKey, sh.aiBlink); frameSigs[sh.aiBlinkKey]=sig; } }
+        if(sh.aiTalkOpen && sh.aiTalkOpenKey){ const sig=framesSig([sh.aiTalkOpen]); if(frameSigs[sh.aiTalkOpenKey]!==sig){ await cloudSet(sh.aiTalkOpenKey, sh.aiTalkOpen); frameSigs[sh.aiTalkOpenKey]=sig; } }
+        if(sh.aiTalkClosed && sh.aiTalkClosedKey){ const sig=framesSig([sh.aiTalkClosed]); if(frameSigs[sh.aiTalkClosedKey]!==sig){ await cloudSet(sh.aiTalkClosedKey, sh.aiTalkClosed); frameSigs[sh.aiTalkClosedKey]=sig; } }
         if(sh.transition && sh.transition.length && sh.transitionKey){ const sig=framesSig(sh.transition); if(frameSigs[sh.transitionKey]!==sig){ await cloudSet(sh.transitionKey, JSON.stringify(sh.transition)); frameSigs[sh.transitionKey]=sig; } }
       }
     }
@@ -415,6 +418,9 @@ async function loadCloud(id){
       beat.takes=beat.takes.filter(t=>t.frames&&t.frames.length);
       beat.blinkPose=null; beat.blinkPoseKey=sh.blinkPoseKey||null; beat.blinkEyesOnly=sh.blinkEyesOnly!==false; if(sh.blinkPoseKey){ try{ const bp=await cloudGet(sh.blinkPoseKey); if(bp){ beat.blinkPose=bp; frameSigs[sh.blinkPoseKey]=framesSig([bp]); } }catch(e){} }
       beat.aiBlink=null; beat.aiBlinkKey=sh.aiBlinkKey||null; beat.aiBlinkFor=sh.aiBlinkFor||0; if(sh.aiBlinkKey){ try{ const ab=await cloudGet(sh.aiBlinkKey); if(ab){ beat.aiBlink=ab; frameSigs[sh.aiBlinkKey]=framesSig([ab]); } }catch(e){} }
+      beat.aiTalkOpen=null; beat.aiTalkOpenKey=sh.aiTalkOpenKey||null; beat.aiTalkClosed=null; beat.aiTalkClosedKey=sh.aiTalkClosedKey||null; beat.aiTalkFor=sh.aiTalkFor||0;
+      if(sh.aiTalkOpenKey){ try{ const ao=await cloudGet(sh.aiTalkOpenKey); if(ao){ beat.aiTalkOpen=ao; frameSigs[sh.aiTalkOpenKey]=framesSig([ao]); } }catch(e){} }
+      if(sh.aiTalkClosedKey){ try{ const ac=await cloudGet(sh.aiTalkClosedKey); if(ac){ beat.aiTalkClosed=ac; frameSigs[sh.aiTalkClosedKey]=framesSig([ac]); } }catch(e){} }
       beat.transition=null; beat.transitionKey=sh.transitionKey||null; if(sh.transitionKey){ try{ const tr=await cloudGet(sh.transitionKey); const arr=tr?JSON.parse(tr):null; if(Array.isArray(arr)&&arr.length){ beat.transition=arr; frameSigs[sh.transitionKey]=framesSig(arr); } }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
@@ -1009,12 +1015,22 @@ function buildBlinkControl(sc, idx, sh, si){
   // ✨ AI close-eyes (Option B): one cheap targeted edit — the model only closes the eyes, then we
   // merge back ONLY the eye pixels so the rest of Gul stays your exact original. Reused in the pause.
   const aiRow=document.createElement('div'); aiRow.style.cssText='margin-top:10px;padding:8px;border:1px dashed var(--accent);border-radius:8px';
-  const aiBtn=document.createElement('button'); aiBtn.className='btn sm'; aiBtn.style.cssText='width:100%'; aiBtn.textContent = sh.aiBlink ? '✨ Redo AI blink (eyes only)' : '✨ AI close eyes (1 frame)';
+  const aiBtnRow=document.createElement('div'); aiBtnRow.className='row'; aiBtnRow.style.cssText='gap:8px;flex-wrap:wrap';
+  const aiBtn=document.createElement('button'); aiBtn.className='btn sm'; aiBtn.style.cssText='flex:1;min-width:130px'; aiBtn.textContent = sh.aiBlink ? '✨ Redo AI blink' : '✨ AI close eyes';
   aiBtn.onclick=async()=>{ const o=aiBtn.textContent; aiBtn.disabled=true; aiBtn.textContent='✨ closing eyes…'; try{ await aiCloseEyes(sh); showToast('✨ AI blink ready'); renderAll(); }catch(err){ aiBtn.disabled=false; aiBtn.textContent=o; alert('AI close-eyes failed: '+err.message); } };
-  aiRow.appendChild(aiBtn);
-  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='6px'; aiNote.innerHTML='AI gently closes her eyes on this beat’s settled pose, then merges back <b>only the eyes</b> onto your original — the rest stays pixel-identical. ~₹3, one call, reused through the pause.';
+  aiBtnRow.appendChild(aiBtn);
+  const aiTalkBtn=document.createElement('button'); aiTalkBtn.className='btn sm'; aiTalkBtn.style.cssText='flex:1;min-width:130px'; aiTalkBtn.textContent = sh.aiTalkOpen ? '✨ Redo AI talk' : '✨ AI talk (mouth)';
+  aiTalkBtn.onclick=async()=>{ const o=aiTalkBtn.textContent; aiTalkBtn.disabled=true; aiTalkBtn.textContent='✨ opening mouth…'; try{ await aiTalk(sh); showToast('✨ AI talk ready'); renderAll(); }catch(err){ aiTalkBtn.disabled=false; aiTalkBtn.textContent=o; alert('AI talk failed: '+err.message); } };
+  aiBtnRow.appendChild(aiTalkBtn);
+  aiRow.appendChild(aiBtnRow);
+  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='6px'; aiNote.innerHTML='AI edits <b>only the eyes</b> (blink) or <b>only the mouth</b> (talk) on this beat’s settled pose, then merges just that region back onto your original — the rest stays pixel-identical. ~₹3 per blink, ~₹6 per talk; reused through the beat.';
   aiRow.appendChild(aiNote);
-  if(sh.aiBlink){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px'; pv.innerHTML='<div class="box" style="width:90px;height:90px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+sh.aiBlink+'" style="width:100%;height:100%;object-fit:contain"></div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.textContent='Remove AI blink'; rm.onclick=()=>{ sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; pv.appendChild(rm); aiRow.appendChild(pv); }
+  const aiPv=[];
+  if(sh.aiBlink) aiPv.push(['AI blink', sh.aiBlink, ()=>{ sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; }]);
+  if(sh.aiTalkOpen) aiPv.push(['AI talk (open)', sh.aiTalkOpen, ()=>{ sh.aiTalkOpen=null; sh.aiTalkClosed=null; sh.aiTalkFor=0; sh._talkSig=null; }]);
+  if(aiPv.length){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+    aiPv.forEach(([lab,img,clr])=>{ const cell=document.createElement('div'); cell.style.cssText='text-align:center'; cell.innerHTML='<div class="box" style="width:80px;height:80px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+img+'" style="width:100%;height:100%;object-fit:contain"></div><div style="font-size:9px;color:var(--ink2)">'+lab+'</div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.style.cssText='font-size:9px;padding:1px 6px;margin-top:2px;color:var(--err)'; rm.textContent='remove'; rm.onclick=()=>{ clr(); persist(); scheduleSave(); renderAll(); }; cell.appendChild(rm); pv.appendChild(cell); });
+    aiRow.appendChild(pv); }
   body.appendChild(aiRow);
   const eo=document.createElement('label'); eo.className='chip'; eo.style.cssText='display:flex;margin-top:8px'; eo.innerHTML='<input type="checkbox" '+(sh.blinkEyesOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Replace only the eyes (keep the body identical — the open/closed frames don’t need to match exactly)';
   eo.querySelector('input').onchange=e=>{ sh.blinkEyesOnly=e.target.checked; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; body.appendChild(eo);
@@ -2222,42 +2238,70 @@ async function fitBlink(sh){
   // No crude procedural squash fallback — if there's no placed part and no clean pose, she just
   // doesn't blink this beat (steady) rather than showing a distorted squash.
 }
-// ===== Option B: AI closes the eyes on ONE frame, cheaply, then we merge back ONLY the eyes =====
-// Merge just the eye ovals from an AI-edited frame onto the ORIGINAL, feathered — so everything
-// outside the eyes is the original's exact pixels (no drift, even if the model redrew the frame).
-async function mergeEyesFrom(baseUrl, editedUrl){
+// ===== Option B: AI edits ONE frame (close eyes / open beak), then we merge back ONLY that
+// region onto the ORIGINAL, feathered — so everything outside is the original's exact pixels (no
+// drift, even if the model redrew the whole frame). Cheap: one edit per beat, reused in pauses. ==
+// fracOvals: [{cx,cy,rx,ry}] all fractional 0..1 of the base image.
+async function mergeOvals(baseUrl, editedUrl, fracOvals){
   const [b,e]=await Promise.all([loadImg(baseUrl).catch(()=>null), loadImg(editedUrl).catch(()=>null)]);
   if(!b||!e) return baseUrl;
   const W=b.naturalWidth||b.width, H=b.naturalHeight||b.height;
-  let ovals=[];
-  const ep=await detectEyes(baseUrl);
-  if(ep){ ovals=[ {cx:ep.L.cx*W,cy:ep.L.cy*H,rx:Math.max(8,ep.L.w*W*1.9),ry:Math.max(8,ep.L.h*H*2.6)},
-                  {cx:ep.R.cx*W,cy:ep.R.cy*H,rx:Math.max(8,ep.R.w*W*1.9),ry:Math.max(8,ep.R.h*H*2.6)} ]; }
-  else { const eb=await detectEyeBox(baseUrl); if(eb){ ovals=[{cx:(eb.x+eb.w/2)*W,cy:(eb.y+eb.h/2)*H,rx:eb.w*W*0.6,ry:eb.h*H*0.6}]; } }
-  if(!ovals.length) return editedUrl;                 // couldn't localise → fall back to the edit
+  if(!fracOvals||!fracOvals.length) return editedUrl;   // couldn't localise → fall back to the edit
   const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.drawImage(b,0,0,W,H);
   const es=document.createElement('canvas'); es.width=W; es.height=H; es.getContext('2d').drawImage(e,0,0,W,H);   // align edit to base size
-  for(const o of ovals){ const pw=Math.max(2,Math.round(o.rx*2)), ph=Math.max(2,Math.round(o.ry*2));
+  for(const fo of fracOvals){ const cx=fo.cx*W, cy=fo.cy*H, rx=Math.max(6,fo.rx*W), ry=Math.max(6,fo.ry*H);
+    const pw=Math.max(2,Math.round(rx*2)), ph=Math.max(2,Math.round(ry*2));
     const patch=document.createElement('canvas'); patch.width=pw; patch.height=ph; const pc=patch.getContext('2d');
-    pc.drawImage(es, o.cx-o.rx, o.cy-o.ry, pw, ph, 0,0, pw,ph);
+    pc.drawImage(es, cx-rx, cy-ry, pw, ph, 0,0, pw,ph);
     const inset=Math.max(2, Math.round(Math.min(pw,ph)*0.2)); const mk=document.createElement('canvas'); mk.width=pw; mk.height=ph; const mc=mk.getContext('2d');
     mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; mc.beginPath(); mc.ellipse(pw/2,ph/2,Math.max(1,pw/2-inset),Math.max(1,ph/2-inset),0,0,2*Math.PI); mc.fill();
     pc.globalCompositeOperation='destination-in'; pc.drawImage(mk,0,0); pc.globalCompositeOperation='source-over';
-    ctx.drawImage(patch, Math.round(o.cx-o.rx), Math.round(o.cy-o.ry)); }
+    ctx.drawImage(patch, Math.round(cx-rx), Math.round(cy-ry)); }
   return c.toDataURL('image/png');
+}
+async function mergeEyesFrom(baseUrl, editedUrl){
+  let ov=[]; const ep=await detectEyes(baseUrl);
+  if(ep){ ov=[ {cx:ep.L.cx,cy:ep.L.cy,rx:ep.L.w*1.9,ry:ep.L.h*2.6}, {cx:ep.R.cx,cy:ep.R.cy,rx:ep.R.w*1.9,ry:ep.R.h*2.6} ]; }
+  else { const eb=await detectEyeBox(baseUrl); if(eb) ov=[{cx:eb.x+eb.w/2,cy:eb.y+eb.h/2,rx:eb.w*0.6,ry:eb.h*0.6}]; }
+  return mergeOvals(baseUrl, editedUrl, ov);
+}
+async function mergeMouthFrom(baseUrl, editedUrl){
+  const mb=await detectMouthBox(baseUrl);              // always returns a sensible box
+  const ov=[{ cx:mb.x+mb.w/2, cy:mb.y+mb.h*0.55, rx:mb.w*0.62, ry:mb.h*0.95 }];
+  return mergeOvals(baseUrl, editedUrl, ov);
+}
+async function aiEdit(image, prompt){
+  const r=await fetch(INPAINT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image, prompt })});
+  let d; try{ d=await r.json(); }catch(e){ throw new Error('bad response'); }
+  if(d.error) throw new Error(d.error); if(!d.image) throw new Error('no image returned');
+  return d.image;
 }
 async function aiCloseEyes(sh){
   if(!sh) throw new Error('no beat');
   await fitRest(sh);                                    // make sure we edit the current settled pose
   const base=restSettled(sh)||((sh.frames||[])[(sh.frames||[]).length-1]); if(!base) throw new Error('no frame to edit');
   const prompt='Edit this cartoon sparrow illustration: gently CLOSE BOTH EYES into soft, downward-curving closed eyelids, as if she is blinking or peacefully resting. Keep the EXACT same art style, linework, colours, shading, head shape, beak, cheeks, body and pose — change ONLY the eyes, nothing else. Keep the transparent background.';
-  const r=await fetch(INPAINT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image:base, prompt })});
-  let d; try{ d=await r.json(); }catch(e){ throw new Error('bad response'); }
-  if(d.error) throw new Error(d.error); if(!d.image) throw new Error('no image returned');
-  const merged=await mergeEyesFrom(base, d.image);
+  const merged=await mergeEyesFrom(base, await aiEdit(base, prompt));
   sh.aiBlink=merged; sh.aiBlinkFor=(base||'').length; sh.aiBlinkKey=null; sh._blinkSig=null;
   persist(); scheduleSave();
   return merged;
+}
+// AI talk: generate an OPEN-mouth and a CLOSED-mouth version of the settled pose (mouth region
+// merged back onto the original), so the flap is a clean closed<->open with no beak doubling and
+// no manual cut-outs. Two cheap calls per talk beat, reused for the whole talk run.
+async function aiTalk(sh){
+  if(!sh) throw new Error('no beat');
+  await fitRest(sh);
+  const base=restSettled(sh)||((sh.frames||[])[(sh.frames||[]).length-1]); if(!base) throw new Error('no frame to edit');
+  const openP='Edit this cartoon sparrow illustration: OPEN her beak/mouth as if she is talking or singing — an open beak with a small open mouth. Keep the EXACT same art style, linework, colours, shading, head, eyes, cheeks, body and pose — change ONLY the beak/mouth, nothing else. Keep the transparent background.';
+  const closedP='Edit this cartoon sparrow illustration: gently CLOSE her beak/mouth into a small, calm closed resting beak. Keep the EXACT same art style, linework, colours, shading, head, eyes, cheeks, body and pose — change ONLY the beak/mouth, nothing else. Keep the transparent background.';
+  const [openImg, closedImg]=await Promise.all([ aiEdit(base, openP), aiEdit(base, closedP).catch(()=>null) ]);
+  sh.aiTalkOpen=await mergeMouthFrom(base, openImg);
+  sh.aiTalkClosed = closedImg ? await mergeMouthFrom(base, closedImg) : null;
+  sh.aiTalkFor=(base||'').length; sh.aiTalkOpenKey=null; sh.aiTalkClosedKey=null; sh._talkSig=null;
+  if(!sh.talk){ sh.talk=true; if(!(parseFloat(sh.talkSec)>0)) sh.talkSec=2.5; }   // make it a talking beat
+  persist(); scheduleSave();
+  return sh.aiTalkOpen;
 }
 function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const el=(sh.place&&sh.place.eyeL)?JSON.stringify(sh.place.eyeL):''; const er=(sh.place&&sh.place.eyeR)?JSON.stringify(sh.place.eyeR):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+el+'|'+er+'|'+(sh.aiBlink?('ai'+sh.aiBlink.length+'@'+(sh.aiBlinkFor||0)):'')+'|'+restSig(sh); }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
@@ -2373,6 +2417,9 @@ async function buildTalkCycle(sh){
   // doubling). The CLOSED phase uses a placed beak-closed part when given (clean flap); without
   // one it falls back to the raw settled pose.
   const settled=restSettled(sh)||base;
+  // PRIORITY 0 — AI-generated open/closed mouth (only the mouth region changed, merged back onto
+  // the original). Clean closed<->open flap, no doubling, no cut-outs needed.
+  if(sh.aiTalkOpen && sh.aiTalkFor===(settled||'').length){ sh.talkCycle=[ sh.aiTalkClosed||settled, sh.aiTalkOpen ]; return; }
   const beakP=partImg('beakOpen'), bt=sh.place&&sh.place.beak;
   if(beakP && bt && bt.on!==false){ try{
     const ot=Object.assign({}, bt, {skin:bt.skin!==false});
@@ -2401,7 +2448,7 @@ async function buildTalkCycle(sh){
   sh.talkCycle = openComp ? [base, openComp] : null;
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; const bp=(partImg('beakOpen')||'').length+':'+(partImg('beakClosed')||'').length; const bt=(sh.place&&sh.place.beak?JSON.stringify(sh.place.beak):'')+(sh.place&&sh.place.beakClosed?JSON.stringify(sh.place.beakClosed):''); return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+restSig(sh); }
+function talkSig(sh){ const fr=sh.frames||[]; const bp=(partImg('beakOpen')||'').length+':'+(partImg('beakClosed')||'').length; const bt=(sh.place&&sh.place.beak?JSON.stringify(sh.place.beak):'')+(sh.place&&sh.place.beakClosed?JSON.stringify(sh.place.beakClosed):''); return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'+'+((sh.aiTalkClosed||'').length)+'@'+(sh.aiTalkFor||0)):'')+'|'+restSig(sh); }
 function talkRun(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
