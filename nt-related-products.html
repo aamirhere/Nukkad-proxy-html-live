@@ -859,20 +859,14 @@ function toggleTax(handle) {
   if (btn) btn.textContent = (open ? '▶' : '▼') + ' Taxonomy';
 }
 
-// Applies brain to a base prompt via Claude refine_prompt — sets textarea instantly
-// with base then silently rewrites with brain woven in.
-async function applyBrainToPrompt(handle, basePrompt) {
+// Appends brain text verbatim to base prompt — no AI rewriting, exact words preserved.
+function applyBrainToPrompt(handle, basePrompt) {
   const brain = getFullBrain(handle);
   const ta = document.getElementById('stprompt-' + handle);
-  if (ta) ta.value = basePrompt;
-  if (!brain) return;
-  try {
-    const res = await api(AD_URL, { action: 'refine_prompt', current_prompt: basePrompt, direction: brain });
-    if (res.ok && res.prompt && ta) ta.value = res.prompt;
-  } catch {}
+  if (ta) ta.value = brain ? basePrompt + '\n' + brain : basePrompt;
 }
 
-async function regenPrompt(handle) {
+function regenPrompt(handle) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   if (!p) return;
   const quote = p.title || p.t || p.tagline || p.tl || '';
@@ -1190,7 +1184,7 @@ function handlePillPaste(event) {
   }
 }
 
-async function savePill() {
+function savePill() {
   const handle  = _pillModalHandle;
   const labelEl = document.getElementById('pill-label-input');
   const ctxEl   = document.getElementById('pill-context-input');
@@ -1208,17 +1202,9 @@ async function savePill() {
   const brain = getFullBrain(handle);
 
   const basePrompt = buildStudioPrompt(quote, scene, tax);
-  const direction = [context, brain].filter(Boolean).join('\n');
-  const btn = document.getElementById('pill-save-btn');
-  closePillModal(); // close immediately for snappy UX
-
-  let prompt = basePrompt;
-  if (direction) {
-    try {
-      const res = await api(AD_URL, { action: 'refine_prompt', current_prompt: basePrompt, direction });
-      if (res.ok && res.prompt) prompt = res.prompt;
-    } catch {}
-  }
+  const extras = [context, brain].filter(Boolean).join('\n');
+  const prompt = extras ? basePrompt + '\n' + extras : basePrompt;
+  closePillModal();
 
   const pill = { label, context, prompt, refImage: _pillRefDataUrl || null };
 
