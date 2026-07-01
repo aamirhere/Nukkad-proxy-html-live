@@ -707,6 +707,7 @@ const AD_URL = PROXY_BASE + '/nt-ad-studio';
 const SCENES = ['desk','shelf','gifting','cozy_home','workspace','festive'];
 const SCENE_LABELS = {desk:'Desk',shelf:'Shelf',gifting:'Gifting',cozy_home:'Cozy Home',workspace:'Workspace',festive:'Festive'};
 let studioState = {}; // handle → { scene, images, taglines }
+let globalPills = []; // global pills shown on every product card
 
 function openStudio(handle) {
   document.querySelectorAll('[id^="studio-"]').forEach(el => {
@@ -722,7 +723,7 @@ function openStudio(handle) {
   el.innerHTML = studioTabsHTML(handle);
   el.style.display = 'block';
 
-  allHandles.forEach(h => loadStudioImages(h));
+  allHandles.forEach(h => { loadStudioImages(h); rebuildSceneChips(h); });
 }
 
 function studioTabsHTML(parentHandle) {
@@ -776,14 +777,6 @@ function tabContentHTML(parentHandle, handle) {
       style="border:1.5px solid ${s.scene===sc?'#7c3aed':'var(--border)'};background:${s.scene===sc?'#7c3aed':'#fff'};color:${s.scene===sc?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
   ).join('');
 
-  const customChips = (s.customScenes||[]).map((cs, i) =>
-    `<span style="display:inline-flex;align-items:center;border:1.5px solid ${s.activeCustomScene===i?'#d4541f':'var(--border)'};background:${s.activeCustomScene===i?'#d4541f':'#fff'};border-radius:20px;overflow:hidden;">
-      <button onclick="selectCustomScene('${handle}',${i})" title="${esc(cs.prompt)}"
-        style="border:none;background:transparent;color:${s.activeCustomScene===i?'#fff':'var(--brown)'};padding:3px 6px 3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cs.label)}</button>
-      <button onclick="removeCustomScene('${handle}',${i})" title="Remove"
-        style="border:none;background:transparent;color:${s.activeCustomScene===i?'rgba(255,255,255,.7)':'var(--muted)'};padding:3px 8px 3px 2px;font-size:10px;cursor:pointer;line-height:1;">✕</button>
-    </span>`
-  ).join('');
 
   return `<div style="padding:12px;">
     <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
@@ -799,9 +792,7 @@ function tabContentHTML(parentHandle, handle) {
       </div>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;">Scene</div>
-    <div id="scenechips-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}${customChips}
-      <button onclick="openPillModal('${handle}')" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add</button>
-    </div>
+    <div id="scenechips-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${sceneChips}</div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Person</div>
       <button onclick="loadPersonalities('${handle}')" style="font-size:9px;padding:2px 7px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">✦ Suggest</button>
@@ -809,7 +800,8 @@ function tabContentHTML(parentHandle, handle) {
     <div id="stpersona-${handle}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;min-height:24px;">
       <span style="font-size:10px;color:var(--muted);font-style:italic;">Optional — select a person to tailor the prompt</span>
     </div>
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+    <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">
+      <button onclick="copyStudioPrompt('${handle}')" style="font-size:9px;padding:2px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">📋 Copy</button>
       <button onclick="generatePrompt('${handle}')" id="genbtn-${handle}" style="font-size:10px;padding:3px 12px;background:var(--orange);color:#fff;border:none;border-radius:20px;font-weight:700;cursor:pointer;">✦ Generate</button>
       <select id="stmodel-${handle}" onchange="reformatPrompt('${handle}')"
         style="font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;color:var(--brown);background:#fff;cursor:pointer;">
@@ -817,16 +809,14 @@ function tabContentHTML(parentHandle, handle) {
         <option value="gemini">Gemini</option>
         <option value="gpt">GPT</option>
       </select>
-      <div style="flex:1;"></div>
-      <button onclick="copyStudioPrompt('${handle}')" style="font-size:9px;padding:2px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">📋 Copy</button>
     </div>
-    <textarea id="stprompt-${handle}" placeholder="Click ✦ Generate to build your prompt" style="width:100%;height:65px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;resize:vertical;box-sizing:border-box;color:var(--brown);"></textarea>
-    <div style="display:flex;gap:5px;margin-top:5px;align-items:center;">
+    <div style="display:flex;gap:5px;margin-bottom:4px;align-items:center;">
       <input id="stdir-${handle}" type="text" placeholder="Direction: e.g. add a woman reading, make it festive, outdoor setting…"
         style="flex:1;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;min-width:0;"
         onkeydown="if(event.key==='Enter')applyDirection('${handle}')">
       <button onclick="applyDirection('${handle}')" style="background:var(--orange);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↵ Apply</button>
     </div>
+    <textarea id="stprompt-${handle}" placeholder="Click ✦ Generate to build your prompt" style="width:100%;height:65px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;resize:vertical;box-sizing:border-box;color:var(--brown);"></textarea>
     <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-primary btn-sm" onclick="generateStudioImage('${handle}')">✨ Generate via API</button>
       <label style="cursor:pointer;font-size:11px;padding:4px 10px;background:#fff;border:1.5px solid var(--border);border-radius:6px;color:var(--brown);font-weight:600;">
@@ -918,9 +908,12 @@ function getMergedBrain(handle) {
 // Sets textarea instantly with base, updates silently when Claude responds.
 async function applyBrainToPrompt(handle, basePrompt) {
   const ta = document.getElementById('stprompt-' + handle);
-  if (ta) ta.value = basePrompt;
   const { directives, appends } = getMergedBrain(handle);
-  if (!directives.length && !appends.length) return;
+  if (!directives.length && !appends.length) {
+    if (ta) ta.value = basePrompt;
+    return;
+  }
+  if (ta) { ta.value = ''; ta.placeholder = '⏳ Applying brain…'; }
   let prompt = basePrompt;
   if (directives.length) {
     try {
@@ -930,7 +923,7 @@ async function applyBrainToPrompt(handle, basePrompt) {
     } catch {}
   }
   if (appends.length) prompt = prompt + '\n' + appends.join(' ');
-  if (ta) ta.value = prompt;
+  if (ta) { ta.placeholder = 'Click ✦ Generate to build your prompt'; ta.value = prompt; }
 }
 
 function clearAllPrompts() {
@@ -1196,7 +1189,7 @@ function openPillModal(handle, editIdx) {
   if (fileEl) fileEl.value = '';
 
   if (_pillEditIdx != null) {
-    const cs = studioState[handle]?.customScenes?.[_pillEditIdx];
+    const cs = globalPills[_pillEditIdx];
     if (cs) {
       if (labelEl) labelEl.value = cs.label || '';
       if (ctxEl)   ctxEl.value   = cs.context || '';
@@ -1302,58 +1295,26 @@ async function savePill() {
   const context = ctxEl?.value?.trim() || '';
   if (!label) { toast('Give this pill a label first'); labelEl?.focus(); return; }
 
-  if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
-  if (!studioState[handle].customScenes) studioState[handle].customScenes = [];
-
-  const p     = allProducts.find(x=>(x.handle||x.h)===handle);
-  const quote = p?.title || p?.t || p?.tagline || '';
-  const scene = studioState[handle].scene || 'desk';
-  const tax   = taxonomyData[handle] || {};
-  const brain = getFullBrain(handle);
-
-  const basePrompt = buildStudioPrompt(quote, scene, tax);
-  closePillModal();
-  // merge brain (global+product with product-wins) + pill context
-  const { directives: brainDirs, appends: brainAppends } = getMergedBrain(handle);
-  const contextDirs = context ? parseBrain(context).directives : [];
-  const contextAppends = context ? parseBrain(context).appends : (context ? [context] : []);
-  // pill context overrides brain per type too
-  const mergedDirs = {};
-  for (const d of brainDirs) mergedDirs[d.type] = d.text;
-  for (const d of contextDirs) mergedDirs[d.type] = d.text;
-  const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
-  const allAppends = [...brainAppends, ...contextAppends];
-  let prompt = basePrompt;
-  if (allDirs.length) {
-    try {
-      const directiveText = allDirs.map(d => `/${d.type} ${d.text}`).join('\n');
-      const res = await api(AD_URL, { action: 'apply_brain', base_prompt: prompt, brain: directiveText });
-      if (res.ok && res.prompt) prompt = res.prompt;
-    } catch {}
-  }
-  if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
-
-  const pill = { label, context, prompt, refImage: _pillRefDataUrl || null };
+  const pill = { label, context, refImage: _pillRefDataUrl || null };
 
   if (_pillEditIdx != null) {
-    studioState[handle].customScenes[_pillEditIdx] = pill;
+    globalPills[_pillEditIdx] = pill;
     toast('✓ Pill updated');
   } else {
-    studioState[handle].customScenes.push(pill);
-    const idx = studioState[handle].customScenes.length - 1;
-    selectCustomScene(handle, idx);
+    globalPills.push(pill);
     toast('✓ Pill added');
   }
 
-  savePillsToStorage();
-  rebuildSceneChips(handle);
+  saveGlobalPills();
+  closePillModal();
+  rebuildAllSceneChips();
 }
 
 // ── PILL THUMBNAIL hover ──────────────────────────────────────────────────────
 
 let _pillThumb = null;
-function showPillThumb(el, handle, idx) {
-  const cs = studioState[handle]?.customScenes?.[idx];
+function showPillThumb(el, idx) {
+  const cs = globalPills[idx];
   if (!cs?.refImage) return;
   if (!_pillThumb) {
     _pillThumb = document.createElement('img');
@@ -1464,55 +1425,89 @@ function rebuildSceneChips(handle) {
   const SCENES = Object.keys(SCENE_LABELS);
   const presets = SCENES.map(sc =>
     `<button onclick="setScene('${handle}','${sc}')" id="sc-${handle}-${sc}"
-      style="border:1.5px solid ${s.scene===sc && s.activeCustomScene==null?'#7c3aed':'var(--border)'};background:${s.scene===sc && s.activeCustomScene==null?'#7c3aed':'#fff'};color:${s.scene===sc && s.activeCustomScene==null?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
+      style="border:1.5px solid ${s.scene===sc && s.activeGlobalPill==null?'#7c3aed':'var(--border)'};background:${s.scene===sc && s.activeGlobalPill==null?'#7c3aed':'#fff'};color:${s.scene===sc && s.activeGlobalPill==null?'#fff':'var(--brown)'};border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;">${SCENE_LABELS[sc]}</button>`
   ).join('');
-  const customs = (s.customScenes||[]).map((cs, i) => {
-    const active = s.activeCustomScene === i;
+  const pills = globalPills.map((cs, i) => {
+    const active = s.activeGlobalPill === i;
     const borderCol = active ? '#d4541f' : 'var(--border)';
     const bg = active ? '#d4541f' : '#fff';
     const col = active ? '#fff' : 'var(--brown)';
     const mutedCol = active ? 'rgba(255,255,255,.7)' : 'var(--muted)';
-    const thumbAttr = cs.refImage ? `onmouseenter="showPillThumb(this,'${handle}',${i})" onmouseleave="hidePillThumb()"` : '';
+    const thumbAttr = cs.refImage ? `onmouseenter="showPillThumb(this,${i})" onmouseleave="hidePillThumb()"` : '';
     return `<span style="display:inline-flex;align-items:center;border:1.5px solid ${borderCol};background:${bg};border-radius:20px;overflow:hidden;position:relative;">
-      <button onclick="selectCustomScene('${handle}',${i})" ${thumbAttr}
+      <button onclick="selectGlobalPill('${handle}',${i})" ${thumbAttr}
         style="border:none;background:transparent;color:${col};padding:3px 4px 3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cs.label)}</button>
       <button onclick="openPillModal('${handle}',${i})" title="Edit"
         style="border:none;background:transparent;color:${mutedCol};padding:3px 2px;font-size:9px;cursor:pointer;line-height:1;">✏</button>
-      <button onclick="removeCustomScene('${handle}',${i})" title="Remove"
+      <button onclick="removeGlobalPill(${i})" title="Remove"
         style="border:none;background:transparent;color:${mutedCol};padding:3px 8px 3px 2px;font-size:10px;cursor:pointer;line-height:1;">✕</button>
     </span>`;
   }).join('');
-  container.innerHTML = presets + customs +
-    `<button onclick="openPillModal('${handle}')" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add</button>`;
+  container.innerHTML = presets + pills +
+    `<button onclick="openPillModal('${handle}')" style="border:1.5px dashed var(--border);background:transparent;color:var(--muted);border-radius:20px;padding:3px 10px;font-size:10px;cursor:pointer;">+ Add pill</button>`;
 }
 
-function removeCustomScene(handle, idx) {
-  const s = studioState[handle];
-  if (!s?.customScenes) return;
-  s.customScenes.splice(idx, 1);
-  if (s.activeCustomScene === idx) {
-    s.activeCustomScene = null;
-    const p = allProducts.find(x=>(x.handle||x.h)===handle);
-    const quote = p?.title || p?.t || p?.tagline || '';
-    const ta = document.getElementById('stprompt-' + handle);
-    if (ta) ta.value = buildStudioPrompt(quote, s.scene || 'desk', taxonomyData[handle]||{});
-  } else if (s.activeCustomScene > idx) {
-    s.activeCustomScene--;
+function rebuildAllSceneChips() {
+  document.querySelectorAll('[id^="scenechips-"]').forEach(el => {
+    const handle = el.id.replace('scenechips-', '');
+    rebuildSceneChips(handle);
+  });
+}
+
+function removeGlobalPill(idx) {
+  globalPills.splice(idx, 1);
+  // clear activeGlobalPill tracking for all products
+  for (const s of Object.values(studioState)) {
+    if (s.activeGlobalPill === idx) s.activeGlobalPill = null;
+    else if (s.activeGlobalPill > idx) s.activeGlobalPill--;
   }
-  savePillsToStorage();
-  rebuildSceneChips(handle);
+  saveGlobalPills();
+  rebuildAllSceneChips();
 }
 
-function selectCustomScene(handle, idx) {
-  if (!studioState[handle]) return;
-  studioState[handle].activeCustomScene = idx;
+async function selectGlobalPill(handle, idx) {
+  if (!studioState[handle]) studioState[handle] = { scene:'desk', images:[], taglines:[] };
+  studioState[handle].activeGlobalPill = idx;
   studioState[handle].scene = null;
   rebuildSceneChips(handle);
-  const cs = studioState[handle].customScenes?.[idx];
+  const cs = globalPills[idx];
   if (!cs) return;
-  const ta = document.getElementById('stprompt-' + handle);
-  if (ta) ta.value = cs.prompt;
   toast('✓ ' + cs.label);
+
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  const quote = p?.title || p?.t || p?.tagline || p?.tl || '';
+  const tax = taxonomyData[handle] || {};
+  const basePrompt = buildStudioPrompt(quote, 'desk', tax);
+
+  const ta = document.getElementById('stprompt-' + handle);
+  const { directives: brainDirs, appends: brainAppends } = getMergedBrain(handle);
+  const context = cs.context || '';
+  const contextParsed = parseBrain(context);
+  const mergedDirs = {};
+  for (const d of brainDirs) mergedDirs[d.type] = d.text;
+  for (const d of contextParsed.directives) mergedDirs[d.type] = d.text;
+  // treat untagged pill context as a /scene directive
+  if (context && !contextParsed.directives.length && !contextParsed.appends.length) {
+    mergedDirs['scene'] = context;
+  }
+  const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
+  const allAppends = [...brainAppends, ...contextParsed.appends];
+
+  if (!allDirs.length && !allAppends.length) {
+    if (ta) ta.value = basePrompt;
+    return;
+  }
+  if (ta) { ta.value = ''; ta.placeholder = '⏳ Applying pill…'; }
+  let prompt = basePrompt;
+  if (allDirs.length) {
+    try {
+      const directiveText = allDirs.map(d => `/${d.type} ${d.text}`).join('\n');
+      const res = await api(AD_URL, { action: 'apply_brain', base_prompt: prompt, brain: directiveText });
+      if (res.ok && res.prompt) prompt = res.prompt;
+    } catch {}
+  }
+  if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
+  if (ta) { ta.placeholder = 'Click ✦ Generate to build your prompt'; ta.value = prompt; }
 }
 
 function buildStudioPrompt(quote, scene, tax) {
@@ -1549,7 +1544,7 @@ function buildStudioPrompt(quote, scene, tax) {
 function setScene(handle, scene) {
   if (!studioState[handle]) studioState[handle] = { scene, images:[], taglines:[] };
   studioState[handle].scene = scene;
-  studioState[handle].activeCustomScene = null;
+  studioState[handle].activeGlobalPill = null;
   rebuildSceneChips(handle);
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   if (p) {
@@ -1858,6 +1853,18 @@ async function reload() {
   render();
 }
 
+// ── Global pills persistence ──────────────────────────────
+function saveGlobalPills() {
+  try { localStorage.setItem('nt_global_pills', JSON.stringify(globalPills)); } catch {}
+}
+
+function loadGlobalPills() {
+  try {
+    const raw = localStorage.getItem('nt_global_pills');
+    if (raw) globalPills = JSON.parse(raw) || [];
+  } catch {}
+}
+
 // ── LocalStorage pill persistence ────────────────────────
 function savePillsToStorage() {
   const data = {};
@@ -1886,7 +1893,7 @@ function loadPillsFromStorage() {
     }
   } catch {}
 }
-window.addEventListener('load', () => { if (NT_TOKEN) loadPillsFromStorage(); });
+window.addEventListener('load', () => { if (NT_TOKEN) { loadPillsFromStorage(); loadGlobalPills(); } });
 
 // ── View switcher ─────────────────────────────────────────
 let _currentView = 'products';
