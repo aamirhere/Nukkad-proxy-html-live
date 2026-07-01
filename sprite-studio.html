@@ -180,6 +180,15 @@ body.noscroll{overflow:hidden}
       </div>
     </details>
 
+    <details class="card fold" id="partsFold">
+      <summary><span>Gul's moving parts (blink / talk)</span></summary>
+      <div class="foldbody">
+        <p class="hint">The reliable way: give me clean cut-out parts with the face colour baked in — <b>eyes-closed</b> and <b>beak-open</b> (that's all you need). On each beat you place them over Gul once (drag / size / rotate), and blink & talk just stamp them on top — no auto-detection. Reusable across every post.</p>
+        <div id="partsList"></div>
+        <small class="note">Only 2 are essential: <b>Eyes-closed</b> and <b>Beak-open</b>. Add Eyes-open / Beak-closed only if you want to re-draw those too.</small>
+      </div>
+    </details>
+
     <details class="card fold" id="setFold">
       <summary><span>Settings</span></summary>
       <div class="foldbody">
@@ -345,6 +354,7 @@ async function cloudDel(key){ try{ await fetch(STORE_URL+'?key='+encodeURICompon
 function projectMeta(p){
   return { id:p.id, name:p.name, createdAt:p.createdAt||Date.now(), updatedAt:Date.now(), story:p.story||'', kind:p.kind||'ad', script:p.script||'', treatment:p.treatment||null, treatments:p.treatments||null, captionStyle:p.captionStyle||null, settings:p.settings||defaults(),
     expressions:(p.expressions||[]).map(e=>({ id:e.id, mood:e.mood, poseKey: e.pose ? (e.poseKey||(e.poseKey='ex_'+uid())) : null })),
+    parts:(function(){ const out={}; const pk=(p._partKeys=p._partKeys||{}); Object.keys(p.parts||{}).forEach(k=>{ if(p.parts[k]){ if(!pk[k]) pk[k]='prt_'+uid(); out[k]=pk[k]; } }); return out; })(),
     scenes:(p.scenes||[]).map(s=>({ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved,
       pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null,
       refKey: s.refImage ? (s.refKey||(s.refKey='img_'+uid())) : null,
@@ -352,7 +362,7 @@ function projectMeta(p){
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
-        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, talkMouthOnly: sh.talkMouthOnly!==false, talkOpenIdx: (sh.talkOpenIdx==null?-1:sh.talkOpenIdx), talkBaseIdx: sh.talkBaseIdx||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
+        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, talkMouthOnly: sh.talkMouthOnly!==false, talkOpenIdx: (sh.talkOpenIdx==null?-1:sh.talkOpenIdx), talkBaseIdx: sh.talkBaseIdx||0, place: sh.place||null, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
         blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
@@ -364,6 +374,7 @@ async function saveCloud(p){
     setCloudStatus('☁ saving…');
     const meta=projectMeta(p);
     for(const e of (p.expressions||[])){ if(e.pose && e.poseKey){ const sig=framesSig([e.pose]); if(frameSigs[e.poseKey]!==sig){ await cloudSet(e.poseKey, e.pose); frameSigs[e.poseKey]=sig; } } }
+    for(const k of Object.keys(p.parts||{})){ const key=(p._partKeys||{})[k]; if(p.parts[k] && key){ const sig=framesSig([p.parts[k]]); if(frameSigs[key]!==sig){ await cloudSet(key, p.parts[k]); frameSigs[key]=sig; } } }
     for(const s of (p.scenes||[])){
       if(s.refImage && s.refKey && !synced.has(s.refKey)){ await cloudSet(s.refKey,s.refImage); synced.add(s.refKey); }
       for(const sh of (s.sheets||[])){
@@ -388,12 +399,13 @@ async function loadCloud(id){
   const meta=JSON.parse(raw);
   const p={ id:meta.id, name:meta.name, createdAt:meta.createdAt, story:meta.story||'', kind:meta.kind||'ad', script:meta.script||'', treatment:meta.treatment||null, treatments:Array.isArray(meta.treatments)?meta.treatments:null, captionStyle:meta.captionStyle||null, settings:meta.settings||defaults(), expressions:[], scenes:[] };
   for(const e of (meta.expressions||[])){ let pose=null; if(e.poseKey){ try{ pose=await cloudGet(e.poseKey); if(pose) frameSigs[e.poseKey]=framesSig([pose]); }catch(er){} } if(pose) p.expressions.push({ id:e.id, mood:e.mood, pose, poseKey:e.poseKey||null }); }
+  p.parts={}; p._partKeys={}; for(const [k,key] of Object.entries(meta.parts||{})){ if(key){ try{ const d=await cloudGet(key); if(d){ p.parts[k]=d; p._partKeys[k]=key; frameSigs[key]=framesSig([d]); } }catch(e){} } }
   for(const s of (meta.scenes||[])){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
-        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, talkMouthOnly:sh.talkMouthOnly!==false, talkOpenIdx:(sh.talkOpenIdx==null||sh.talkOpenIdx<0?null:sh.talkOpenIdx), talkBaseIdx:sh.talkBaseIdx||0, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
+        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, talkMouthOnly:sh.talkMouthOnly!==false, talkOpenIdx:(sh.talkOpenIdx==null||sh.talkOpenIdx<0?null:sh.talkOpenIdx), talkBaseIdx:sh.talkBaseIdx||0, place:sh.place||null, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
@@ -461,6 +473,77 @@ $('mascotDownload').onclick=()=>{ const m=curMascot(); if(m) downloadDataUrl(m,'
 $('mascotCopy').onclick=()=>copyImage(curMascot(), $('mascotCopy'));
 
 /* ===== expression palette ===== */
+/* ===== moving parts (blink/talk cutouts) ===== */
+function projParts(){ const p=curProj(); if(!p) return {}; if(!p.parts) p.parts={}; return p.parts; }
+const PART_SLOTS=[['eyesClosed','Eyes-closed (blink)'],['beakOpen','Beak-open (talk)'],['eyesOpen','Eyes-open (optional)'],['beakClosed','Beak-closed (optional)']];
+function renderParts(){
+  const host=$('partsList'); if(!host) return; host.innerHTML='';
+  const parts=projParts();
+  const strip=document.createElement('div'); strip.className='row'; strip.style.cssText='flex-wrap:wrap;gap:10px';
+  PART_SLOTS.forEach(([key,label])=>{
+    const cell=document.createElement('div'); cell.style.cssText='width:96px;text-align:center';
+    const box=document.createElement('div'); box.style.cssText='width:96px;height:80px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px;display:flex;align-items:center;justify-content:center;cursor:pointer';
+    box.innerHTML = parts[key] ? '<img src="'+parts[key]+'" style="max-width:100%;max-height:100%">' : '<span style="font-size:22px;color:var(--muted)">＋</span>';
+    const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.hidden=true; box.onclick=()=>fi.click();
+    // Parts are used AS UPLOADED (their baked face-colour background covers the base) — no bg-removal.
+    fi.onchange=e=>{ const f=e.target.files[0]; if(!f)return; fileToDataURL(f, d=>{ projParts()[key]=d; persist(); scheduleSave(); renderAll(); showToast('✓ '+label+' set'); }); e.target.value=''; };
+    const lab=document.createElement('div'); lab.style.cssText='font-size:10px;color:var(--ink2);margin-top:3px'; lab.textContent=label;
+    cell.appendChild(box); cell.appendChild(fi); cell.appendChild(lab);
+    if(parts[key]){ const rm=document.createElement('a'); rm.href='#'; rm.textContent='remove'; rm.style.cssText='font-size:10px;color:var(--err)'; rm.onclick=(ev)=>{ ev.preventDefault(); delete projParts()[key]; persist(); scheduleSave(); renderAll(); }; cell.appendChild(rm); }
+    strip.appendChild(cell);
+  });
+  host.appendChild(strip);
+}
+// Per-beat placement editor: drag the eyes-closed / beak-open parts onto Gul, size + rotate.
+function buildPlacePanel(sc, idx, sh, si){
+  const det=document.createElement('details'); det.className='fullprompt';
+  const sum=document.createElement('summary'); sum.textContent='🎯 Place blink / talk parts on this beat'; det.appendChild(sum);
+  const body=document.createElement('div'); body.style.padding='10px';
+  const base=(sh.frames||[])[sh.talkBaseIdx||0] || (sh.frames||[])[0];
+  const parts=projParts();
+  if(!base || !(parts.eyesClosed||parts.beakOpen)){ const n=document.createElement('small'); n.className='note'; n.textContent='Add an Eyes-closed and/or Beak-open part in “Gul’s moving parts” (top) first.'; body.appendChild(n); det.appendChild(body); return det; }
+  if(!sh.place) sh.place={};
+  const note=document.createElement('small'); note.className='note'; note.innerHTML='Drag each part onto Gul, then size/rotate. <b>Blink</b> stamps the eyes-closed part during pauses; <b>talk</b> flaps the beak-open part. Per beat — use “auto-place” to start.';
+  body.appendChild(note);
+  const ov=document.createElement('div'); ov.style.cssText='position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;touch-action:none;user-select:none';
+  const img=document.createElement('img'); img.src=base; img.style.cssText='width:100%;display:block;pointer-events:none'; ov.appendChild(img);
+  body.appendChild(ov);
+  const made=[];
+  function makeOverlay(which, key){
+    const src=parts[key]; if(!src) return null;
+    if(!sh.place[which]) sh.place[which]={x:0.5,y:(which==='beak'?0.52:0.4),w:(which==='beak'?0.18:0.5),rot:0,on:true};
+    const t=sh.place[which];
+    const el=document.createElement('img'); el.src=src; el.draggable=false; el.style.cssText='position:absolute;left:0;top:0;cursor:grab';
+    ov.appendChild(el);
+    function lay(){ const rw=ov.clientWidth||ov.getBoundingClientRect().width, rh=ov.clientHeight||ov.getBoundingClientRect().height; if(!rw) return; el.style.width=(t.w*rw)+'px'; el.style.height='auto'; el.style.left=(t.x*rw)+'px'; el.style.top=(t.y*rh)+'px'; el.style.transform='translate(-50%,-50%) rotate('+(t.rot||0)+'deg)'; el.style.opacity=(t.on===false?0.3:1); }
+    if(el.complete) lay(); else el.onload=lay;
+    let drag=false;
+    el.addEventListener('pointerdown',e=>{ drag=true; el.style.cursor='grabbing'; try{el.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
+    el.addEventListener('pointermove',e=>{ if(!drag)return; const r=ov.getBoundingClientRect(); t.x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); t.y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)); lay(); });
+    const end=()=>{ if(!drag)return; drag=false; el.style.cursor='grab'; sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); };
+    el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+    const o={t,lay}; made.push(o); return o;
+  }
+  const eyeO = parts.eyesClosed ? makeOverlay('eye','eyesClosed') : null;
+  const beakO = parts.beakOpen ? makeOverlay('beak','beakOpen') : null;
+  det.addEventListener('toggle',()=>{ if(det.open) made.forEach(o=>o.lay()); });
+  function controls(which, label, o){
+    if(!o) return; const t=sh.place[which];
+    const row=document.createElement('div'); row.style.cssText='margin-top:8px';
+    const h=document.createElement('div'); h.style.cssText='display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--ink)';
+    const on=document.createElement('input'); on.type='checkbox'; on.checked=t.on!==false; on.onchange=()=>{ t.on=on.checked; sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); };
+    h.appendChild(on); const sp=document.createElement('span'); sp.textContent=label; h.appendChild(sp);
+    const seed=document.createElement('button'); seed.className='btn sm ghost'; seed.style.cssText='margin-left:auto;font-size:10px;padding:2px 8px'; seed.textContent='auto-place'; seed.onclick=async()=>{ sh.place[which]=await seedPlace(base, which==='beak'?'beak':'eye'); sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }; h.appendChild(seed);
+    row.appendChild(h);
+    const mk=(lab,mn,mx,st,val,fn)=>{ const w=document.createElement('label'); w.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2);margin-top:4px'; w.append(lab); const r=document.createElement('input'); r.type='range'; r.min=mn; r.max=mx; r.step=st; r.value=val; r.style.flex='1'; r.addEventListener('input',()=>{ fn(parseFloat(r.value)); o.lay(); }); r.addEventListener('change',()=>{ sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }); w.appendChild(r); return w; };
+    row.appendChild(mk('size',0.05,1,0.01,t.w,v=>t.w=v));
+    row.appendChild(mk('rotate',-30,30,1,(t.rot||0),v=>t.rot=v));
+    body.appendChild(row);
+  }
+  controls('eye','👁 Eyes-closed (blink)', eyeO);
+  controls('beak','🅑 Beak-open (talk)', beakO);
+  det.appendChild(body); return det;
+}
 function projExpr(){ const p=curProj(); if(!p) return []; if(!Array.isArray(p.expressions)) p.expressions=[]; return p.expressions; }
 function renderExpressions(){
   const sel=$('exprMood'); if(sel && !sel._filled){ sel.innerHTML=LIB_ROLES.map(r=>'<option value="'+r+'">'+r+'</option>').join(''); sel._filled=true; }
@@ -949,7 +1032,7 @@ function buildTransitionPanel(sc, idx, sh, si){
   det.appendChild(body); return det;
 }
 
-function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); renderExpressions(); maybeResume(); refreshBlinks(); }
+function renderAll(){ stopAnimators(); applyHolds(); renderShots(); renderScenes(); renderProjects(); renderExpressions(); renderParts(); maybeResume(); refreshBlinks(); }
 
 function renderScenes(){
   const p=curProj(); const wrap=$('scenesWrap'); wrap.innerHTML='';
@@ -1173,6 +1256,7 @@ function buildSceneCard(sc, idx){
       sd.appendChild(fn);
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
       sd.appendChild(buildBlinkControl(sc, idx, sh, si));
+      if(hasParts()) sd.appendChild(buildPlacePanel(sc, idx, sh, si));
       { const tp=buildTransitionPanel(sc, idx, sh, si); if(tp) sd.appendChild(tp); }
       // Live per-beat preview — always reflects the current frames (after apply/drop/slice/edit).
       const pbox=document.createElement('div'); pbox.style.marginTop='8px';
@@ -1921,6 +2005,32 @@ async function regionSwap2(baseUrl, srcUrl, baseBox, srcBox){
   ctx.restore();
   return c.toDataURL('image/png');
 }
+// ===== Manual parts compositing (the reliable, After-Effects way) =====
+// You supply clean part cutouts (eyes-closed, beak-open, …) with the face colour baked in, and
+// place each over the base frame by hand (position / size / rotation). We just stamp the part
+// on top — no detection, no cutting from messy frames. Placement is per-beat, seeded from the
+// auto-detected feature box so it starts close, then you nudge it.
+function partImg(name){ const p=curProj(); return (p&&p.parts&&p.parts[name])||null; }
+function hasParts(){ const p=curProj(); return !!(p&&p.parts&&(p.parts.eyesClosed||p.parts.beakOpen||p.parts.eyesOpen||p.parts.beakClosed)); }
+// Stamp a part image onto the base at transform t = {x,y (centre, fractional), w (fractional of
+// base width), rot (degrees)}.
+async function compositePart(baseUrl, partUrl, t){
+  const [b,pp]=await Promise.all([loadImg(baseUrl).catch(()=>null), loadImg(partUrl).catch(()=>null)]);
+  if(!b||!pp) return baseUrl;
+  const W=b.naturalWidth||b.width, H=b.naturalHeight||b.height;
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(b,0,0,W,H);
+  const iw=pp.naturalWidth||pp.width, ih=pp.naturalHeight||pp.height;
+  const pw=Math.max(1,(t&&t.w||0.35)*W), ph=pw*(ih/(iw||1));
+  ctx.save(); ctx.translate((t&&t.x!=null?t.x:0.5)*W, (t&&t.y!=null?t.y:0.4)*H); if(t&&t.rot) ctx.rotate(t.rot*Math.PI/180); ctx.drawImage(pp, -pw/2, -ph/2, pw, ph); ctx.restore();
+  return c.toDataURL('image/png');
+}
+// Seed a placement transform from the auto-detected eye/mouth box on the base (a starting point).
+async function seedPlace(baseUrl, which){
+  const box = which==='beak' ? await detectMouthBox(baseUrl) : await detectEyeBox(baseUrl);
+  if(box) return { x:box.x+box.w/2, y:box.y+box.h/2, w:Math.min(0.9,box.w*1.2), rot:0, on:true };
+  return { x:0.5, y: which==='beak'?0.52:0.4, w: which==='beak'?0.18:0.5, rot:0, on:true };
+}
 // Take a feature box detected on a REFERENCE image and express it on a TARGET image by the same
 // position relative to each bird's own body bounds — so a closed-eye tile's eye box can be found
 // from the neutral tile even if the two tiles are drawn at different sizes/positions.
@@ -1945,16 +2055,18 @@ async function composeEyeBlink(rest, closed, box){
 // frame's OWN eyes. Either way the body stays the rest frame — it never shows a foreign whole body.
 async function fitBlink(sh){
   sh.blinkComposite=null;
-  if(!sh || sh.blinkEyesOnly===false) return;        // whole-pose swap mode is handled in beatPlayed
+  if(!sh) return;
   const fr=sh.frames||[]; const rest=fr[fr.length-1]; if(!rest) return;
+  // PRIORITY 1 — manually-placed eyes-closed part (the reliable route). Just stamp it on the base.
+  const eyeP=partImg('eyesClosed'), et=sh.place&&sh.place.eye;
+  if(eyeP && et && et.on!==false){ try{ sh.blinkComposite=await compositePart(rest, eyeP, et); return; }catch(e){} }
+  if(sh.blinkEyesOnly===false) return;               // whole-pose swap mode is handled in beatPlayed
   const src = sh.blinkPose || libPose('blink');       // per-beat override, else the library
   let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
   if(src && box){ try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; } }
-  // Procedural squash ONLY as a last resort when there's NO real eyes-closed pose to use. With a
-  // library/override blink pose present it's a clean real swap or no blink — never a squash.
   if(!sh.blinkComposite && !src){ try{ sh.blinkComposite=await synthBlink(rest); }catch(e){} }
 }
-function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye'); }
+function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const et=(sh.place&&sh.place.eye)?JSON.stringify(sh.place.eye):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+et; }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
 // pause with a mood; we drop the matching expression's FACE onto the resting body (body locked)
 // so the pause holds that emotion. Build the palette once, reuse on every beat/post. =====
@@ -2060,6 +2172,9 @@ async function autoClosedLib(openSrc){
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const fr=(sh.frames||[]); if(!fr.length) return;
   const baseIdx=Math.max(0, Math.min(fr.length-1, sh.talkBaseIdx|0)); const base=fr[baseIdx];
+  // PRIORITY 1 — manually-placed beak-open part: flap base ↔ base+beak (reliable, no detection).
+  const beakP=partImg('beakOpen'), bt=sh.place&&sh.place.beak;
+  if(beakP && bt && bt.on!==false){ try{ const open=await compositePart(base, beakP, bt); if(open){ sh.talkCycle=[base, open]; return; } }catch(e){} }
   const box=await detectMouthBox(base);
   const libOpen=libPose('talk');
   if(libOpen){
@@ -2079,7 +2194,7 @@ async function buildTalkCycle(sh){
   sh.talkCycle = openComp ? [base, openComp] : null;
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length); }
+function talkSig(sh){ const fr=sh.frames||[]; const bp=partImg('beakOpen')||''; const bt=(sh.place&&sh.place.beak)?JSON.stringify(sh.place.beak):''; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+bp.length+'|'+bt+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length); }
 function talkRun(sh){
   const fr=(sh&&sh.frames)||[]; if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
