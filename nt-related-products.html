@@ -309,19 +309,27 @@ function api(url, body) {
           style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--fb);">
       </div>
       <div>
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;">Scene brief</div>
-        <textarea id="pill-context-input" placeholder="e.g. Woman in her 30s reading at a morning café, warm light, product as hero on the table in front of her…"
-          style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;resize:vertical;height:80px;font-family:var(--fb);"></textarea>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Reference image</div>
+          <div id="pill-analyze-status" style="font-size:9px;color:var(--orange);font-style:italic;"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="flex-shrink:0;">
+            <div id="pill-ref-preview-wrap" style="display:none;margin-bottom:6px;position:relative;">
+              <img id="pill-ref-preview" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);display:block;">
+              <button onclick="clearPillRef()" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:10px;cursor:pointer;line-height:18px;text-align:center;padding:0;">✕</button>
+            </div>
+            <label style="cursor:pointer;font-size:11px;padding:5px 12px;background:#fff;border:1.5px solid var(--border);border-radius:7px;color:var(--brown);font-weight:600;display:inline-block;">
+              📸 Upload<input type="file" accept="image/*" id="pill-ref-file" style="display:none;" onchange="setPillRef(this)">
+            </label>
+          </div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.5;padding-top:2px;">Upload or paste (Ctrl+V) a reference photo — Claude reads the shot and fills in the brief automatically.</div>
+        </div>
       </div>
       <div>
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Reference image (optional — Ctrl+V to paste)</div>
-        <div id="pill-ref-preview-wrap" style="display:none;margin-bottom:8px;position:relative;">
-          <img id="pill-ref-preview" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);display:block;">
-          <button onclick="clearPillRef()" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;border:none;font-size:10px;cursor:pointer;line-height:18px;text-align:center;padding:0;">✕</button>
-        </div>
-        <label style="cursor:pointer;font-size:11px;padding:5px 12px;background:#fff;border:1.5px solid var(--border);border-radius:7px;color:var(--brown);font-weight:600;display:inline-block;">
-          📸 Upload<input type="file" accept="image/*" id="pill-ref-file" style="display:none;" onchange="setPillRef(this)">
-        </label>
+        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;">Scene brief <span id="pill-brief-hint" style="font-weight:400;text-transform:none;font-style:italic;">— add your instruction, e.g. "product on her desk" or "she's holding it"</span></div>
+        <textarea id="pill-context-input" placeholder="Upload a reference image above — Claude will fill this in. Then add one line: where/how the product appears."
+          style="width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;resize:vertical;height:90px;font-family:var(--fb);"></textarea>
       </div>
     </div>
     <div style="display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:#fafafa;border-radius:0 0 16px 16px;">
@@ -1226,7 +1234,8 @@ function setPillRef(input) {
     const img = document.getElementById('pill-ref-preview');
     const wrap = document.getElementById('pill-ref-preview-wrap');
     if (img) img.src = _pillRefDataUrl;
-    if (wrap) wrap.style.display = 'flex';
+    if (wrap) wrap.style.display = 'block';
+    analyzeRefImage(_pillRefDataUrl);
   };
   reader.readAsDataURL(file);
   input.value = '';
@@ -1236,6 +1245,30 @@ function clearPillRef() {
   _pillRefDataUrl = null;
   const wrap = document.getElementById('pill-ref-preview-wrap');
   if (wrap) wrap.style.display = 'none';
+  const status = document.getElementById('pill-analyze-status');
+  if (status) status.textContent = '';
+}
+
+async function analyzeRefImage(dataUrl) {
+  const status = document.getElementById('pill-analyze-status');
+  const ctx = document.getElementById('pill-context-input');
+  if (status) status.textContent = 'Reading shot…';
+  try {
+    const b64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const res = await api(AD_URL, { action: 'analyze_shot', image_b64: b64 });
+    if (res.ok && res.analysis) {
+      if (ctx) {
+        // prepend analysis; keep anything the user already typed after it
+        const existing = ctx.value.trim();
+        ctx.value = res.analysis + (existing ? '\n\n' + existing : '');
+      }
+      if (status) status.textContent = '✓ Shot read — add your product placement below';
+    } else {
+      if (status) status.textContent = '';
+    }
+  } catch {
+    if (status) status.textContent = '';
+  }
 }
 
 function handlePillPaste(event) {
@@ -1252,7 +1285,8 @@ function handlePillPaste(event) {
         const img = document.getElementById('pill-ref-preview');
         const wrap = document.getElementById('pill-ref-preview-wrap');
         if (img) img.src = _pillRefDataUrl;
-        if (wrap) wrap.style.display = 'flex';
+        if (wrap) wrap.style.display = 'block';
+        analyzeRefImage(_pillRefDataUrl);
       };
       reader.readAsDataURL(file);
       break;
