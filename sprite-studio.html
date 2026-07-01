@@ -309,6 +309,7 @@ const START_URL = FN_BASE + '/nt-sprite-start';
 const RESULT_URL = FN_BASE + '/nt-sprite-result';
 const DIRECTOR_URL = FN_BASE + '/nt-sprite-director';
 const ANALYZE_URL = FN_BASE + '/nt-sprite-analyze';
+const INPAINT_URL = FN_BASE + '/nt-sprite-inpaint';
 const LS_KEY = 'nt_sprite_studio_v3';
 const ALPHA_THRESHOLD = 12;
 
@@ -366,6 +367,7 @@ function projectMeta(p){
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
         blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
+        aiBlinkKey: sh.aiBlink ? (sh.aiBlinkKey||(sh.aiBlinkKey='aib_'+uid())) : null, aiBlinkFor: sh.aiBlinkFor||0,
         rawFramesKey: (sh.rawFrames&&sh.rawFrames.length) ? (sh.rawFramesKey||(sh.rawFramesKey='raw_'+uid())) : null })) })) };
 }
 async function saveCloud(p){
@@ -383,6 +385,7 @@ async function saveCloud(p){
         if(sh.rawFrames && sh.rawFrames.length && sh.rawFramesKey){ const sig=framesSig(sh.rawFrames); if(frameSigs[sh.rawFramesKey]!==sig){ await cloudSet(sh.rawFramesKey, JSON.stringify(sh.rawFrames)); frameSigs[sh.rawFramesKey]=sig; } }
         for(const t of (sh.takes||[])){ if(t.frames && t.frames.length && t.framesKey){ const sig=framesSig(t.frames); if(frameSigs[t.framesKey]!==sig){ await cloudSet(t.framesKey, JSON.stringify(t.frames)); frameSigs[t.framesKey]=sig; } } }
         if(sh.blinkPose && sh.blinkPoseKey){ const sig=framesSig([sh.blinkPose]); if(frameSigs[sh.blinkPoseKey]!==sig){ await cloudSet(sh.blinkPoseKey, sh.blinkPose); frameSigs[sh.blinkPoseKey]=sig; } }
+        if(sh.aiBlink && sh.aiBlinkKey){ const sig=framesSig([sh.aiBlink]); if(frameSigs[sh.aiBlinkKey]!==sig){ await cloudSet(sh.aiBlinkKey, sh.aiBlink); frameSigs[sh.aiBlinkKey]=sig; } }
         if(sh.transition && sh.transition.length && sh.transitionKey){ const sig=framesSig(sh.transition); if(frameSigs[sh.transitionKey]!==sig){ await cloudSet(sh.transitionKey, JSON.stringify(sh.transition)); frameSigs[sh.transitionKey]=sig; } }
       }
     }
@@ -411,6 +414,7 @@ async function loadCloud(id){
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
       beat.takes=beat.takes.filter(t=>t.frames&&t.frames.length);
       beat.blinkPose=null; beat.blinkPoseKey=sh.blinkPoseKey||null; beat.blinkEyesOnly=sh.blinkEyesOnly!==false; if(sh.blinkPoseKey){ try{ const bp=await cloudGet(sh.blinkPoseKey); if(bp){ beat.blinkPose=bp; frameSigs[sh.blinkPoseKey]=framesSig([bp]); } }catch(e){} }
+      beat.aiBlink=null; beat.aiBlinkKey=sh.aiBlinkKey||null; beat.aiBlinkFor=sh.aiBlinkFor||0; if(sh.aiBlinkKey){ try{ const ab=await cloudGet(sh.aiBlinkKey); if(ab){ beat.aiBlink=ab; frameSigs[sh.aiBlinkKey]=framesSig([ab]); } }catch(e){} }
       beat.transition=null; beat.transitionKey=sh.transitionKey||null; if(sh.transitionKey){ try{ const tr=await cloudGet(sh.transitionKey); const arr=tr?JSON.parse(tr):null; if(Array.isArray(arr)&&arr.length){ beat.transition=arr; frameSigs[sh.transitionKey]=framesSig(arr); } }catch(e){} }
       // Prefer the saved edited frames (manual slice/split/drop/reorder/Claude order); only
       // fall back to a fresh grid crop for older projects that never stored their frames.
@@ -1002,6 +1006,16 @@ function buildBlinkControl(sc, idx, sh, si){
   if(useMood!=='neutral' && !exprPoseForMood(useMood)){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.innerHTML='⚠ No “'+useMood+'” pose in the palette yet — add one in <b>Gul’s expressions</b> (top) and the pause will hold that face.'; body.appendChild(w); }
   const note=document.createElement('small'); note.className='note'; note.style.marginTop='6px'; note.innerHTML='During a pause she holds the mood’s face (from the library). If there’s no mood face, she blinks — <b>automatic</b>, borrowing the eyes from the library’s <b>blink</b> pose. Override the blink below only if you want a specific one for this beat.';
   body.appendChild(note);
+  // ✨ AI close-eyes (Option B): one cheap targeted edit — the model only closes the eyes, then we
+  // merge back ONLY the eye pixels so the rest of Gul stays your exact original. Reused in the pause.
+  const aiRow=document.createElement('div'); aiRow.style.cssText='margin-top:10px;padding:8px;border:1px dashed var(--accent);border-radius:8px';
+  const aiBtn=document.createElement('button'); aiBtn.className='btn sm'; aiBtn.style.cssText='width:100%'; aiBtn.textContent = sh.aiBlink ? '✨ Redo AI blink (eyes only)' : '✨ AI close eyes (1 frame)';
+  aiBtn.onclick=async()=>{ const o=aiBtn.textContent; aiBtn.disabled=true; aiBtn.textContent='✨ closing eyes…'; try{ await aiCloseEyes(sh); showToast('✨ AI blink ready'); renderAll(); }catch(err){ aiBtn.disabled=false; aiBtn.textContent=o; alert('AI close-eyes failed: '+err.message); } };
+  aiRow.appendChild(aiBtn);
+  const aiNote=document.createElement('small'); aiNote.className='note'; aiNote.style.marginTop='6px'; aiNote.innerHTML='AI gently closes her eyes on this beat’s settled pose, then merges back <b>only the eyes</b> onto your original — the rest stays pixel-identical. ~₹3, one call, reused through the pause.';
+  aiRow.appendChild(aiNote);
+  if(sh.aiBlink){ const pv=document.createElement('div'); pv.style.cssText='margin-top:8px;display:flex;align-items:center;gap:10px'; pv.innerHTML='<div class="box" style="width:90px;height:90px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px"><img src="'+sh.aiBlink+'" style="width:100%;height:100%;object-fit:contain"></div>'; const rm=document.createElement('button'); rm.className='btn sm ghost'; rm.textContent='Remove AI blink'; rm.onclick=()=>{ sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; pv.appendChild(rm); aiRow.appendChild(pv); }
+  body.appendChild(aiRow);
   const eo=document.createElement('label'); eo.className='chip'; eo.style.cssText='display:flex;margin-top:8px'; eo.innerHTML='<input type="checkbox" '+(sh.blinkEyesOnly!==false?'checked':'')+' style="margin:0 7px 0 0"> Replace only the eyes (keep the body identical — the open/closed frames don’t need to match exactly)';
   eo.querySelector('input').onchange=e=>{ sh.blinkEyesOnly=e.target.checked; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; body.appendChild(eo);
   if(sh.blinkPose && sh.blinkEyesOnly!==false && !sh.blinkComposite){ const warn=document.createElement('small'); warn.className='note'; warn.style.color='var(--accent)'; warn.innerHTML='⚠ Couldn’t auto-locate the eyes on the resting pose — using the whole closed pose for the blink instead.'; body.appendChild(warn); }
@@ -2191,6 +2205,9 @@ async function fitBlink(sh){
   sh.blinkComposite=null;
   if(!sh) return;
   const rest=restSettled(sh); if(!rest) return;
+  // PRIORITY 0 — an AI-generated closed-eye frame for this beat (only the eyes were changed and
+  // merged back onto the original), as long as the underlying settled pose hasn't changed.
+  if(sh.aiBlink && sh.aiBlinkFor===(rest||'').length){ sh.blinkComposite=sh.aiBlink; return; }
   // PRIORITY 1 — manually-placed eyes-closed part: stamp the single-eye part at left and right
   // (right auto-mirrored), each placed independently.
   const eyeP=partImg('eyesClosed'), L=sh.place&&sh.place.eyeL, R=sh.place&&sh.place.eyeR;
@@ -2205,7 +2222,44 @@ async function fitBlink(sh){
   // No crude procedural squash fallback — if there's no placed part and no clean pose, she just
   // doesn't blink this beat (steady) rather than showing a distorted squash.
 }
-function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const el=(sh.place&&sh.place.eyeL)?JSON.stringify(sh.place.eyeL):''; const er=(sh.place&&sh.place.eyeR)?JSON.stringify(sh.place.eyeR):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+el+'|'+er+'|'+restSig(sh); }
+// ===== Option B: AI closes the eyes on ONE frame, cheaply, then we merge back ONLY the eyes =====
+// Merge just the eye ovals from an AI-edited frame onto the ORIGINAL, feathered — so everything
+// outside the eyes is the original's exact pixels (no drift, even if the model redrew the frame).
+async function mergeEyesFrom(baseUrl, editedUrl){
+  const [b,e]=await Promise.all([loadImg(baseUrl).catch(()=>null), loadImg(editedUrl).catch(()=>null)]);
+  if(!b||!e) return baseUrl;
+  const W=b.naturalWidth||b.width, H=b.naturalHeight||b.height;
+  let ovals=[];
+  const ep=await detectEyes(baseUrl);
+  if(ep){ ovals=[ {cx:ep.L.cx*W,cy:ep.L.cy*H,rx:Math.max(8,ep.L.w*W*1.9),ry:Math.max(8,ep.L.h*H*2.6)},
+                  {cx:ep.R.cx*W,cy:ep.R.cy*H,rx:Math.max(8,ep.R.w*W*1.9),ry:Math.max(8,ep.R.h*H*2.6)} ]; }
+  else { const eb=await detectEyeBox(baseUrl); if(eb){ ovals=[{cx:(eb.x+eb.w/2)*W,cy:(eb.y+eb.h/2)*H,rx:eb.w*W*0.6,ry:eb.h*H*0.6}]; } }
+  if(!ovals.length) return editedUrl;                 // couldn't localise → fall back to the edit
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.drawImage(b,0,0,W,H);
+  const es=document.createElement('canvas'); es.width=W; es.height=H; es.getContext('2d').drawImage(e,0,0,W,H);   // align edit to base size
+  for(const o of ovals){ const pw=Math.max(2,Math.round(o.rx*2)), ph=Math.max(2,Math.round(o.ry*2));
+    const patch=document.createElement('canvas'); patch.width=pw; patch.height=ph; const pc=patch.getContext('2d');
+    pc.drawImage(es, o.cx-o.rx, o.cy-o.ry, pw, ph, 0,0, pw,ph);
+    const inset=Math.max(2, Math.round(Math.min(pw,ph)*0.2)); const mk=document.createElement('canvas'); mk.width=pw; mk.height=ph; const mc=mk.getContext('2d');
+    mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; mc.beginPath(); mc.ellipse(pw/2,ph/2,Math.max(1,pw/2-inset),Math.max(1,ph/2-inset),0,0,2*Math.PI); mc.fill();
+    pc.globalCompositeOperation='destination-in'; pc.drawImage(mk,0,0); pc.globalCompositeOperation='source-over';
+    ctx.drawImage(patch, Math.round(o.cx-o.rx), Math.round(o.cy-o.ry)); }
+  return c.toDataURL('image/png');
+}
+async function aiCloseEyes(sh){
+  if(!sh) throw new Error('no beat');
+  await fitRest(sh);                                    // make sure we edit the current settled pose
+  const base=restSettled(sh)||((sh.frames||[])[(sh.frames||[]).length-1]); if(!base) throw new Error('no frame to edit');
+  const prompt='Edit this cartoon sparrow illustration: gently CLOSE BOTH EYES into soft, downward-curving closed eyelids, as if she is blinking or peacefully resting. Keep the EXACT same art style, linework, colours, shading, head shape, beak, cheeks, body and pose — change ONLY the eyes, nothing else. Keep the transparent background.';
+  const r=await fetch(INPAINT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image:base, prompt })});
+  let d; try{ d=await r.json(); }catch(e){ throw new Error('bad response'); }
+  if(d.error) throw new Error(d.error); if(!d.image) throw new Error('no image returned');
+  const merged=await mergeEyesFrom(base, d.image);
+  sh.aiBlink=merged; sh.aiBlinkFor=(base||'').length; sh.aiBlinkKey=null; sh._blinkSig=null;
+  persist(); scheduleSave();
+  return merged;
+}
+function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; const ep=partImg('eyesClosed')||''; const el=(sh.place&&sh.place.eyeL)?JSON.stringify(sh.place.eyeL):''; const er=(sh.place&&sh.place.eyeR)?JSON.stringify(sh.place.eyeR):''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+ep.length+'|'+el+'|'+er+'|'+(sh.aiBlink?('ai'+sh.aiBlink.length+'@'+(sh.aiBlinkFor||0)):'')+'|'+restSig(sh); }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
 // pause with a mood; we drop the matching expression's FACE onto the resting body (body locked)
 // so the pause holds that emotion. Build the palette once, reuse on every beat/post. =====
