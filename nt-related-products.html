@@ -777,8 +777,6 @@ function tabContentHTML(parentHandle, handle) {
     </span>`
   ).join('');
 
-  const builtPrompt = buildStudioPrompt(engrave, s.scene, tax);
-
   return `<div style="padding:12px;">
     <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
       ${img ? `<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;">
@@ -804,18 +802,17 @@ function tabContentHTML(parentHandle, handle) {
       <span style="font-size:10px;color:var(--muted);font-style:italic;">Optional — select a person to tailor the prompt</span>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Prompt</div>
+      <button onclick="generatePrompt('${handle}')" id="genbtn-${handle}" style="font-size:10px;padding:3px 12px;background:var(--orange);color:#fff;border:none;border-radius:20px;font-weight:700;cursor:pointer;">✦ Generate</button>
       <select id="stmodel-${handle}" onchange="reformatPrompt('${handle}')"
-        style="font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;color:var(--brown);background:#fff;cursor:pointer;margin-left:2px;">
+        style="font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;color:var(--brown);background:#fff;cursor:pointer;">
         <option value="claude">Claude</option>
         <option value="gemini">Gemini</option>
         <option value="gpt">GPT</option>
       </select>
       <div style="flex:1;"></div>
-      <button onclick="regenPrompt('${handle}')" style="font-size:9px;padding:2px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">🔄 Regen</button>
       <button onclick="copyStudioPrompt('${handle}')" style="font-size:9px;padding:2px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;color:var(--brown);cursor:pointer;">📋 Copy</button>
     </div>
-    <textarea id="stprompt-${handle}" style="width:100%;height:65px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;resize:vertical;box-sizing:border-box;">${esc(builtPrompt)}</textarea>
+    <textarea id="stprompt-${handle}" placeholder="Click ✦ Generate to build your prompt" style="width:100%;height:65px;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;resize:vertical;box-sizing:border-box;color:var(--brown);"></textarea>
     <div style="display:flex;gap:5px;margin-top:5px;align-items:center;">
       <input id="stdir-${handle}" type="text" placeholder="Direction: e.g. add a woman reading, make it festive, outdoor setting…"
         style="flex:1;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;min-width:0;"
@@ -926,6 +923,23 @@ async function applyBrainToPrompt(handle, basePrompt) {
   }
   if (appends.length) prompt = prompt + '\n' + appends.join(' ');
   if (ta) ta.value = prompt;
+}
+
+function clearAllPrompts() {
+  document.querySelectorAll('[id^="stprompt-"]').forEach(ta => { ta.value = ''; });
+}
+
+async function generatePrompt(handle) {
+  const btn = document.getElementById('genbtn-' + handle);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  const p = allProducts.find(x=>(x.handle||x.h)===handle);
+  if (!p) { if (btn) { btn.disabled = false; btn.textContent = '✦ Generate'; } return; }
+  const quote = p.title || p.t || p.tagline || p.tl || '';
+  const scene = studioState[handle]?.scene || 'desk';
+  const tax = taxonomyData[handle] || {};
+  const base = buildStudioPrompt(quote, scene, tax);
+  await applyBrainToPrompt(handle, base);
+  if (btn) { btn.disabled = false; btn.textContent = '✦ Generate'; }
 }
 
 function regenPrompt(handle) {
@@ -1350,7 +1364,8 @@ async function saveGlobalBrain() {
     try { localStorage.setItem('nt_global_brain', val); } catch {}
     if (status) status.textContent = '✓ Saved to cloud';
     setTimeout(() => { if (status) status.textContent = ''; }, 2500);
-    toast('🧠 Global brain saved');
+    clearAllPrompts();
+    toast('🧠 Global brain saved — click Generate on each card to update');
   } catch(e) {
     if (status) status.textContent = 'Error: ' + e.message;
   } finally {
@@ -1389,7 +1404,8 @@ function saveBrain(handle) {
   studioState[handle].brain = productBrain;
   savePillsToStorage();
   document.getElementById('brain-panel-' + handle).style.display = 'none';
-  toast('🧠 Product brain saved');
+  clearAllPrompts();
+  toast('🧠 Brain saved — click Generate to update prompts');
 }
 
 function getGlobalBrain() {
