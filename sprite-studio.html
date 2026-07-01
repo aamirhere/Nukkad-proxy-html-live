@@ -2144,82 +2144,68 @@ async function fitBlink(sh){
 // drift, even if the model redrew the whole frame). Cheap: one edit per beat, reused in pauses. ==
 // Bounding box of the SOLID (alpha>150) pixels only — ignores Gemini's soft drop-shadow so the
 // bird's real body box lines up between base and edit even when the model added a shadow.
-async function solidBox(url){
-  const im=await loadImg(url).catch(()=>null); if(!im) return null;
-  const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height;
-  const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0);
-  let d; try{ d=x.getImageData(0,0,w,h).data; }catch(e){ return {im,w,h,x0:0,y0:0,bw:w,bh:h}; }
-  let x0=w,y0=h,x1=0,y1=0,any=false;
-  for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){ if(d[(yy*w+xx)*4+3]>150){ any=true; if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy; } }
-  if(!any) return {im,w,h,x0:0,y0:0,bw:w,bh:h};
-  return {im,w,h,x0,y0,bw:x1-x0+1,bh:y1-y0+1};
-}
-// fracOvals: [{cx,cy,rx,ry}] all fractional 0..1 of the BASE image. Gemini re-composes (different
-// size/position + shadow + opaque bg), so we (1) strip its background, (2) map each region through
-// the bird's SOLID body box in both images, then (3) cut & feather-paste only that region. On any
-// failure we return the ORIGINAL base — never Gemini's raw reframed frame (no glitch flashes).
-async function mergeOvals(baseUrl, editedUrl, fracOvals){
-  if(!fracOvals||!fracOvals.length) return baseUrl;
-  let edited=editedUrl; try{ if(await isOpaqueBg(edited)) edited=await removeBg(edited, 96); }catch(e){}
-  const [mb, me]=await Promise.all([solidBox(baseUrl), solidBox(edited)]);
-  if(!mb||!me||!mb.im||!me.im||mb.bw<4||mb.bh<4||me.bw<4||me.bh<4) return baseUrl;
-  const W=mb.w, H=mb.h;
-  const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.drawImage(mb.im,0,0,W,H);
-  const sx=me.bw/mb.bw, sy=me.bh/mb.bh;                 // edited bird is this much bigger/smaller
-  for(const fo of fracOvals){ const bcx=fo.cx*W, bcy=fo.cy*H, brx=Math.max(6,fo.rx*W), bry=Math.max(6,fo.ry*H);
-    const relx=(bcx-mb.x0)/mb.bw, rely=(bcy-mb.y0)/mb.bh;   // position within the bird's body box
-    const ecx=me.x0+relx*me.bw, ecy=me.y0+rely*me.bh, erx=brx*sx, ery=bry*sy;   // same spot on the edit
-    const pw=Math.max(2,Math.round(brx*2)), ph=Math.max(2,Math.round(bry*2));
-    const patch=document.createElement('canvas'); patch.width=pw; patch.height=ph; const pc=patch.getContext('2d'); pc.imageSmoothingEnabled=true;
-    pc.drawImage(me.im, ecx-erx, ecy-ery, erx*2, ery*2, 0,0, pw,ph);   // pull that region, scaled to base
-    const inset=Math.max(2, Math.round(Math.min(pw,ph)*0.2)); const mk=document.createElement('canvas'); mk.width=pw; mk.height=ph; const mc=mk.getContext('2d');
-    mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; mc.beginPath(); mc.ellipse(pw/2,ph/2,Math.max(1,pw/2-inset),Math.max(1,ph/2-inset),0,0,2*Math.PI); mc.fill();
-    pc.globalCompositeOperation='destination-in'; pc.drawImage(mk,0,0); pc.globalCompositeOperation='source-over';
-    ctx.drawImage(patch, Math.round(bcx-brx), Math.round(bcy-bry)); }
-  return c.toDataURL('image/png');
-}
-async function mergeEyesFrom(baseUrl, editedUrl){
-  let ov=[]; const ep=await detectEyes(baseUrl);
-  if(ep){ ov=[ {cx:ep.L.cx,cy:ep.L.cy,rx:ep.L.w*1.9,ry:ep.L.h*2.6}, {cx:ep.R.cx,cy:ep.R.cy,rx:ep.R.w*1.9,ry:ep.R.h*2.6} ]; }
-  else { const eb=await detectEyeBox(baseUrl); if(eb) ov=[{cx:eb.x+eb.w/2,cy:eb.y+eb.h/2,rx:eb.w*0.6,ry:eb.h*0.6}]; }
-  return mergeOvals(baseUrl, editedUrl, ov);
-}
-async function mergeMouthFrom(baseUrl, editedUrl){
-  const mb=await detectMouthBox(baseUrl);              // always returns a sensible box
-  const ov=[{ cx:mb.x+mb.w/2, cy:mb.y+mb.h*0.55, rx:mb.w*0.62, ry:mb.h*0.95 }];
-  return mergeOvals(baseUrl, editedUrl, ov);
-}
+// ===== Option B (crop-and-paste): send Gemini ONLY a tight crop around the region to edit =====
+// Gemini re-composes whole images (reframes, adds a drop-shadow, drops transparency). By sending
+// just a small crop around the eyes/mouth — interior of the face, no bird silhouette — it has
+// almost nothing to reframe and no outline to cast a shadow around. We paste the returned crop
+// back at the EXACT pixels it came from (feathered oval), so alignment is perfect and the rest of
+// Gul is untouched. On any failure we keep the original frame — never a reframed Gemini image.
 async function aiEdit(image, prompt){
   const r=await fetch(INPAINT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ image, prompt })});
   let d; try{ d=await r.json(); }catch(e){ throw new Error('bad response'); }
   if(d.error) throw new Error(d.error); if(!d.image) throw new Error('no image returned');
   return d.image;
 }
+// box: fractional {x,y,w,h} region on baseUrl to edit. padF: extra margin (fraction of box).
+async function aiRegionEdit(baseUrl, prompt, box, padF){
+  const im=await loadImg(baseUrl).catch(()=>null); if(!im) throw new Error('no image');
+  const W=im.naturalWidth||im.width, H=im.naturalHeight||im.height;
+  const pf=(padF!=null?padF:0.35);
+  const rx=Math.max(0, box.x-box.w*pf), ry=Math.max(0, box.y-box.h*pf);
+  const rw=Math.min(1-rx, box.w*(1+pf*2)), rh=Math.min(1-ry, box.h*(1+pf*2));
+  // Square the crop (centred) so Gemini's square output maps back with no stretch.
+  const ccx=(rx+rw/2)*W, ccy=(ry+rh/2)*H;
+  const side=Math.min(W, H, Math.max(rw*W, rh*H));
+  let cx0=Math.round(ccx-side/2), cy0=Math.round(ccy-side/2);
+  cx0=Math.max(0, Math.min(cx0, W-side)); cy0=Math.max(0, Math.min(cy0, H-side));
+  const cw=Math.round(side), ch=Math.round(side);
+  const crop=document.createElement('canvas'); crop.width=cw; crop.height=ch; crop.getContext('2d').drawImage(im, cx0,cy0,cw,ch, 0,0,cw,ch);
+  let ed=await aiEdit(crop.toDataURL('image/png'), prompt);
+  try{ if(await isOpaqueBg(ed)) ed=await removeBg(ed, 110); }catch(e){}
+  const eim=await loadImg(ed).catch(()=>null); if(!eim) return baseUrl;
+  // build the edited crop scaled to the original crop size, feathered as an oval so it melts in
+  const patch=document.createElement('canvas'); patch.width=cw; patch.height=ch; const pc=patch.getContext('2d'); pc.imageSmoothingEnabled=true; pc.drawImage(eim, 0,0,cw,ch);
+  const inset=Math.max(3, Math.round(Math.min(cw,ch)*0.16));
+  const mk=document.createElement('canvas'); mk.width=cw; mk.height=ch; const mc=mk.getContext('2d');
+  mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; mc.beginPath(); mc.ellipse(cw/2,ch/2,Math.max(1,cw/2-inset),Math.max(1,ch/2-inset),0,0,2*Math.PI); mc.fill();
+  pc.globalCompositeOperation='destination-in'; pc.drawImage(mk,0,0); pc.globalCompositeOperation='source-over';
+  const out=document.createElement('canvas'); out.width=W; out.height=H; const ox=out.getContext('2d'); ox.imageSmoothingEnabled=true; ox.drawImage(im,0,0); ox.drawImage(patch, cx0, cy0);
+  return out.toDataURL('image/png');
+}
 async function aiCloseEyes(sh){
   if(!sh) throw new Error('no beat');
-  await fitRest(sh);                                    // make sure we edit the current settled pose
+  await fitRest(sh);
   const base=restSettled(sh)||((sh.frames||[])[(sh.frames||[]).length-1]); if(!base) throw new Error('no frame to edit');
-  const prompt='Edit this cartoon sparrow illustration: gently CLOSE BOTH EYES into soft, downward-curving closed eyelids, as if she is blinking or peacefully resting. Keep the EXACT same art style, linework, colours, shading, head shape, beak, cheeks, body and pose — change ONLY the eyes, nothing else. Output her at the SAME size, position and framing on a FULLY TRANSPARENT background. Do NOT add any drop shadow, glow, border or background. Do NOT crop, resize or reframe her.';
-  const merged=await mergeEyesFrom(base, await aiEdit(base, prompt));
+  const box=await detectEyeBox(base) || {x:0.28,y:0.28,w:0.44,h:0.24};   // both eyes region
+  const prompt='This is a close-up crop of a cartoon sparrow’s eyes. Gently CLOSE BOTH EYES into soft, downward-curving closed/blinking eyelids in the SAME art style, linework and colours. Change ONLY the eyes. Keep everything else in the crop identical, on a transparent background, no shadow, no border.';
+  const merged=await aiRegionEdit(base, prompt, box, 0.4);
   sh.aiBlink=merged; sh.aiBlinkFor=(base||'').length; sh.aiBlinkKey=null; sh._blinkSig=null;
   persist(); scheduleSave();
   return merged;
 }
-// AI talk: generate an OPEN-mouth and a CLOSED-mouth version of the settled pose (mouth region
-// merged back onto the original), so the flap is a clean closed<->open with no beak doubling and
-// no manual cut-outs. Two cheap calls per talk beat, reused for the whole talk run.
+// AI talk: crop the beak/mouth region and make an OPEN and a CLOSED version, pasted back exactly.
 async function aiTalk(sh){
   if(!sh) throw new Error('no beat');
   await fitRest(sh);
   const base=restSettled(sh)||((sh.frames||[])[(sh.frames||[]).length-1]); if(!base) throw new Error('no frame to edit');
-  const frame=' Output her at the SAME size, position and framing on a FULLY TRANSPARENT background. Do NOT add any drop shadow, glow, border or background. Do NOT crop, resize or reframe her.';
-  const openP='Edit this cartoon sparrow illustration: OPEN her beak/mouth as if she is talking or singing — an open beak with a small open mouth. Keep the EXACT same art style, linework, colours, shading, head, eyes, cheeks, body and pose — change ONLY the beak/mouth, nothing else.'+frame;
-  const closedP='Edit this cartoon sparrow illustration: gently CLOSE her beak/mouth into a small, calm closed resting beak. Keep the EXACT same art style, linework, colours, shading, head, eyes, cheeks, body and pose — change ONLY the beak/mouth, nothing else.'+frame;
-  const [openImg, closedImg]=await Promise.all([ aiEdit(base, openP), aiEdit(base, closedP).catch(()=>null) ]);
-  sh.aiTalkOpen=await mergeMouthFrom(base, openImg);
-  sh.aiTalkClosed = closedImg ? await mergeMouthFrom(base, closedImg) : null;
+  const box=await detectMouthBox(base) || {x:0.34,y:0.5,w:0.32,h:0.22};
+  const openP='This is a close-up crop of a cartoon sparrow’s beak/mouth. OPEN the beak/mouth as if she is talking or singing, in the SAME art style and colours. Change ONLY the beak/mouth. Keep everything else in the crop identical, transparent background, no shadow, no border.';
+  const closedP='This is a close-up crop of a cartoon sparrow’s beak/mouth. Make the beak/mouth a small, calm CLOSED resting beak, in the SAME art style and colours. Change ONLY the beak/mouth. Keep everything else in the crop identical, transparent background, no shadow, no border.';
+  const [openImg, closedImg]=await Promise.all([ aiRegionEdit(base, openP, box, 0.45), aiRegionEdit(base, closedP, box, 0.45).catch(()=>null) ]);
+  sh.aiTalkOpen=openImg;
+  sh.aiTalkClosed=closedImg;
   sh.aiTalkFor=(base||'').length; sh.aiTalkOpenKey=null; sh.aiTalkClosedKey=null; sh._talkSig=null;
-  if(!sh.talk){ sh.talk=true; if(!(parseFloat(sh.talkSec)>0)) sh.talkSec=2.5; }   // make it a talking beat
+  if(!sh.talk){ sh.talk=true; if(!(parseFloat(sh.talkSec)>0)) sh.talkSec=2.5; }
   persist(); scheduleSave();
   return sh.aiTalkOpen;
 }
