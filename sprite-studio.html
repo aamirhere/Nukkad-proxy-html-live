@@ -1904,8 +1904,31 @@ async function regionSwap(baseUrl, srcUrl, box){
   ctx.restore();
   return c.toDataURL('image/png');
 }
-// Blink: replace only the eye region with the eyes-closed pose's eyes (feature-aligned).
-async function composeEyeBlink(rest, closed, box){ return regionSwap(rest, closed, box); }
+// Precise version: map the source's OWN feature box (srcBox, fractional of the source image)
+// exactly onto the base's feature box. Far more accurate than body-bbox proportion because it
+// uses where the feature actually is in BOTH images — no belly/pose skew, no grey drift.
+async function regionSwap2(baseUrl, srcUrl, baseBox, srcBox){
+  const [mb, ms]=await Promise.all([measureBox(baseUrl), measureBox(srcUrl)]);
+  if(!mb||!mb.im||!ms||!ms.im) return baseUrl;
+  const W=mb.w, H=mb.h;
+  const Bx=baseBox.x*W, By=baseBox.y*H, Bw=Math.max(1,baseBox.w*W), Bh=Math.max(1,baseBox.h*H);
+  const Sx=srcBox.x*ms.w, Sy=srcBox.y*ms.h, Sw=Math.max(1,srcBox.w*ms.w), Sh=Math.max(1,srcBox.h*ms.h);
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(mb.im,0,0,W,H);
+  ctx.save(); ctx.beginPath(); ctx.rect(Bx,By,Bw,Bh); ctx.clip(); ctx.clearRect(Bx,By,Bw,Bh);
+  const scaleX=Bw/Sw, scaleY=Bh/Sh;
+  ctx.drawImage(ms.im, Bx - Sx*scaleX, By - Sy*scaleY, ms.w*scaleX, ms.h*scaleY);
+  ctx.restore();
+  return c.toDataURL('image/png');
+}
+// Blink: replace only the eye region with the eyes-closed pose's eyes. The closed-eye tile has
+// no detectable pupils, so we locate its eyes via the library's NEUTRAL (open-eye) tile — same
+// framing — then map that box precisely onto the base's eyes.
+async function composeEyeBlink(rest, closed, box){
+  let srcBox=await detectEyeBox(closed);
+  if(!srcBox){ const nb=libPose('neutral'); if(nb) srcBox=await detectEyeBox(nb); }
+  return regionSwap2(rest, closed, box, srcBox||box);
+}
 // Bake sh.blinkComposite — the REST frame with ONLY the eyes closed (body identical). Tries the
 // eyes-closed library/override pose (feature-aligned); if that can't be built, squashes the rest
 // frame's OWN eyes. Either way the body stays the rest frame — it never shows a foreign whole body.
@@ -1941,7 +1964,7 @@ async function detectFaceBox(dataUrl){
   const x=Math.max(0, eb.x-eb.w*0.18); const w=Math.min(1-x, eb.w*1.36);
   return { x, y, w, h };
 }
-async function composeExpr(rest, pose, box){ return regionSwap(rest, pose, box); }
+async function composeExpr(rest, pose, box){ let srcBox=await detectFaceBox(pose); return regionSwap2(rest, pose, box, srcBox||box); }
 async function fitMood(sh){
   sh.moodComposite=null; sh.moodBlink=null;
   const mood=beatMood(sh); const pose=exprPoseForMood(mood); if(!pose) return;
@@ -2029,19 +2052,19 @@ async function buildTalkCycle(sh){
   const box=await detectMouthBox(base);
   const libOpen=libPose('talk');
   if(libOpen){
-    let openComp=null; try{ openComp=await regionSwap(base, libOpen, box); }catch(e){}
+    let openComp=null; try{ openComp=await regionSwap2(base, libOpen, box, (await detectMouthBox(libOpen))||box); }catch(e){}
     if(!openComp) return;
     // Closed mouth: an explicit 'neutral' library pose, else auto-find the closed tile, else the
     // beat's own resting frame. Whichever, only its MOUTH is borrowed; the body stays the frame.
     let closedSrc = libPose('neutral') || await autoClosedLib(libOpen);
     let closed = base;
-    if(closedSrc && closedSrc!==libOpen){ try{ const cc=await regionSwap(base, closedSrc, box); if(cc) closed=cc; }catch(e){} }
+    if(closedSrc && closedSrc!==libOpen){ try{ const cc=await regionSwap2(base, closedSrc, box, (await detectMouthBox(closedSrc))||box); if(cc) closed=cc; }catch(e){} }
     sh.talkCycle=[closed, openComp]; return;
   }
   // No library talk pose → use the beat's own most-open frame (base stays the closed mouth).
   let openIdx = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0) ? sh.talkOpenIdx : (fr.length>=2 ? await pickOpenMouthIdx(fr, baseIdx, box) : -1);
   if(openIdx==null || openIdx<0 || openIdx>=fr.length || openIdx===baseIdx) return;
-  let openComp=null; try{ openComp=await regionSwap(base, fr[openIdx], box); }catch(e){}
+  let openComp=null; try{ openComp=await regionSwap2(base, fr[openIdx], box, (await detectMouthBox(fr[openIdx]))||box); }catch(e){}
   sh.talkCycle = openComp ? [base, openComp] : null;
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
