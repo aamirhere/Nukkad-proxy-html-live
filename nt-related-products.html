@@ -1191,6 +1191,8 @@ function openPillModal(handle, editIdx) {
   const saveBtn = document.getElementById('pill-save-btn');
 
   if (fileEl) fileEl.value = '';
+  const statusEl = document.getElementById('pill-analyze-status');
+  if (statusEl) statusEl.textContent = '';
 
   if (_pillEditIdx != null) {
     const cs = globalPills[_pillEditIdx];
@@ -1453,7 +1455,7 @@ function rebuildSceneChips(handle) {
       <button onclick="selectGlobalPill('${handle}',${i})" ${thumbAttr}
         style="border:none;background:transparent;color:${col};padding:3px 4px 3px 10px;font-size:10px;font-weight:600;cursor:pointer;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(cs.label)}</button>
       <button onclick="openPillModal('${handle}',${i})" title="Edit"
-        style="border:none;background:transparent;color:${mutedCol};padding:3px 2px;font-size:9px;cursor:pointer;line-height:1;">✏</button>
+        style="border:none;background:transparent;color:${mutedCol};padding:3px 4px;font-size:11px;cursor:pointer;line-height:1;">✏</button>
       <button onclick="removeGlobalPill(${i})" title="Remove"
         style="border:none;background:transparent;color:${mutedCol};padding:3px 8px 3px 2px;font-size:10px;cursor:pointer;line-height:1;">✕</button>
     </span>`;
@@ -1492,7 +1494,11 @@ async function selectGlobalPill(handle, idx) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   const quote = p?.title || p?.t || p?.tagline || p?.tl || '';
   const tax = taxonomyData[handle] || {};
-  const basePrompt = buildStudioPrompt(quote, 'desk', tax);
+  // if pill has a reference scene, use a minimal base so the scene analysis drives everything
+  const hasRefScene = !!(cs.analysis || cs.context);
+  const basePrompt = hasRefScene
+    ? `Product lifestyle photography. A handmade 3D wooden quote piece reading "${quote}" — engraved text crisp and clearly visible, the product is the clear hero of the image. High-converting ad quality, soft editorial lighting, warm tones, shallow depth of field. No distortion to the engraved text or shape.`
+    : buildStudioPrompt(quote, 'desk', tax);
 
   const ta = document.getElementById('stprompt-' + handle);
   const { directives: brainDirs, appends: brainAppends } = getMergedBrain(handle);
