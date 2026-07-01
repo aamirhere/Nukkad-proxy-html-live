@@ -183,9 +183,9 @@ body.noscroll{overflow:hidden}
     <details class="card fold" id="partsFold">
       <summary><span>Gul's moving parts (blink / talk)</span></summary>
       <div class="foldbody">
-        <p class="hint">The reliable way: give me clean cut-out parts with the face colour baked in — <b>eyes-closed</b> and <b>beak-open</b> (that's all you need). On each beat you place them over Gul once (drag / size / rotate), and blink & talk just stamp them on top — no auto-detection. Reusable across every post.</p>
+        <p class="hint">Give me clean <b>transparent</b> cut-outs — <b>eyes-closed</b> and <b>beak-open</b>. No solid background: the studio <b>feathers</b> the edges so each part melts into the face (no box, nothing hidden). On each beat you place them once (drag / size / rotate / blend), and blink & talk stamp them on top — no auto-detection. Reusable across every post.</p>
         <div id="partsList"></div>
-        <small class="note">Only 2 are essential: <b>Eyes-closed</b> and <b>Beak-open</b>. Add Eyes-open / Beak-closed only if you want to re-draw those too.</small>
+        <small class="note"><b>Eyes-closed:</b> include a little of the surrounding face skin so it covers the open eye. <b>Beak-open:</b> a clean cut-out of just the open beak (a touch of chin is fine) — placed over her beak it merges. The “blend” slider softens the edges.</small>
       </div>
     </details>
 
@@ -511,7 +511,7 @@ function buildPlacePanel(sc, idx, sh, si){
   const made=[];
   function makeOverlay(which, key){
     const src=parts[key]; if(!src) return null;
-    if(!sh.place[which]) sh.place[which]={x:0.5,y:(which==='beak'?0.52:0.4),w:(which==='beak'?0.18:0.5),rot:0,on:true};
+    if(!sh.place[which]) sh.place[which]={x:0.5,y:(which==='beak'?0.52:0.4),w:(which==='beak'?0.18:0.5),rot:0,feather:0.12,on:true};
     const t=sh.place[which];
     const el=document.createElement('img'); el.src=src; el.draggable=false; el.style.cssText='position:absolute;left:0;top:0;cursor:grab';
     ov.appendChild(el);
@@ -538,6 +538,7 @@ function buildPlacePanel(sc, idx, sh, si){
     const mk=(lab,mn,mx,st,val,fn)=>{ const w=document.createElement('label'); w.style.cssText='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2);margin-top:4px'; w.append(lab); const r=document.createElement('input'); r.type='range'; r.min=mn; r.max=mx; r.step=st; r.value=val; r.style.flex='1'; r.addEventListener('input',()=>{ fn(parseFloat(r.value)); o.lay(); }); r.addEventListener('change',()=>{ sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }); w.appendChild(r); return w; };
     row.appendChild(mk('size',0.05,1,0.01,t.w,v=>t.w=v));
     row.appendChild(mk('rotate',-30,30,1,(t.rot||0),v=>t.rot=v));
+    row.appendChild(mk('blend',0,0.45,0.02,(t.feather!=null?t.feather:0.12),v=>t.feather=v));
     body.appendChild(row);
   }
   controls('eye','👁 Eyes-closed (blink)', eyeO);
@@ -2013,23 +2014,29 @@ async function regionSwap2(baseUrl, srcUrl, baseBox, srcBox){
 function partImg(name){ const p=curProj(); return (p&&p.parts&&p.parts[name])||null; }
 function hasParts(){ const p=curProj(); return !!(p&&p.parts&&(p.parts.eyesClosed||p.parts.beakOpen||p.parts.eyesOpen||p.parts.beakClosed)); }
 // Stamp a part image onto the base at transform t = {x,y (centre, fractional), w (fractional of
-// base width), rot (degrees)}.
+// base width), rot (degrees), feather (edge softness fraction)}. The part's edges are FEATHERED
+// so it melts into the face — no hard rectangle, no flat-colour box hiding the surrounding face.
 async function compositePart(baseUrl, partUrl, t){
   const [b,pp]=await Promise.all([loadImg(baseUrl).catch(()=>null), loadImg(partUrl).catch(()=>null)]);
   if(!b||!pp) return baseUrl;
   const W=b.naturalWidth||b.width, H=b.naturalHeight||b.height;
+  const iw=pp.naturalWidth||pp.width, ih=pp.naturalHeight||pp.height;
+  const pw=Math.max(1,(t&&t.w||0.35)*W), ph=Math.max(1,pw*(ih/(iw||1)));
+  // render the part at target size, then feather its outer edge inward so it blends
+  const tw=Math.round(pw), th=Math.round(ph);
+  const tmp=document.createElement('canvas'); tmp.width=tw; tmp.height=th; const tc=tmp.getContext('2d'); tc.imageSmoothingEnabled=true; tc.drawImage(pp,0,0,tw,th);
+  const feather=(t&&t.feather!=null)?t.feather:0.12;
+  if(feather>0){ const inset=Math.max(1,Math.round(Math.min(tw,th)*feather)); const mask=document.createElement('canvas'); mask.width=tw; mask.height=th; const mc=mask.getContext('2d'); mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; roundRect(mc, inset, inset, tw-2*inset, th-2*inset, inset); mc.fill(); tc.globalCompositeOperation='destination-in'; tc.drawImage(mask,0,0); tc.globalCompositeOperation='source-over'; }
   const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true;
   ctx.drawImage(b,0,0,W,H);
-  const iw=pp.naturalWidth||pp.width, ih=pp.naturalHeight||pp.height;
-  const pw=Math.max(1,(t&&t.w||0.35)*W), ph=pw*(ih/(iw||1));
-  ctx.save(); ctx.translate((t&&t.x!=null?t.x:0.5)*W, (t&&t.y!=null?t.y:0.4)*H); if(t&&t.rot) ctx.rotate(t.rot*Math.PI/180); ctx.drawImage(pp, -pw/2, -ph/2, pw, ph); ctx.restore();
+  ctx.save(); ctx.translate((t&&t.x!=null?t.x:0.5)*W, (t&&t.y!=null?t.y:0.4)*H); if(t&&t.rot) ctx.rotate(t.rot*Math.PI/180); ctx.drawImage(tmp, -tw/2, -th/2); ctx.restore();
   return c.toDataURL('image/png');
 }
 // Seed a placement transform from the auto-detected eye/mouth box on the base (a starting point).
 async function seedPlace(baseUrl, which){
   const box = which==='beak' ? await detectMouthBox(baseUrl) : await detectEyeBox(baseUrl);
-  if(box) return { x:box.x+box.w/2, y:box.y+box.h/2, w:Math.min(0.9,box.w*1.2), rot:0, on:true };
-  return { x:0.5, y: which==='beak'?0.52:0.4, w: which==='beak'?0.18:0.5, rot:0, on:true };
+  if(box) return { x:box.x+box.w/2, y:box.y+box.h/2, w:Math.min(0.9,box.w*1.2), rot:0, feather:0.12, on:true };
+  return { x:0.5, y: which==='beak'?0.52:0.4, w: which==='beak'?0.18:0.5, rot:0, feather:0.12, on:true };
 }
 // Take a feature box detected on a REFERENCE image and express it on a TARGET image by the same
 // position relative to each bird's own body bounds — so a closed-eye tile's eye box can be found
