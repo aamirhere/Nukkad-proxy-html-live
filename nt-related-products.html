@@ -1991,11 +1991,23 @@ async function reload() {
 }
 
 // ── Global pills persistence ──────────────────────────────
-function saveGlobalPills() {
-  try { localStorage.setItem('nt_global_pills', JSON.stringify(globalPills)); } catch {}
+async function saveGlobalPills() {
+  try {
+    await api(AD_URL, { action: 'save_pills', pills: globalPills });
+  } catch {
+    try { localStorage.setItem('nt_global_pills', JSON.stringify(globalPills)); } catch {}
+  }
 }
 
-function loadGlobalPills() {
+async function loadGlobalPills() {
+  try {
+    const res = await api(AD_URL, { action: 'get_pills' });
+    if (res.ok && Array.isArray(res.pills) && res.pills.length) {
+      globalPills = res.pills;
+      return;
+    }
+  } catch {}
+  // fallback: localStorage
   try {
     const raw = localStorage.getItem('nt_global_pills');
     if (raw) globalPills = JSON.parse(raw) || [];
@@ -2030,7 +2042,7 @@ function loadPillsFromStorage() {
     }
   } catch {}
 }
-window.addEventListener('load', () => { if (NT_TOKEN) { loadPillsFromStorage(); loadGlobalPills(); } });
+window.addEventListener('load', async () => { if (NT_TOKEN) { loadPillsFromStorage(); await loadGlobalPills(); rebuildAllSceneChips(); } });
 
 // ── View switcher ─────────────────────────────────────────
 let _currentView = 'products';
