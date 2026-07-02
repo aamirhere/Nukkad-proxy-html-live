@@ -1167,7 +1167,7 @@ function buildSceneCard(sc, idx){
       const ovImg=document.createElement('img'); ovImg.src=sh.sheetImg; ovImg.style.cssText='width:100%;display:block;max-height:280px;object-fit:contain'; ov.appendChild(ovImg); gd.appendChild(ov);
       const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
       const rec=document.createElement('button'); rec.className='btn sm'; rec.style.cssText='flex:1;min-width:120px'; rec.textContent='🔎 Re-cut automatically';
-      rec.onclick=async()=>{ rec.textContent='… cutting'; const out=await detectFrames(sh.sheetImg); const fr=(out.frames&&out.frames.length)?out.frames:await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); if(fr.length){ sh.frames=fr; sh.wide=out.wide||[]; sh.detected=!!(out.frames&&out.frames.length); sh.target=fr.length; sh.blinkFrame=0; sh.talkOpenFrame=0; sh.cuts=null; clearRig(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Re-cut into '+fr.length+' frames'); } else { rec.textContent='🔎 Re-cut automatically'; showToast('Couldn’t auto-cut — Start fresh'); } };
+      rec.onclick=async()=>{ rec.textContent='… cutting'; let src=sh.sheetImg; if(settings().bgRemove!==false && await isOpaqueBg(src)){ src=await removeBg(src); sh.sheetImg=src; } const out=await autoCut(src); const fr=(out.frames&&out.frames.length)?out.frames:await cropSheet(src, sh.cols, sh.rows, cropMode()); if(fr.length){ sh.frames=fr; sh.wide=out.wide||[]; sh.detected=!!(out.frames&&out.frames.length); sh.target=fr.length; sh.blinkFrame=0; sh.talkOpenFrame=0; sh.cuts=null; clearRig(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Re-cut into '+fr.length+' frames'); } else { rec.textContent='🔎 Re-cut automatically'; showToast('Couldn’t auto-cut — Start fresh'); } };
       row.appendChild(rec);
       const rf=document.createElement('button'); rf.className='btn sm ghost'; rf.style.cssText='flex:1;min-width:120px'; rf.textContent='↻ Start fresh (re-upload)';
       const rfi=document.createElement('input'); rfi.type='file'; rfi.accept='image/*'; rfi.hidden=true; rf.onclick=()=>rfi.click();
@@ -1523,6 +1523,53 @@ function splitFrame(dataUrl){
     im.onerror=()=>resolve(null); im.src=dataUrl;
   });
 }
+// Split a 1-D content mask into bands, treating only transparent runs >= minGap as separators
+// (small internal gaps inside a bird are ignored). Returns [[start,end],...] trimmed to content.
+function contentBands(mask, n, minGap){
+  const bands=[]; let i=0; while(i<n && !mask[i]) i++; let start=i;
+  while(i<n){ if(mask[i]){ i++; continue; } let j=i; while(j<n && !mask[j]) j++; const gap=j-i;
+    if(gap>=minGap){ if(i-1>=start) bands.push([start,i-1]); start=j; i=j; while(start<n && !mask[start]) start++; i=start; } else i=j; }
+  if(start<n) bands.push([start,n-1]);
+  return bands.map(([a,b])=>{ let s=a; while(s<=b && !mask[s]) s++; let e=b; while(e>=s && !mask[e]) e--; return [s,e]; }).filter(([s,e])=>e>=s);
+}
+// Auto-cut by EMPTY SPACE (projection): find the transparent columns/rows between poses and slice
+// there — never on fixed squares, so no chunks of a neighbour bleed in. Needs a transparent bg.
+function autoGapSlice(dataUrl){
+  return new Promise(resolve=>{
+    const im=new Image();
+    im.onload=()=>{
+      const w=im.naturalWidth||im.width, h=im.naturalHeight||im.height; if(!w||!h) return resolve({frames:[],wide:[]});
+      const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(im,0,0);
+      let d; try{ d=ctx.getImageData(0,0,w,h).data; }catch(e){ return resolve({frames:[],wide:[]}); }
+      const AT=Math.max(ALPHA_THRESHOLD, 28);   // ignore faint anti-alias halo so gaps read as empty
+      const colMask=new Uint8Array(w); for(let y=0;y<h;y++){ const o=y*w; for(let x=0;x<w;x++){ if(d[(o+x)*4+3]>AT){ colMask[x]=1; } } }
+      const xb=contentBands(colMask, w, Math.max(6,Math.round(w*0.015)));
+      if(!xb.length) return resolve({frames:[],wide:[]});
+      const boxes=[];
+      xb.forEach(([x0,x1])=>{ const rowMask=new Uint8Array(h); for(let y=0;y<h;y++){ const o=y*w; for(let x=x0;x<=x1;x++){ if(d[(o+x)*4+3]>AT){ rowMask[y]=1; break; } } }
+        const yb=contentBands(rowMask, h, Math.max(6,Math.round(h*0.015)));
+        yb.forEach(([y0,y1])=>{ let sx=x1,ex=x0; for(let y=y0;y<=y1;y++){ const o=y*w; for(let x=x0;x<=x1;x++){ if(d[(o+x)*4+3]>AT){ if(x<sx)sx=x; if(x>ex)ex=x; } } } if(ex>=sx) boxes.push({x0:sx,y0,x1:ex,y1}); }); });
+      if(boxes.length<2) return resolve({frames:[],wide:[]});
+      boxes.forEach(b=>{ b.cy=(b.y0+b.y1)/2; b.cx=(b.x0+b.x1)/2; });
+      const hs=boxes.map(b=>b.y1-b.y0).sort((a,b)=>a-b); const medH=hs[hs.length>>1]||1;
+      const rows=[]; boxes.slice().sort((a,b)=>a.cy-b.cy).forEach(b=>{ let r=rows.find(r=>Math.abs(r.cy-b.cy)<medH*0.6); if(!r){ r={cy:b.cy,items:[]}; rows.push(r); } r.items.push(b); r.cy=(r.cy*(r.items.length-1)+b.cy)/r.items.length; });
+      rows.sort((a,b)=>a.cy-b.cy); rows.forEach(r=>r.items.sort((a,b)=>a.cx-b.cx));
+      const ordered=[]; rows.forEach(r=>r.items.forEach(b=>ordered.push(b)));
+      const pad=8; let mw=0,mh=0; const bx=ordered.map(b=>{ const x0=Math.max(0,b.x0-pad),y0=Math.max(0,b.y0-pad),x1=Math.min(w-1,b.x1+pad),y1=Math.min(h-1,b.y1+pad); const bw=x1-x0+1,bh=y1-y0+1; if(bw>mw)mw=bw; if(bh>mh)mh=bh; return {x0,y0,bw,bh}; });
+      const widths=bx.map(b=>b.bw).slice().sort((a,b)=>a-b); const medW=widths[widths.length>>1]||1; const wide=[]; bx.forEach((b,i)=>{ if(bx.length>=3 && b.bw>medW*1.6) wide.push(i+1); });
+      const out=bx.map(b=>{ const tc=document.createElement('canvas'); tc.width=mw; tc.height=mh; tc.getContext('2d').drawImage(c, b.x0,b.y0,b.bw,b.bh, Math.round((mw-b.bw)/2),Math.round((mh-b.bh)/2), b.bw,b.bh); return tc.toDataURL('image/png'); });
+      resolve({frames:out, wide});
+    };
+    im.onerror=()=>resolve({frames:[],wide:[]}); im.src=dataUrl;
+  });
+}
+// One robust auto-cut: connected blobs first (handles any layout), then gap-projection, then (only
+// if both fail — e.g. no transparent gaps at all) the caller falls back to a fixed grid.
+async function autoCut(d){
+  let det=await detectFrames(d);
+  if(!(det.frames&&det.frames.length>=2)){ const g=await autoGapSlice(d); if(g.frames&&g.frames.length>=2) det=g; }
+  return det;
+}
 // Re-tight-crop a set of frames to one uniform centred canvas (keeps sizes consistent).
 function normalizeFrames(frames){
   return Promise.all(frames.map(f=>new Promise(r=>{ const im=new Image(); im.onload=()=>{ const w=im.naturalWidth||im.width,h=im.naturalHeight||im.height; const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d'); x.drawImage(im,0,0); const d=x.getImageData(0,0,w,h).data; let minx=w,miny=h,maxx=0,maxy=0,any=false; for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ if(d[(y*w+xx)*4+3]>ALPHA_THRESHOLD){ any=true; if(xx<minx)minx=xx;if(xx>maxx)maxx=xx;if(y<miny)miny=y;if(y>maxy)maxy=y; } } r(any?{c,minx,miny,bw:maxx-minx+1,bh:maxy-miny+1}:{c,minx:0,miny:0,bw:w,bh:h}); }; im.onerror=()=>r(null); im.src=f; })))
@@ -1602,9 +1649,9 @@ function isOpaqueBg(dataUrl){
 async function ingestSheet(sh, dataUrl){
   let d=dataUrl;
   if(settings().bgRemove!==false && await isOpaqueBg(d)) d=await removeBg(d);
-  const det=await detectFrames(d);
+  const det=await autoCut(d);   // blobs → gap-projection (both cut on empty space)
   let frames;
-  if(det.frames.length>=2){ sh.detected=true; frames=det.frames; sh.wide=det.wide; } else { sh.detected=false; frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); sh.wide=[]; }
+  if(det.frames.length>=2){ sh.detected=true; frames=det.frames; sh.wide=det.wide||[]; } else { sh.detected=false; frames=await cropSheet(d, sh.cols, sh.rows, cropMode()); sh.wide=[]; }
   sh.sheetImg=d; sh.frames=frames; sh.target=frames.length; delete sh.pendingJob;
   markForReview(sh);
 }
