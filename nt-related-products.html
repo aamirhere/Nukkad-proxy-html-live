@@ -815,8 +815,9 @@ function tabContentHTML(parentHandle, handle) {
         <option value="gpt">GPT</option>
       </select>
     </div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">Default: hands only, no faces. Override anything below ↓</div>
     <div style="display:flex;gap:5px;margin-bottom:4px;align-items:center;">
-      <input id="stdir-${handle}" type="text" placeholder="Direction: e.g. add a woman reading, make it festive, outdoor setting…"
+      <input id="stdir-${handle}" type="text" placeholder="e.g. show full couple, outdoor garden, add a woman reading, make it festive…"
         style="flex:1;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;min-width:0;"
         onkeydown="if(event.key==='Enter')applyDirection('${handle}')">
       <button onclick="applyDirection('${handle}')" style="background:var(--orange);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">↵ Apply</button>
@@ -1522,7 +1523,7 @@ async function selectGlobalPill(handle, idx) {
   const tax = taxonomyData[handle] || {};
   const hasRefScene = !!(cs.analysis || cs.context);
   const basePrompt = hasRefScene
-    ? `Lifestyle product photography. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — sits upright on its own base, casting a soft real shadow. It looks handcrafted: real paint texture, engraved grooves visible. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. The frame breathes.`
+    ? `Lifestyle product photography. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — sits upright on its own base, casting a soft real shadow. It looks handcrafted: real paint texture, engraved grooves visible. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. If people are present, show hands and arms only — no faces, no full bodies.`
     : buildStudioPrompt(quote, 'desk', tax);
 
   const ta = document.getElementById('stprompt-' + handle);
@@ -1655,7 +1656,7 @@ function buildStudioPrompt(quote, scene, tax) {
   const profKey   = profs[0] || '';
   const props     = profProps[profKey] || 'A ceramic coffee mug and a small succulent nearby.';
 
-  return `${cameraStyle}, f/1.8, shallow depth of field. A small painted wooden desk plaque — matte surface, 5 inches wide, 1 inch thick — reads "${quote}" in flat painted lettering. Placed ${placement}, upright on its own base, soft shadow beneath. ${props} ${lighting}. Colour: ${palette}. Plaque in foreground, one-third of frame, sharp. Person in background if present — eyes toward plaque, slightly out of focus. Minimal props. Mood: ${mood}.`;
+  return `${cameraStyle}, f/1.8, shallow depth of field. A small painted wooden desk plaque — matte surface, 5 inches wide, 1 inch thick — reads "${quote}" in flat painted lettering. Placed ${placement}, upright on its own base, soft shadow beneath. ${props} ${lighting}. Colour: ${palette}. Plaque in foreground, one-third of frame, sharp. If a person is present, show hands and arms only — no faces, no full bodies. Minimal props. Mood: ${mood}.`;
 }
 
 function setScene(handle, scene) {
