@@ -1520,48 +1520,69 @@ async function selectGlobalPill(handle, idx) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   const quote = p?.title || p?.t || p?.tagline || p?.tl || '';
   const tax = taxonomyData[handle] || {};
-  const hasRefScene = !!(cs.analysis || cs.context);
-  const basePrompt = hasRefScene
-    ? `Lifestyle product photography. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — sits upright on its own base, casting a soft real shadow. It looks handcrafted: real paint texture, engraved grooves visible. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. The frame breathes.`
-    : buildStudioPrompt(quote, 'desk', tax);
-
   const ta = document.getElementById('stprompt-' + handle);
   if (ta) { ta.value = ''; ta.placeholder = '⏳ Applying pill…'; }
 
-  // Build directive list:
-  // 1. Brain directives (global + product, product wins per type)
-  // 2. Pill scene context always goes as /scene — overrides brain scene if any
-  // 3. Pill appends stack with brain appends
   const { directives: brainDirs, appends: brainAppends } = getMergedBrain(handle);
   const pillContextParsed = parseBrain(cs.context || '');
-
-  const mergedDirs = {};
-  for (const d of brainDirs) mergedDirs[d.type] = d.text;
-  for (const d of pillContextParsed.directives) mergedDirs[d.type] = d.text;
-
-  // Pill scene = analysis + user instruction, always wins as /scene
-  const analysisPart = cs.analysis ? cs.analysis.trim() : '';
-  const userPart = (cs.context && !pillContextParsed.directives.length && !pillContextParsed.appends.length)
-    ? cs.context.trim() : '';
-  const sceneContext = [analysisPart, userPart].filter(Boolean).join('\n\n');
-  if (sceneContext) mergedDirs['scene'] = sceneContext;
-
-  const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
   const allAppends = [...brainAppends, ...pillContextParsed.appends];
 
-  let prompt = basePrompt;
-  // Always run apply_brain if we have any brain directives, even without pill scene
-  if (allDirs.length) {
-    try {
-      const directiveText = allDirs.map(d => `/${d.type} ${d.text}`).join('\n');
-      const res = await api(AD_URL, { action: 'apply_brain', base_prompt: prompt, brain: directiveText });
-      if (res.ok && res.prompt) prompt = res.prompt;
-    } catch {}
-  }
-  if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
+  let prompt;
+
   if (cs.refImage) {
-    prompt = prompt + '\n\nIMPORTANT: A reference scene photo is attached — replicate its exact setting, lighting, environment, and person. Also attach the NukkadTales product reference image separately so the product colour and finish are accurate.';
+    // Reference photo IS the scene — describe only the product, let the image drive everything else.
+    // Only apply non-scene brain directives (/style, /character, /append).
+    const productDesc = `A small solid wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick — with the text "${quote}" painted flat onto its face in clean lettering. The plaque sits upright on its own base, casting a soft real shadow. It looks handcrafted: slightly imperfect edges, real paint texture, engraved grooves visible. Keep the plaque sharp and in focus. It occupies roughly one-third of the frame.`;
+
+    const nonSceneDirs = brainDirs.filter(d => d.type !== 'scene');
+    for (const d of pillContextParsed.directives.filter(d => d.type !== 'scene')) nonSceneDirs.push(d);
+
+    // User instruction in pill (untagged) becomes character/style guidance, not scene
+    const userInstruction = (cs.context && !pillContextParsed.directives.length && !pillContextParsed.appends.length)
+      ? cs.context.trim() : '';
+    if (userInstruction) nonSceneDirs.push({ type: 'style', text: userInstruction });
+
+    prompt = productDesc;
+    if (nonSceneDirs.length) {
+      try {
+        const directiveText = nonSceneDirs.map(d => `/${d.type} ${d.text}`).join('\n');
+        const res = await api(AD_URL, { action: 'apply_brain', base_prompt: prompt, brain: directiveText });
+        if (res.ok && res.prompt) prompt = res.prompt;
+      } catch {}
+    }
+    if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
+    prompt = prompt + '\n\nIMPORTANT: Two reference images are attached. (1) A scene reference photo — match its setting, lighting, environment, depth of field, color grade, and person exactly. Do not add props or change the environment. (2) A NukkadTales product reference image — match the product\'s exact color and finish. Place the product from image 2 into the scene from image 1.';
+
+  } else {
+    // No reference photo — full descriptive prompt with scene from taxonomy + pill context
+    const hasSceneContext = !!(cs.analysis || cs.context);
+    const basePrompt = hasSceneContext
+      ? `Lifestyle product photography. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — sits upright on its own base, casting a soft real shadow. It looks handcrafted: real paint texture, engraved grooves visible. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. The frame breathes.`
+      : buildStudioPrompt(quote, 'desk', tax);
+
+    const mergedDirs = {};
+    for (const d of brainDirs) mergedDirs[d.type] = d.text;
+    for (const d of pillContextParsed.directives) mergedDirs[d.type] = d.text;
+
+    const analysisPart = cs.analysis ? cs.analysis.trim() : '';
+    const userPart = (cs.context && !pillContextParsed.directives.length && !pillContextParsed.appends.length)
+      ? cs.context.trim() : '';
+    const sceneContext = [analysisPart, userPart].filter(Boolean).join('\n\n');
+    if (sceneContext) mergedDirs['scene'] = sceneContext;
+
+    const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
+
+    prompt = basePrompt;
+    if (allDirs.length) {
+      try {
+        const directiveText = allDirs.map(d => `/${d.type} ${d.text}`).join('\n');
+        const res = await api(AD_URL, { action: 'apply_brain', base_prompt: prompt, brain: directiveText });
+        if (res.ok && res.prompt) prompt = res.prompt;
+      } catch {}
+    }
+    if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
   }
+
   if (ta) { ta.placeholder = 'Click ✦ Generate to build your prompt'; ta.value = prompt; }
 }
 
