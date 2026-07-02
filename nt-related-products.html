@@ -1565,33 +1565,98 @@ async function selectGlobalPill(handle, idx) {
 
 function buildStudioPrompt(quote, scene, tax) {
   const sceneMap = {
-    desk:      'on a clean modern wooden desk',
+    desk:      'on a clean wooden desk',
     shelf:     'on a minimal wooden shelf with curated decor',
     gifting:   'beside a beautifully wrapped gift box with ribbon and tissue paper',
-    cozy_home: 'on a side table with soft fairy lights and a cozy throw blanket nearby',
+    cozy_home: 'on a side table with a cozy throw blanket nearby',
     workspace: 'in a contemporary home workspace',
-    festive:   'on a festive surface with marigolds, small diyas, and warm bokeh lights',
+    festive:   'on a warm festive surface with bokeh lights in the background',
   };
 
   const profProps = {
-    'prof.fitness':      'A leather journal and a clean white water bottle sit nearby. Soft natural morning light.',
-    'prof.teacher':      'A neat stack of books and a ceramic mug of tea on a warm wooden desk. Gentle diffused light.',
-    'prof.writer':       'An open notebook with a fountain pen and a worn paperback beside it. Warm reading lamp.',
-    'prof.doctor':       'A small succulent and a clean ceramic mug on a minimal desk. Soft diffused morning light.',
-    'prof.engineer':     'A sleek closed laptop and a quality pen on a clean desk. Warm side lamp casting soft shadows.',
-    'prof.ca':           'A leather-bound planner and a black coffee on a clean white desk surface. Crisp morning light.',
-    'prof.lawyer':       'A leather journal and a quality fountain pen on a minimal desk. Soft warm desk lamp.',
-    'prof.creative':     'A ceramic mug of matcha and a sketchbook on a wooden surface. Natural window light.',
-    'prof.homemaker':    'A small vase of white flowers and a scented candle on a warm surface. Soft afternoon light.',
-    'prof.entrepreneur': 'A white coffee cup and a small plant on a clean minimal desk. Soft city window light in background.',
-    'prof.spiritual':    'A single white candle and a small indoor plant on a quiet wooden surface. Soft warm morning light.',
+    'prof.fitness':      'A leather journal and a clean water bottle sit nearby.',
+    'prof.teacher':      'A neat stack of books and a ceramic mug of tea on a warm wooden desk.',
+    'prof.writer':       'An open notebook with a fountain pen and a worn paperback beside it.',
+    'prof.doctor':       'A small succulent and a clean ceramic mug on a minimal desk.',
+    'prof.engineer':     'A sleek closed laptop and a quality pen on a clean desk.',
+    'prof.ca':           'A leather-bound planner and a black coffee on a clean desk surface.',
+    'prof.lawyer':       'A leather journal and a quality fountain pen on a minimal desk.',
+    'prof.creative':     'A ceramic mug of matcha and a sketchbook on a wooden surface.',
+    'prof.homemaker':    'A small vase of white flowers and a scented candle on a warm surface.',
+    'prof.entrepreneur': 'A white coffee cup and a small plant on a clean minimal desk.',
+    'prof.spiritual':    'A single white candle and a small indoor plant on a quiet wooden surface.',
   };
 
-  const placement = sceneMap[scene] || sceneMap.desk;
-  const profKey = (tax.professions||[])[0] || '';
-  const props = profProps[profKey] || 'A ceramic coffee mug, a small succulent, and a minimal desk organiser nearby. Soft warm light.';
+  // Derive shooting style, light, mood, colour from taxonomy
+  const profs    = tax.professions || [];
+  const vibes    = tax.vibes       || [];
+  const occs     = tax.occasions   || [];
 
-  return `Lifestyle product photography. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — is placed ${placement}. The plaque sits upright on its own base, casting a soft real shadow beneath it. It looks handcrafted: real paint texture, engraved grooves visible. ${props} If a person is in the frame, their eyes are directed at the plaque — a quiet moment of connection, soft expression. Keep the scene minimal — one or two supporting elements only, plenty of negative space. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. The frame breathes. Emotional, intimate, real.`;
+  // Camera / shooting feel
+  const cameraStyle = (() => {
+    if (profs.includes('prof.creative') || vibes.includes('vibe.artistic'))
+      return 'shot on film, slightly grainy, natural imperfections, soft focus edges';
+    if (profs.includes('prof.entrepreneur') || profs.includes('prof.ca') || profs.includes('prof.engineer'))
+      return 'shot on a mirrorless camera, clean and sharp, minimal distortion';
+    if (vibes.includes('vibe.emotional') || vibes.includes('vibe.sentimental') || profs.includes('prof.spiritual'))
+      return 'shot handheld, slightly intimate feel, subtle lens warmth';
+    if (profs.includes('prof.fitness'))
+      return 'shot on a mirrorless camera, bright and clean, crisp natural light';
+    return 'shot on a mirrorless camera, 50mm equivalent, natural light';
+  })();
+
+  // Lighting
+  const lighting = (() => {
+    if (occs.includes('occ.birthday') || occs.includes('occ.anniversary') || occs.includes('occ.wedding'))
+      return 'warm golden-hour light, soft bokeh, romantic';
+    if (occs.includes('occ.festival'))
+      return 'warm festive ambient light, soft glowing bokeh in background';
+    if (profs.includes('prof.fitness') || profs.includes('prof.doctor'))
+      return 'bright soft diffused natural light, clean whites';
+    if (profs.includes('prof.writer') || vibes.includes('vibe.sentimental'))
+      return 'warm reading-lamp light, soft shadows, cozy and intimate';
+    if (profs.includes('prof.spiritual') || vibes.includes('vibe.emotional'))
+      return 'soft warm morning light, quiet and still';
+    if (profs.includes('prof.homemaker') || vibes.includes('vibe.romantic'))
+      return 'soft afternoon window light, warm and golden';
+    return 'soft natural window light, warm and diffused';
+  })();
+
+  // Colour palette
+  const palette = (() => {
+    if (occs.includes('occ.festival'))
+      return 'warm saffron and terracotta tones, rich and celebratory';
+    if (occs.includes('occ.wedding') || occs.includes('occ.anniversary'))
+      return 'warm ivory, blush, and gold tones';
+    if (profs.includes('prof.fitness') || profs.includes('prof.doctor') || profs.includes('prof.engineer'))
+      return 'clean whites, light neutrals, minimal colour';
+    if (profs.includes('prof.creative') || profs.includes('prof.writer'))
+      return 'warm earthy tones, rich ochres and deep creams';
+    if (profs.includes('prof.spiritual') || vibes.includes('vibe.sentimental'))
+      return 'muted warm tones, soft beiges and dusty whites';
+    return 'warm earthy tones, creams and soft browns';
+  })();
+
+  // Mood
+  const mood = (() => {
+    if (vibes.includes('vibe.funny') || vibes.includes('vibe.playful'))
+      return 'light, joyful, warm energy';
+    if (vibes.includes('vibe.motivational'))
+      return 'aspirational, quietly confident, uplifting';
+    if (vibes.includes('vibe.emotional') || vibes.includes('vibe.sentimental'))
+      return 'tender and emotional, a quiet human moment';
+    if (occs.includes('occ.farewell') || occs.includes('occ.retirement'))
+      return 'nostalgic, warm, a little bittersweet';
+    if (occs.includes('occ.birthday') || occs.includes('occ.new_job'))
+      return 'celebratory yet intimate, warmly hopeful';
+    return 'emotional, intimate, real';
+  })();
+
+  const placement = sceneMap[scene] || sceneMap.desk;
+  const profKey   = profs[0] || '';
+  const props     = profProps[profKey] || 'A ceramic coffee mug and a small succulent nearby.';
+
+  return `Lifestyle product photography, ${cameraStyle}. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — is placed ${placement}. The plaque sits upright on its own base, casting a soft real shadow beneath it. It looks handcrafted: real paint texture, engraved grooves visible. ${props} ${lighting}. Colour palette: ${palette}. If a person is in the frame, their eyes are directed at the plaque — a quiet moment of connection, soft expression. Keep the scene minimal — one or two supporting elements only, plenty of negative space. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. The frame breathes. Mood: ${mood}.`;
 }
 
 function setScene(handle, scene) {
