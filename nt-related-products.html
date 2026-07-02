@@ -74,6 +74,17 @@
   /* Suggest modal */
   .suggest-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:none;align-items:center;justify-content:center;}
   .suggest-modal.open{display:flex;}
+  /* Tag Generator */
+  .taggen-panel{border-top:2px solid #0f766e;background:#f0fdf9;border-radius:0 0 12px 12px;padding:12px 14px;}
+  .taggen-option{border:1.5px solid #99f6e4;border-radius:10px;padding:8px 10px;background:#fff;margin-bottom:6px;cursor:pointer;transition:.15s;}
+  .taggen-option:hover{border-color:#0f766e;}
+  .taggen-option.selected{border-color:#0f766e;background:#f0fdf9;}
+  .taggen-option-label{font-size:10px;font-weight:700;color:#0f766e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+  .taggen-chip{display:inline-block;font-size:10px;background:#ccfbf1;border:1px solid #99f6e4;color:#0f4c45;border-radius:5px;padding:2px 7px;margin:2px 3px 2px 0;cursor:pointer;transition:.1s;font-weight:600;}
+  .taggen-chip:hover{background:#5eead4;color:#fff;}
+  .taggen-chip.removed{opacity:.4;text-decoration:line-through;}
+  .taggen-chip-add{display:inline-block;font-size:10px;background:none;border:1.5px dashed #99f6e4;color:#0f766e;border-radius:5px;padding:1px 7px;margin:2px 3px 2px 0;cursor:pointer;}
+  .saved-tag-chip{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#e0f2fe;border:1px solid #7dd3fc;color:#0369a1;border-radius:5px;padding:2px 7px;margin:2px 3px 2px 0;font-weight:600;}
 </style>
 </head>
 <body>
@@ -416,13 +427,15 @@ async function init() {
     '<div class="empty"><div class="spinner-mini dark" style="margin:0 auto 10px;"></div><p>Loading…</p></div>';
   loadGlobalBrain(); // fire-and-forget — sets _globalBrain when ready
   try {
-    const [catRes, relRes] = await Promise.all([
+    const [catRes, relRes, tagRes] = await Promise.all([
       api(CATALOG_URL, { action: 'load_approved' }),
-      api(RELATE_URL,  { action: 'load' })
+      api(RELATE_URL,  { action: 'load' }),
+      api(CATALOG_URL, { action: 'load_tags' }).catch(() => ({ tags: {} })),
     ]);
     allProducts  = (catRes.approved || []).map(p => ({ ...p, handle: p.handle || p.h, title: p.title || p.t }));
     matchedData  = relRes.data || {};
     taxonomyData = relRes.taxonomy || {};
+    savedTagsMap = tagRes.tags || {};
     updateStats();
     render();
   } catch(e) {
@@ -518,9 +531,11 @@ function cardHTML(p) {
         <button class="btn btn-ghost btn-sm" onclick="fetchOne('${handle}')" id="refetch-${handle}">↺ Re-fetch</button>
         ${pushBtn}
         <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="event.stopPropagation();openStudio('${handle}')">🎨</button>
+        <button class="btn btn-sm" style="background:#0f766e;color:#fff;" onclick="event.stopPropagation();openTagGen('${handle}')" title="Tag Generator">🏷</button>
       </div>
     </div>
     <div id="studio-${handle}" style="display:none;"></div>
+    <div id="taggen-${handle}" style="display:none;"></div>
   </div>`;
 }
 
@@ -813,6 +828,226 @@ const SCENES = ['desk','shelf','gifting','cozy_home','workspace','festive'];
 const SCENE_LABELS = {desk:'Desk',shelf:'Shelf',gifting:'Gifting',cozy_home:'Cozy Home',workspace:'Workspace',festive:'Festive'};
 let studioState = {}; // handle → { scene, images, taglines }
 let globalPills = []; // global pills shown on every product card
+let tagGenState = {}; // handle → { options, selectedIdx, removedTags, customTags }
+let savedTagsMap = {}; // handle → { tags, saved_at } — loaded from Redis on init
+
+// ── Tag Generator ─────────────────────────────────────────
+function openTagGen(handle) {
+  document.querySelectorAll('[id^="taggen-"]').forEach(el => {
+    if (el.id !== 'taggen-' + handle) { el.style.display = 'none'; el.innerHTML = ''; }
+  });
+  const el = document.getElementById('taggen-' + handle);
+  if (!el) return;
+  if (el.style.display === 'block') { el.style.display = 'none'; el.innerHTML = ''; return; }
+  if (!tagGenState[handle]) tagGenState[handle] = { options: [], selectedIdx: 0, removedTags: new Set(), customTags: [] };
+  el.innerHTML = buildTagGenHTML(handle);
+  el.style.display = 'block';
+}
+
+function buildTagGenHTML(handle) {
+  const p = allProducts.find(x=>(x.handle||x.h)===handle) || {};
+  const tax = taxonomyData[handle] || {};
+  const saved = savedTagsMap[handle];
+  const state = tagGenState[handle] || {};
+  const hasOptions = state.options && state.options.length > 0;
+
+  const taxPills = [
+    ...(tax.professions||[]).map(n=>`<span style="font-size:9px;background:#ede9fe;color:#7c3aed;border-radius:4px;padding:1px 6px;">${n.replace('prof.','')}</span>`),
+    ...(tax.vibes||[]).map(n=>`<span style="font-size:9px;background:#fce7f3;color:#be185d;border-radius:4px;padding:1px 6px;">${n.replace('vibe.','')}</span>`),
+    ...(tax.occasions||[]).map(n=>`<span style="font-size:9px;background:#fff7ed;color:#c2410c;border-radius:4px;padding:1px 6px;">${n.replace('occ.','')}</span>`),
+  ].join(' ');
+
+  const savedHTML = saved ? `
+    <div style="margin-bottom:8px;padding:7px 10px;background:#e0f2fe;border:1.5px solid #7dd3fc;border-radius:8px;">
+      <div style="font-size:9px;font-weight:700;color:#0369a1;margin-bottom:4px;">SAVED TAGS — on Shopify ✓</div>
+      <div>${saved.tags.map(t=>`<span class="saved-tag-chip">${esc(t)}</span>`).join('')}</div>
+    </div>` : '';
+
+  const optionsHTML = hasOptions ? state.options.map((opt, i) => {
+    const isSelected = i === state.selectedIdx;
+    const tags = (opt.tags || []).filter(t => !(state.removedTags||new Set()).has(t+':'+i));
+    const extra = (state.customTags && state.customTags[i]) || [];
+    return `<div class="taggen-option ${isSelected?'selected':''}" id="tgopt-${handle}-${i}" onclick="selectTagOption('${handle}',${i})">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <span class="taggen-option-label">${esc(opt.label)}</span>
+        ${isSelected ? `<span style="font-size:9px;color:#0f766e;font-weight:700;">✓ Selected</span>` : ''}
+      </div>
+      <div id="tgtags-${handle}-${i}">
+        ${tags.map(t=>`<span class="taggen-chip" onclick="event.stopPropagation();removeTag('${handle}',${i},'${esc(t)}')" title="Click to remove">${esc(t)} ×</span>`).join('')}
+        ${extra.map(t=>`<span class="taggen-chip" onclick="event.stopPropagation();removeCustomTag('${handle}',${i},'${esc(t)}')" style="background:#bbf7d0;border-color:#86efac;">${esc(t)} ×</span>`).join('')}
+        <span class="taggen-chip-add" onclick="event.stopPropagation();addCustomTag('${handle}',${i})">＋ add</span>
+      </div>
+    </div>`;
+  }).join('') : '';
+
+  const selectedOpt = hasOptions ? state.options[state.selectedIdx] : null;
+  const selectedTags = selectedOpt ? (selectedOpt.tags || []).filter(t=>!(state.removedTags||new Set()).has(t+':'+state.selectedIdx)).concat((state.customTags||[])[state.selectedIdx]||[]) : [];
+
+  return `<div class="taggen-panel" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-size:12px;font-weight:700;color:#0f766e;">🏷 Tag Generator — <span style="font-weight:400;color:var(--muted);font-size:11px;">${esc(p.title||handle)}</span></div>
+      <button onclick="closeTagGen('${handle}')" style="border:none;background:none;cursor:pointer;font-size:14px;color:var(--muted);">✕</button>
+    </div>
+    ${taxPills ? `<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:3px;">${taxPills}</div>` : ''}
+    ${savedHTML}
+
+    <div style="margin-bottom:8px;">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Context for AI — optional. Describe use-case, campaign, audience:</div>
+      <div style="display:flex;gap:5px;">
+        <input id="tgctx-${handle}" type="text" placeholder="e.g. Meta ads targeting moms 28-40 · Diwali gifting · Office Secret Santa · Push tags for festive collection"
+          style="flex:1;border:1.5px solid #99f6e4;border-radius:8px;padding:6px 10px;font-size:11px;font-family:'DM Sans',sans-serif;min-width:0;"
+          onkeydown="if(event.key==='Enter')generateTags('${handle}','generate')">
+        <button onclick="generateTags('${handle}','generate')" id="tgbtn-${handle}"
+          style="padding:6px 14px;background:#0f766e;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">✦ Generate</button>
+      </div>
+    </div>
+
+    <div id="tgoptions-${handle}">${optionsHTML}</div>
+
+    ${hasOptions ? `
+    <div style="margin-top:8px;border-top:1px solid #99f6e4;padding-top:8px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+      <input id="tgrefine-${handle}" type="text" placeholder="Refine: make it shorter · more festive · focus on gifting · add Hindi tags…"
+        style="flex:1;min-width:160px;border:1.5px solid #99f6e4;border-radius:8px;padding:5px 9px;font-size:11px;font-family:'DM Sans',sans-serif;"
+        onkeydown="if(event.key==='Enter')refineTags('${handle}')">
+      <button onclick="refineTags('${handle}')" style="padding:5px 12px;background:#0f766e;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">↵ Refine</button>
+      <button onclick="generateTags('${handle}','more')" style="padding:5px 12px;background:#fff;color:#0f766e;border:1.5px solid #0f766e;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">＋ More like these</button>
+      <button onclick="saveTags('${handle}')" id="tgsave-${handle}"
+        style="padding:5px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;margin-left:auto;">💾 Save to Shopify</button>
+    </div>
+    <div id="tgstatus-${handle}" style="font-size:10px;color:var(--muted);margin-top:4px;min-height:14px;"></div>
+    ` : `<div id="tgstatus-${handle}" style="font-size:10px;color:var(--muted);min-height:14px;"></div>`}
+  </div>`;
+}
+
+function closeTagGen(handle) {
+  const el = document.getElementById('taggen-' + handle);
+  if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+
+function selectTagOption(handle, idx) {
+  if (!tagGenState[handle]) return;
+  tagGenState[handle].selectedIdx = idx;
+  document.querySelectorAll(`[id^="tgopt-${handle}-"]`).forEach((el, i) => {
+    el.classList.toggle('selected', i === idx);
+    const label = el.querySelector('.taggen-option-label');
+    if (!label) return;
+    const selSpan = el.querySelector('[style*="Selected"]');
+    if (i === idx && !selSpan) el.querySelector('[style*="Selected"]')?.remove();
+    el.style.borderColor = i === idx ? '#0f766e' : '#99f6e4';
+    el.style.background = i === idx ? '#f0fdf9' : '#fff';
+  });
+}
+
+function removeTag(handle, optIdx, tag) {
+  if (!tagGenState[handle]) return;
+  if (!tagGenState[handle].removedTags) tagGenState[handle].removedTags = new Set();
+  tagGenState[handle].removedTags.add(tag + ':' + optIdx);
+  refreshTagOption(handle, optIdx);
+}
+
+function removeCustomTag(handle, optIdx, tag) {
+  if (!tagGenState[handle]) return;
+  if (!tagGenState[handle].customTags) tagGenState[handle].customTags = {};
+  tagGenState[handle].customTags[optIdx] = (tagGenState[handle].customTags[optIdx] || []).filter(t => t !== tag);
+  refreshTagOption(handle, optIdx);
+}
+
+function refreshTagOption(handle, optIdx) {
+  const state = tagGenState[handle];
+  if (!state || !state.options[optIdx]) return;
+  const opt = state.options[optIdx];
+  const tags = opt.tags.filter(t => !(state.removedTags||new Set()).has(t+':'+optIdx));
+  const extra = (state.customTags || {})[optIdx] || [];
+  const el = document.getElementById('tgtags-' + handle + '-' + optIdx);
+  if (!el) return;
+  el.innerHTML = tags.map(t=>`<span class="taggen-chip" onclick="event.stopPropagation();removeTag('${handle}',${optIdx},'${esc(t)}')" title="Click to remove">${esc(t)} ×</span>`).join('')
+    + extra.map(t=>`<span class="taggen-chip" onclick="event.stopPropagation();removeCustomTag('${handle}',${optIdx},'${esc(t)}')" style="background:#bbf7d0;border-color:#86efac;">${esc(t)} ×</span>`).join('')
+    + `<span class="taggen-chip-add" onclick="event.stopPropagation();addCustomTag('${handle}',${optIdx})">＋ add</span>`;
+}
+
+function addCustomTag(handle, optIdx) {
+  const tag = prompt('Add a tag:');
+  if (!tag || !tag.trim()) return;
+  if (!tagGenState[handle]) return;
+  if (!tagGenState[handle].customTags) tagGenState[handle].customTags = {};
+  if (!tagGenState[handle].customTags[optIdx]) tagGenState[handle].customTags[optIdx] = [];
+  tagGenState[handle].customTags[optIdx].push(tag.trim());
+  refreshTagOption(handle, optIdx);
+}
+
+function getSelectedTags(handle) {
+  const state = tagGenState[handle];
+  if (!state || !state.options.length) return [];
+  const idx = state.selectedIdx;
+  const opt = state.options[idx];
+  const tags = (opt.tags||[]).filter(t=>!(state.removedTags||new Set()).has(t+':'+idx));
+  const extra = (state.customTags||{})[idx] || [];
+  return [...tags, ...extra];
+}
+
+async function generateTags(handle, mode = 'generate') {
+  const p = allProducts.find(x=>(x.handle||x.h)===handle) || {};
+  const tax = taxonomyData[handle] || {};
+  const ctx = document.getElementById('tgctx-'+handle)?.value || '';
+  const state = tagGenState[handle] || {};
+  const selectedTags = mode !== 'generate' ? getSelectedTags(handle) : [];
+
+  const btn = document.getElementById('tgbtn-'+handle);
+  const statusEl = document.getElementById('tgstatus-'+handle);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  if (statusEl) statusEl.textContent = mode === 'refine' ? 'Refining…' : mode === 'more' ? 'Generating more…' : 'Generating options…';
+
+  const refineCtx = mode === 'refine' ? (document.getElementById('tgrefine-'+handle)?.value || '') : ctx;
+
+  try {
+    const res = await api(CATALOG_URL, {
+      action: 'generate_tags',
+      title: p.title || handle,
+      current_tags: p.tags || '',
+      taxonomy: tax,
+      user_context: refineCtx,
+      mode,
+      selected_tags: selectedTags,
+    });
+    if (!res.ok || !res.options?.length) throw new Error(res.error || 'No options returned');
+    if (!tagGenState[handle]) tagGenState[handle] = { options: [], selectedIdx: 0, removedTags: new Set(), customTags: {} };
+    tagGenState[handle].options = res.options;
+    tagGenState[handle].selectedIdx = 0;
+    tagGenState[handle].removedTags = new Set();
+    tagGenState[handle].customTags = {};
+    const el = document.getElementById('taggen-' + handle);
+    if (el) { el.innerHTML = buildTagGenHTML(handle); el.style.display = 'block'; }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+  } finally {
+    const b2 = document.getElementById('tgbtn-'+handle);
+    if (b2) { b2.disabled = false; b2.textContent = '✦ Generate'; }
+    const s2 = document.getElementById('tgstatus-'+handle);
+    if (s2 && !s2.textContent.startsWith('Error')) s2.textContent = '';
+  }
+}
+
+async function refineTags(handle) {
+  await generateTags(handle, 'refine');
+}
+
+async function saveTags(handle) {
+  const tags = getSelectedTags(handle);
+  if (!tags.length) { toast('No tags selected', true); return; }
+  const btn = document.getElementById('tgsave-'+handle);
+  const statusEl = document.getElementById('tgstatus-'+handle);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const res = await api(CATALOG_URL, { action: 'save_tags', handle, tags });
+    savedTagsMap[handle] = { tags, saved_at: new Date().toISOString() };
+    toast(`✓ Saved ${tags.length} tags to Shopify`);
+    if (statusEl) statusEl.textContent = `✓ Saved ${tags.length} tags — ${new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'})}`;
+  } catch(e) {
+    toast('Save failed: ' + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Save to Shopify'; }
+  }
+}
 
 function openStudio(handle) {
   document.querySelectorAll('[id^="studio-"]').forEach(el => {
