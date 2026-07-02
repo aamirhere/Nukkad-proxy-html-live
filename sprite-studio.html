@@ -930,8 +930,16 @@ function buildPauseControls(sc, idx, sh, si){
   msel.onchange=()=>{ sh.moodOverride=msel.value; sh._moodSig=null; persist(); scheduleSave(); renderAll(); };
   moodRow.appendChild(ml); moodRow.appendChild(msel); wrap.appendChild(moodRow);
   if(useMood!=='neutral' && !exprPoseForMood(useMood)){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.innerHTML='⚠ No “'+useMood+'” pose in the palette yet — add one in <b>Gul’s expressions</b> (top) and the pause holds that face.'; wrap.appendChild(w); }
-  const freeNote=document.createElement('small'); freeNote.className='note'; freeNote.style.cssText='margin-top:8px;color:var(--ink2)'; freeNote.innerHTML='<b>Blink:</b> mark gpt’s eyes-closed frame with <b>👁</b> above. <b>Talk:</b> turn on this beat’s talk + “Beak flap” and pick the closed/open frames. Both use gpt’s own frames.';
+  const freeNote=document.createElement('small'); freeNote.className='note'; freeNote.style.cssText='margin-top:8px;color:var(--ink2)'; freeNote.innerHTML='<b>Blink:</b> mark gpt’s eyes-closed frame with <b>👁</b> above. No eyes-closed frame in this beat? Use <b>✨ Generate blink</b> below (AI closes her eyes on the settled pose). <b>Talk:</b> turn on talk + “Beak flap” and pick the closed/open frames.';
   wrap.appendChild(freeNote);
+  // ✨ Generate blink (AI) — for beats that have no eyes-closed frame of their own. Closes only the
+  // eyes on the settled pose (crop → paste) and stores it as this beat's blink.
+  const genRow=document.createElement('div'); genRow.style.cssText='margin-top:8px';
+  const genBtn=document.createElement('button'); genBtn.className='btn sm'; genBtn.style.cssText='width:100%'; genBtn.textContent = sh.aiBlink ? '✨ Redo AI blink' : '✨ Generate blink (AI)';
+  genBtn.onclick=async()=>{ const o=genBtn.textContent; genBtn.disabled=true; genBtn.textContent='✨ closing eyes…'; try{ await aiCloseEyes(sh); showToast('✨ Blink ready'); renderAll(); }catch(err){ genBtn.disabled=false; genBtn.textContent=o; alert('Generate blink failed: '+err.message); } };
+  genRow.appendChild(genBtn);
+  if(sh.aiBlink){ const rm=document.createElement('a'); rm.href='#'; rm.textContent='remove AI blink'; rm.style.cssText='font-size:10px;color:var(--err);display:inline-block;margin-top:4px'; rm.onclick=(e)=>{ e.preventDefault(); sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; genRow.appendChild(rm); }
+  wrap.appendChild(genRow);
   // 🔍 AI motion check (Claude vision) — only acts if it spots a real jump/bad frame.
   const qcRow=document.createElement('div'); qcRow.style.cssText='margin-top:8px';
   const qcBtn=document.createElement('button'); qcBtn.className='btn sm ghost'; qcBtn.style.cssText='width:100%'; qcBtn.textContent='🔍 AI check motion (fix jumps)';
@@ -997,7 +1005,9 @@ function purgeLegacyRig(p){
   if(!p||p._rigPurged) return false; let ch=false;
   if(p.parts && Object.keys(p.parts).length){ p.parts={}; p._partKeys={}; ch=true; }
   (p.scenes||[]).forEach(sc=>(sc.sheets||[]).forEach(sh=>{
-    ['place','aiBlink','aiBlinkKey','aiBlinkFor','aiTalkOpen','aiTalkOpenKey','aiTalkClosed','aiTalkClosedKey','aiTalkFor','restComposite','blinkComposite','talkCycle'].forEach(k=>{ if(sh[k]!=null){ delete sh[k]; ch=true; } });
+    // Purge only the legacy MANUAL-PLACEMENT + stale AI-talk overlays (the blobs). Keep aiBlink —
+    // it's the AI-generated blink source for beats with no eyes-closed frame of their own.
+    ['place','aiTalkOpen','aiTalkOpenKey','aiTalkClosed','aiTalkClosedKey','aiTalkFor','restComposite','blinkComposite','talkCycle'].forEach(k=>{ if(sh[k]!=null){ delete sh[k]; ch=true; } });
     sh._blinkSig=null; sh._talkSig=null; sh._restSig=null;
   }));
   p._rigPurged=true; return ch;
@@ -1925,7 +1935,13 @@ async function autoBlinkHolds(frames){
 // toward that next pose (soft cross-step). Long runs (real holds) are left for the breath idle.
 const _blendCache=new Map();
 async function blendFrames(a,b,t){ const key=a+''+b+''+t.toFixed(2); if(_blendCache.has(key)) return _blendCache.get(key); const [ia,ib]=await Promise.all([loadImg(a).catch(()=>null), loadImg(b).catch(()=>null)]); if(!ia||!ib) return a; const aw=ia.naturalWidth||ia.width, ah=ia.naturalHeight||ia.height, bw=ib.naturalWidth||ib.width, bh=ib.naturalHeight||ib.height; const W=Math.max(aw,bw), H=Math.max(ah,bh); const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.globalAlpha=1; ctx.drawImage(ia, Math.round((W-aw)/2), Math.round((H-ah)/2)); ctx.globalAlpha=Math.min(0.85, Math.max(0.2, t)); ctx.drawImage(ib, Math.round((W-bw)/2), Math.round((H-bh)/2)); ctx.globalAlpha=1; const url=c.toDataURL('image/png'); _blendCache.set(key,url); return url; }
-async function smoothFrames(frames){ if(!frames||frames.length<3) return frames; const out=frames.slice(); let i=0; while(i<out.length){ let j=i; while(j+1<out.length && frames[j+1]===frames[i]) j++; const runLen=j-i+1; const next=(j+1<frames.length)?frames[j+1]:null; if(next && next!==frames[i] && runLen>=2 && runLen<=3){ for(let k=1;k<runLen;k++){ out[i+k]=await blendFrames(frames[i], next, k/runLen); } } i=j+1; } return out; }
+async function smoothFrames(frames){ if(!frames||frames.length<3) return frames; const out=frames.slice(); let i=0; while(i<out.length){ let j=i; while(j+1<out.length && frames[j+1]===frames[i]) j++; const runLen=j-i+1; const next=(j+1<frames.length)?frames[j+1]:null; const prev=i>0?frames[i-1]:null;
+    // Only cross-blend a held pose toward the NEXT pose for genuine SMALL motion. Skip an ALTERNATION
+    // (A,B,A — a beak/blink flap) or a big change (a cut/jump); blending those just double-exposes
+    // the face — that's the ghosted "smear".
+    if(next && next!==frames[i] && next!==prev && runLen>=2 && runLen<=3){ const d=await frameDiff(frames[i], next); if(d<0.045){ for(let k=1;k<runLen;k++){ out[i+k]=await blendFrames(frames[i], next, k/runLen); } } } i=j+1; } return out; }
+// Normalised 0..1 mean colour difference between two frames (downscaled) — tells small motion (smooth) from a flap/jump (don't).
+async function frameDiff(a,b){ const S=64; const [da,db]=await Promise.all([_frameData(a,S),_frameData(b,S)]); if(!da||!db) return 1; let s=0; const n=da.length; for(let k=0;k<n;k+=4){ s+=Math.abs(da[k]-db[k])+Math.abs(da[k+1]-db[k+1])+Math.abs(da[k+2]-db[k+2]); } return s/((n/4)*3*255); }
 // Partial rig — the thing that stops the whole bird "boiling". Freeze the body to ONE base
 // pose and let ONLY the marked region boxes (beak/mouth, tail, eyes) move. For every frame we
 // draw the stable base, then — clipped to each box — paint that frame ALIGNED to the base by
@@ -2513,7 +2529,9 @@ function beatPlayed(sh){
   if(!fr.length) return [];
   // Blink = ONLY gpt's own eyes-closed frame, marked with 👁 (same pose, body matches perfectly).
   // No eye-region swap — that was scaling a whole pose into the eye box. No mark → no blink (steady).
-  const blink = (bi>=0) ? allFr[bi] : null;
+  // Blink source: gpt's own 👁-marked eyes-closed frame if there is one; else an AI-generated blink
+  // (only the eyes closed) if the beat has none of its own. No source → steady, no blink.
+  const blink = (bi>=0) ? allFr[bi] : ((sh&&sh.aiBlink && sh.aiBlinkFor===((restSettled(sh)||'').length)) ? sh.aiBlink : null);
   // Lead-in into the beat: real drawn transition frames if provided, else the auto cross-fade.
   if(sh&&sh.transition&&sh.transition.length) out.push(...framesTimed(sh.transition));
   else if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
