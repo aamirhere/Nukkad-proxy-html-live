@@ -1559,9 +1559,6 @@ async function selectGlobalPill(handle, idx) {
     } catch {}
   }
   if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
-  if (cs.refImage) {
-    prompt = prompt + '\n\nIMPORTANT: A reference scene photo is attached — replicate its exact setting, lighting, environment, and person. Also attach the NukkadTales product reference image separately so the product colour and finish are accurate.';
-  }
   if (ta) { ta.placeholder = 'Click ✦ Generate to build your prompt'; ta.value = prompt; }
 }
 
@@ -1658,7 +1655,7 @@ function buildStudioPrompt(quote, scene, tax) {
   const profKey   = profs[0] || '';
   const props     = profProps[profKey] || 'A ceramic coffee mug and a small succulent nearby.';
 
-  return `Lifestyle product photography, ${cameraStyle}. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — is placed ${placement}. The plaque sits upright on its own base, casting a soft real shadow beneath it. It looks handcrafted: real paint texture, engraved grooves visible. ${props} ${lighting}. Colour palette: ${palette}. If a person is in the frame, their eyes are directed at the plaque — a quiet moment of connection, soft expression. Keep the scene minimal — one or two supporting elements only, plenty of negative space. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. The frame breathes. Mood: ${mood}.`;
+  return `${cameraStyle}, f/1.8, shallow depth of field. A small painted wooden desk plaque — matte surface, 5 inches wide, 1 inch thick — reads "${quote}" in flat painted lettering. Placed ${placement}, upright on its own base, soft shadow beneath. ${props} ${lighting}. Colour: ${palette}. Plaque in foreground, one-third of frame, sharp. Person in background if present — eyes toward plaque, slightly out of focus. Minimal props. Mood: ${mood}.`;
 }
 
 function setScene(handle, scene) {
