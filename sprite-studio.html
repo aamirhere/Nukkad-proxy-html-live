@@ -1164,53 +1164,24 @@ function buildSceneCard(sc, idx){
       : 'Free route: Copy Gul + Copy prompt → paste both in ChatGPT → upload the PNG here (must be a '+sh.cols+'×'+sh.rows+' grid).';
     sd.appendChild(mn);
 
-    // Editable grid + slice preview — fix uploads whose layout differs from the plan's.
+    // Automatic cut only. The sheet is cut by auto-detect; if it ever looks off, Re-cut, or Start
+    // fresh to drop this beat's frames and upload a new sheet (which auto-cuts again). No manual cut.
     if(sh.sheetImg){
-      const gd=document.createElement('details'); gd.className='fullprompt gridslice';
-      const gs=document.createElement('summary'); gs.textContent='⊞ Grid & slicing ('+sh.cols+'×'+sh.rows+')'; gd.appendChild(gs);
-      const gbody=document.createElement('div'); gbody.style.padding='10px';
-      const ctrls=document.createElement('div'); ctrls.className='row'; ctrls.style.marginBottom='8px';
-      const mkNum=(lab,val)=>{ const wrap=document.createElement('label'); wrap.style.cssText='flex:1;font-size:11px;font-weight:700;color:var(--ink2)'; wrap.textContent=lab; const inp=document.createElement('input'); inp.type='number'; inp.min='1'; inp.max='8'; inp.value=val; inp.style.marginTop='4px'; wrap.appendChild(inp); return inp; };
-      const cIn=mkNum('Columns', sh.cols), rIn=mkNum('Rows', sh.rows);
-      ctrls.appendChild(cIn.parentNode); ctrls.appendChild(rIn.parentNode); gbody.appendChild(ctrls);
-      const ov=document.createElement('div'); ov.style.cssText='position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px';
-      const ovImg=document.createElement('img'); ovImg.src=sh.sheetImg; ovImg.style.cssText='width:100%;display:block'; ov.appendChild(ovImg);
-      const ovSvg=document.createElementNS('http://www.w3.org/2000/svg','svg'); ovSvg.setAttribute('class','pinsvg'); ov.appendChild(ovSvg);
-      const drawGrid=(cols,rows)=>{ const NS='http://www.w3.org/2000/svg'; ovSvg.innerHTML=''; const line=(x1,y1,x2,y2)=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2); l.setAttribute('stroke','#d4541f'); l.setAttribute('stroke-width','1.5'); l.setAttribute('opacity','.85'); ovSvg.appendChild(l); };
-        for(let i=1;i<cols;i++) line((i*100/cols)+'%','0',(i*100/cols)+'%','100%'); for(let j=1;j<rows;j++) line('0',(j*100/rows)+'%','100%',(j*100/rows)+'%'); };
-      drawGrid(sh.cols, sh.rows); gbody.appendChild(ov);
-      const upd=()=>drawGrid(parseInt(cIn.value,10)||1, parseInt(rIn.value,10)||1);
-      cIn.addEventListener('input',upd); rIn.addEventListener('input',upd);
-      const apply=document.createElement('button'); apply.className='btn sm'; apply.style.marginTop='8px'; apply.style.width='100%'; apply.textContent='Re-slice with this grid';
-      apply.onclick=async()=>{ sh.cols=Math.max(1,Math.min(8,parseInt(cIn.value,10)||sh.cols)); sh.rows=Math.max(1,Math.min(8,parseInt(rIn.value,10)||sh.rows)); sh.target=sh.cols*sh.rows; sh.frames=await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); sh.wide=[]; sh.detected=false; clearRig(sh); persist(); scheduleSave(); renderAll(); };
-      gbody.appendChild(apply);
-      const det2=document.createElement('button'); det2.className='btn sm ghost'; det2.style.marginTop='6px'; det2.style.width='100%'; det2.textContent='🔎 Auto-detect frames (ignore grid)';
-      det2.onclick=async()=>{ det2.textContent='… detecting'; const out=await detectFrames(sh.sheetImg); if(out.frames.length){ sh.frames=out.frames; sh.wide=out.wide; sh.detected=true; sh.target=out.frames.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); } else { det2.textContent='Nothing found — try ✂ Cutout first'; setTimeout(()=>{det2.textContent='🔎 Auto-detect frames (ignore grid)';},2200); } };
-      gbody.appendChild(det2);
-      const dn=document.createElement('small'); dn.className='note'; dn.textContent='Auto-detect finds each Gul as a separate shape — use it when ChatGPT laid the frames out unevenly (different sizes, arrows, no clean grid).';
-      gbody.appendChild(dn);
-
-      // Manual click-to-slice: when Claude & auto-detect both miss, draw your own cut lines.
-      if(!sh.cuts) sh.cuts={x:[],y:[]};
-      let armDir=null; // 'v' | 'h'
-      function drawCuts(){ const NS='http://www.w3.org/2000/svg'; (sh.cuts.x||[]).forEach(fx=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('x1',(fx*100)+'%'); l.setAttribute('y1','0'); l.setAttribute('x2',(fx*100)+'%'); l.setAttribute('y2','100%'); l.setAttribute('stroke','#2f6fd4'); l.setAttribute('stroke-width','2'); ovSvg.appendChild(l); });
-        (sh.cuts.y||[]).forEach(fy=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('x1','0'); l.setAttribute('y1',(fy*100)+'%'); l.setAttribute('x2','100%'); l.setAttribute('y2',(fy*100)+'%'); l.setAttribute('stroke','#2f6fd4'); l.setAttribute('stroke-width','2'); ovSvg.appendChild(l); }); }
-      const reflow=()=>{ drawGrid(parseInt(cIn.value,10)||1, parseInt(rIn.value,10)||1); drawCuts(); };
-      ov.style.cursor='crosshair';
-      ov.onclick=(ev)=>{ if(!armDir) return; const r=ovImg.getBoundingClientRect(); if(armDir==='v') sh.cuts.x.push(Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width))); else sh.cuts.y.push(Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height))); persist(); scheduleSave(); reflow(); };
-      const mrow=document.createElement('div'); mrow.className='row'; mrow.style.cssText='margin-top:8px;flex-wrap:wrap';
-      const vb=document.createElement('button'); vb.className='btn sm ghost'; vb.style.cssText='flex:1;min-width:90px'; vb.textContent='✎ + Vertical cut';
-      const hb=document.createElement('button'); hb.className='btn sm ghost'; hb.style.cssText='flex:1;min-width:90px'; hb.textContent='✎ + Horizontal cut';
-      const setArm=(dir,btn)=>{ armDir=(armDir===dir)?null:dir; vb.classList.toggle('active', armDir==='v'); hb.classList.toggle('active', armDir==='h'); vb.style.background= armDir==='v'?'var(--accent)':''; vb.style.color=armDir==='v'?'#fff':''; hb.style.background= armDir==='h'?'var(--accent)':''; hb.style.color=armDir==='h'?'#fff':''; showToast(armDir?('Tap the image to add a '+(armDir==='v'?'vertical':'horizontal')+' cut'):'Manual cut off'); };
-      vb.onclick=()=>setArm('v'); hb.onclick=()=>setArm('h');
-      const clr=document.createElement('button'); clr.className='btn sm ghost'; clr.style.cssText='flex:1;min-width:70px'; clr.textContent='Clear cuts'; clr.onclick=()=>{ sh.cuts={x:[],y:[]}; armDir=null; persist(); scheduleSave(); reflow(); };
-      const slc=document.createElement('button'); slc.className='btn sm'; slc.style.cssText='flex:1;min-width:90px'; slc.textContent='✂ Slice by cuts'; slc.onclick=async()=>{ if(!sh.cuts.x.length && !sh.cuts.y.length){ showToast('Add cut lines first'); return; } slc.textContent='… slicing'; let fr=await manualSlice(sh.sheetImg, sh.cuts.x, sh.cuts.y); fr=await normalizeFrames(fr); if(fr.length){ sh.frames=fr; sh.detected=true; sh.wide=[]; sh.target=fr.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Sliced into '+fr.length+' frames'); } else { slc.textContent='✂ Slice by cuts'; showToast('No frames found in those cuts'); } };
-      mrow.appendChild(vb); mrow.appendChild(hb); mrow.appendChild(clr); mrow.appendChild(slc); gbody.appendChild(mrow);
-      const mn=document.createElement('small'); mn.className='note'; mn.textContent='Manual slice: tap “+ Vertical/Horizontal cut”, then tap the image where the gaps between frames are. “Slice by cuts” cuts on those blue lines (uneven spacing is fine).';
-      gbody.appendChild(mn);
-      drawCuts();
-
-      gd.appendChild(gbody); sd.appendChild(gd);
+      const gd=document.createElement('div'); gd.style.marginTop='8px';
+      const ov=document.createElement('div'); ov.style.cssText='border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px';
+      const ovImg=document.createElement('img'); ovImg.src=sh.sheetImg; ovImg.style.cssText='width:100%;display:block'; ov.appendChild(ovImg); gd.appendChild(ov);
+      const row=document.createElement('div'); row.className='row'; row.style.cssText='margin-top:8px;flex-wrap:wrap';
+      const rec=document.createElement('button'); rec.className='btn sm'; rec.style.cssText='flex:1;min-width:120px'; rec.textContent='🔎 Re-cut automatically';
+      rec.onclick=async()=>{ rec.textContent='… cutting'; const out=await detectFrames(sh.sheetImg); const fr=(out.frames&&out.frames.length)?out.frames:await cropSheet(sh.sheetImg, sh.cols, sh.rows, cropMode()); if(fr.length){ sh.frames=fr; sh.wide=out.wide||[]; sh.detected=!!(out.frames&&out.frames.length); sh.target=fr.length; sh.blinkFrame=0; sh.talkOpenFrame=0; sh.cuts=null; clearRig(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Re-cut into '+fr.length+' frames'); } else { rec.textContent='🔎 Re-cut automatically'; showToast('Couldn’t auto-cut — Start fresh'); } };
+      row.appendChild(rec);
+      const rf=document.createElement('button'); rf.className='btn sm ghost'; rf.style.cssText='flex:1;min-width:120px'; rf.textContent='↻ Start fresh (re-upload)';
+      const rfi=document.createElement('input'); rfi.type='file'; rfi.accept='image/*'; rfi.hidden=true; rf.onclick=()=>rfi.click();
+      rfi.onchange=e=>{ const f=e.target.files[0]; if(!f)return; fileToDataURL(f, async d=>{ rf.textContent='… processing'; sh.takes=[]; sh.blinkFrame=0; sh.talkOpenFrame=0; sh.cuts=null; sh.wide=[]; await ingestSheet(sh, d); clearRig(sh); persist(); scheduleSave(); renderAll(); showToast('✓ Fresh sheet — auto-cut into '+((sh.frames||[]).length)+' frames'); }); e.target.value=''; };
+      row.appendChild(rf); row.appendChild(rfi);
+      gd.appendChild(row);
+      const dn=document.createElement('small'); dn.className='note'; dn.textContent='Cut automatically. If a cut ever looks off, tap Re-cut; or Start fresh to drop this and upload a new sheet.';
+      gd.appendChild(dn);
+      sd.appendChild(gd);
     }
 
     if(sh.frames&&sh.frames.length){
@@ -1295,9 +1266,7 @@ function buildSceneCard(sc, idx){
         const wrow=document.createElement('div'); wrow.className='row'; wrow.style.cssText='margin-top:8px;flex-wrap:wrap';
         const sp=document.createElement('button'); sp.className='btn sm'; sp.style.cssText='flex:1;min-width:130px'; sp.textContent='✂ Split into separate frames';
         sp.onclick=async()=>{ sp.textContent='… splitting'; sp.disabled=true; const wides=(sh.wide||[]).slice().sort((a,b)=>b-a); for(const idx1 of wides){ const i=idx1-1; const parts=await splitFrame(sh.frames[i]); if(parts) sh.frames.splice(i,1,parts[0],parts[1]); } sh.frames=await normalizeFrames(sh.frames); sh.wide=[]; sh.target=sh.frames.length; clearRig(sh); markForReview(sh); persist(); scheduleSave(); renderAll(); };
-        const gs2=document.createElement('button'); gs2.className='btn sm ghost'; gs2.style.cssText='flex:1;min-width:130px'; gs2.textContent='⊞ Re-slice on grid';
-        gs2.onclick=()=>{ const g=sd.querySelector('details.gridslice'); if(g){ g.open=true; g.scrollIntoView({behavior:'smooth',block:'center'}); } };
-        wrow.appendChild(sp); wrow.appendChild(gs2); ww.appendChild(wrow);
+        wrow.appendChild(sp); ww.appendChild(wrow);
         sd.appendChild(ww);
       }
       const apanel=document.createElement('div'); apanel.style.marginTop='8px';
