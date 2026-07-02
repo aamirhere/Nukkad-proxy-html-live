@@ -2118,16 +2118,7 @@ function restSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').lengt
 // Blink composite = ONLY the library / per-beat eyes-closed pose (eyes-only swap). The primary
 // blink is the 👁-marked gpt frame, handled in beatPlayed; this is just a fallback. No placed
 // parts, no AI — those legacy overlays are purged.
-async function fitBlink(sh){
-  sh.blinkComposite=null;
-  if(!sh) return;
-  if(blinkIdxOf(sh)>=0) return;                        // gpt's marked eyes-closed frame is the blink
-  const rest=restSettled(sh); if(!rest) return;
-  if(sh.blinkEyesOnly===false) return;
-  const src = sh.blinkPose || libPose('blink');
-  let box = (sh.rigRegions&&sh.rigRegions.length) ? sh.rigRegions[0] : await detectEyeBox(rest);
-  if(src && box){ try{ sh.blinkComposite=await composeEyeBlink(rest, src, box); }catch(e){ sh.blinkComposite=null; } }
-}
+async function fitBlink(sh){ if(sh) sh.blinkComposite=null; }   // blink = the 👁-marked gpt frame only (beatPlayed); no eye-region swap (that scaled a whole pose into the eye box)
 // ===== Option B: AI edits ONE frame (close eyes / open beak), then we merge back ONLY that
 // region onto the ORIGINAL, feathered — so everything outside is the original's exact pixels (no
 // drift, even if the model redrew the whole frame). Cheap: one edit per beat, reused in pauses. ==
@@ -2305,24 +2296,44 @@ async function autoClosedLib(openSrc){
   for(const t of tiles){ const d=await _frameData(t.pose, S); if(!d) continue; let sum=0; for(let y=y0;y<y1;y++)for(let xx=x0;xx<x1;xx++){ const o=(y*S+xx)*4; sum+=Math.abs(od[o]-d[o])+Math.abs(od[o+1]-d[o+1])+Math.abs(od[o+2]-d[o+2])+Math.abs(od[o+3]-d[o+3]); } if(sum>bestD){ bestD=sum; best=t.pose; } }
   return best;
 }
+// Copy JUST the beak — a small FEATHERED OVAL — from one frame onto another at the SAME position
+// (both frames share the beat's composition), so there's no hard rectangle seam and nothing below
+// the beak (belly/feet) is touched. box is the beak region (fractional) on the base.
+async function featherBeakSwap(baseUrl, srcUrl, box){
+  const [b,s]=await Promise.all([loadImg(baseUrl).catch(()=>null), loadImg(srcUrl).catch(()=>null)]);
+  if(!b||!s) return baseUrl;
+  const W=b.naturalWidth||b.width, H=b.naturalHeight||b.height;
+  const cx=(box.x+box.w/2)*W, cy=(box.y+box.h/2)*H, rx=Math.max(6,box.w/2*W), ry=Math.max(6,box.h/2*H);
+  const out=document.createElement('canvas'); out.width=W; out.height=H; const ox=out.getContext('2d'); ox.imageSmoothingEnabled=true; ox.drawImage(b,0,0,W,H);
+  const pw=Math.max(2,Math.round(rx*2)), ph=Math.max(2,Math.round(ry*2));
+  const patch=document.createElement('canvas'); patch.width=pw; patch.height=ph; const pc=patch.getContext('2d'); pc.imageSmoothingEnabled=true;
+  pc.drawImage(s, cx-rx, cy-ry, pw, ph, 0,0, pw,ph);
+  const inset=Math.max(2, Math.round(Math.min(pw,ph)*0.24)); const mk=document.createElement('canvas'); mk.width=pw; mk.height=ph; const mc=mk.getContext('2d');
+  mc.filter='blur('+inset+'px)'; mc.fillStyle='#fff'; mc.beginPath(); mc.ellipse(pw/2,ph/2,Math.max(1,pw/2-inset),Math.max(1,ph/2-inset),0,0,2*Math.PI); mc.fill();
+  pc.globalCompositeOperation='destination-in'; pc.drawImage(mk,0,0); pc.globalCompositeOperation='source-over';
+  ox.drawImage(patch, Math.round(cx-rx), Math.round(cy-ry));
+  return out.toDataURL('image/png');
+}
+// A TIGHT beak oval (centred on the beak, not reaching the belly/feet) from the mouth box.
+function beakOval(mb){ const cx=mb.x+mb.w/2, cy=mb.y+mb.h*0.35; const w=Math.min(0.34, mb.w*0.8), h=Math.min(0.2, mb.h*0.7); return { x:cx-w/2, y:cy-h/2, w, h }; }
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const allFr=(sh.frames||[]); if(!allFr.length) return;
   const fr=motionFramesOf(sh); if(!fr.length) return;
-  // ONE frozen base pose (the settled frame); only the beak is swapped on top of it. The body —
-  // legs, wings, everything — stays identical, so nothing pulses. The beak comes from whichever of
-  // the beat's own frames has the most-different mouth from the settled pose (gpt's own art).
+  // ONE frozen base pose (the settled frame); only the beak (a small feathered oval) is swapped on
+  // top of it from the beat's own most-different-mouth frame. Body stays identical → no pulse, and
+  // the swap never touches the belly/feet → no seam below.
   const settled=restSettled(sh)||fr[fr.length-1];
   const sIdx=Math.max(0, fr.indexOf(settled));
-  const box=await detectMouthBox(settled);
+  const oval=beakOval(await detectMouthBox(settled));
   let openSrc = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0 && sh.talkOpenIdx<allFr.length) ? allFr[sh.talkOpenIdx] : null;
-  if(!openSrc && fr.length>=2){ const oi=await pickOpenMouthIdx(fr, sIdx, box); if(oi>=0 && fr[oi]!==settled) openSrc=fr[oi]; }
+  if(!openSrc && fr.length>=2){ const oi=await pickOpenMouthIdx(fr, sIdx, await detectMouthBox(settled)); if(oi>=0 && fr[oi]!==settled) openSrc=fr[oi]; }
   if(openSrc && openSrc!==settled){
-    let openComp=null; try{ openComp=await regionSwap2(settled, openSrc, box, (await detectMouthBox(openSrc))||box); }catch(e){}
+    let openComp=null; try{ openComp=await featherBeakSwap(settled, openSrc, oval); }catch(e){}
     if(openComp && openComp!==settled){ sh.talkCycle=[settled, openComp]; return; }
   }
   // Last resort — borrow a library 'talk' mouth (only if the beat has no distinct open-mouth frame).
   const libOpen=libPose('talk');
-  if(libOpen){ let openComp=null; try{ openComp=await regionSwap2(settled, libOpen, box, (await detectMouthBox(libOpen))||box); }catch(e){} if(openComp && openComp!==settled) sh.talkCycle=[settled, openComp]; }
+  if(libOpen){ let openComp=null; try{ openComp=await featherBeakSwap(settled, libOpen, oval); }catch(e){} if(openComp && openComp!==settled) sh.talkCycle=[settled, openComp]; }
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
 function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+blinkIdxOf(sh); }
@@ -2441,12 +2452,9 @@ function beatPlayed(sh){
   const bi=blinkIdxOf(sh);
   const fr = motionFramesOf(sh);                       // motion excludes the eyes-closed (blink) frame
   if(!fr.length) return [];
-  // Blink source, in priority order the user asked for:
-  //   1. gpt's OWN eyes-closed frame (marked with 👁) — same pose, body matches perfectly
-  //   2. an AI-generated blink (only the eyes edited) if they made one
-  //   3. a library / whole eyes-closed pose fallback
-  const blinkWhole=(sh&&sh.blinkEyesOnly===false) ? ((sh&&sh.blinkPose)||libPose('blink')) : null;
-  const blink = (bi>=0) ? allFr[bi] : ((sh&&sh.blinkComposite) ? sh.blinkComposite : (blinkWhole||null));
+  // Blink = ONLY gpt's own eyes-closed frame, marked with 👁 (same pose, body matches perfectly).
+  // No eye-region swap — that was scaling a whole pose into the eye box. No mark → no blink (steady).
+  const blink = (bi>=0) ? allFr[bi] : null;
   // Lead-in into the beat: real drawn transition frames if provided, else the auto cross-fade.
   if(sh&&sh.transition&&sh.transition.length) out.push(...framesTimed(sh.transition));
   else if(sh&&sh.morphIn&&sh.morphIn.length) out.push(...sh.morphIn);   // dissolve in from the previous beat
