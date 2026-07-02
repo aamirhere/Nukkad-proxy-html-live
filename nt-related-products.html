@@ -99,6 +99,7 @@
 const PROXY_BASE    = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
 const RELATE_URL    = PROXY_BASE + '/nt-relate-products';
 const CATALOG_URL   = PROXY_BASE + '/nt-catalog-approve';
+const WEBHOOK_URL   = PROXY_BASE + '/nt-catalog-webhook';
 let NT_TOKEN        = sessionStorage.getItem('nt_admin_token') || '';
 
 // State
@@ -219,7 +220,21 @@ function api(url, body) {
   <button class="btn btn-ghost"    id="btnRefetchAll"  onclick="fetchAll(true)"  style="border:1.5px solid #7c3aed;color:#7c3aed;">↺ Re-match All</button>
   <button class="btn btn-green"    id="btnPush"        onclick="pushAll()">📤 Send to Shopify</button>
   <button class="btn btn-ghost"    id="btnReload"      onclick="init()">↻ Reload</button>
+  <button class="btn btn-blue btn-sm" onclick="toggleAddProduct()" id="btnAddProduct">＋ Add Product</button>
   <input type="text" id="searchInp" placeholder="Search by title or handle…" oninput="onSearch()">
+</div>
+
+<!-- ── Add Product panel ─────────────────────────────────── -->
+<div id="add-product-panel" style="display:none;background:#f0f4ff;border-bottom:2px solid #c7d7fb;padding:10px 20px;">
+  <div style="display:flex;gap:6px;align-items:center;max-width:600px;">
+    <input id="add-product-input" type="text" placeholder="Search by product title…"
+      style="flex:1;border:1.5px solid #c7d7fb;border-radius:8px;padding:7px 12px;font-size:12px;font-family:'DM Sans',sans-serif;"
+      oninput="searchShopifyProducts(this.value)"
+      onkeydown="if(event.key==='Escape')toggleAddProduct()">
+    <button onclick="toggleAddProduct()" style="border:none;background:none;cursor:pointer;font-size:16px;color:var(--muted);">✕</button>
+  </div>
+  <div id="add-product-results" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow-y:auto;"></div>
+  <div id="add-product-status" style="font-size:11px;color:var(--muted);margin-top:4px;min-height:16px;"></div>
 </div>
 
 <!-- ── Activity bar ───────────────────────────────────────── -->
@@ -2154,6 +2169,67 @@ async function loadNotifications() {
     listEl.textContent = unseen.map(n => `${n.title}${n.classified ? ` (${n.related_count} related)` : ' (classify failed)'}`).join(' · ');
     banner.style.display = '';
   } catch(e) {}
+}
+
+// ── Manual Add Product ────────────────────────────────────
+let _addSearchTimer = null;
+
+function toggleAddProduct() {
+  const panel = document.getElementById('add-product-panel');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : '';
+  if (!isOpen) {
+    document.getElementById('add-product-input').value = '';
+    document.getElementById('add-product-results').innerHTML = '';
+    document.getElementById('add-product-status').textContent = '';
+    setTimeout(() => document.getElementById('add-product-input').focus(), 50);
+  }
+}
+
+function searchShopifyProducts(query) {
+  clearTimeout(_addSearchTimer);
+  if (!query.trim()) { document.getElementById('add-product-results').innerHTML = ''; return; }
+  document.getElementById('add-product-status').textContent = 'Searching…';
+  _addSearchTimer = setTimeout(async () => {
+    try {
+      const res = await api(WEBHOOK_URL, { action: 'search_products', query });
+      const results = res.results || [];
+      const el = document.getElementById('add-product-results');
+      document.getElementById('add-product-status').textContent = results.length ? '' : 'No products found.';
+      el.innerHTML = results.map(p => {
+        const exists = p.in_catalog;
+        return `<button onclick="manualAddProduct('${p.handle}')"
+          style="display:inline-flex;align-items:center;gap:5px;border:1.5px solid ${exists ? '#b8dfc8' : '#c7d7fb'};
+          border-radius:8px;padding:4px 10px;font-size:11px;cursor:${exists ? 'default' : 'pointer'};
+          background:${exists ? '#e8f5ec' : '#fff'};color:${exists ? 'var(--green)' : 'var(--brown)'};font-family:'DM Sans',sans-serif;font-weight:600;"
+          ${exists ? 'disabled' : ''}>
+          ${p.shopifyImage ? `<img src="${p.shopifyImage}" style="width:22px;height:22px;border-radius:4px;object-fit:cover;">` : ''}
+          ${p.title}${exists ? ' ✓' : ''}
+        </button>`;
+      }).join('');
+    } catch(e) {
+      document.getElementById('add-product-status').textContent = 'Search failed: ' + e.message;
+    }
+  }, 400);
+}
+
+async function manualAddProduct(handle) {
+  document.getElementById('add-product-status').textContent = `Adding ${handle}…`;
+  try {
+    const res = await api(WEBHOOK_URL, { action: 'manual_add', handle });
+    if (res.action === 'already_exists') {
+      toast('Already in catalog: ' + handle);
+    } else if (res.ok) {
+      toast(`✓ Added: ${handle} — ${res.related_count} related matched`);
+      toggleAddProduct();
+      await init();
+    } else {
+      toast('Failed: ' + (res.error || 'unknown'), true);
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  }
+  document.getElementById('add-product-status').textContent = '';
 }
 
 async function dismissNotifications() {
