@@ -447,10 +447,18 @@ function cardHTML(p) {
     ${(tax.occasions||[]).map(n => `<span class="related-chip" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;">${n.replace('occ.','')}</span>`).join('')}
   </div>` : '';
 
-  const chipsHTML = matched
-    ? `<div class="related-chips">${(matched.related || []).map(h =>
-        `<span class="related-chip">${h}</span>`).join('')}</div>`
-    : '';
+  const relatedList = matched?.related || [];
+  const chipsHTML = `<div class="related-chips" id="rel-chips-${handle}">
+    ${relatedList.map(h => `<span class="related-chip" style="display:inline-flex;align-items:center;gap:3px;">${esc(h)}<button onclick="removeRelated('${handle}','${h}')" style="background:none;border:none;cursor:pointer;color:#2563eb;font-size:10px;padding:0 0 0 2px;line-height:1;" title="Remove">×</button></span>`).join('')}
+    <button onclick="toggleRelSearch('${handle}')" style="background:none;border:1px dashed var(--border);border-radius:6px;padding:1px 7px;font-size:10px;color:var(--muted);cursor:pointer;">+ Add</button>
+  </div>
+  <div id="rel-search-wrap-${handle}" style="display:none;margin-top:4px;">
+    <div style="display:flex;gap:4px;">
+      <input id="rel-search-${handle}" type="text" placeholder="Search products…" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;" oninput="searchRelated('${handle}')">
+      <button onclick="toggleRelSearch('${handle}')" style="border:none;background:none;cursor:pointer;font-size:13px;color:var(--muted);">✕</button>
+    </div>
+    <div id="rel-results-${handle}" style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;max-height:80px;overflow-y:auto;"></div>
+  </div>`;
 
   const timeHTML = matched && matched.matched_at
     ? `<div class="matched-at">Matched ${fmtDate(matched.matched_at)}</div>`
@@ -643,6 +651,72 @@ async function fetchAll(refetchAll = false) {
 }
 
 // ── Fetch one ────────────────────────────────────────────
+function toggleRelSearch(handle) {
+  const wrap = document.getElementById('rel-search-wrap-' + handle);
+  if (!wrap) return;
+  const visible = wrap.style.display !== 'none';
+  wrap.style.display = visible ? 'none' : 'block';
+  if (!visible) {
+    const inp = document.getElementById('rel-search-' + handle);
+    if (inp) { inp.value = ''; inp.focus(); }
+    document.getElementById('rel-results-' + handle).innerHTML = '';
+  }
+}
+
+function searchRelated(handle) {
+  const q = document.getElementById('rel-search-' + handle)?.value?.toLowerCase().trim();
+  const resultsEl = document.getElementById('rel-results-' + handle);
+  if (!resultsEl) return;
+  if (!q) { resultsEl.innerHTML = ''; return; }
+  const current = matchedData[handle]?.related || [];
+  const matches = allProducts.filter(p => {
+    const h = p.handle || p.h || '';
+    const t = (p.title || p.t || p.tagline || p.tl || '').toLowerCase();
+    return h !== handle && !current.includes(h) && (h.includes(q) || t.includes(q));
+  }).slice(0, 12);
+  resultsEl.innerHTML = matches.map(p => {
+    const h = p.handle || p.h;
+    const t = p.title || p.t || p.tagline || p.tl || h;
+    return `<button onclick="addRelated('${handle}','${h}')" style="border:1px solid var(--border);background:#fff;border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;color:var(--brown);">${esc(t)}</button>`;
+  }).join('');
+}
+
+async function addRelated(handle, newHandle) {
+  if (!matchedData[handle]) matchedData[handle] = { handle, related: [], matched_at: new Date().toISOString() };
+  const rel = matchedData[handle].related;
+  if (rel.includes(newHandle)) return;
+  rel.push(newHandle);
+  await saveRelated(handle);
+  refreshRelChips(handle);
+  // clear that result button
+  document.getElementById('rel-results-' + handle)?.querySelectorAll('button').forEach(b => {
+    if (b.textContent && b.getAttribute('onclick')?.includes(newHandle)) b.remove();
+  });
+  toast('✓ Added ' + newHandle);
+}
+
+async function removeRelated(handle, removeHandle) {
+  if (!matchedData[handle]) return;
+  matchedData[handle].related = (matchedData[handle].related || []).filter(h => h !== removeHandle);
+  await saveRelated(handle);
+  refreshRelChips(handle);
+  toast('✓ Removed');
+}
+
+async function saveRelated(handle) {
+  try {
+    await api(RELATE_URL, { action: 'update_related', handle, related: matchedData[handle]?.related || [] });
+  } catch(e) { toast('Save failed: ' + e.message, true); }
+}
+
+function refreshRelChips(handle) {
+  const el = document.getElementById('rel-chips-' + handle);
+  if (!el) return;
+  const rel = matchedData[handle]?.related || [];
+  el.innerHTML = rel.map(h => `<span class="related-chip" style="display:inline-flex;align-items:center;gap:3px;">${esc(h)}<button onclick="removeRelated('${handle}','${h}')" style="background:none;border:none;cursor:pointer;color:#2563eb;font-size:10px;padding:0 0 0 2px;line-height:1;" title="Remove">×</button></span>`).join('')
+    + `<button onclick="toggleRelSearch('${handle}')" style="background:none;border:1px dashed var(--border);border-radius:6px;padding:1px 7px;font-size:10px;color:var(--muted);cursor:pointer;">+ Add</button>`;
+}
+
 async function fetchOne(handle) {
   const btn = document.getElementById('refetch-' + handle);
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-mini dark"></span>'; }
