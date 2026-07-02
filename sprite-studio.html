@@ -301,6 +301,7 @@ const RESULT_URL = FN_BASE + '/nt-sprite-result';
 const DIRECTOR_URL = FN_BASE + '/nt-sprite-director';
 const ANALYZE_URL = FN_BASE + '/nt-sprite-analyze';
 const INPAINT_URL = FN_BASE + '/nt-sprite-inpaint';
+const VISION_URL = FN_BASE + '/nt-sprite-vision';
 const LS_KEY = 'nt_sprite_studio_v3';
 const ALPHA_THRESHOLD = 12;
 
@@ -354,7 +355,7 @@ function projectMeta(p){
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
         wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
-        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, talkMouthOnly: sh.talkMouthOnly!==false, talkOpenIdx: (sh.talkOpenIdx==null?-1:sh.talkOpenIdx), talkBaseIdx: sh.talkBaseIdx||0, place: sh.place||null, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
+        overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, talkMouthOnly: sh.talkMouthOnly!==false, talkOpenIdx: (sh.talkOpenIdx==null?-1:sh.talkOpenIdx), talkBaseIdx: sh.talkBaseIdx||0, talkPrecise: !!sh.talkPrecise, visBoxes: sh.visBoxes||null, visBoxesFor: sh.visBoxesFor||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
         blinkPoseKey: sh.blinkPose ? (sh.blinkPoseKey||(sh.blinkPoseKey='blk_'+uid())) : null, blinkEyesOnly: sh.blinkEyesOnly!==false,
@@ -402,7 +403,7 @@ async function loadCloud(id){
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
       const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
-        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, talkMouthOnly:sh.talkMouthOnly!==false, talkOpenIdx:(sh.talkOpenIdx==null||sh.talkOpenIdx<0?null:sh.talkOpenIdx), talkBaseIdx:sh.talkBaseIdx||0, place:sh.place||null, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
+        overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, talkMouthOnly:sh.talkMouthOnly!==false, talkOpenIdx:(sh.talkOpenIdx==null||sh.talkOpenIdx<0?null:sh.talkOpenIdx), talkBaseIdx:sh.talkBaseIdx||0, talkPrecise:!!sh.talkPrecise, visBoxes:sh.visBoxes||null, visBoxesFor:sh.visBoxesFor||0, place:sh.place||null, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
       beat.takes=[]; for(const t of (sh.takes||[])){ let fr=null; if(t.framesKey){ try{ const raw=await cloudGet(t.framesKey); const arr=raw?JSON.parse(raw):null; if(Array.isArray(arr)&&arr.length){ fr=arr; frameSigs[t.framesKey]=framesSig(arr); } }catch(e){} } beat.takes.push({ id:t.id, framesKey:t.framesKey||null, frames:fr }); }
@@ -929,8 +930,21 @@ function buildPauseControls(sc, idx, sh, si){
   msel.onchange=()=>{ sh.moodOverride=msel.value; sh._moodSig=null; persist(); scheduleSave(); renderAll(); };
   moodRow.appendChild(ml); moodRow.appendChild(msel); wrap.appendChild(moodRow);
   if(useMood!=='neutral' && !exprPoseForMood(useMood)){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.innerHTML='⚠ No “'+useMood+'” pose in the palette yet — add one in <b>Gul’s expressions</b> (top) and the pause holds that face.'; wrap.appendChild(w); }
-  const freeNote=document.createElement('small'); freeNote.className='note'; freeNote.style.cssText='margin-top:8px;color:var(--ink2)'; freeNote.innerHTML='<b>Blink:</b> mark gpt’s eyes-closed frame with <b>👁</b> above — it becomes the blink in the pause. <b>Talk:</b> turn on this beat’s talk + “Mouth-only” and the beak is swapped from your open-mouth frame. Both use gpt’s own frames — no AI, nothing extra to place.';
+  const freeNote=document.createElement('small'); freeNote.className='note'; freeNote.style.cssText='margin-top:8px;color:var(--ink2)'; freeNote.innerHTML='<b>Blink:</b> mark gpt’s eyes-closed frame with <b>👁</b> above. <b>Talk:</b> turn on this beat’s talk + “Beak flap” and pick the closed/open frames. Both use gpt’s own frames.';
   wrap.appendChild(freeNote);
+  // 🔍 AI motion check (Claude vision) — only acts if it spots a real jump/bad frame.
+  const qcRow=document.createElement('div'); qcRow.style.cssText='margin-top:8px';
+  const qcBtn=document.createElement('button'); qcBtn.className='btn sm ghost'; qcBtn.style.cssText='width:100%'; qcBtn.textContent='🔍 AI check motion (fix jumps)';
+  qcBtn.onclick=async()=>{ const o=qcBtn.textContent; qcBtn.disabled=true; qcBtn.textContent='🔍 checking…'; try{ const res=await visionQC(sh);
+    if(res.ok){ showToast('✓ Motion looks clean — nothing to fix'); qcBtn.disabled=false; qcBtn.textContent=o; }
+    else { let msg=(res.applied?('Smoothed '+res.applied+' jump'+(res.applied>1?'s':'')):'No auto-fixes');
+      if(res.flags&&res.flags.length) msg+=' · check frame'+(res.flags.length>1?'s':'')+' #'+res.flags.join(', #')+' (tap ✕ to drop)';
+      showToast(msg); renderAll(); } }
+    catch(err){ qcBtn.disabled=false; qcBtn.textContent=o; alert('AI motion check failed: '+err.message); } };
+  qcRow.appendChild(qcBtn);
+  const qcNote=document.createElement('small'); qcNote.className='note'; qcNote.style.marginTop='4px'; qcNote.innerHTML='Claude looks at this beat’s frames and only acts if there’s a real problem — smooths a jump by dropping in an in-between, and flags any broken/duplicate frame for you to remove. ~₹1–2, runs only when you press it.';
+  qcRow.appendChild(qcNote);
+  wrap.appendChild(qcRow);
   return wrap;
 }
 // (Removed) AI-generated blink/talk thumbnails — the rig uses gpt's own frames now.
@@ -1107,6 +1121,11 @@ function buildSceneCard(sc, idx){
         sd.appendChild(mkPick('Open-mouth frame:', 'talkOpenIdx', 'Auto (most-open)'));
         const note=document.createElement('small'); note.className='note'; note.textContent='Tip: pick two frames with the SAME body pose (only the beak different) so nothing but the beak moves. It alternates them whole — no cutting, no smear.';
         sd.appendChild(note);
+        // AI-precise beak (Claude vision): freeze the CLOSED pose and swap only the beak at the
+        // vision-located box — the body can't move at all. For when the two frames' bodies differ.
+        const pr=document.createElement('label'); pr.className='chip'; pr.style.cssText='display:flex;margin-top:6px'; pr.innerHTML='<input type="checkbox" '+(sh.talkPrecise?'checked':'')+' style="margin:0 7px 0 0"> Freeze body — AI-precise beak (Claude finds the beak; only the beak moves) ·₹';
+        pr.querySelector('input').onchange=async ev=>{ sh.talkPrecise=ev.target.checked; sh._talkSig=null; if(sh.talkPrecise){ try{ await visionLocateBeat(sh); showToast('🔍 beak located'); }catch(e){ showToast('⚠ '+e.message); } } persist(); scheduleSave(); renderAll(); };
+        sd.appendChild(pr);
         if(sh._talkSig===talkSig(sh) && !sh.talkCycle){ const w=document.createElement('small'); w.className='note'; w.style.color='var(--accent)'; w.textContent='⚠ Pick the open-mouth frame above so the beak has an open state to flap to.'; sd.appendChild(w); }
       } }
     if(si>0 || idx>0){ const hb=document.createElement('button'); hb.className='btn sm ghost'; hb.style.cssText='margin-top:6px;width:100%'; hb.textContent='♻ Make this a HOLD of the previous pose (no generation)'; hb.title='If this beat is basically still, reuse the previous beat’s last frame instead of generating a near-duplicate that pulses'; hb.onclick=()=>{ sh.hold=true; persist(); scheduleSave(); renderAll(); }; sd.appendChild(hb); }
@@ -1575,6 +1594,40 @@ function buildMontage(frames){
       if(++loaded===frames.length) resolve(cv.toDataURL('image/png'));
     }; im.src=f; });
   });
+}
+// ===== Claude vision helpers =====
+// QC: send a numbered montage of the beat's frames; if Claude spots a real motion problem, auto-fix
+// jumps (drop in a morph between the two frames) and report the rest. No issue → does nothing.
+async function visionQC(sh){
+  if(!sh||!(sh.frames&&sh.frames.length>=2)) return {ok:true, issues:[], applied:0};
+  const montage=await buildMontage(sh.frames);
+  const r=await fetch(VISION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ mode:'qc', image:montage, count:sh.frames.length })});
+  let d; try{ d=await r.json(); }catch(e){ throw new Error('bad response'); }
+  if(d.error) throw new Error(d.error);
+  const issues=Array.isArray(d.issues)?d.issues:[];
+  if(d.ok || !issues.length) return {ok:true, issues:[], applied:0};
+  // Auto-fix JUMPS only (additive + safe): insert a morph between the two flagged frames. Work from
+  // the end so earlier indices stay valid. Other issue types are reported for the user to act on.
+  const jumps=issues.filter(x=>x.type==='jump'&&Array.isArray(x.frames)&&x.frames.length>=2)
+    .map(x=>({a:x.frames[0]-1,b:x.frames[1]-1})).filter(j=>j.a>=0&&j.b===j.a+1&&j.b<sh.frames.length)
+    .sort((p,q)=>q.a-p.a);
+  let applied=0;
+  for(const j of jumps){ try{ const mid=await blendFrames(sh.frames[j.a], sh.frames[j.b], 0.5); sh.frames.splice(j.b,0,mid); applied++; }catch(e){} }
+  if(applied){ clearRig(sh); sh.target=sh.frames.length; sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); }
+  const flags=[...new Set(issues.filter(x=>x.type==='bad'||x.type==='dup'||x.type==='jitter').flatMap(x=>x.frames||[]))];
+  return {ok:false, issues, applied, flags};
+}
+// Locate: ask Claude for the exact eye/beak boxes on the beat's settled pose (cached per pose), so
+// a region edit lands precisely instead of pixel-guessing.
+async function visionLocateBeat(sh){
+  const base=restSettled(sh)||((sh.frames||[])[(sh.frames||[]).length-1]); if(!base) throw new Error('no frame');
+  const sig=(base||'').length;
+  if(sh.visBoxes && sh.visBoxesFor===sig) return sh.visBoxes;
+  const r=await fetch(VISION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ mode:'locate', image:base })});
+  let d; try{ d=await r.json(); }catch(e){ throw new Error('bad response'); }
+  if(d.error) throw new Error(d.error);
+  sh.visBoxes={ eyes:d.eyes||null, beak:d.beak||null }; sh.visBoxesFor=sig; persist(); scheduleSave();
+  return sh.visBoxes;
 }
 // True if the image has an opaque (non-transparent) background — sample the four corners.
 function isOpaqueBg(dataUrl){
@@ -2332,10 +2385,17 @@ async function buildTalkCycle(sh){
   const closed = (sh.talkBaseIdx!=null && sh.talkBaseIdx>=0 && sh.talkBaseIdx<allFr.length) ? allFr[sh.talkBaseIdx] : settled;
   let openSrc = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0 && sh.talkOpenIdx<allFr.length) ? allFr[sh.talkOpenIdx] : null;
   if(!openSrc && fr.length>=2){ const oi=await pickOpenMouthIdx(fr, Math.max(0,fr.indexOf(settled)), await detectMouthBox(settled)); if(oi>=0 && fr[oi]!==closed) openSrc=fr[oi]; }
-  if(openSrc && openSrc!==closed){ sh.talkCycle=[closed, openSrc]; }
+  if(!openSrc || openSrc===closed) return;
+  // PRECISE (AI) — freeze the body: keep the CLOSED pose and swap ONLY the beak from the open frame,
+  // placed at Claude-vision's exact beak box (so nothing but the beak changes). Needs a located box.
+  if(sh.talkPrecise && sh.visBoxes && sh.visBoxes.beak){
+    try{ const oc=await featherBeakSwap(closed, openSrc, sh.visBoxes.beak); if(oc && oc!==closed){ sh.talkCycle=[closed, oc]; return; } }catch(e){}
+  }
+  // WHOLE-FRAME (default) — alternate the two whole frames as-is.
+  sh.talkCycle=[closed, openSrc];
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+blinkIdxOf(sh); }
+function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+blinkIdxOf(sh)+'|'+(sh.talkPrecise?'P':'W')+'|'+(sh.talkPrecise&&sh.visBoxes&&sh.visBoxes.beak?JSON.stringify(sh.visBoxes.beak):''); }
 function talkRun(sh){
   const fr=motionFramesOf(sh); if(!fr.length) return [];   // exclude the eyes-closed frame from the loop
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
