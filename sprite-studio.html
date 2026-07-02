@@ -354,7 +354,7 @@ function projectMeta(p){
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
-        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, talkOpenFrame: sh.talkOpenFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, talkOpenFrame: sh.talkOpenFrame||0, stillFrame: sh.stillFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
         overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, talkMouthOnly: sh.talkMouthOnly!==false, talkOpenIdx: (sh.talkOpenIdx==null?-1:sh.talkOpenIdx), talkBaseIdx: sh.talkBaseIdx||0, talkPrecise: !!sh.talkPrecise, visBoxes: sh.visBoxes||null, visBoxesFor: sh.visBoxesFor||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
@@ -402,7 +402,7 @@ async function loadCloud(id){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, talkOpenFrame:sh.talkOpenFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, talkOpenFrame:sh.talkOpenFrame||0, stillFrame:sh.stillFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
         overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, talkMouthOnly:sh.talkMouthOnly!==false, talkOpenIdx:(sh.talkOpenIdx==null||sh.talkOpenIdx<0?null:sh.talkOpenIdx), talkBaseIdx:sh.talkBaseIdx||0, talkPrecise:!!sh.talkPrecise, visBoxes:sh.visBoxes||null, visBoxesFor:sh.visBoxesFor||0, place:sh.place||null, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
@@ -1185,20 +1185,22 @@ function buildSceneCard(sc, idx){
         const wideHere=(sh.wide||[]).includes(i+1);
         const isBlink=(parseInt(sh.blinkFrame,10)||0)===i+1;
         const isTalkO=(parseInt(sh.talkOpenFrame,10)||0)===i+1;
-        const oc = wideHere?'var(--accent)' : isBlink?'#2f6fd4' : isTalkO?'#2a9d5a' : null;
-        const tag = wideHere?'⚠ ' : isBlink?'👁 ' : isTalkO?'🅑 ' : '';
+        const isStill=(parseInt(sh.stillFrame,10)||0)===i+1;
+        const oc = wideHere?'var(--accent)' : isStill?'#d4541f' : isBlink?'#2f6fd4' : isTalkO?'#2a9d5a' : null;
+        const tag = wideHere?'⚠ ' : isStill?'★ ' : isBlink?'👁 ' : isTalkO?'🅑 ' : '';
         const fr=document.createElement('div'); fr.className='fr';
         fr.innerHTML='<div class="box"'+(oc?(' style="outline:2px solid '+oc+'"'):'')+'><img src="'+f+'"></div><div class="lab"'+(oc?(' style="color:'+oc+'"'):'')+'>'+tag+'#'+(i+1)+'</div>';
         const fc=document.createElement('div'); fc.style.cssText='display:flex;gap:2px;justify-content:center;margin-top:3px';
         const edited=()=>{ sh.wide=[]; persist(); scheduleSave(); renderAll(); };
         const mk=(t,cls,fn)=>{ const b=document.createElement('button'); b.className='btn sm '+cls; b.style.cssText='padding:2px 0;font-size:10px;flex:1;min-width:0;border-radius:6px'; b.textContent=t; b.onclick=fn; return b; };
         fc.appendChild(mk('✕','danger',()=>{ sh.frames.splice(i,1); edited(); }));
+        fc.appendChild(mk('★','ghost',()=>{ sh.stillFrame=isStill?0:(i+1); sh._blinkSig=null; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }));
         fc.appendChild(mk('👁','ghost',()=>{ sh.blinkFrame=isBlink?0:(i+1); sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }));
-        fc.appendChild(mk('🅑','ghost',()=>{ sh.talkOpenFrame=isTalkO?0:(i+1); if(!isTalkO) sh.talk=true; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }));
+        fc.appendChild(mk('🅑','ghost',()=>{ sh.talkOpenFrame=isTalkO?0:(i+1); if(!isTalkO){ sh.talk=true; if(!(parseFloat(sh.talkSec)>0)) sh.talkSec=2.5; } sh._talkSig=null; persist(); scheduleSave(); renderAll(); }));
         fr.appendChild(fc); strip.appendChild(fr);
       });
       sd.appendChild(strip);
-      const fn=document.createElement('small'); fn.className='note'; fn.innerHTML='From gpt’s expression sheet, tag: <b>👁 = eyes-closed</b> frame (blink) and <b>🅑 = beak-open</b> frame (talk). Both are taken out of the motion; the plain frame that’s left is her settled pose. She blinks in the pause and flaps that beak when talking — no AI needed. (Tap ✕ to drop a frame. Re-slicing resets tags.)';
+      const fn=document.createElement('small'); fn.className='note'; fn.innerHTML='Tag 3 frames from the sheet: <b>★ = still</b> (her resting pose), <b>👁 = eyes-closed</b> (blink), <b>🅑 = beak-open</b> (talk). Once ★ is set, ALL other frames are ignored — she holds the still, blinks in the pause, and flaps the beak when talking. No AI, no manual cut. (✕ drops a frame.)';
       sd.appendChild(fn);
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
       { const tp=buildTransitionPanel(sc, idx, sh, si); if(tp) sd.appendChild(tp); }
@@ -2192,10 +2194,13 @@ async function composeEyeBlink(rest, closed, box){
 // flicks to the closed frame for the blink.
 function blinkIdxOf(sh){ const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const fr=(sh&&sh.frames)||[]; return (bi>=0&&bi<fr.length)?bi:-1; }
 function talkOpenIdxOf(sh){ const ti=(parseInt(sh&&sh.talkOpenFrame,10)||0)-1; const fr=(sh&&sh.frames)||[]; return (ti>=0&&ti<fr.length)?ti:-1; }
-// The still/settled pose = frames minus the tagged 👁 blink and 🅑 beak-open frames (they're
-// discrete states, not motion), so the pause holds the neutral pose.
-function motionFramesOf(sh){ const fr=(sh&&sh.frames)||[]; if(fr.length<=1) return fr; const drop=new Set([blinkIdxOf(sh),talkOpenIdxOf(sh)].filter(x=>x>=0)); const m=fr.filter((_,i)=>!drop.has(i)); return m.length?m:fr; }
-function restSettled(sh){ const m=motionFramesOf(sh); return m[m.length-1]||null; }
+function stillIdxOf(sh){ const si=(parseInt(sh&&sh.stillFrame,10)||0)-1; const fr=(sh&&sh.frames)||[]; return (si>=0&&si<fr.length)?si:-1; }
+// True when the beat is a tagged STILL (has a ★ still, 👁 blink or 🅑 talk tag): it's a still pose
+// that blinks/talks, NOT a motion animation — so we ignore all the other (varied) frames.
+function isStillBeat(sh){ return stillIdxOf(sh)>=0 || blinkIdxOf(sh)>=0 || talkOpenIdxOf(sh)>=0; }
+// The still/settled pose: the ★-tagged frame if set; else frames minus the 👁/🅑 tags.
+function motionFramesOf(sh){ const fr=(sh&&sh.frames)||[]; if(fr.length<=1) return fr; const si=stillIdxOf(sh); if(si>=0) return [fr[si]]; const drop=new Set([blinkIdxOf(sh),talkOpenIdxOf(sh)].filter(x=>x>=0)); const m=fr.filter((_,i)=>!drop.has(i)); return m.length?m:fr; }
+function restSettled(sh){ const si=stillIdxOf(sh); if(si>=0) return (sh.frames||[])[si]; const m=motionFramesOf(sh); return m[m.length-1]||null; }
 async function fitRest(sh){ if(sh) sh.restComposite=null; }   // legacy placed open-eye parts removed
 function restSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').length+'|'+blinkIdxOf(sh); }
 // Blink composite = ONLY the library / per-beat eyes-closed pose (eyes-only swap). The primary
@@ -2273,7 +2278,7 @@ async function aiTalk(sh){
   persist(); scheduleSave();
   return sh.aiTalkOpen;
 }
-function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+blinkIdxOf(sh); }
+function blinkSig(sh){ const fr=sh.frames||[]; const rest=fr[fr.length-1]||''; const box=(sh.rigRegions&&sh.rigRegions[0])?JSON.stringify(sh.rigRegions[0]):'auto'; const src=sh.blinkPose||libPose('blink')||''; return src.length+'|'+rest.length+'|'+box+'|'+(sh.blinkEyesOnly===false?'whole':'eye')+'|'+blinkIdxOf(sh)+'|'+stillIdxOf(sh); }
 // ===== Expression palette: a few project-wide Gul poses tagged with a MOOD. Claude tags each
 // pause with a mood; we drop the matching expression's FACE onto the resting body (body locked)
 // so the pause holds that emotion. Build the palette once, reuse on every beat/post. =====
@@ -2409,7 +2414,7 @@ async function buildTalkCycle(sh){
   if(sh.aiTalkOpen && sh.aiTalkFor===((settled||'').length)) sh.talkCycle=[settled, sh.aiTalkOpen];
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').length+'|'+blinkIdxOf(sh)+'|'+talkOpenIdxOf(sh)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'@'+(sh.aiTalkFor||0)):''); }
+function talkSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').length+'|'+blinkIdxOf(sh)+'|'+talkOpenIdxOf(sh)+'|'+stillIdxOf(sh)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'@'+(sh.aiTalkFor||0)):''); }
 function talkRun(sh){
   const fr=motionFramesOf(sh); if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
@@ -2539,7 +2544,9 @@ function beatPlayed(sh){
   out.push(...(talking ? talkRun(sh) : framesTimed(fr)));
   // hold the end pose. If Claude tagged a mood and the palette has it, hold that EXPRESSION face
   // through the pause (the emotion lands). Otherwise hold the rest pose and blink now and then.
-  const endN=Math.round(h.e*vf);
+  // A tagged still with a blink auto-holds a few seconds even if no pause was set, so she blinks.
+  const autoPause = (blink && isStillBeat(sh) && !(talking && parseFloat(sh.talkSec)>0)) ? Math.max(h.e, 2.6) : h.e;
+  const endN=Math.round(autoPause*vf);
   if(endN>0){ const every=Math.round(vf*2.8), dur=Math.max(3,Math.round(vf*0.12)), firstAt=Math.round(vf*0.6);
     const base = (sh&&sh.moodComposite) ? sh.moodComposite : (restSettled(sh)||fr[fr.length-1]);
     const wink = (sh&&sh.moodComposite) ? sh.moodBlink : blink;
