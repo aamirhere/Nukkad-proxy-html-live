@@ -1520,34 +1520,37 @@ async function selectGlobalPill(handle, idx) {
   const p = allProducts.find(x=>(x.handle||x.h)===handle);
   const quote = p?.title || p?.t || p?.tagline || p?.tl || '';
   const tax = taxonomyData[handle] || {};
-  // if pill has a reference scene, use a minimal base so the scene analysis drives everything
   const hasRefScene = !!(cs.analysis || cs.context);
   const basePrompt = hasRefScene
-    ? `Lifestyle product photography, shot on a mirrorless camera, natural light. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean serif lettering — sits upright on its own base. It casts a soft real shadow. It looks handcrafted: slightly imperfect edges, real paint texture, engraved grooves visible. If a person is in the frame, their eyes are directed at the plaque — a quiet moment of connection. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in, the frame breathes around it. Warm earthy tones, soft bokeh, natural imperfections in light and focus. Emotional, intimate, real.`
+    ? `Lifestyle product photography. A small decorative wooden desk plaque — matte painted surface, roughly 5 inches wide and 1 inch thick, solid and real, with the phrase "${quote}" engraved and painted onto its flat face in clean lettering — sits upright on its own base, casting a soft real shadow. It looks handcrafted: real paint texture, engraved grooves visible. The plaque occupies roughly one-third of the frame, clearly legible but not zoomed in. The frame breathes.`
     : buildStudioPrompt(quote, 'desk', tax);
 
   const ta = document.getElementById('stprompt-' + handle);
+  if (ta) { ta.value = ''; ta.placeholder = '⏳ Applying pill…'; }
+
+  // Build directive list:
+  // 1. Brain directives (global + product, product wins per type)
+  // 2. Pill scene context always goes as /scene — overrides brain scene if any
+  // 3. Pill appends stack with brain appends
   const { directives: brainDirs, appends: brainAppends } = getMergedBrain(handle);
-  // combine analysis + user instruction into the scene directive
-  const analysisPart = cs.analysis ? cs.analysis.trim() : '';
-  const userPart = cs.context ? cs.context.trim() : '';
-  const fullContext = [analysisPart, userPart].filter(Boolean).join('\n\n');
-  const contextParsed = parseBrain(userPart); // only parse user part for directives
+  const pillContextParsed = parseBrain(cs.context || '');
+
   const mergedDirs = {};
   for (const d of brainDirs) mergedDirs[d.type] = d.text;
-  for (const d of contextParsed.directives) mergedDirs[d.type] = d.text;
-  if (fullContext && !contextParsed.directives.length && !contextParsed.appends.length) {
-    mergedDirs['scene'] = fullContext;
-  }
-  const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
-  const allAppends = [...brainAppends, ...contextParsed.appends];
+  for (const d of pillContextParsed.directives) mergedDirs[d.type] = d.text;
 
-  if (!allDirs.length && !allAppends.length) {
-    if (ta) ta.value = basePrompt;
-    return;
-  }
-  if (ta) { ta.value = ''; ta.placeholder = '⏳ Applying pill…'; }
+  // Pill scene = analysis + user instruction, always wins as /scene
+  const analysisPart = cs.analysis ? cs.analysis.trim() : '';
+  const userPart = (cs.context && !pillContextParsed.directives.length && !pillContextParsed.appends.length)
+    ? cs.context.trim() : '';
+  const sceneContext = [analysisPart, userPart].filter(Boolean).join('\n\n');
+  if (sceneContext) mergedDirs['scene'] = sceneContext;
+
+  const allDirs = Object.entries(mergedDirs).map(([type, text]) => ({ type, text }));
+  const allAppends = [...brainAppends, ...pillContextParsed.appends];
+
   let prompt = basePrompt;
+  // Always run apply_brain if we have any brain directives, even without pill scene
   if (allDirs.length) {
     try {
       const directiveText = allDirs.map(d => `/${d.type} ${d.text}`).join('\n');
@@ -1556,7 +1559,6 @@ async function selectGlobalPill(handle, idx) {
     } catch {}
   }
   if (allAppends.length) prompt = prompt + '\n' + allAppends.join(' ');
-  // if pill has a reference image, tell the generator a scene reference photo is attached
   if (cs.refImage) {
     prompt = prompt + '\n\nIMPORTANT: A reference scene photo is attached — replicate its exact setting, lighting, environment, and person. Also attach the NukkadTales product reference image separately so the product colour and finish are accurate.';
   }
