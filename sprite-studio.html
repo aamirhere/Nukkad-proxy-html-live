@@ -935,10 +935,18 @@ function buildPauseControls(sc, idx, sh, si){
   // ✨ Generate blink (AI) — for beats that have no eyes-closed frame of their own. Closes only the
   // eyes on the settled pose (crop → paste) and stores it as this beat's blink.
   const genRow=document.createElement('div'); genRow.style.cssText='margin-top:8px';
-  const genBtn=document.createElement('button'); genBtn.className='btn sm'; genBtn.style.cssText='width:100%'; genBtn.textContent = sh.aiBlink ? '✨ Redo AI blink' : '✨ Generate blink (AI)';
+  const genRow2=document.createElement('div'); genRow2.className='row'; genRow2.style.cssText='gap:8px;flex-wrap:wrap';
+  const genBtn=document.createElement('button'); genBtn.className='btn sm'; genBtn.style.cssText='flex:1;min-width:130px'; genBtn.textContent = sh.aiBlink ? '✨ Redo AI blink' : '✨ Generate blink (AI)';
   genBtn.onclick=async()=>{ const o=genBtn.textContent; genBtn.disabled=true; genBtn.textContent='✨ closing eyes…'; try{ await aiCloseEyes(sh); showToast('✨ Blink ready'); renderAll(); }catch(err){ genBtn.disabled=false; genBtn.textContent=o; alert('Generate blink failed: '+err.message); } };
-  genRow.appendChild(genBtn);
-  if(sh.aiBlink){ const rm=document.createElement('a'); rm.href='#'; rm.textContent='remove AI blink'; rm.style.cssText='font-size:10px;color:var(--err);display:inline-block;margin-top:4px'; rm.onclick=(e)=>{ e.preventDefault(); sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; genRow.appendChild(rm); }
+  genRow2.appendChild(genBtn);
+  const genTalk=document.createElement('button'); genTalk.className='btn sm'; genTalk.style.cssText='flex:1;min-width:130px'; genTalk.textContent = sh.aiTalkOpen ? '✨ Redo AI talk' : '✨ Generate talk (AI)';
+  genTalk.onclick=async()=>{ const o=genTalk.textContent; genTalk.disabled=true; genTalk.textContent='✨ opening beak…'; try{ await aiTalk(sh); showToast('✨ Talk ready — beak flaps, body frozen'); renderAll(); }catch(err){ genTalk.disabled=false; genTalk.textContent=o; alert('Generate talk failed: '+err.message); } };
+  genRow2.appendChild(genTalk);
+  genRow.appendChild(genRow2);
+  const rmRow=document.createElement('div'); rmRow.style.cssText='margin-top:3px;display:flex;gap:12px';
+  if(sh.aiBlink){ const rm=document.createElement('a'); rm.href='#'; rm.textContent='remove blink'; rm.style.cssText='font-size:10px;color:var(--err)'; rm.onclick=(e)=>{ e.preventDefault(); sh.aiBlink=null; sh.aiBlinkFor=0; sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }; rmRow.appendChild(rm); }
+  if(sh.aiTalkOpen){ const rm=document.createElement('a'); rm.href='#'; rm.textContent='remove talk'; rm.style.cssText='font-size:10px;color:var(--err)'; rm.onclick=(e)=>{ e.preventDefault(); sh.aiTalkOpen=null; sh.aiTalkClosed=null; sh.aiTalkFor=0; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }; rmRow.appendChild(rm); }
+  genRow.appendChild(rmRow);
   wrap.appendChild(genRow);
   // 🔍 AI motion check (Claude vision) — only acts if it spots a real jump/bad frame.
   const qcRow=document.createElement('div'); qcRow.style.cssText='margin-top:8px';
@@ -1007,7 +1015,9 @@ function purgeLegacyRig(p){
   (p.scenes||[]).forEach(sc=>(sc.sheets||[]).forEach(sh=>{
     // Purge only the legacy MANUAL-PLACEMENT + stale AI-talk overlays (the blobs). Keep aiBlink —
     // it's the AI-generated blink source for beats with no eyes-closed frame of their own.
-    ['place','aiTalkOpen','aiTalkOpenKey','aiTalkClosed','aiTalkClosedKey','aiTalkFor','restComposite','blinkComposite','talkCycle'].forEach(k=>{ if(sh[k]!=null){ delete sh[k]; ch=true; } });
+    // Purge only the legacy MANUAL-PLACEMENT overlays (the blobs) + derived composites. Keep the
+    // AI-generated blink (aiBlink) and talk (aiTalkOpen/Closed) — those are valid frozen-body sources.
+    ['place','restComposite','blinkComposite','talkCycle'].forEach(k=>{ if(sh[k]!=null){ delete sh[k]; ch=true; } });
     sh._blinkSig=null; sh._talkSig=null; sh._restSig=null;
   }));
   p._rigPurged=true; return ch;
@@ -2255,11 +2265,11 @@ async function aiTalk(sh){
   await fitRest(sh);
   const base=restSettled(sh)||((sh.frames||[])[(sh.frames||[]).length-1]); if(!base) throw new Error('no frame to edit');
   const box=await detectMouthBox(base) || {x:0.34,y:0.5,w:0.32,h:0.22};
+  // Open the beak ON the settled pose (crop → paste). Closed phase = the natural settled frame, so
+  // both phases share the EXACT body — only the beak moves. One call.
   const openP='This is a close-up crop of a cartoon sparrow’s beak/mouth. OPEN the beak/mouth as if she is talking or singing, in the SAME art style and colours. Change ONLY the beak/mouth. Keep everything else in the crop identical, transparent background, no shadow, no border.';
-  const closedP='This is a close-up crop of a cartoon sparrow’s beak/mouth. Make the beak/mouth a small, calm CLOSED resting beak, in the SAME art style and colours. Change ONLY the beak/mouth. Keep everything else in the crop identical, transparent background, no shadow, no border.';
-  const [openImg, closedImg]=await Promise.all([ aiRegionEdit(base, openP, box, 0.45), aiRegionEdit(base, closedP, box, 0.45).catch(()=>null) ]);
-  sh.aiTalkOpen=openImg;
-  sh.aiTalkClosed=closedImg;
+  sh.aiTalkOpen=await aiRegionEdit(base, openP, box, 0.45);
+  sh.aiTalkClosed=null;
   sh.aiTalkFor=(base||'').length; sh.aiTalkOpenKey=null; sh.aiTalkClosedKey=null; sh._talkSig=null;
   if(!sh.talk){ sh.talk=true; if(!(parseFloat(sh.talkSec)>0)) sh.talkSec=2.5; }
   persist(); scheduleSave();
@@ -2394,10 +2404,13 @@ function beakOval(mb){ const cx=mb.x+mb.w/2, cy=mb.y+mb.h*0.35; const w=Math.min
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const allFr=(sh.frames||[]); if(!allFr.length) return;
   const fr=motionFramesOf(sh); if(!fr.length) return;
-  // WHOLE-FRAME flap — alternate TWO of gpt's own frames as-is: a closed-mouth pose and an
-  // open-mouth pose. No compositing, no detection, no seam. The user picks them (or we auto-pick
-  // the open one); pick two that share the body pose so only the beak differs.
   const settled=restSettled(sh)||fr[fr.length-1];
+  // PRIORITY — AI-generated talk: the open beak was made ON the settled pose (same body), so both
+  // phases share the EXACT body → nothing but the beak moves. Best, frozen-body flap.
+  if(sh.aiTalkOpen && sh.aiTalkFor===((settled||'').length)){ sh.talkCycle=[ sh.aiTalkClosed||settled, sh.aiTalkOpen ]; return; }
+  // WHOLE-FRAME flap — alternate TWO of gpt's own frames as-is: a closed-mouth pose and an
+  // open-mouth pose. Pick two that share the body pose so only the beak differs (else the body
+  // pulses — that's why AI-generated talk above is preferred).
   const closed = (sh.talkBaseIdx!=null && sh.talkBaseIdx>=0 && sh.talkBaseIdx<allFr.length) ? allFr[sh.talkBaseIdx] : settled;
   let openSrc = (sh.talkOpenIdx!=null && sh.talkOpenIdx>=0 && sh.talkOpenIdx<allFr.length) ? allFr[sh.talkOpenIdx] : null;
   if(!openSrc && fr.length>=2){ const oi=await pickOpenMouthIdx(fr, Math.max(0,fr.indexOf(settled)), await detectMouthBox(settled)); if(oi>=0 && fr[oi]!==closed) openSrc=fr[oi]; }
@@ -2411,7 +2424,7 @@ async function buildTalkCycle(sh){
   sh.talkCycle=[closed, openSrc];
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+blinkIdxOf(sh)+'|'+(sh.talkPrecise?'P':'W')+'|'+(sh.talkPrecise&&sh.visBoxes&&sh.visBoxes.beak?JSON.stringify(sh.visBoxes.beak):''); }
+function talkSig(sh){ const fr=sh.frames||[]; return (sh.talkMouthOnly===false?'off':'on')+'|'+(sh.talkBaseIdx||0)+'|'+(sh.talkOpenIdx==null?-1:sh.talkOpenIdx)+'|'+libSig()+'|'+fr.length+'|'+((fr[0]||'').length)+'|'+((fr[fr.length-1]||'').length)+'|'+blinkIdxOf(sh)+'|'+(sh.talkPrecise?'P':'W')+'|'+(sh.talkPrecise&&sh.visBoxes&&sh.visBoxes.beak?JSON.stringify(sh.visBoxes.beak):'')+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'@'+(sh.aiTalkFor||0)):''); }
 function talkRun(sh){
   const fr=motionFramesOf(sh); if(!fr.length) return [];   // exclude the eyes-closed frame from the loop
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
