@@ -354,7 +354,7 @@ function projectMeta(p){
       sheets:(s.sheets||[]).map(sh=>({ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows,
         sheetKey: sh.sheetImg ? (sh.sheetKey||(sh.sheetKey='img_'+uid())) : null,
         framesKey: (sh.frames&&sh.frames.length) ? (sh.framesKey||(sh.framesKey='frm_'+uid())) : null,
-        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
+        wide: sh.wide||[], detected: !!sh.detected, cuts: sh.cuts||null, review: sh.review||null, reviewed: !!sh._reviewed, holdStart: sh.holdStart||0, holdEnd: sh.holdEnd||0, blinkFrame: sh.blinkFrame||0, talkOpenFrame: sh.talkOpenFrame||0, say: sh.say||'', talk: !!sh.talk, hold: !!sh.hold,
         overlay: sh.overlay||'', mood: sh.mood||'neutral', moodOverride: sh.moodOverride||'', talkSec: sh.talkSec||0, talkMouthOnly: sh.talkMouthOnly!==false, talkOpenIdx: (sh.talkOpenIdx==null?-1:sh.talkOpenIdx), talkBaseIdx: sh.talkBaseIdx||0, talkPrecise: !!sh.talkPrecise, visBoxes: sh.visBoxes||null, visBoxesFor: sh.visBoxesFor||0, rig: !!sh.rig, rigBase: sh.rigBase||0, rigRegions: sh.rigRegions||null,
         takes: (sh.takes||[]).map(t=>({ id:t.id, framesKey:(t.frames&&t.frames.length)?(t.framesKey||(t.framesKey='tk_'+uid())):null })),
         transitionKey: (sh.transition&&sh.transition.length) ? (sh.transitionKey||(sh.transitionKey='trn_'+uid())) : null,
@@ -402,7 +402,7 @@ async function loadCloud(id){
     const sc={ id:s.id, hint:s.hint||'', title:s.title||'', summary:s.summary||'', approved:!!s.approved, pin:s.pin||null, pins:s.pins||null, previewPin:s.previewPin||null, placement:s.placement||'', durationSec:s.durationSec||0, loop:s.loop, timeline:s.timeline||null, refImage:null, refKey:s.refKey||null, sheets:[] };
     if(s.refKey){ try{ sc.refImage=await cloudGet(s.refKey); synced.add(s.refKey); }catch(e){} }
     for(const sh of (s.sheets||[])){
-      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
+      const beat={ id:sh.id, action:sh.action||'', target:sh.target, cols:sh.cols, rows:sh.rows, sheetImg:null, sheetKey:sh.sheetKey||null, framesKey:sh.framesKey||null, frames:null, wide:sh.wide||[], detected:!!sh.detected, cuts:sh.cuts||null, holdStart:sh.holdStart||0, holdEnd:sh.holdEnd||0, blinkFrame:sh.blinkFrame||0, talkOpenFrame:sh.talkOpenFrame||0, say:sh.say||'', talk:!!sh.talk, hold:!!sh.hold,
         overlay:sh.overlay||'', mood:sh.mood||'neutral', moodOverride:sh.moodOverride||'', talkSec:sh.talkSec||0, talkMouthOnly:sh.talkMouthOnly!==false, talkOpenIdx:(sh.talkOpenIdx==null||sh.talkOpenIdx<0?null:sh.talkOpenIdx), talkBaseIdx:sh.talkBaseIdx||0, talkPrecise:!!sh.talkPrecise, visBoxes:sh.visBoxes||null, visBoxesFor:sh.visBoxesFor||0, place:sh.place||null, rig:!!sh.rig, rigBase:sh.rigBase||0, rigRegions:Array.isArray(sh.rigRegions)?sh.rigRegions:null, rawFramesKey:sh.rawFramesKey||null, rawFrames:null };
       if(sh.sheetKey){ try{ beat.sheetImg=await cloudGet(sh.sheetKey); synced.add(sh.sheetKey); }catch(e){} }
       if(sh.rawFramesKey){ try{ const fr=await cloudGet(sh.rawFramesKey); const arr=fr?JSON.parse(fr):null; if(Array.isArray(arr)&&arr.length){ beat.rawFrames=arr; frameSigs[sh.rawFramesKey]=framesSig(arr); } }catch(e){} }
@@ -1218,19 +1218,21 @@ function buildSceneCard(sc, idx){
       sh.frames.forEach((f,i)=>{
         const wideHere=(sh.wide||[]).includes(i+1);
         const isBlink=(parseInt(sh.blinkFrame,10)||0)===i+1;
+        const isTalkO=(parseInt(sh.talkOpenFrame,10)||0)===i+1;
+        const oc = wideHere?'var(--accent)' : isBlink?'#2f6fd4' : isTalkO?'#2a9d5a' : null;
+        const tag = wideHere?'⚠ ' : isBlink?'👁 ' : isTalkO?'🅑 ' : '';
         const fr=document.createElement('div'); fr.className='fr';
-        fr.innerHTML='<div class="box"'+(wideHere?' style="outline:2px solid var(--accent)"':(isBlink?' style="outline:2px solid #2f6fd4"':''))+'><img src="'+f+'"></div><div class="lab"'+(wideHere?' style="color:var(--accent)"':(isBlink?' style="color:#2f6fd4"':''))+'>'+(wideHere?'⚠ ':(isBlink?'👁 ':''))+'#'+(i+1)+'</div>';
+        fr.innerHTML='<div class="box"'+(oc?(' style="outline:2px solid '+oc+'"'):'')+'><img src="'+f+'"></div><div class="lab"'+(oc?(' style="color:'+oc+'"'):'')+'>'+tag+'#'+(i+1)+'</div>';
         const fc=document.createElement('div'); fc.style.cssText='display:flex;gap:2px;justify-content:center;margin-top:3px';
         const edited=()=>{ sh.wide=[]; persist(); scheduleSave(); renderAll(); };
         const mk=(t,cls,fn)=>{ const b=document.createElement('button'); b.className='btn sm '+cls; b.style.cssText='padding:2px 0;font-size:10px;flex:1;min-width:0;border-radius:6px'; b.textContent=t; b.onclick=fn; return b; };
-        fc.appendChild(mk('◀','ghost',()=>{ if(i>0){ [sh.frames[i-1],sh.frames[i]]=[sh.frames[i],sh.frames[i-1]]; edited(); } }));
         fc.appendChild(mk('✕','danger',()=>{ sh.frames.splice(i,1); edited(); }));
-        fc.appendChild(mk(isBlink?'👁':'👁','ghost',()=>{ sh.blinkFrame=isBlink?0:(i+1); persist(); scheduleSave(); renderAll(); }));
-        fc.appendChild(mk('▶','ghost',()=>{ if(i<sh.frames.length-1){ [sh.frames[i+1],sh.frames[i]]=[sh.frames[i],sh.frames[i+1]]; edited(); } }));
+        fc.appendChild(mk('👁','ghost',()=>{ sh.blinkFrame=isBlink?0:(i+1); sh._blinkSig=null; persist(); scheduleSave(); renderAll(); }));
+        fc.appendChild(mk('🅑','ghost',()=>{ sh.talkOpenFrame=isTalkO?0:(i+1); if(!isTalkO) sh.talk=true; sh._talkSig=null; persist(); scheduleSave(); renderAll(); }));
         fr.appendChild(fc); strip.appendChild(fr);
       });
       sd.appendChild(strip);
-      const fn=document.createElement('small'); fn.className='note'; fn.innerHTML='Tap ✕ to drop a bad frame, ◀ ▶ to reorder. <b>👁 marks gpt’s eyes-closed frame</b> — that frame becomes the blink in the pause (and is taken out of the motion), so no AI needed. Ask gpt for one extra frame: the settled pose with eyes gently closed. (Re-slicing / changing crop resets these.)';
+      const fn=document.createElement('small'); fn.className='note'; fn.innerHTML='From gpt’s expression sheet, tag: <b>👁 = eyes-closed</b> frame (blink) and <b>🅑 = beak-open</b> frame (talk). Both are taken out of the motion; the plain frame that’s left is her settled pose. She blinks in the pause and flaps that beak when talking — no AI needed. (Tap ✕ to drop a frame. Re-slicing resets tags.)';
       sd.appendChild(fn);
       if(sh.takes && sh.takes.length>=2) sd.appendChild(buildMixPanel(sc, idx, sh, si));
       { const tp=buildTransitionPanel(sc, idx, sh, si); if(tp) sd.appendChild(tp); }
@@ -2178,7 +2180,10 @@ async function composeEyeBlink(rest, closed, box){
 // the blink. It is EXCLUDED from the motion/settled so the pause holds the open pose and only
 // flicks to the closed frame for the blink.
 function blinkIdxOf(sh){ const bi=(parseInt(sh&&sh.blinkFrame,10)||0)-1; const fr=(sh&&sh.frames)||[]; return (bi>=0&&bi<fr.length)?bi:-1; }
-function motionFramesOf(sh){ const fr=(sh&&sh.frames)||[]; const bi=blinkIdxOf(sh); return (bi>=0 && fr.length>1) ? fr.filter((_,i)=>i!==bi) : fr; }
+function talkOpenIdxOf(sh){ const ti=(parseInt(sh&&sh.talkOpenFrame,10)||0)-1; const fr=(sh&&sh.frames)||[]; return (ti>=0&&ti<fr.length)?ti:-1; }
+// The still/settled pose = frames minus the tagged 👁 blink and 🅑 beak-open frames (they're
+// discrete states, not motion), so the pause holds the neutral pose.
+function motionFramesOf(sh){ const fr=(sh&&sh.frames)||[]; if(fr.length<=1) return fr; const drop=new Set([blinkIdxOf(sh),talkOpenIdxOf(sh)].filter(x=>x>=0)); const m=fr.filter((_,i)=>!drop.has(i)); return m.length?m:fr; }
 function restSettled(sh){ const m=motionFramesOf(sh); return m[m.length-1]||null; }
 async function fitRest(sh){ if(sh) sh.restComposite=null; }   // legacy placed open-eye parts removed
 function restSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').length+'|'+blinkIdxOf(sh); }
@@ -2383,15 +2388,17 @@ async function featherBeakSwap(baseUrl, srcUrl, box){
 }
 // A TIGHT beak oval (centred on the beak, not reaching the belly/feet) from the mouth box.
 function beakOval(mb){ const cx=mb.x+mb.w/2, cy=mb.y+mb.h*0.35; const w=Math.min(0.34, mb.w*0.8), h=Math.min(0.2, mb.h*0.7); return { x:cx-w/2, y:cy-h/2, w, h }; }
-// TALK = hard-cut flap of TWO whole frames that share the exact body: the settled pose (beak
-// closed) and the AI-made open-beak version of that same pose. Only the beak differs → no body
-// movement, no compositing. If there's no AI talk yet, no cycle (talk holds steady).
+// TALK = hard-cut flap of TWO whole frames that share the body: the settled pose (beak closed) and
+// an open-beak version. Open beak source, in order: the 🅑-tagged gpt frame (free), else the AI-made
+// open beak. Whole frames only — no compositing. No source → no cycle (talk holds steady).
 async function buildTalkCycle(sh){
   sh.talkCycle=null; const settled=restSettled(sh); if(!settled) return;
+  const ti=talkOpenIdxOf(sh);
+  if(ti>=0){ const open=(sh.frames||[])[ti]; if(open && open!==settled){ sh.talkCycle=[settled, open]; return; } }
   if(sh.aiTalkOpen && sh.aiTalkFor===((settled||'').length)) sh.talkCycle=[settled, sh.aiTalkOpen];
 }
 function libSig(){ const p=curProj(); return ((p&&p.expressions)||[]).map(e=>(e.mood||'')+(e.pose?e.pose.length:0)).join('|'); }
-function talkSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').length+'|'+blinkIdxOf(sh)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'@'+(sh.aiTalkFor||0)):''); }
+function talkSig(sh){ const fr=sh.frames||[]; return (fr[fr.length-1]||'').length+'|'+blinkIdxOf(sh)+'|'+talkOpenIdxOf(sh)+'|'+(sh.aiTalkOpen?('at'+sh.aiTalkOpen.length+'@'+(sh.aiTalkFor||0)):''); }
 function talkRun(sh){
   const fr=motionFramesOf(sh); if(!fr.length) return [];
   const sec=Math.max(0, parseFloat(sh&&sh.talkSec)||0);
