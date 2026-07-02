@@ -199,6 +199,18 @@ function api(url, body) {
   <div id="global-brain-status" style="font-size:10px;color:rgba(255,255,255,.35);margin-top:4px;min-height:14px;"></div>
 </div>
 
+<!-- ── Auto-process notification banner ─────────────────── -->
+<div id="auto-notif-banner" style="display:none;background:#1a3d2b;border-bottom:2px solid #2d7d46;padding:10px 20px;">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:16px;">✦</span>
+    <div style="flex:1;min-width:0;">
+      <div id="auto-notif-text" style="font-size:12px;font-weight:700;color:#6ee7a0;"></div>
+      <div id="auto-notif-list" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;"></div>
+    </div>
+    <button onclick="dismissNotifications()" style="font-size:11px;padding:5px 14px;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.2);border-radius:20px;color:#fff;cursor:pointer;font-weight:700;white-space:nowrap;">Mark seen ✓</button>
+  </div>
+</div>
+
 <!-- ── Toolbar ───────────────────────────────────────────── -->
 <div class="toolbar">
   <button class="btn btn-primary"  id="btnClassify"    onclick="classifyAll(false)" title="Classify only unclassified products">🏷 Classify Pending</button>
@@ -2117,7 +2129,40 @@ function loadPillsFromStorage() {
     }
   } catch {}
 }
-window.addEventListener('load', async () => { if (NT_TOKEN) { loadPillsFromStorage(); await loadGlobalPills(); rebuildAllSceneChips(); } });
+window.addEventListener('load', async () => {
+  if (NT_TOKEN) {
+    loadPillsFromStorage();
+    await loadGlobalPills();
+    rebuildAllSceneChips();
+    await loadNotifications();
+  }
+});
+
+// ── Auto-process notifications ────────────────────────────
+async function loadNotifications() {
+  try {
+    const res = await api(RELATE_URL, { action: 'get_notifications' });
+    if (!res.ok || !res.notifications?.length) return;
+    const notifs = res.notifications;
+    const lastSeen = localStorage.getItem('nt_notif_seen') || '';
+    const unseen = notifs.filter(n => !lastSeen || n.added_at > lastSeen);
+    if (!unseen.length) return;
+    const banner = document.getElementById('auto-notif-banner');
+    const textEl = document.getElementById('auto-notif-text');
+    const listEl = document.getElementById('auto-notif-list');
+    textEl.textContent = `${unseen.length} new product${unseen.length > 1 ? 's' : ''} auto-processed since your last visit`;
+    listEl.textContent = unseen.map(n => `${n.title}${n.classified ? ` (${n.related_count} related)` : ' (classify failed)'}`).join(' · ');
+    banner.style.display = '';
+  } catch(e) {}
+}
+
+async function dismissNotifications() {
+  try {
+    await api(RELATE_URL, { action: 'dismiss_notifications' });
+    localStorage.setItem('nt_notif_seen', new Date().toISOString());
+  } catch(e) {}
+  document.getElementById('auto-notif-banner').style.display = 'none';
+}
 
 // ── View switcher ─────────────────────────────────────────
 let _currentView = 'products';
