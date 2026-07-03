@@ -1495,8 +1495,8 @@ async function writeGulPrompt(handle) {
       ref_image_b64,
     });
     if (res.ok && res.prompt) {
-      const ta = document.getElementById('stprompt-' + handle);
-      if (ta) ta.value = res.prompt;
+      if (respEl) { respEl.textContent = '✓ Prompt written! Applying brain…'; }
+      await applyBrainToPrompt(handle, res.prompt);
       if (respEl) { respEl.textContent = '✓ Prompt written! You can edit it above, then Copy or Generate.'; }
       toast('✓ Gul wrote your prompt');
     } else {
