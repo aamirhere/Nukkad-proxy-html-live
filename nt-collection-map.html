@@ -232,7 +232,7 @@ async function init() {
   setStatus('Loading…');
   try {
     const res = await api({ action: 'load' });
-    if (!res.ok) { setStatus('Error: ' + (res.error || 'load failed')); return; }
+    if (!res.ok) { setStatusHTML(`Error: ${res.error||'load failed'} — <a href="#" onclick="reAuth();return false" style="color:var(--accent)">Re-enter token</a>`); return; }
     allProducts    = res.products || [];
     allCollections = res.collections || [];
     mapData        = res.map || {};
@@ -243,8 +243,20 @@ async function init() {
   } catch(e) { setStatus('Error: ' + e.message); }
 }
 
+function reAuth() {
+  localStorage.removeItem('nt_admin_token');
+  TOKEN = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('auth-input').value = '';
+}
+}
+
 function setStatus(msg) {
   document.getElementById('status-bar').textContent = msg;
+}
+function setStatusHTML(html) {
+  document.getElementById('status-bar').innerHTML = html;
 }
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
