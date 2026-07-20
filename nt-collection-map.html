@@ -217,28 +217,22 @@ async function api(body) {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  setStatus('Loading…');
+  document.getElementById('products-view').innerHTML = '<p style="padding:40px;text-align:center;color:var(--muted)">⏳ Loading products…</p>';
   try {
     const res = await api({ action: 'load' });
-    if (!res.ok) { setStatusHTML(`Error: ${res.error||'load failed'} — <a href="#" onclick="reAuth();return false" style="color:var(--accent)">Re-enter token</a>`); return; }
+    if (!res.ok) {
+      document.getElementById('products-view').innerHTML = `<p style="padding:40px;text-align:center;color:#b91c1c">Error: ${res.error||'load failed'}</p>`;
+      return;
+    }
     allProducts    = res.products || [];
     allCollections = res.collections || [];
     mapData        = res.map || {};
     document.getElementById('hdr-counts').textContent = `${allProducts.length} products · ${allCollections.length} collections`;
-    setStatus('');
     renderProducts();
     renderCollections();
-  } catch(e) { setStatus('Error: ' + e.message); }
-}
-
-function reAuth() {
-  localStorage.removeItem('nt_admin_token');
-  TOKEN = '';
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('auth-input').value = '';
-}
+  } catch(e) {
+    document.getElementById('products-view').innerHTML = `<p style="padding:40px;text-align:center;color:#b91c1c">Error: ${e.message}</p>`;
+  }
 }
 
 function setStatus(msg) {
