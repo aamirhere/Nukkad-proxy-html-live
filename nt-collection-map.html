@@ -200,26 +200,22 @@ header h1 { font-family: var(--ff); font-size: 18px; font-weight: 700; flex: 1; 
 const PROXY_BASE = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
 const MAP_URL    = PROXY_BASE + '/nt-collection-map';
 
-let TOKEN = localStorage.getItem('nt_admin_token') || '';
-let allProducts   = [];  // { handle, title, assigned:[], primary }
-let allCollections = []; // { id, handle, title }
-let mapData = {};        // handle → { assigned:[], primary }
+let TOKEN = '';
+let allProducts   = [];
+let allCollections = [];
+let mapData = {};
 let currentTab = 'products';
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
-function doAuth() {
-  TOKEN = document.getElementById('auth-input').value.trim();
-  if (!TOKEN) return toast('Enter your token', true);
-  localStorage.setItem('nt_admin_token', TOKEN);
-  init();
-}
-if (TOKEN) init();
+// No auth required — go straight to init
+document.getElementById('auth-screen').style.display = 'none';
+init();
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api(body) {
   const r = await fetch(MAP_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   return r.json();
