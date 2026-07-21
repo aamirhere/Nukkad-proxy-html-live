@@ -181,7 +181,8 @@ let allCollections = [];
 let mapData = {};
 let currentTab = 'products';
 let searchTimer = null;
-let collExpandedData = {}; // collId → products[]
+let collExpandedData = {};   // collId → products[]
+let productMemberships = {}; // handle → Set of collIds (built as collections are expanded)
 
 async function api(body) {
   const r = await fetch(MAP_URL, {
@@ -262,16 +263,20 @@ function buildProductRow(p) {
     </span>`;
   }).join('');
 
+  const memTags = membershipTags(p.handle, null);
   return `<div class="prow" id="prow-${p.handle}">
-    <div style="min-width:160px;flex:0 0 auto">
+    <div style="min-width:0;flex:1">
       <div class="ptitle">${esc(p.title)}</div>
       <div class="phandle">${p.handle}</div>
+      ${memTags}
     </div>
-    <div class="chips-wrap">
-      ${chipsHTML}
+    <div style="flex-shrink:0;display:flex;flex-direction:column;gap:5px;align-items:flex-end;padding-left:10px">
+      <div class="chips-wrap" style="justify-content:flex-end">
+        ${chipsHTML || '<span style="font-size:11px;color:var(--muted);font-style:italic">No display set</span>'}
+      </div>
       <div class="picker-wrap" id="pwrap-${p.handle}">
-        <button class="add-chip-btn" onclick="togglePicker('${p.handle}')">+ Add</button>
-        <div class="picker-drop" id="pdrop-${p.handle}">
+        <button class="add-chip-btn" onclick="togglePicker('${p.handle}')">+ Set display collection</button>
+        <div class="picker-drop" id="pdrop-${p.handle}" style="right:0;left:auto">
           <div class="picker-search"><input type="text" placeholder="Search collections…" oninput="filterPicker('${p.handle}',this.value)" onclick="event.stopPropagation()"></div>
           <div id="pitems-${p.handle}">${buildPickerItems(p.handle)}</div>
         </div>
@@ -305,6 +310,20 @@ function closeAllPickers() {
   document.querySelectorAll('.picker-drop.open').forEach(d => d.classList.remove('open'));
 }
 document.addEventListener('click', e => { if (!e.target.closest('.picker-wrap')) closeAllPickers(); });
+
+function membershipTags(handle, excludeCollId) {
+  const ids = productMemberships[handle];
+  if (!ids || !ids.size) return '';
+  const tags = [...ids]
+    .filter(id => id !== excludeCollId)
+    .map(id => allCollections.find(c => c.id === id)?.title)
+    .filter(Boolean);
+  if (!tags.length) return '';
+  return `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">
+    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px">In:</span>
+    ${tags.map(t => `<span style="font-size:10px;background:#f1f5f9;color:var(--ink2);border-radius:4px;padding:1px 6px;border:1px solid var(--line)">${esc(t)}</span>`).join('')}
+  </div>`;
+}
 
 // ── ASSIGN LOGIC ───────────────────────────────────────────────────────────────
 function toggleAssigned(handle, collId) {
@@ -417,13 +436,17 @@ async function loadCollectionProducts(collId) {
 
 function renderCollProducts(collId, products) {
   const el = document.getElementById('cprods-' + collId);
-  // Update meta count (actual shopify members vs display-assigned)
   const metaEl = document.getElementById('cmeta-' + collId);
   const assignedCount = Object.values(mapData).filter(m => (m.assigned||[]).includes(collId)).length;
   if (metaEl) metaEl.textContent = `${products.length} products · ${assignedCount} display-assigned`;
 
-  if (!products.length) { el.innerHTML = '<p class="hint">No products in this collection</p>'; return; }
+  // Build reverse membership map
+  products.forEach(p => {
+    if (!productMemberships[p.handle]) productMemberships[p.handle] = new Set();
+    productMemberships[p.handle].add(collId);
+  });
 
+  if (!products.length) { el.innerHTML = '<p class="hint">No products in this collection</p>'; return; }
   el.innerHTML = products.map(p => buildCollProductRow(p, collId)).join('');
 }
 
@@ -454,6 +477,7 @@ function buildCollProductRow(p, collId) {
       <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
         ${chipsHTML || '<span style="font-size:11px;color:var(--muted);font-style:italic">No display collection set</span>'}
       </div>
+      ${membershipTags(p.handle, collId)}
     </div>
     <div style="flex-shrink:0;display:flex;flex-direction:column;gap:5px;align-items:flex-end;padding-left:10px">
       <button class="btn btn-sm ${isThisColl ? (isPrimary ? 'btn-green' : 'btn-accent') : 'btn-ghost'}"
