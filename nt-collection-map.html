@@ -148,6 +148,7 @@ header h1 { font-family: var(--ff); font-size: 18px; font-weight: 700; flex: 1; 
   <h1>✦ Collection Map</h1>
   <span id="hdr-counts" style="font-size:12px;color:rgba(255,255,255,.5)"></span>
   <button class="btn btn-outline btn-sm" onclick="refreshCollections()">↺ Collections</button>
+  <button class="btn btn-outline btn-sm" onclick="loadMemberships(true)" title="Reload collection memberships from Shopify">↺ Memberships</button>
   <button class="btn btn-green btn-sm" id="push-btn" onclick="pushToShopify()">↑ Push to Shopify</button>
 </header>
 
@@ -182,7 +183,7 @@ let mapData = {};
 let currentTab = 'products';
 let searchTimer = null;
 let collExpandedData = {};   // collId → products[]
-let productMemberships = {}; // handle → Set of collIds (built as collections are expanded)
+let productMemberships = {}; // handle → Set of collIds
 
 async function api(body) {
   const r = await fetch(MAP_URL, {
@@ -207,7 +208,8 @@ async function init() {
     mapData        = res.map || {};
     document.getElementById('hdr-counts').textContent = `${allCollections.length} collections`;
     renderCollections();
-    // Auto-load first 50 products
+    // Load memberships + first 50 products in parallel
+    loadMemberships();
     await searchProducts('');
   } catch(e) {
     document.getElementById('products-view').innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${e.message}</p>`;
@@ -310,6 +312,27 @@ function closeAllPickers() {
   document.querySelectorAll('.picker-drop.open').forEach(d => d.classList.remove('open'));
 }
 document.addEventListener('click', e => { if (!e.target.closest('.picker-wrap')) closeAllPickers(); });
+
+async function loadMemberships(force) {
+  try {
+    const res = await api({ action: 'load_memberships', force: !!force });
+    if (res.ok && res.memberships) {
+      // Convert arrays to Sets
+      productMemberships = {};
+      Object.entries(res.memberships).forEach(([h, ids]) => {
+        productMemberships[h] = new Set(ids);
+      });
+      // Re-render visible products to show membership tags
+      const pv = document.getElementById('products-view');
+      if (pv && pv.querySelector('.prow')) {
+        const q = document.getElementById('search-input').value.trim();
+        await searchProducts(q);
+      }
+      document.getElementById('hdr-counts').textContent =
+        `${allCollections.length} collections · memberships loaded${res.cached ? ' (cached)' : ''}`;
+    }
+  } catch {}
+}
 
 function membershipTags(handle, excludeCollId) {
   const ids = productMemberships[handle];
