@@ -105,13 +105,12 @@ header h1 { font-family: var(--ff); font-size: 18px; font-weight: 700; flex: 1; 
 .csect-body.open { display: block; }
 .csect-actions { padding: 10px 14px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .coll-prow {
-  padding: 10px 14px; display: flex; align-items: center; gap: 10px;
-  border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  padding: 10px 14px; display: flex; align-items: flex-start; gap: 10px;
+  border-bottom: 1px solid var(--line);
 }
 .coll-prow:last-child { border-bottom: none; }
-.coll-pname { font-size: 13px; font-weight: 600; flex: 1; min-width: 140px; }
+.coll-pname { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .coll-phandle { font-size: 11px; color: var(--muted); }
-.coll-prow-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
 /* PICKER DROPDOWN */
 .picker-wrap { position: relative; display: inline-block; }
@@ -432,36 +431,68 @@ function buildCollProductRow(p, collId) {
   const entry    = mapData[p.handle] || { assigned: [], primary: null };
   const assigned = entry.assigned || [];
   const primary  = entry.primary || null;
+  const isThisColl = assigned.includes(collId);
+  const isPrimary  = primary === collId;
+  const uid = `${collId}__${p.handle}`;
 
-  // Chips for all currently assigned display collections (with × and ★)
+  // Existing assigned chips (all, not just this collection)
   const chipsHTML = assigned.map(cid => {
     const c = allCollections.find(x => x.id === cid);
     if (!c) return '';
     const isp = primary === cid;
-    return `<span class="chip ${isp ? 'primary' : ''}" style="font-size:11px;padding:3px 8px">
-      <span class="chip-star ${isp ? 'on' : ''}" onclick="setPrimaryFromColl('${p.handle}','${cid}')" title="Set primary">★</span>
+    return `<span class="chip ${isp ? 'primary' : ''}" style="font-size:11px;padding:2px 8px;gap:3px">
+      <span class="chip-star ${isp ? 'on' : ''}" onclick="setPrimaryFromColl('${esc(p.handle)}','${cid}')" title="Set as primary">★</span>
       ${esc(c.title)}
-      <span class="chip-x" onclick="removeAssignedFromColl('${p.handle}','${cid}','${collId}')">×</span>
+      <span class="chip-x" onclick="removeAssignedFromColl('${esc(p.handle)}','${cid}','${collId}')">×</span>
     </span>`;
   }).join('');
 
-  const uid = `${collId}-${p.handle}`;
   return `<div class="coll-prow" id="crow-${uid}">
-    <div style="flex:1;min-width:140px">
+    <div style="flex:1;min-width:0;overflow:hidden">
       <div class="coll-pname">${esc(p.title)}</div>
-      <div class="coll-phandle">${p.handle}</div>
-      ${assigned.length ? `<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px">${chipsHTML}</div>` : '<div style="margin-top:3px;font-size:11px;color:var(--muted)">No display collection set</div>'}
+      <div class="coll-phandle">${esc(p.handle)}</div>
+      <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+        ${chipsHTML || '<span style="font-size:11px;color:var(--muted);font-style:italic">No display collection set</span>'}
+      </div>
     </div>
-    <div style="flex-shrink:0">
+    <div style="flex-shrink:0;display:flex;flex-direction:column;gap:5px;align-items:flex-end;padding-left:10px">
+      <button class="btn btn-sm ${isThisColl ? (isPrimary ? 'btn-green' : 'btn-accent') : 'btn-ghost'}"
+        onclick="quickAssignThisColl('${esc(p.handle)}','${collId}')">
+        ${isThisColl ? (isPrimary ? '★ Primary' : '✓ Assigned') : '+ This collection'}
+      </button>
       <div class="picker-wrap" id="cpwrap-${uid}">
-        <button class="add-chip-btn" onclick="toggleCollPicker('${uid}')">+ Assign collection</button>
-        <div class="picker-drop" id="cpdrop-${uid}">
-          <div class="picker-search"><input type="text" placeholder="Search collections…" oninput="filterCollPicker('${uid}','${p.handle}',this.value)" onclick="event.stopPropagation()"></div>
+        <button class="add-chip-btn" style="font-size:11px;padding:3px 8px" onclick="toggleCollPicker('${uid}')">Other collection…</button>
+        <div class="picker-drop" id="cpdrop-${uid}" style="right:0;left:auto">
+          <div class="picker-search"><input type="text" placeholder="Search…" oninput="filterCollPicker('${uid}','${esc(p.handle)}',this.value)" onclick="event.stopPropagation()"></div>
           <div id="cpitems-${uid}">${buildCollPickerItems(p.handle, uid)}</div>
         </div>
       </div>
     </div>
   </div>`;
+}
+
+function quickAssignThisColl(handle, collId) {
+  const assigned = mapData[handle]?.assigned || [];
+  const isAssigned = assigned.includes(collId);
+  if (!isAssigned) {
+    // Assign + set as primary
+    if (!mapData[handle]) mapData[handle] = { assigned: [], primary: null };
+    mapData[handle].assigned.push(collId);
+    mapData[handle].primary = collId;
+    toast('Assigned + set as primary');
+  } else if (mapData[handle].primary !== collId) {
+    // Already assigned but not primary → set primary
+    mapData[handle].primary = collId;
+    toast('Set as primary');
+  } else {
+    // Already primary → remove
+    mapData[handle].assigned = mapData[handle].assigned.filter(id => id !== collId);
+    mapData[handle].primary = mapData[handle].assigned[0] || null;
+    toast('Removed');
+  }
+  refreshCollectionProductRow(handle);
+  refreshProductRow(handle);
+  saveMap();
 }
 
 function buildCollPickerItems(handle, uid, filter) {
@@ -488,27 +519,22 @@ function toggleCollPicker(uid) {
 
 function toggleAssignedFromCollPicker(handle, cid, uid) {
   toggleAssigned(handle, cid);
-  // Rebuild items in picker
   const itemsEl = document.getElementById('cpitems-' + uid);
   if (itemsEl) itemsEl.innerHTML = buildCollPickerItems(handle, uid);
-  // Rebuild the row
-  const collId = uid.split('-')[0];
+  const collId = uid.split('__')[0];
   refreshCollRow(uid, handle, collId);
 }
 
 function removeAssignedFromColl(handle, cid, collId) {
   removeAssigned(handle, cid);
-  const uid = `${collId}-${handle}`;
+  const uid = `${collId}__${handle}`;
   refreshCollRow(uid, handle, collId);
 }
 
-function setPrimaryFromColl(handle, collId) {
-  setPrimary(handle, collId);
-  // Refresh all open collection bodies that show this handle
-  Object.keys(collExpandedData).forEach(cid => {
-    const uid = `${cid}-${handle}`;
-    if (document.getElementById('crow-' + uid)) refreshCollRow(uid, handle, cid);
-  });
+function setPrimaryFromColl(handle, cid) {
+  setPrimary(handle, cid);
+  refreshCollectionProductRow(handle);
+  refreshProductRow(handle);
 }
 
 function refreshCollRow(uid, handle, collId) {
@@ -536,7 +562,7 @@ function setAllPrimaryInColl(collId) {
 
 function refreshCollectionProductRow(handle) {
   Object.keys(collExpandedData).forEach(collId => {
-    const uid = `${collId}-${handle}`;
+    const uid = `${collId}__${handle}`;
     if (document.getElementById('crow-' + uid)) refreshCollRow(uid, handle, collId);
   });
 }
