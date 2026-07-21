@@ -17,174 +17,159 @@
   --bg: #fdf5ec;
   --card: #fff;
   --green: #15803d;
-  --green-bg: #dcfce7;
 }
 body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-height: 100vh; }
+
 header {
-  background: var(--ink);
-  color: #fff;
+  background: var(--ink); color: #fff;
   padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
 }
-header h1 { font-family: var(--ff); font-size: 18px; font-weight: 700; flex: 1; }
-.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-family: var(--fb); font-size: 13px; font-weight: 600; transition: opacity .15s; }
+header h1 { font-family: var(--ff); font-size: 18px; font-weight: 700; flex: 1; min-width: 160px; }
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-family: var(--fb); font-size: 13px; font-weight: 600; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn-accent { background: var(--accent); color: #fff; }
-.btn-outline { background: transparent; border: 1px solid rgba(255,255,255,.35); color: #fff; }
+.btn-outline { background: transparent; border: 1px solid rgba(255,255,255,.4); color: #fff; }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--ink2); }
 .btn-green { background: #15803d; color: #fff; }
+.btn-danger { background: #b91c1c; color: #fff; }
 
-/* AUTH */
-#auth-screen { display: flex; align-items: center; justify-content: center; min-height: 80vh; }
-.auth-box { background: var(--card); border-radius: 12px; padding: 32px; max-width: 340px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,.08); text-align: center; }
-.auth-box h2 { font-family: var(--ff); color: var(--ink); margin-bottom: 6px; }
-.auth-box p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-.auth-box input { width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
-
-/* TOOLBAR */
-#toolbar {
+/* TABS */
+.tabs {
   background: var(--card);
-  border-bottom: 1px solid var(--line);
-  padding: 10px 20px;
+  border-bottom: 2px solid var(--line);
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  gap: 0;
+  position: sticky; top: 0; z-index: 100;
 }
-#search-input {
-  flex: 1; min-width: 200px; max-width: 360px;
-  padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
-  font-size: 14px; font-family: var(--fb);
+.tab {
+  padding: 14px 22px; font-size: 14px; font-weight: 700; cursor: pointer;
+  border-bottom: 3px solid transparent; margin-bottom: -2px;
+  color: var(--muted); background: none; border-top: none; border-left: none; border-right: none;
+  font-family: var(--fb);
 }
-.tab-btn {
-  padding: 7px 16px; border-radius: 6px; border: 1px solid var(--line);
-  background: transparent; color: var(--ink2); font-family: var(--fb); font-size: 13px; font-weight: 600; cursor: pointer;
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-spacer { flex: 1; }
+.tab-search {
+  padding: 8px 14px;
+  display: flex; gap: 8px; align-items: center;
 }
-.tab-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.tab-search input {
+  padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px;
+  font-size: 14px; font-family: var(--fb); width: 220px; max-width: 50vw;
+}
 
 /* MAIN */
-#main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+#main { max-width: 1000px; margin: 0 auto; padding: 16px; }
 
-/* STATUS */
-#status-bar { font-size: 12px; color: var(--muted); padding: 6px 0 14px; }
-#push-status { font-size: 12px; padding: 6px 0; }
-
-/* PRODUCT VIEW */
-.product-row {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  flex-wrap: wrap;
+/* PRODUCT ROW */
+.prow {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 8px;
+  display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;
 }
-.product-row .ptitle { font-weight: 700; font-size: 14px; color: var(--ink); min-width: 180px; flex: 0 0 auto; }
-.product-row .phandle { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.chips-area { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; }
+.ptitle { font-weight: 700; font-size: 14px; color: var(--ink); }
+.phandle { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.chips-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; min-width: 0; }
 .chip {
-  display: inline-flex; align-items: center; gap: 4px;
+  display: inline-flex; align-items: center; gap: 3px;
   padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
   background: #fff7ed; color: var(--accent); border: 1px solid #fed7aa;
 }
 .chip.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-.chip .chip-x { cursor: pointer; opacity: .6; font-size: 11px; line-height: 1; margin-left: 2px; }
-.chip .chip-x:hover { opacity: 1; }
-.chip-add { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px dashed var(--line); color: var(--muted); background: transparent; cursor: pointer; }
-.chip-add:hover { border-color: var(--accent); color: var(--accent); }
-.star-btn { font-size: 14px; cursor: pointer; opacity: .4; margin-left: 2px; }
-.star-btn.active { opacity: 1; }
+.chip-x { cursor: pointer; opacity: .6; font-size: 11px; }
+.chip-x:hover { opacity: 1; }
+.chip-star { cursor: pointer; font-size: 11px; opacity: .5; margin-right: 1px; }
+.chip-star.on { opacity: 1; }
+.add-chip-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  border: 1px dashed var(--line); color: var(--muted); background: none; cursor: pointer;
+}
+.add-chip-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-/* COLLECTION VIEW */
-.coll-section {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  margin-bottom: 12px;
-  overflow: hidden;
+/* COLLECTION SECTION */
+.csect { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+.csect-hdr {
+  padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  cursor: pointer; user-select: none;
 }
-.coll-header {
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-.coll-header:hover { background: #fdf5ec; }
-.coll-title { font-weight: 700; font-size: 14px; flex: 1; }
-.coll-count { font-size: 12px; color: var(--muted); }
-.coll-chevron { font-size: 12px; color: var(--muted); transition: transform .2s; }
-.coll-chevron.open { transform: rotate(90deg); }
-.coll-body { display: none; border-top: 1px solid var(--line); padding: 12px 16px; }
-.coll-body.open { display: block; }
-.coll-assign-all { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
-.coll-assign-all button { font-size: 11px; padding: 3px 10px; }
-.coll-product-row {
-  display: flex; align-items: center; gap: 10px; padding: 6px 0;
+.csect-hdr:hover { background: var(--bg); }
+.csect-title { font-weight: 700; font-size: 14px; flex: 1; }
+.csect-meta { font-size: 12px; color: var(--muted); }
+.csect-chevron { font-size: 11px; color: var(--muted); transition: transform .2s; }
+.csect-chevron.open { transform: rotate(90deg); }
+.csect-body { display: none; border-top: 1px solid var(--line); }
+.csect-body.open { display: block; }
+.csect-actions { padding: 10px 14px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.coll-prow {
+  padding: 10px 14px; display: flex; align-items: center; gap: 10px;
   border-bottom: 1px solid var(--line); flex-wrap: wrap;
 }
-.coll-product-row:last-child { border-bottom: none; }
-.coll-product-name { font-size: 13px; font-weight: 600; flex: 1; min-width: 160px; }
-.coll-product-handle { font-size: 11px; color: var(--muted); }
+.coll-prow:last-child { border-bottom: none; }
+.coll-pname { font-size: 13px; font-weight: 600; flex: 1; min-width: 140px; }
+.coll-phandle { font-size: 11px; color: var(--muted); }
+.coll-prow-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
-/* DROPDOWN MENU */
-.coll-picker-wrap { position: relative; display: inline-block; }
-.coll-picker {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 200;
-  background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.12);
-  min-width: 220px; max-height: 260px; overflow-y: auto; display: none;
+/* PICKER DROPDOWN */
+.picker-wrap { position: relative; display: inline-block; }
+.picker-drop {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 300;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.12); min-width: 220px; max-height: 240px;
+  overflow-y: auto; display: none;
 }
-.coll-picker.open { display: block; }
-.coll-picker-search { padding: 8px 10px; border-bottom: 1px solid var(--line); }
-.coll-picker-search input { width: 100%; border: none; outline: none; font-size: 13px; }
-.coll-picker-item { padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-.coll-picker-item:hover { background: var(--bg); }
-.coll-picker-item.selected { color: var(--accent); font-weight: 600; }
+.picker-drop.open { display: block; }
+.picker-search { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.picker-search input { width: 100%; border: none; outline: none; font-size: 13px; font-family: var(--fb); }
+.picker-item { padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.picker-item:hover { background: var(--bg); }
+.picker-item.sel { color: var(--accent); font-weight: 700; }
+
+/* PUSH STATUS */
+#push-status { font-size: 12px; padding: 4px 0 12px; }
 
 /* TOAST */
 #toast {
-  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
   background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px;
-  font-size: 13px; font-weight: 600; display: none; pointer-events: none;
+  font-size: 13px; font-weight: 600; display: none;
   box-shadow: 0 4px 16px rgba(0,0,0,.25);
 }
 #toast.err { background: #b91c1c; }
+
+.hint { color: var(--muted); font-size: 13px; text-align: center; padding: 40px 20px; }
 </style>
 </head>
 <body>
 
-<div id="auth-screen" style="display:none"></div>
+<header>
+  <h1>✦ Collection Map</h1>
+  <span id="hdr-counts" style="font-size:12px;color:rgba(255,255,255,.5)"></span>
+  <button class="btn btn-outline btn-sm" onclick="refreshCollections()">↺ Collections</button>
+  <button class="btn btn-green btn-sm" id="push-btn" onclick="pushToShopify()">↑ Push to Shopify</button>
+</header>
 
-<div id="app">
-  <header>
-    <h1>✦ Collection Map</h1>
-    <span style="font-size:12px;color:rgba(255,255,255,.5)" id="hdr-counts"></span>
-    <button class="btn btn-outline btn-sm" onclick="refreshCollections()">↺ Refresh Collections</button>
-    <button class="btn btn-green btn-sm" id="push-btn" onclick="pushToShopify()">↑ Push to Shopify</button>
-  </header>
-
-  <div id="toolbar">
-    <input type="text" id="search-input" placeholder="Search products…" oninput="renderProducts()" />
-    <button class="tab-btn active" id="tab-products" onclick="switchTab('products')">Products</button>
-    <button class="tab-btn" id="tab-collections" onclick="switchTab('collections')">Collections</button>
-    <span id="status-bar"></span>
+<div class="tabs">
+  <button class="tab active" id="tab-products" onclick="switchTab('products')">Products</button>
+  <button class="tab" id="tab-collections" onclick="switchTab('collections')">Collections</button>
+  <div class="tab-spacer"></div>
+  <div class="tab-search" id="product-search-wrap">
+    <input type="text" id="search-input" placeholder="Search products…" oninput="onSearchInput(this.value)">
   </div>
-
-  <div id="main">
-    <div id="push-status"></div>
-    <div id="products-view"></div>
-    <div id="collections-view" style="display:none"></div>
+  <div class="tab-search" id="coll-search-wrap" style="display:none">
+    <input type="text" id="coll-search-input" placeholder="Filter collections…" oninput="filterCollections(this.value)">
   </div>
+</div>
+
+<div id="main">
+  <div id="push-status"></div>
+  <div id="products-view">
+    <p class="hint">Type a product name above to search</p>
+  </div>
+  <div id="collections-view" style="display:none"></div>
 </div>
 
 <div id="toast"></div>
@@ -193,18 +178,12 @@ header h1 { font-family: var(--ff); font-size: 18px; font-weight: 700; flex: 1; 
 const PROXY_BASE = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions';
 const MAP_URL    = PROXY_BASE + '/nt-collection-map';
 
-let TOKEN = '';
-let allProducts   = [];
 let allCollections = [];
 let mapData = {};
 let currentTab = 'products';
+let searchTimer = null;
+let collExpandedData = {}; // collId → products[]
 
-// ── AUTH ─────────────────────────────────────────────────────────────────────
-// No auth required — go straight to init
-document.getElementById('auth-screen').style.display = 'none';
-init();
-
-// ── API ───────────────────────────────────────────────────────────────────────
 async function api(body) {
   const r = await fetch(MAP_URL, {
     method: 'POST',
@@ -216,324 +195,335 @@ async function api(body) {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('products-view').innerHTML = '<p style="padding:40px;text-align:center;color:var(--muted)">⏳ Loading products…</p>';
+  document.getElementById('hdr-counts').textContent = 'Loading…';
   try {
     const res = await api({ action: 'load' });
     if (!res.ok) {
-      document.getElementById('products-view').innerHTML = `<p style="padding:40px;text-align:center;color:#b91c1c">Error: ${res.error||'load failed'}</p>`;
+      document.getElementById('products-view').innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${res.error}</p>`;
       return;
     }
-    allProducts    = res.products || [];
     allCollections = res.collections || [];
     mapData        = res.map || {};
-    document.getElementById('hdr-counts').textContent = `${allProducts.length} products · ${allCollections.length} collections`;
-    renderProducts();
+    document.getElementById('hdr-counts').textContent = `${allCollections.length} collections`;
     renderCollections();
   } catch(e) {
-    document.getElementById('products-view').innerHTML = `<p style="padding:40px;text-align:center;color:#b91c1c">Error: ${e.message}</p>`;
+    document.getElementById('products-view').innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${e.message}</p>`;
   }
 }
-
-function setStatus(msg) {
-  document.getElementById('status-bar').textContent = msg;
-}
-function setStatusHTML(html) {
-  document.getElementById('status-bar').innerHTML = html;
-}
+init();
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
-  document.getElementById('products-view').style.display = tab === 'products' ? '' : 'none';
+  document.getElementById('products-view').style.display    = tab === 'products'    ? '' : 'none';
   document.getElementById('collections-view').style.display = tab === 'collections' ? '' : 'none';
-  document.getElementById('tab-products').classList.toggle('active', tab === 'products');
+  document.getElementById('tab-products').classList.toggle('active',    tab === 'products');
   document.getElementById('tab-collections').classList.toggle('active', tab === 'collections');
+  document.getElementById('product-search-wrap').style.display = tab === 'products'    ? '' : 'none';
+  document.getElementById('coll-search-wrap').style.display    = tab === 'collections' ? '' : 'none';
 }
 
-// ── SAVE ──────────────────────────────────────────────────────────────────────
-async function saveMap() {
+// ── PRODUCT SEARCH ─────────────────────────────────────────────────────────────
+function onSearchInput(val) {
+  clearTimeout(searchTimer);
+  if (!val.trim()) {
+    document.getElementById('products-view').innerHTML = '<p class="hint">Type a product name above to search</p>';
+    return;
+  }
+  document.getElementById('products-view').innerHTML = '<p class="hint">Searching…</p>';
+  searchTimer = setTimeout(() => searchProducts(val.trim()), 400);
+}
+
+async function searchProducts(q) {
   try {
-    await api({ action: 'save_map', map: mapData });
-  } catch {}
+    const res = await api({ action: 'search_products', query: q });
+    if (!res.ok) { document.getElementById('products-view').innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${res.error}</p>`; return; }
+    const products = res.products || [];
+    if (!products.length) { document.getElementById('products-view').innerHTML = '<p class="hint">No products found</p>'; return; }
+    document.getElementById('products-view').innerHTML = products.map(p => buildProductRow(p)).join('');
+  } catch(e) {
+    document.getElementById('products-view').innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${e.message}</p>`;
+  }
 }
 
-// ── PRODUCT VIEW ─────────────────────────────────────────────────────────────
-function renderProducts() {
-  const q = document.getElementById('search-input').value.toLowerCase();
-  const filtered = q
-    ? allProducts.filter(p => p.title.toLowerCase().includes(q) || p.handle.toLowerCase().includes(q))
-    : allProducts;
-
-  const el = document.getElementById('products-view');
-  if (!filtered.length) { el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px">No products found</p>'; return; }
-
-  el.innerHTML = filtered.map(p => buildProductRow(p)).join('');
-}
-
+// ── PRODUCT ROW ────────────────────────────────────────────────────────────────
 function buildProductRow(p) {
   const entry = mapData[p.handle] || { assigned: [], primary: null };
-  const chipsHTML = entry.assigned.map(cid => {
+  const chipsHTML = (entry.assigned || []).map(cid => {
     const c = allCollections.find(x => x.id === cid);
     if (!c) return '';
     const isPrimary = entry.primary === cid;
-    return `<span class="chip ${isPrimary ? 'primary' : ''}" id="chip-${p.handle}-${cid}">
-      ${isPrimary ? '★ ' : ''}<span class="star-btn ${isPrimary ? 'active' : ''}" onclick="setPrimary('${p.handle}','${cid}')" title="Set as primary (shown on product page)">★</span>
+    return `<span class="chip ${isPrimary ? 'primary' : ''}">
+      <span class="chip-star ${isPrimary ? 'on' : ''}" onclick="setPrimary('${p.handle}','${cid}')" title="Set as primary">★</span>
       ${esc(c.title)}
-      <span class="chip-x" onclick="removeCollection('${p.handle}','${cid}')">×</span>
+      <span class="chip-x" onclick="removeAssigned('${p.handle}','${cid}')">×</span>
     </span>`;
   }).join('');
 
-  return `<div class="product-row" id="prow-${p.handle}">
-    <div>
+  return `<div class="prow" id="prow-${p.handle}">
+    <div style="min-width:160px;flex:0 0 auto">
       <div class="ptitle">${esc(p.title)}</div>
       <div class="phandle">${p.handle}</div>
     </div>
-    <div class="chips-area">
+    <div class="chips-wrap">
       ${chipsHTML}
-      <div class="coll-picker-wrap" id="wrap-${p.handle}">
-        <button class="chip-add" onclick="togglePicker('${p.handle}')">+ Add collection</button>
-        <div class="coll-picker" id="picker-${p.handle}">
-          <div class="coll-picker-search"><input type="text" placeholder="Search collections…" oninput="filterPicker('${p.handle}',this.value)" onclick="event.stopPropagation()"></div>
-          <div id="picker-items-${p.handle}">
-            ${buildPickerItems(p.handle)}
-          </div>
+      <div class="picker-wrap" id="pwrap-${p.handle}">
+        <button class="add-chip-btn" onclick="togglePicker('${p.handle}')">+ Add</button>
+        <div class="picker-drop" id="pdrop-${p.handle}">
+          <div class="picker-search"><input type="text" placeholder="Search collections…" oninput="filterPicker('${p.handle}',this.value)" onclick="event.stopPropagation()"></div>
+          <div id="pitems-${p.handle}">${buildPickerItems(p.handle)}</div>
         </div>
       </div>
     </div>
   </div>`;
 }
 
-function buildPickerItems(handle) {
-  const entry = mapData[handle] || { assigned: [], primary: null };
-  return allCollections.map(c => {
-    const sel = entry.assigned.includes(c.id);
-    return `<div class="coll-picker-item ${sel ? 'selected' : ''}" onclick="toggleCollection('${handle}','${c.id}','${esc(c.title)}')">${sel ? '✓ ' : ''}${esc(c.title)}</div>`;
-  }).join('');
-}
-
-function filterPicker(handle, q) {
-  const el = document.getElementById('picker-items-' + handle);
-  const entry = mapData[handle] || { assigned: [], primary: null };
-  const lq = q.toLowerCase();
-  el.innerHTML = allCollections
-    .filter(c => !lq || c.title.toLowerCase().includes(lq))
+function buildPickerItems(handle, filter) {
+  const entry = mapData[handle] || { assigned: [] };
+  const lf = (filter || '').toLowerCase();
+  return allCollections
+    .filter(c => !lf || c.title.toLowerCase().includes(lf))
     .map(c => {
-      const sel = entry.assigned.includes(c.id);
-      return `<div class="coll-picker-item ${sel ? 'selected' : ''}" onclick="toggleCollection('${handle}','${c.id}','${esc(c.title)}')">${sel ? '✓ ' : ''}${esc(c.title)}</div>`;
+      const sel = (entry.assigned || []).includes(c.id);
+      return `<div class="picker-item ${sel ? 'sel' : ''}" onclick="toggleAssigned('${handle}','${c.id}')">${sel ? '✓ ' : ''}${esc(c.title)}</div>`;
     }).join('');
 }
 
+function filterPicker(handle, val) {
+  document.getElementById('pitems-' + handle).innerHTML = buildPickerItems(handle, val);
+}
+
 function togglePicker(handle) {
-  const picker = document.getElementById('picker-' + handle);
-  const isOpen = picker.classList.contains('open');
+  const drop = document.getElementById('pdrop-' + handle);
+  const open = drop.classList.contains('open');
   closeAllPickers();
-  if (!isOpen) {
-    picker.classList.add('open');
-    picker.querySelector('input')?.focus();
-  }
+  if (!open) { drop.classList.add('open'); drop.querySelector('input')?.focus(); }
 }
-
 function closeAllPickers() {
-  document.querySelectorAll('.coll-picker.open').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('.picker-drop.open').forEach(d => d.classList.remove('open'));
 }
+document.addEventListener('click', e => { if (!e.target.closest('.picker-wrap')) closeAllPickers(); });
 
-document.addEventListener('click', e => {
-  if (!e.target.closest('.coll-picker-wrap')) closeAllPickers();
-});
-
-function toggleCollection(handle, collId, collTitle) {
+// ── ASSIGN LOGIC ───────────────────────────────────────────────────────────────
+function toggleAssigned(handle, collId) {
   if (!mapData[handle]) mapData[handle] = { assigned: [], primary: null };
   const arr = mapData[handle].assigned;
   const idx = arr.indexOf(collId);
   if (idx === -1) {
     arr.push(collId);
     if (!mapData[handle].primary) mapData[handle].primary = collId;
-    toast(`Added: ${collTitle}`);
+    toast('Added: ' + (allCollections.find(c=>c.id===collId)?.title || collId));
   } else {
     arr.splice(idx, 1);
     if (mapData[handle].primary === collId) mapData[handle].primary = arr[0] || null;
-    toast(`Removed: ${collTitle}`);
+    toast('Removed collection');
   }
-  // Sync to allProducts
-  const prod = allProducts.find(p => p.handle === handle);
-  if (prod) { prod.assigned = [...arr]; prod.primary = mapData[handle].primary; }
   refreshProductRow(handle);
-  refreshCollectionRow(handle);
+  refreshCollectionProductRow(handle);
   saveMap();
 }
 
-function removeCollection(handle, collId) {
+function removeAssigned(handle, collId) {
   if (!mapData[handle]) return;
-  mapData[handle].assigned = mapData[handle].assigned.filter(id => id !== collId);
+  mapData[handle].assigned = (mapData[handle].assigned || []).filter(id => id !== collId);
   if (mapData[handle].primary === collId) mapData[handle].primary = mapData[handle].assigned[0] || null;
-  const prod = allProducts.find(p => p.handle === handle);
-  if (prod) { prod.assigned = [...mapData[handle].assigned]; prod.primary = mapData[handle].primary; }
   refreshProductRow(handle);
-  refreshCollectionRow(handle);
+  refreshCollectionProductRow(handle);
   saveMap();
 }
 
 function setPrimary(handle, collId) {
   if (!mapData[handle]) return;
   mapData[handle].primary = collId;
-  const prod = allProducts.find(p => p.handle === handle);
-  if (prod) prod.primary = collId;
-  const c = allCollections.find(x => x.id === collId);
-  toast(`Primary: ${c?.title || collId}`);
+  toast('Primary: ' + (allCollections.find(c=>c.id===collId)?.title || collId));
   refreshProductRow(handle);
+  refreshCollectionProductRow(handle);
   saveMap();
 }
 
 function refreshProductRow(handle) {
   const el = document.getElementById('prow-' + handle);
   if (!el) return;
-  const prod = allProducts.find(p => p.handle === handle);
-  if (!prod) return;
-  el.outerHTML = buildProductRow(prod);
+  // Re-fetch current product data from the DOM title/handle
+  const titleEl = el.querySelector('.ptitle');
+  const handleEl = el.querySelector('.phandle');
+  const p = { handle, title: titleEl?.textContent || handle, assigned: mapData[handle]?.assigned || [], primary: mapData[handle]?.primary };
+  el.outerHTML = buildProductRow(p);
 }
 
-// ── COLLECTION VIEW ───────────────────────────────────────────────────────────
+// ── COLLECTION VIEW ────────────────────────────────────────────────────────────
 function renderCollections() {
   const el = document.getElementById('collections-view');
-  if (!allCollections.length) {
-    el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:40px">No collections loaded. Click "↺ Refresh Collections".</p>';
-    return;
-  }
-
-  el.innerHTML = allCollections.map(c => {
-    const productsInColl = allProducts.filter(p => (mapData[p.handle]?.assigned || []).includes(c.id));
-    return `<div class="coll-section" id="csect-${c.id}">
-      <div class="coll-header" onclick="toggleCollSection('${c.id}')">
-        <span class="coll-title">${esc(c.title)}</span>
-        <span class="coll-count">${productsInColl.length} assigned</span>
-        <span class="coll-chevron" id="chev-${c.id}">▶</span>
-      </div>
-      <div class="coll-body" id="cbody-${c.id}">
-        ${buildCollBody(c)}
-      </div>
-    </div>`;
-  }).join('');
+  if (!allCollections.length) { el.innerHTML = '<p class="hint">No collections. Click ↺ Collections to reload.</p>'; return; }
+  el.innerHTML = allCollections.map(c => buildCollSection(c)).join('');
 }
 
-function buildCollBody(c) {
-  const productsInColl = allProducts.filter(p => (mapData[p.handle]?.assigned || []).includes(c.id));
+function filterCollections(q) {
+  const lq = q.toLowerCase();
+  document.querySelectorAll('.csect').forEach(el => {
+    const title = el.querySelector('.csect-title')?.textContent.toLowerCase() || '';
+    el.style.display = !lq || title.includes(lq) ? '' : 'none';
+  });
+}
 
-  return `<div class="coll-assign-all">
-      <span>Assign this collection as display for all products in it:</span>
-      <button class="btn btn-sm btn-ghost" onclick="assignAllInCollection('${c.id}')">Set as primary for all</button>
+function buildCollSection(c) {
+  const assignedCount = Object.values(mapData).filter(m => (m.assigned||[]).includes(c.id)).length;
+  return `<div class="csect" id="csect-${c.id}">
+    <div class="csect-hdr" onclick="toggleColl('${c.id}')">
+      <span class="csect-title">${esc(c.title)}</span>
+      <span class="csect-meta" id="cmeta-${c.id}">${assignedCount} display-assigned</span>
+      <span class="csect-chevron" id="cchev-${c.id}">▶</span>
     </div>
-    <div id="cplist-${c.id}">
-    ${allProducts.map(p => {
-      const isAssigned = (mapData[p.handle]?.assigned || []).includes(c.id);
-      const isPrimary  = mapData[p.handle]?.primary === c.id;
-      return `<div class="coll-product-row" id="crow-${c.id}-${p.handle}">
-        <div style="flex:1;min-width:160px">
-          <div class="coll-product-name">${esc(p.title)}</div>
-          <div class="coll-product-handle">${p.handle}</div>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <button class="btn btn-sm ${isAssigned ? 'btn-accent' : 'btn-ghost'}" onclick="toggleCollectionFromCollView('${p.handle}','${c.id}','${esc(c.title)}')">${isAssigned ? '✓ Assigned' : '+ Assign'}</button>
-          ${isAssigned ? `<button class="btn btn-sm ${isPrimary ? 'btn-green' : 'btn-ghost'}" onclick="setPrimaryFromCollView('${p.handle}','${c.id}')">${isPrimary ? '★ Primary' : '☆ Set Primary'}</button>` : ''}
-        </div>
-      </div>`;
-    }).join('')}
-    </div>`;
-}
-
-function toggleCollSection(id) {
-  const body = document.getElementById('cbody-' + id);
-  const chev = document.getElementById('chev-' + id);
-  const isOpen = body.classList.contains('open');
-  body.classList.toggle('open', !isOpen);
-  chev.classList.toggle('open', !isOpen);
-}
-
-function refreshCollectionRow(handle) {
-  // Refresh all collection sections that show this product
-  allCollections.forEach(c => {
-    const row = document.getElementById(`crow-${c.id}-${handle}`);
-    if (!row) return;
-    const isAssigned = (mapData[handle]?.assigned || []).includes(c.id);
-    const isPrimary  = mapData[handle]?.primary === c.id;
-    const collTitle  = esc(c.title);
-    row.innerHTML = `
-      <div style="flex:1;min-width:160px">
-        <div class="coll-product-name">${esc(allProducts.find(p=>p.handle===handle)?.title || handle)}</div>
-        <div class="coll-product-handle">${handle}</div>
+    <div class="csect-body" id="cbody-${c.id}">
+      <div class="csect-actions">
+        <button class="btn btn-sm btn-green" onclick="setAllPrimaryInColl('${c.id}')">★ Set as primary for all in this collection</button>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-sm ${isAssigned ? 'btn-accent' : 'btn-ghost'}" onclick="toggleCollectionFromCollView('${handle}','${c.id}','${collTitle}')">${isAssigned ? '✓ Assigned' : '+ Assign'}</button>
-        ${isAssigned ? `<button class="btn btn-sm ${isPrimary ? 'btn-green' : 'btn-ghost'}" onclick="setPrimaryFromCollView('${handle}','${c.id}')">${isPrimary ? '★ Primary' : '☆ Set Primary'}</button>` : ''}
-      </div>`;
-    // update count
-    const countEl = document.querySelector(`#csect-${c.id} .coll-count`);
-    if (countEl) {
-      const cnt = allProducts.filter(p => (mapData[p.handle]?.assigned || []).includes(c.id)).length;
-      countEl.textContent = `${cnt} assigned`;
-    }
-  });
+      <div id="cprods-${c.id}"><p class="hint">Loading products…</p></div>
+    </div>
+  </div>`;
 }
 
-function toggleCollectionFromCollView(handle, collId, collTitle) {
-  toggleCollection(handle, collId, collTitle);
+async function toggleColl(collId) {
+  const body  = document.getElementById('cbody-' + collId);
+  const chev  = document.getElementById('cchev-' + collId);
+  const isOpen = body.classList.contains('open');
+
+  // Close all others
+  document.querySelectorAll('.csect-body.open').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.csect-chevron.open').forEach(c => c.classList.remove('open'));
+
+  if (!isOpen) {
+    body.classList.add('open');
+    chev.classList.add('open');
+    await loadCollectionProducts(collId);
+  }
 }
 
-function setPrimaryFromCollView(handle, collId) {
+async function loadCollectionProducts(collId) {
+  const el = document.getElementById('cprods-' + collId);
+  if (collExpandedData[collId]) { renderCollProducts(collId, collExpandedData[collId]); return; }
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await api({ action: 'collection_products', collection_id: collId });
+    if (!res.ok) { el.innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${res.error}</p>`; return; }
+    collExpandedData[collId] = res.products || [];
+    renderCollProducts(collId, collExpandedData[collId]);
+  } catch(e) {
+    el.innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${e.message}</p>`;
+  }
+}
+
+function renderCollProducts(collId, products) {
+  const el = document.getElementById('cprods-' + collId);
+  // Update meta count (actual shopify members vs display-assigned)
+  const metaEl = document.getElementById('cmeta-' + collId);
+  const assignedCount = Object.values(mapData).filter(m => (m.assigned||[]).includes(collId)).length;
+  if (metaEl) metaEl.textContent = `${products.length} products · ${assignedCount} display-assigned`;
+
+  if (!products.length) { el.innerHTML = '<p class="hint">No products in this collection</p>'; return; }
+
+  el.innerHTML = products.map(p => buildCollProductRow(p, collId)).join('');
+}
+
+function buildCollProductRow(p, collId) {
+  const entry = mapData[p.handle] || { assigned: [], primary: null };
+  const isAssigned = (entry.assigned || []).includes(collId);
+  const isPrimary  = entry.primary === collId;
+
+  // Show all currently assigned display collections as chips
+  const assignedChips = (entry.assigned || []).map(cid => {
+    const c = allCollections.find(x => x.id === cid);
+    if (!c) return '';
+    const isp = entry.primary === cid;
+    return `<span class="chip ${isp ? 'primary' : ''}" style="font-size:11px;padding:3px 8px">${isp ? '★ ' : ''}${esc(c.title)}</span>`;
+  }).join('');
+
+  return `<div class="coll-prow" id="crow-${collId}-${p.handle}">
+    <div style="flex:1;min-width:140px">
+      <div class="coll-pname">${esc(p.title)}</div>
+      <div class="coll-phandle">${p.handle}</div>
+      ${assignedChips ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${assignedChips}</div>` : ''}
+    </div>
+    <div class="coll-prow-btns">
+      <button class="btn btn-sm ${isAssigned ? 'btn-accent' : 'btn-ghost'}"
+        onclick="toggleAssignedFromColl('${p.handle}','${collId}','${esc(p.title)}')">${isAssigned ? '✓ Assigned' : '+ Assign'}</button>
+      ${isAssigned ? `<button class="btn btn-sm ${isPrimary ? 'btn-green' : 'btn-ghost'}"
+        onclick="setPrimaryFromColl('${p.handle}','${collId}')">${isPrimary ? '★ Primary' : '☆ Primary'}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function toggleAssignedFromColl(handle, collId, title) {
+  toggleAssigned(handle, collId);
+  // Refresh this collection's product list
+  if (collExpandedData[collId]) {
+    const prod = collExpandedData[collId].find(p => p.handle === handle);
+    if (prod) { prod.assigned = mapData[handle]?.assigned || []; prod.primary = mapData[handle]?.primary; }
+    renderCollProducts(collId, collExpandedData[collId]);
+  }
+}
+
+function setPrimaryFromColl(handle, collId) {
   setPrimary(handle, collId);
-  refreshCollectionRow(handle);
+  if (collExpandedData[collId]) renderCollProducts(collId, collExpandedData[collId]);
 }
 
-function assignAllInCollection(collId) {
-  const c = allCollections.find(x => x.id === collId);
-  if (!c) return;
-  // Find all Shopify-collection-member products — we don't have membership data,
-  // so we set this collection as primary for all products that have it assigned
-  const assigned = allProducts.filter(p => (mapData[p.handle]?.assigned || []).includes(collId));
-  assigned.forEach(p => {
-    if (!mapData[p.handle]) mapData[p.handle] = { assigned: [collId], primary: collId };
-    else mapData[p.handle].primary = collId;
-    p.primary = collId;
+function setAllPrimaryInColl(collId) {
+  const products = collExpandedData[collId] || [];
+  if (!products.length) { toast('Expand collection first to load its products', true); return; }
+  products.forEach(p => {
+    if (!mapData[p.handle]) mapData[p.handle] = { assigned: [], primary: null };
+    if (!(mapData[p.handle].assigned || []).includes(collId)) mapData[p.handle].assigned.push(collId);
+    mapData[p.handle].primary = collId;
   });
-  toast(`Set ${c.title} as primary for ${assigned.length} products`);
-  renderCollections();
-  renderProducts();
+  renderCollProducts(collId, products);
+  const c = allCollections.find(x => x.id === collId);
+  toast(`★ Set ${c?.title} as primary for ${products.length} products`);
   saveMap();
 }
 
-// ── REFRESH COLLECTIONS ────────────────────────────────────────────────────────
+function refreshCollectionProductRow(handle) {
+  // Refresh any open collection body rows for this handle
+  Object.keys(collExpandedData).forEach(collId => {
+    const el = document.getElementById(`crow-${collId}-${handle}`);
+    if (!el) return;
+    const p = collExpandedData[collId].find(x => x.handle === handle);
+    if (p) el.outerHTML = buildCollProductRow(p, collId);
+  });
+}
+
+// ── SAVE / PUSH ────────────────────────────────────────────────────────────────
+async function saveMap() {
+  try { await api({ action: 'save_map', map: mapData }); } catch {}
+}
+
 async function refreshCollections() {
-  setStatus('Fetching collections from Shopify…');
+  document.getElementById('hdr-counts').textContent = 'Refreshing…';
   try {
     const res = await api({ action: 'refresh_collections' });
     if (res.ok) {
       allCollections = res.collections || [];
-      document.getElementById('hdr-counts').textContent = `${allProducts.length} products · ${allCollections.length} collections`;
+      collExpandedData = {};
+      document.getElementById('hdr-counts').textContent = `${allCollections.length} collections`;
       renderCollections();
-      renderProducts();
-      setStatus('');
-      toast(`Loaded ${allCollections.length} collections`);
-    } else {
-      setStatus('Error: ' + (res.error || 'refresh failed'));
+      toast(`${allCollections.length} collections loaded`);
     }
-  } catch(e) { setStatus('Error: ' + e.message); }
+  } catch(e) { toast('Error: ' + e.message, true); }
 }
 
-// ── PUSH TO SHOPIFY ────────────────────────────────────────────────────────────
 async function pushToShopify() {
   const btn = document.getElementById('push-btn');
   const statusEl = document.getElementById('push-status');
   btn.disabled = true; btn.textContent = '↑ Pushing…';
   statusEl.style.color = 'var(--muted)';
   statusEl.textContent = 'Pushing metafields to Shopify…';
-
   try {
     const res = await api({ action: 'push_to_shopify', map: mapData, collections: allCollections });
     if (res.ok) {
-      const failedMsg = res.failed?.length ? ` · ${res.failed.length} failed` : '';
+      const failMsg = res.failed?.length ? ` · ${res.failed.length} failed` : '';
       statusEl.style.color = 'var(--green)';
-      statusEl.textContent = `✓ Pushed ${res.pushed} products${failedMsg}. Metafield: nukkad / display_collection`;
-      toast(`Pushed ${res.pushed} products to Shopify`);
+      statusEl.textContent = `✓ Pushed ${res.pushed} products${failMsg} — metafield: nukkad.display_collection`;
+      toast(`Pushed ${res.pushed} products`);
     } else {
       statusEl.style.color = '#b91c1c';
       statusEl.textContent = 'Error: ' + (res.error || 'push failed');
@@ -546,19 +536,16 @@ async function pushToShopify() {
   }
 }
 
-// ── HELPERS ────────────────────────────────────────────────────────────────────
+// ── UTILS ──────────────────────────────────────────────────────────────────────
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-
-let _toastTimer;
+let _tt;
 function toast(msg, err) {
   const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = err ? 'err' : '';
+  el.textContent = msg; el.className = err ? 'err' : '';
   el.style.display = 'block';
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.style.display = 'none', 2800);
+  clearTimeout(_tt); _tt = setTimeout(() => el.style.display = 'none', 2800);
 }
 </script>
 </body>
