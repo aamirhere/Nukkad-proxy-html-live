@@ -196,6 +196,7 @@ async function api(body) {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   document.getElementById('hdr-counts').textContent = 'Loading…';
+  document.getElementById('products-view').innerHTML = '<p class="hint">Loading products…</p>';
   try {
     const res = await api({ action: 'load' });
     if (!res.ok) {
@@ -206,6 +207,8 @@ async function init() {
     mapData        = res.map || {};
     document.getElementById('hdr-counts').textContent = `${allCollections.length} collections`;
     renderCollections();
+    // Auto-load first 50 products
+    await searchProducts('');
   } catch(e) {
     document.getElementById('products-view').innerHTML = `<p class="hint" style="color:#b91c1c">Error: ${e.message}</p>`;
   }
@@ -426,47 +429,96 @@ function renderCollProducts(collId, products) {
 }
 
 function buildCollProductRow(p, collId) {
-  const entry = mapData[p.handle] || { assigned: [], primary: null };
-  const isAssigned = (entry.assigned || []).includes(collId);
-  const isPrimary  = entry.primary === collId;
+  const entry    = mapData[p.handle] || { assigned: [], primary: null };
+  const assigned = entry.assigned || [];
+  const primary  = entry.primary || null;
 
-  // Show all currently assigned display collections as chips
-  const assignedChips = (entry.assigned || []).map(cid => {
+  // Chips for all currently assigned display collections (with × and ★)
+  const chipsHTML = assigned.map(cid => {
     const c = allCollections.find(x => x.id === cid);
     if (!c) return '';
-    const isp = entry.primary === cid;
-    return `<span class="chip ${isp ? 'primary' : ''}" style="font-size:11px;padding:3px 8px">${isp ? '★ ' : ''}${esc(c.title)}</span>`;
+    const isp = primary === cid;
+    return `<span class="chip ${isp ? 'primary' : ''}" style="font-size:11px;padding:3px 8px">
+      <span class="chip-star ${isp ? 'on' : ''}" onclick="setPrimaryFromColl('${p.handle}','${cid}')" title="Set primary">★</span>
+      ${esc(c.title)}
+      <span class="chip-x" onclick="removeAssignedFromColl('${p.handle}','${cid}','${collId}')">×</span>
+    </span>`;
   }).join('');
 
-  return `<div class="coll-prow" id="crow-${collId}-${p.handle}">
+  const uid = `${collId}-${p.handle}`;
+  return `<div class="coll-prow" id="crow-${uid}">
     <div style="flex:1;min-width:140px">
       <div class="coll-pname">${esc(p.title)}</div>
       <div class="coll-phandle">${p.handle}</div>
-      ${assignedChips ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${assignedChips}</div>` : ''}
+      ${assigned.length ? `<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px">${chipsHTML}</div>` : '<div style="margin-top:3px;font-size:11px;color:var(--muted)">No display collection set</div>'}
     </div>
-    <div class="coll-prow-btns">
-      <button class="btn btn-sm ${isAssigned ? 'btn-accent' : 'btn-ghost'}"
-        onclick="toggleAssignedFromColl('${p.handle}','${collId}','${esc(p.title)}')">${isAssigned ? '✓ Assigned' : '+ Assign'}</button>
-      ${isAssigned ? `<button class="btn btn-sm ${isPrimary ? 'btn-green' : 'btn-ghost'}"
-        onclick="setPrimaryFromColl('${p.handle}','${collId}')">${isPrimary ? '★ Primary' : '☆ Primary'}</button>` : ''}
+    <div style="flex-shrink:0">
+      <div class="picker-wrap" id="cpwrap-${uid}">
+        <button class="add-chip-btn" onclick="toggleCollPicker('${uid}')">+ Assign collection</button>
+        <div class="picker-drop" id="cpdrop-${uid}">
+          <div class="picker-search"><input type="text" placeholder="Search collections…" oninput="filterCollPicker('${uid}','${p.handle}',this.value)" onclick="event.stopPropagation()"></div>
+          <div id="cpitems-${uid}">${buildCollPickerItems(p.handle, uid)}</div>
+        </div>
+      </div>
     </div>
   </div>`;
 }
 
-function toggleAssignedFromColl(handle, collId, title) {
-  toggleAssigned(handle, collId);
-  // Refresh this collection's product list
-  if (collExpandedData[collId]) {
-    const prod = collExpandedData[collId].find(p => p.handle === handle);
-    if (prod) { prod.assigned = mapData[handle]?.assigned || []; prod.primary = mapData[handle]?.primary; }
-    renderCollProducts(collId, collExpandedData[collId]);
-  }
+function buildCollPickerItems(handle, uid, filter) {
+  const entry = mapData[handle] || { assigned: [] };
+  const lf = (filter || '').toLowerCase();
+  return allCollections
+    .filter(c => !lf || c.title.toLowerCase().includes(lf))
+    .map(c => {
+      const sel = (entry.assigned || []).includes(c.id);
+      return `<div class="picker-item ${sel ? 'sel' : ''}" onclick="toggleAssignedFromCollPicker('${handle}','${c.id}','${uid}')">${sel ? '✓ ' : ''}${esc(c.title)}</div>`;
+    }).join('');
+}
+
+function filterCollPicker(uid, handle, val) {
+  document.getElementById('cpitems-' + uid).innerHTML = buildCollPickerItems(handle, uid, val);
+}
+
+function toggleCollPicker(uid) {
+  const drop = document.getElementById('cpdrop-' + uid);
+  const open = drop.classList.contains('open');
+  closeAllPickers();
+  if (!open) { drop.classList.add('open'); drop.querySelector('input')?.focus(); }
+}
+
+function toggleAssignedFromCollPicker(handle, cid, uid) {
+  toggleAssigned(handle, cid);
+  // Rebuild items in picker
+  const itemsEl = document.getElementById('cpitems-' + uid);
+  if (itemsEl) itemsEl.innerHTML = buildCollPickerItems(handle, uid);
+  // Rebuild the row
+  const collId = uid.split('-')[0];
+  refreshCollRow(uid, handle, collId);
+}
+
+function removeAssignedFromColl(handle, cid, collId) {
+  removeAssigned(handle, cid);
+  const uid = `${collId}-${handle}`;
+  refreshCollRow(uid, handle, collId);
 }
 
 function setPrimaryFromColl(handle, collId) {
   setPrimary(handle, collId);
-  if (collExpandedData[collId]) renderCollProducts(collId, collExpandedData[collId]);
+  // Refresh all open collection bodies that show this handle
+  Object.keys(collExpandedData).forEach(cid => {
+    const uid = `${cid}-${handle}`;
+    if (document.getElementById('crow-' + uid)) refreshCollRow(uid, handle, cid);
+  });
 }
+
+function refreshCollRow(uid, handle, collId) {
+  const el = document.getElementById('crow-' + uid);
+  if (!el) return;
+  const prods = collExpandedData[collId] || [];
+  const p = prods.find(x => x.handle === handle);
+  if (p) el.outerHTML = buildCollProductRow(p, collId);
+}
+
 
 function setAllPrimaryInColl(collId) {
   const products = collExpandedData[collId] || [];
@@ -483,12 +535,9 @@ function setAllPrimaryInColl(collId) {
 }
 
 function refreshCollectionProductRow(handle) {
-  // Refresh any open collection body rows for this handle
   Object.keys(collExpandedData).forEach(collId => {
-    const el = document.getElementById(`crow-${collId}-${handle}`);
-    if (!el) return;
-    const p = collExpandedData[collId].find(x => x.handle === handle);
-    if (p) el.outerHTML = buildCollProductRow(p, collId);
+    const uid = `${collId}-${handle}`;
+    if (document.getElementById('crow-' + uid)) refreshCollRow(uid, handle, collId);
   });
 }
 
