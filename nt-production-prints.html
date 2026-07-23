@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NT Production Prints</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b1d;min-height:100vh}
+:root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca}
+
+/* ── HEADER ── */
+.header{background:#fff;border-bottom:3px solid var(--accent);padding:12px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.header h1{font-family:Fraunces,Georgia,serif;font-size:1.25rem;color:var(--ink)}
+.header .sub{font-size:.75rem;color:var(--muted);margin-left:auto}
+.hbtn{padding:6px 14px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.8rem;cursor:pointer;white-space:nowrap}
+.hbtn:hover{border-color:var(--accent);color:var(--accent)}
+.hbtn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.hbtn.primary:hover{background:#b8401a}
+
+/* ── CONTROLS ── */
+.controls{padding:14px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fdf5ec;border-bottom:1px solid var(--line)}
+.search-wrap{flex:1;min-width:200px;position:relative}
+.search-wrap input{width:100%;padding:8px 12px 8px 36px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;background:#fff;color:var(--ink)}
+.search-wrap .ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.9rem;pointer-events:none}
+.badge{background:var(--accent);color:#fff;border-radius:10px;font-size:.7rem;padding:1px 7px;font-weight:700}
+#selBar{display:none;padding:10px 20px;background:#3a2b1d;color:#fff;align-items:center;gap:12px;font-size:.9rem}
+#selBar.show{display:flex}
+#selBar button{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:.82rem;font-weight:700}
+#selBar .gen-multi{background:var(--accent);color:#fff}
+#selBar .cancel-sel{background:transparent;color:#bbb;text-decoration:underline}
+
+/* ── GRID ── */
+.grid-wrap{padding:16px 20px}
+.section-label{font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+
+/* ── CARD ── */
+.card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--line);position:relative;cursor:default;transition:box-shadow .15s}
+.card:hover{box-shadow:0 4px 18px rgba(0,0,0,.1)}
+.card.missing{border-color:#e74c3c;border-width:2px}
+.card.selected{outline:3px solid var(--accent)}
+
+.card-thumb{width:100%;aspect-ratio:1;background:#f5ece0;position:relative;overflow:hidden}
+.card-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.card-thumb .no-img{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;color:var(--muted);font-size:.8rem}
+.card-thumb .no-img .ico{font-size:1.8rem}
+
+/* hover overlay */
+.card-overlay{position:absolute;inset:0;background:rgba(20,12,4,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;opacity:0;transition:opacity .15s;pointer-events:none}
+.card:hover .card-overlay{opacity:1;pointer-events:auto}
+.card-overlay button{padding:6px 16px;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;width:80%;max-width:160px}
+.ov-single{background:#fff;color:var(--ink)}
+.ov-tile2{background:var(--accent);color:#fff}
+.ov-tilemax{background:var(--accent);color:#fff;opacity:.85}
+.ov-select{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)!important;font-weight:400}
+.card-overlay button:hover{filter:brightness(1.08)}
+
+/* missing badge */
+.miss-badge{position:absolute;top:7px;left:7px;background:#e74c3c;color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.05em}
+
+/* sel checkbox */
+.sel-chk{position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:5px;border:2px solid rgba(255,255,255,.7);background:transparent;display:none;align-items:center;justify-content:center;color:#fff;font-size:.9rem;cursor:pointer;z-index:5}
+.sel-chk.show{display:flex}
+.sel-chk.checked{background:var(--accent);border-color:var(--accent)}
+
+.card-body{padding:9px 10px 10px}
+.card-title{font-size:.78rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-size{font-size:.7rem;color:var(--muted);margin-top:2px}
+.card-link{font-size:.68rem;color:var(--accent);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline}
+.card-link.none{color:var(--muted);text-decoration:none;cursor:default}
+
+/* ── MODAL: DRIVE LINK ENTRY ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal h2{font-family:Fraunces,Georgia,serif;font-size:1.1rem;margin-bottom:14px}
+.modal label{font-size:.8rem;color:var(--ink2);display:block;margin-bottom:4px}
+.modal input,.modal textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:.88rem;color:var(--ink);margin-bottom:10px}
+.modal .row{display:flex;gap:8px}
+.modal .row input{margin-bottom:0}
+.modal-btns{display:flex;gap:8px;margin-top:4px;justify-content:flex-end}
+.modal-btns button{padding:7px 18px;border-radius:7px;border:none;cursor:pointer;font-size:.85rem;font-weight:700}
+.btn-cancel{background:#f0e8dc;color:var(--ink2)}
+.btn-save{background:var(--accent);color:#fff}
+
+/* ── MODAL: CSV ── */
+.csv-area{font-size:.78rem;color:var(--ink2);background:#fdf5ec;border-radius:6px;padding:10px;margin-bottom:10px;line-height:1.6}
+.csv-area code{background:#e9ddca;border-radius:3px;padding:0 4px;font-size:.75rem}
+#csvFile{margin-bottom:8px}
+#csvPreview{font-size:.75rem;color:var(--ink2);max-height:120px;overflow-y:auto;background:#f6f0e8;border-radius:5px;padding:8px;display:none}
+
+/* ── SPINNER / TOAST ── */
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:24px;right:24px;background:#3a2b1d;color:#fff;padding:10px 20px;border-radius:8px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
+#toast.show{opacity:1}
+
+/* ── CANVAS (off-screen) ── */
+#offCanvas{display:none}
+
+.loading-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:.9rem}
+.empty-msg{text-align:center;padding:40px 20px;color:var(--muted);font-size:.88rem}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🖨 Production Prints</h1>
+  <span class="sub" id="headerSub">Loading…</span>
+  <button class="hbtn" onclick="openCsvModal()">↑ CSV Upload</button>
+  <button class="hbtn" onclick="refreshProducts()">↺ Refresh Products</button>
+</div>
+
+<div class="controls">
+  <div class="search-wrap">
+    <span class="ico">🔍</span>
+    <input id="searchInput" type="text" placeholder="Search products…" oninput="filterGrid()">
+  </div>
+  <span id="countBadge" class="badge">–</span>
+</div>
+
+<div id="selBar">
+  <span id="selCount">0 selected</span>
+  <button class="gen-multi" onclick="genMultiA4()">Generate Multi A4</button>
+  <button class="cancel-sel" onclick="cancelSelect()">Cancel</button>
+</div>
+
+<div class="grid-wrap" id="gridWrap">
+  <div class="loading-msg"><span class="spinner"></span> Loading products…</div>
+</div>
+
+<canvas id="offCanvas"></canvas>
+<div id="toast"></div>
+
+<!-- DRIVE LINK MODAL -->
+<div id="linkModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeLinkModal()">
+  <div class="modal">
+    <h2 id="linkModalTitle">Set Drive Link</h2>
+    <label>Google Drive Link (shared, view access)</label>
+    <input id="linkInput" type="text" placeholder="https://drive.google.com/file/d/…/view">
+    <label>Size (optional — e.g. 5×7 in)</label>
+    <div class="row">
+      <input id="sizeW" type="number" placeholder="Width (mm)" step="0.1">
+      <input id="sizeH" type="number" placeholder="Height (mm)" step="0.1">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeLinkModal()">Cancel</button>
+      <button class="btn-save" onclick="saveLinkModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CSV MODAL -->
+<div id="csvModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeCsvModal()">
+  <div class="modal">
+    <h2>CSV Upload</h2>
+    <div class="csv-area">
+      CSV format (header row required):<br>
+      <code>handle,drive_link,size_w_mm,size_h_mm</code><br>
+      or <code>title,drive_link,size_w_mm,size_h_mm</code><br>
+      <code>size_w_mm</code> and <code>size_h_mm</code> are optional.
+    </div>
+    <input id="csvFile" type="file" accept=".csv,text/csv">
+    <div id="csvPreview"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeCsvModal()">Cancel</button>
+      <button class="btn-save" onclick="importCsv()">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-production-prints';
+
+// A4 at 300 DPI
+const A4_W = 2480, A4_H = 3508, MARGIN = 118, GAP = 59;
+
+let allProducts = [];  // [{handle, title, shopify_image, size_label, size_w_in, size_h_in}]
+let links = {};        // handle → {drive_link, drive_id, size_w_mm, size_h_mm}
+let filtered = [];
+let selectedHandles = new Set();
+let selMode = false;
+let editingHandle = null;
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  try {
+    const res = await apiFetch({ action: 'load' });
+    if (!res.ok) throw new Error(res.error || 'Load failed');
+    allProducts = res.products || [];
+    links = res.links || {};
+    renderGrid(allProducts);
+    updateHeader();
+  } catch(e) {
+    document.getElementById('gridWrap').innerHTML = `<div class="loading-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function updateHeader() {
+  const total = allProducts.length;
+  const missing = allProducts.filter(p => !links[p.handle]?.drive_link).length;
+  document.getElementById('headerSub').textContent = `${total} products · ${missing} without Drive link`;
+  document.getElementById('countBadge').textContent = filtered.length || total;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+
+function filterGrid() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  filtered = q ? allProducts.filter(p => p.title.toLowerCase().includes(q) || p.handle.includes(q)) : allProducts;
+  renderGrid(filtered);
+  document.getElementById('countBadge').textContent = filtered.length;
+}
+
+function renderGrid(products) {
+  const wrap = document.getElementById('gridWrap');
+  if (!products.length) { wrap.innerHTML = '<div class="empty-msg">No products found.</div>'; return; }
+
+  const missing = products.filter(p => !links[p.handle]?.drive_link);
+  const hasLink = products.filter(p => links[p.handle]?.drive_link);
+
+  let html = '';
+  if (missing.length) {
+    html += `<div class="section-label">Missing Drive Link (${missing.length})</div>`;
+    html += `<div class="grid">${missing.map(p => cardHTML(p, true)).join('')}</div>`;
+    if (hasLink.length) html += '<div style="margin-top:18px"></div>';
+  }
+  if (hasLink.length) {
+    if (missing.length) html += `<div class="section-label">With Drive Link (${hasLink.length})</div>`;
+    html += `<div class="grid">${hasLink.map(p => cardHTML(p, false)).join('')}</div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+function cardHTML(p, isMissing) {
+  const lk = links[p.handle] || {};
+  const thumbSrc = lk.drive_id
+    ? `https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300`
+    : p.shopify_image || '';
+
+  const thumbHtml = thumbSrc
+    ? `<img src="${thumbSrc}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-img><span class=ico>📁</span><span>No image</span></div>'">`
+    : `<div class="no-img"><span class="ico">📂</span><span>Add Drive link</span></div>`;
+
+  const sizeLabel = lk.size_w_mm
+    ? `${lk.size_w_mm}×${lk.size_h_mm} mm`
+    : p.size_label || '';
+
+  const linkLabel = lk.drive_link
+    ? `📎 Drive linked`
+    : `+ Add Drive link`;
+
+  const isSelected = selectedHandles.has(p.handle);
+
+  return `<div class="card${isMissing ? ' missing' : ''}${isSelected ? ' selected' : ''}" id="card-${p.handle}">
+    <div class="card-thumb">
+      ${thumbHtml}
+      ${isMissing ? '<span class="miss-badge">NO LINK</span>' : ''}
+      <div class="card-overlay">
+        <button class="ov-single" onclick="event.stopPropagation();genA4('${p.handle}','single')">⬇ Single A4</button>
+        <button class="ov-tile2" onclick="event.stopPropagation();genA4('${p.handle}','tile2')">⬇ Tile ×2</button>
+        <button class="ov-tilemax" onclick="event.stopPropagation();genA4('${p.handle}','tilemax')">⬇ Tile Max</button>
+        <button class="ov-select" onclick="event.stopPropagation();toggleSelect('${p.handle}')">☐ Select</button>
+      </div>
+      <div class="sel-chk${selMode ? ' show' : ''}${isSelected ? ' checked' : ''}" id="chk-${p.handle}" onclick="toggleSelect('${p.handle}')">
+        ${isSelected ? '✓' : ''}
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-title" title="${escHtml(p.title)}">${escHtml(p.title)}</div>
+      ${sizeLabel ? `<div class="card-size">${sizeLabel}</div>` : ''}
+      <div class="card-link${lk.drive_link ? '' : ' none'}" onclick="openLinkModal('${p.handle}')">${linkLabel}</div>
+    </div>
+  </div>`;
+}
+
+// ── SELECTION ─────────────────────────────────────────────────────────────────
+
+function toggleSelect(handle) {
+  if (!selMode) enterSelMode();
+  if (selectedHandles.has(handle)) {
+    selectedHandles.delete(handle);
+  } else {
+    selectedHandles.add(handle);
+  }
+  updateSelUI(handle);
+}
+
+function enterSelMode() {
+  selMode = true;
+  document.getElementById('selBar').classList.add('show');
+  // show all checkboxes
+  document.querySelectorAll('.sel-chk').forEach(el => el.classList.add('show'));
+}
+
+function cancelSelect() {
+  selMode = false;
+  selectedHandles.clear();
+  document.getElementById('selBar').classList.remove('show');
+  document.querySelectorAll('.sel-chk').forEach(el => { el.classList.remove('show','checked'); el.textContent=''; });
+  document.querySelectorAll('.card.selected').forEach(el => el.classList.remove('selected'));
+  updateSelCount();
+}
+
+function updateSelUI(handle) {
+  const card = document.getElementById(`card-${handle}`);
+  const chk = document.getElementById(`chk-${handle}`);
+  const sel = selectedHandles.has(handle);
+  if (card) card.classList.toggle('selected', sel);
+  if (chk) { chk.classList.toggle('checked', sel); chk.textContent = sel ? '✓' : ''; }
+  updateSelCount();
+}
+
+function updateSelCount() {
+  document.getElementById('selCount').textContent = `${selectedHandles.size} selected`;
+}
+
+// ── LINK MODAL ────────────────────────────────────────────────────────────────
+
+function openLinkModal(handle) {
+  editingHandle = handle;
+  const p = allProducts.find(x => x.handle === handle);
+  const lk = links[handle] || {};
+  document.getElementById('linkModalTitle').textContent = p ? p.title : handle;
+  document.getElementById('linkInput').value = lk.drive_link || '';
+  document.getElementById('sizeW').value = lk.size_w_mm || '';
+  document.getElementById('sizeH').value = lk.size_h_mm || '';
+  document.getElementById('linkModal').style.display = 'flex';
+}
+
+function closeLinkModal() { document.getElementById('linkModal').style.display = 'none'; editingHandle = null; }
+
+async function saveLinkModal() {
+  const handle = editingHandle;
+  const url = document.getElementById('linkInput').value.trim();
+  const w = parseFloat(document.getElementById('sizeW').value) || null;
+  const h = parseFloat(document.getElementById('sizeH').value) || null;
+  const drive_id = extractDriveId(url);
+  const payload = { action: 'save_link', handle, drive_link: url, drive_id, size_w_mm: w, size_h_mm: h };
+  closeLinkModal();
+  try {
+    await apiFetch(payload);
+    links[handle] = { drive_link: url, drive_id, size_w_mm: w, size_h_mm: h };
+    filterGrid();
+    updateHeader();
+    toast('Link saved');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── CSV ───────────────────────────────────────────────────────────────────────
+
+function openCsvModal() { document.getElementById('csvModal').style.display = 'flex'; }
+function closeCsvModal() { document.getElementById('csvModal').style.display = 'none'; document.getElementById('csvPreview').style.display='none'; }
+
+document.getElementById('csvFile').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = parseCsv(e.target.result);
+    const prev = document.getElementById('csvPreview');
+    prev.style.display = 'block';
+    prev.textContent = rows.slice(0,5).map(r => JSON.stringify(r)).join('\n') + (rows.length > 5 ? `\n…and ${rows.length-5} more` : '');
+  };
+  reader.readAsText(file);
+});
+
+async function importCsv() {
+  const file = document.getElementById('csvFile').files[0];
+  if (!file) { toast('No file selected'); return; }
+  const text = await file.text();
+  const rows = parseCsv(text);
+  if (!rows.length) { toast('No data rows found'); return; }
+
+  // Build handle→link map; match by handle or by title
+  const titleToHandle = {};
+  allProducts.forEach(p => { titleToHandle[p.title.toLowerCase()] = p.handle; });
+
+  const newLinks = {};
+  let matched = 0;
+  rows.forEach(row => {
+    const handle = row.handle || titleToHandle[row.title?.toLowerCase()] || null;
+    if (!handle || !row.drive_link) return;
+    const drive_id = extractDriveId(row.drive_link);
+    newLinks[handle] = {
+      drive_link: row.drive_link,
+      drive_id,
+      size_w_mm: parseFloat(row.size_w_mm) || null,
+      size_h_mm: parseFloat(row.size_h_mm) || null,
+    };
+    matched++;
+  });
+
+  if (!matched) { toast('No matching products found in CSV'); return; }
+
+  try {
+    await apiFetch({ action: 'save_links_bulk', links: newLinks });
+    Object.assign(links, newLinks);
+    closeCsvModal();
+    filterGrid();
+    updateHeader();
+    toast(`Imported ${matched} links`);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+    return obj;
+  });
+}
+
+// ── REFRESH ───────────────────────────────────────────────────────────────────
+
+async function refreshProducts() {
+  document.getElementById('gridWrap').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Refreshing from Shopify…</div>';
+  try {
+    const res = await apiFetch({ action: 'refresh_products' });
+    allProducts = res.products || [];
+    filterGrid();
+    updateHeader();
+    toast(`Refreshed: ${allProducts.length} products`);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── A4 GENERATION ─────────────────────────────────────────────────────────────
+
+async function genA4(handle, mode) {
+  const p = allProducts.find(x => x.handle === handle);
+  const lk = links[handle];
+  if (!lk?.drive_id) { toast('No Drive link for this product'); return; }
+
+  toast('Fetching image…');
+  const imgData = await fetchProxiedImage(lk.drive_id);
+  if (!imgData) { toast('Could not load image — check Drive link & sharing'); return; }
+
+  const img = await loadImage(imgData);
+
+  // determine print size in pixels (300 DPI)
+  const { pw, ph } = getPrintSize(p, lk);
+
+  const canvas = document.getElementById('offCanvas');
+  const ctx = canvas.getContext('2d');
+
+  if (mode === 'single') {
+    canvas.width = A4_W; canvas.height = A4_H;
+    fillA4(ctx);
+    const { x, y, w, h } = centerFit(pw, ph, A4_W, A4_H, MARGIN);
+    ctx.drawImage(img, x, y, w, h);
+    drawLabel(ctx, p.title, x, y + h + 18, w);
+    downloadCanvas(canvas, `${handle}-single.png`);
+
+  } else if (mode === 'tile2') {
+    canvas.width = A4_W; canvas.height = A4_H;
+    fillA4(ctx);
+    const placements = tilePlacements(pw, ph, 2);
+    placements.forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
+    downloadCanvas(canvas, `${handle}-tile2.png`);
+
+  } else if (mode === 'tilemax') {
+    canvas.width = A4_W; canvas.height = A4_H;
+    fillA4(ctx);
+    const max = maxTiles(pw, ph);
+    const placements = tilePlacements(pw, ph, max);
+    toast(`Tiling ${max} copies…`);
+    placements.forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
+    downloadCanvas(canvas, `${handle}-tilemax.png`);
+  }
+}
+
+async function genMultiA4() {
+  if (!selectedHandles.size) { toast('Select products first'); return; }
+  toast(`Building multi-product A4 with ${selectedHandles.size} items…`);
+
+  // Load all images
+  const items = [];
+  for (const handle of selectedHandles) {
+    const p = allProducts.find(x => x.handle === handle);
+    const lk = links[handle];
+    if (!lk?.drive_id) { toast(`No Drive link: ${handle}`); continue; }
+    const imgData = await fetchProxiedImage(lk.drive_id);
+    if (!imgData) { toast(`Image failed: ${handle}`); continue; }
+    const img = await loadImage(imgData);
+    const { pw, ph } = getPrintSize(p, lk);
+    items.push({ img, pw, ph, title: p.title });
+  }
+
+  if (!items.length) { toast('No images loaded'); return; }
+
+  const canvas = document.getElementById('offCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = A4_W; canvas.height = A4_H;
+  fillA4(ctx);
+
+  // Simple row-based packing: place each item scaled to fit remaining area
+  const usableW = A4_W - 2 * MARGIN;
+  const usableH = A4_H - 2 * MARGIN;
+  const perItemH = Math.floor((usableH - GAP * (items.length - 1)) / items.length);
+
+  let curY = MARGIN;
+  items.forEach(item => {
+    const scale = Math.min(usableW / item.pw, perItemH / item.ph);
+    const dw = Math.round(item.pw * scale);
+    const dh = Math.round(item.ph * scale);
+    const dx = MARGIN + Math.round((usableW - dw) / 2);
+    ctx.drawImage(item.img, dx, curY, dw, dh);
+    drawLabel(ctx, item.title, dx, curY + dh + 14, dw);
+    curY += perItemH + GAP;
+  });
+
+  downloadCanvas(canvas, `multi-${Date.now()}.png`);
+  cancelSelect();
+}
+
+// ── CANVAS HELPERS ────────────────────────────────────────────────────────────
+
+function fillA4(ctx) {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, A4_W, A4_H);
+}
+
+function centerFit(pw, ph, canvasW, canvasH, margin) {
+  const usableW = canvasW - 2 * margin;
+  const usableH = canvasH - 2 * margin;
+  const scale = Math.min(usableW / pw, usableH / ph);
+  const w = Math.round(pw * scale);
+  const h = Math.round(ph * scale);
+  const x = margin + Math.round((usableW - w) / 2);
+  const y = margin + Math.round((usableH - h) / 2);
+  return { x, y, w, h };
+}
+
+function maxTiles(pw, ph) {
+  const usableW = A4_W - 2 * MARGIN;
+  const usableH = A4_H - 2 * MARGIN;
+  const scale = Math.min(1, Math.min(usableW / pw, usableH / ph));
+  const iw = Math.round(pw * scale);
+  const ih = Math.round(ph * scale);
+  const cols = Math.floor((usableW + GAP) / (iw + GAP)) || 1;
+  const rows = Math.floor((usableH + GAP) / (ih + GAP)) || 1;
+  return Math.max(1, cols * rows);
+}
+
+function tilePlacements(pw, ph, count) {
+  const usableW = A4_W - 2 * MARGIN;
+  const usableH = A4_H - 2 * MARGIN;
+  const scale = Math.min(1, Math.min(usableW / pw, usableH / ph));
+  const iw = Math.round(pw * scale);
+  const ih = Math.round(ph * scale);
+
+  const cols = Math.max(1, Math.floor((usableW + GAP) / (iw + GAP)));
+  const places = [];
+  for (let i = 0; i < count; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    places.push({ x: MARGIN + col * (iw + GAP), y: MARGIN + row * (ih + GAP), w: iw, h: ih });
+  }
+  return places;
+}
+
+function drawLabel(ctx, text, x, y, maxW) {
+  ctx.save();
+  ctx.font = '28px sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'center';
+  const label = text.length > 50 ? text.slice(0, 48) + '…' : text;
+  ctx.fillText(label, x + maxW / 2, y, maxW);
+  ctx.restore();
+}
+
+// ── SIZE HELPERS ──────────────────────────────────────────────────────────────
+
+function getPrintSize(p, lk) {
+  // prefer mm from link, else inches from product, else fallback square
+  if (lk?.size_w_mm && lk?.size_h_mm) {
+    return {
+      pw: Math.round(lk.size_w_mm / 25.4 * 300),
+      ph: Math.round(lk.size_h_mm / 25.4 * 300),
+    };
+  }
+  if (p.size_w_in && p.size_h_in) {
+    return {
+      pw: Math.round(p.size_w_in * 300),
+      ph: Math.round(p.size_h_in * 300),
+    };
+  }
+  // default: 4×4 in
+  return { pw: 1200, ph: 1200 };
+}
+
+// ── IMAGE LOADING ─────────────────────────────────────────────────────────────
+
+async function fetchProxiedImage(driveId) {
+  const url = `https://drive.google.com/uc?export=download&id=${driveId}`;
+  try {
+    const res = await apiFetch({ action: 'proxy_image', url });
+    if (res.ok && res.data) return res.data;
+    if (res.too_large) {
+      toast('Image >5MB — trying thumbnail instead');
+      return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`;
+    }
+    return null;
+  } catch { return null; }
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function downloadCanvas(canvas, filename) {
+  toast('Generating PNG…');
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+    toast('Downloaded: ' + filename);
+  }, 'image/png');
+}
+
+// ── DRIVE HELPERS ─────────────────────────────────────────────────────────────
+
+function extractDriveId(url) {
+  if (!url) return null;
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+
+async function apiFetch(body) {
+  const r = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
+
+// ── UTIL ──────────────────────────────────────────────────────────────────────
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+init();
+</script>
+</body>
+</html>
