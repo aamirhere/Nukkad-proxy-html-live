@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NT Pool Stock — Now or Never Sale</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b1d;min-height:100vh}
+:root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca;--green:#27ae60;--red:#e74c3c}
+
+.header{background:#fff;border-bottom:3px solid var(--accent);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;flex-wrap:wrap}
+.header h1{font-family:Fraunces,Georgia,serif;font-size:1.2rem;color:var(--ink)}
+.header .sub{font-size:.75rem;color:var(--muted)}
+.hbtn{padding:6px 14px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.8rem;cursor:pointer;white-space:nowrap}
+.hbtn:hover{border-color:var(--accent);color:var(--accent)}
+.hbtn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.hbtn.accent:hover{background:#b8401a}
+.ml-auto{margin-left:auto}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--line);background:#fdf5ec;padding:0 20px}
+.tab{padding:10px 18px;font-size:.88rem;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;padding:16px 20px}
+.tab-content.active{display:block}
+
+/* CONTROLS */
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.search-wrap{position:relative;flex:1;min-width:200px}
+.search-wrap input{width:100%;padding:8px 12px 8px 34px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;background:#fff}
+.search-wrap .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+select{padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:.82rem;background:#fff;color:var(--ink)}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#fff;padding:9px 10px;text-align:left;font-weight:700;color:var(--ink2);border-bottom:2px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);color:var(--ink);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fdf5ec}
+.col-title{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.col-handle{font-size:.72rem;color:var(--muted);font-family:monospace}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:700}
+.badge-managed{background:#e8f5e9;color:#1b5e20}
+.badge-unmanaged{background:#fce4ec;color:#880e4f}
+.badge-ok{background:#e3f2fd;color:#0d47a1}
+.badge-neg{background:#ffebee;color:var(--red)}
+.num{font-family:monospace;font-weight:700}
+.num.neg{color:var(--red)}
+.num.pos{color:var(--green)}
+
+/* INLINE BASELINE FORM */
+.inline-form{display:flex;gap:5px;align-items:center}
+.inline-form input{width:70px;padding:4px 7px;border:1px solid var(--line);border-radius:5px;font-size:.8rem;text-align:right}
+.ibtn{padding:4px 9px;border-radius:5px;border:none;cursor:pointer;font-size:.75rem;font-weight:700}
+.ibtn-save{background:var(--accent);color:#fff}
+.ibtn-reset{background:#f0e8dc;color:var(--ink2)}
+.ibtn-rm{background:transparent;color:var(--red);border:1px solid var(--red);font-size:.7rem}
+
+/* ANALYTICS */
+.analytics-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:#fff;border-radius:8px;border:1px solid var(--line)}
+.analytics-filters label{font-size:.78rem;color:var(--ink2);white-space:nowrap}
+.analytics-filters input{padding:6px 9px;border:1px solid var(--line);border-radius:6px;font-size:.82rem;background:#fff}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+.stat-card{background:#fff;border-radius:8px;border:1px solid var(--line);padding:12px 14px}
+.stat-card .label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.stat-card .val{font-size:1.4rem;font-weight:700;color:var(--ink);font-family:monospace}
+.stat-card .val.accent{color:var(--accent)}
+
+/* DAILY CHART TABLE */
+.daily-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--line);margin-top:12px}
+.daily-wrap table th{font-size:.75rem}
+.daily-wrap table td{font-size:.78rem}
+.bar-cell{display:flex;align-items:center;gap:6px}
+.bar-fill{height:12px;background:var(--accent);border-radius:3px;min-width:2px;opacity:.7}
+
+/* SEED MODAL */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:12px;padding:22px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal h2{font-family:Fraunces,Georgia,serif;font-size:1.05rem;margin-bottom:12px}
+.modal p{font-size:.8rem;color:var(--ink2);margin-bottom:10px;line-height:1.6}
+.modal textarea{width:100%;height:180px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-family:monospace;font-size:.78rem;resize:vertical}
+.modal-btns{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+.modal-btns button{padding:7px 18px;border-radius:7px;border:none;cursor:pointer;font-size:.85rem;font-weight:700}
+.btn-cancel{background:#f0e8dc;color:var(--ink2)}
+.btn-ok{background:var(--accent);color:#fff}
+
+/* SQL BOX */
+.sql-box{background:#1a1a2e;color:#a8e6cf;border-radius:8px;padding:14px;font-family:monospace;font-size:.75rem;line-height:1.7;white-space:pre;overflow-x:auto;margin-bottom:12px}
+.sql-section h3{font-size:.85rem;font-weight:700;color:var(--ink2);margin-bottom:8px;margin-top:16px}
+
+/* MISC */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:24px;right:24px;background:#3a2b1d;color:#fff;padding:10px 20px;border-radius:8px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
+#toast.show{opacity:1}
+.info{font-size:.78rem;color:var(--muted);padding:8px 0}
+.empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏷 Pool Stock</h1>
+  <span class="sub">Now or Never Sale — shared inventory pools</span>
+  <div class="ml-auto" style="display:flex;gap:8px">
+    <button class="hbtn" onclick="openSeedModal()">⬆ Seed Baselines</button>
+    <button class="hbtn" onclick="openSqlRef()">📋 SQL Reference</button>
+    <button class="hbtn accent" onclick="init()">↺ Reload</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('products')">Products</div>
+  <div class="tab" onclick="switchTab('analytics')">Analytics</div>
+  <div class="tab" onclick="switchTab('sqlref')">SQL / Setup</div>
+</div>
+
+<!-- ── PRODUCTS TAB ── -->
+<div id="tab-products" class="tab-content active">
+  <div class="bar">
+    <div class="search-wrap">
+      <span class="si">🔍</span>
+      <input id="searchProd" type="text" placeholder="Search products…" oninput="filterProducts()">
+    </div>
+    <select id="filterManaged" onchange="filterProducts()">
+      <option value="">All products</option>
+      <option value="managed">Managed (baseline set)</option>
+      <option value="unmanaged">No baseline yet</option>
+    </select>
+    <span id="prodCount" style="font-size:.78rem;color:var(--muted)"></span>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>Product</th>
+        <th>Status</th>
+        <th>Baseline</th>
+        <th>Sold</th>
+        <th>Available</th>
+        <th>Last run</th>
+        <th>Set Baseline</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="prodTbody"><tr><td colspan="8" class="empty"><span class="spinner"></span> Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── ANALYTICS TAB ── -->
+<div id="tab-analytics" class="tab-content">
+  <div class="analytics-filters">
+    <label>Product</label>
+    <select id="anaProduct" style="min-width:200px">
+      <option value="">All managed products</option>
+    </select>
+    <label>From</label>
+    <input id="anaFrom" type="date">
+    <label>To</label>
+    <input id="anaTo" type="date">
+    <button class="hbtn accent" onclick="loadAnalytics()">Load</button>
+  </div>
+
+  <div class="stat-grid" id="statGrid"></div>
+
+  <div class="daily-wrap" id="dailyWrap">
+    <div class="empty">Select filters and click Load.</div>
+  </div>
+</div>
+
+<!-- ── SQL REF TAB ── -->
+<div id="tab-sqlref" class="tab-content">
+  <div class="sql-section">
+    <h3>Create tables (run once in Supabase SQL editor)</h3>
+    <div class="sql-box">-- Pool stock state
+CREATE TABLE IF NOT EXISTS nt_pool_stock (
+  product_id     text PRIMARY KEY,
+  baseline_qty   int  NOT NULL,
+  baseline_at    timestamptz NOT NULL,
+  last_available int,
+  last_sold      int DEFAULT 0,
+  updated_at     timestamptz
+);
+
+-- Run log (includes daily delta for analytics)
+CREATE TABLE IF NOT EXISTS nt_pool_stock_log (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_id  text        NOT NULL,
+  sold        int,          -- cumulative since baseline
+  delta_sold  int,          -- sold since previous run
+  new_available int,
+  ran_at      timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pool_log_product ON nt_pool_stock_log (product_id, ran_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pool_log_ran_at  ON nt_pool_stock_log (ran_at DESC);</div>
+
+    <h3>Reset baseline after physical recount / production top-up</h3>
+    <div class="sql-box">-- Replace 'gid://shopify/Product/123' and 50 with real values.
+-- sold-since counter resets from this moment onward.
+UPDATE nt_pool_stock
+SET    baseline_qty   = 50,
+       baseline_at    = now(),
+       last_available = 50,
+       last_sold      = 0,
+       updated_at     = now()
+WHERE  product_id = 'gid://shopify/Product/123';</div>
+
+    <h3>Daily sales summary (last 30 days)</h3>
+    <div class="sql-box">SELECT
+  product_id,
+  DATE(ran_at)   AS day,
+  SUM(delta_sold) AS units_sold
+FROM nt_pool_stock_log
+WHERE ran_at >= now() - INTERVAL '30 days'
+GROUP BY product_id, day
+ORDER BY day DESC, units_sold DESC;</div>
+
+    <h3>Current pool status</h3>
+    <div class="sql-box">SELECT product_id, baseline_qty, baseline_at,
+       last_available, last_sold, updated_at
+FROM nt_pool_stock
+ORDER BY last_available ASC;</div>
+
+    <h3>Enable "continue selling when out of stock" for all collection variants</h3>
+    <div class="sql-box">-- Run this in the Shopify admin or via API after seeding.
+-- Shopify GraphQL mutation (run per product or in bulk):
+mutation {
+  productVariantsBulkUpdate(
+    productId: "gid://shopify/Product/XXX"
+    variants: [{ id: "gid://shopify/ProductVariant/YYY"
+                 inventoryPolicy: CONTINUE }]
+  ) { productVariants { id inventoryPolicy } userErrors { message } }
+}</div>
+  </div>
+</div>
+
+<!-- SEED MODAL -->
+<div id="seedModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeSeedModal()">
+  <div class="modal">
+    <h2>Seed Baselines</h2>
+    <p>Paste a mapping of <strong>product title → quantity</strong>, one per line.<br>
+    Format: <code>Product Title: 25</code> or <code>Product Title, 25</code></p>
+    <textarea id="seedText" placeholder="Wooden Quote - Be Kind: 30&#10;Wooden Quote - Stay Strong: 15&#10;…"></textarea>
+    <div id="seedPreview" style="font-size:.75rem;color:var(--muted);margin-top:6px"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeSeedModal()">Cancel</button>
+      <button class="btn-ok" onclick="runSeed()">Seed</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-pool-stock-api';
+
+let allProducts = [];   // [{id, handle, title, pool}]
+let analyticsData = []; // log rows
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  document.getElementById('prodTbody').innerHTML = '<tr><td colspan="8" class="empty"><span class="spinner"></span> Loading…</td></tr>';
+  try {
+    const res = await api({ action: 'load' });
+    if (!res.ok) throw new Error(res.error || 'Load failed');
+    allProducts = res.products || [];
+    filterProducts();
+    populateProductSelect();
+  } catch(e) {
+    document.getElementById('prodTbody').innerHTML = `<tr><td colspan="8" class="empty">Error: ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const names = ['products', 'analytics', 'sqlref'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(tc => {
+    tc.classList.toggle('active', tc.id === `tab-${name}`);
+  });
+}
+
+function openSqlRef() { switchTab('sqlref'); }
+
+// ── PRODUCTS TAB ──────────────────────────────────────────────────────────────
+
+function filterProducts() {
+  const q = document.getElementById('searchProd').value.toLowerCase();
+  const filter = document.getElementById('filterManaged').value;
+  const rows = allProducts.filter(p => {
+    if (q && !p.title.toLowerCase().includes(q) && !p.handle.includes(q)) return false;
+    if (filter === 'managed' && !p.pool) return false;
+    if (filter === 'unmanaged' && p.pool) return false;
+    return true;
+  });
+  document.getElementById('prodCount').textContent = `${rows.length} of ${allProducts.length}`;
+  renderProductTable(rows);
+}
+
+function renderProductTable(products) {
+  if (!products.length) {
+    document.getElementById('prodTbody').innerHTML = '<tr><td colspan="8" class="empty">No products found.</td></tr>';
+    return;
+  }
+  document.getElementById('prodTbody').innerHTML = products.map(p => productRow(p)).join('');
+}
+
+function productRow(p) {
+  const pool = p.pool;
+  const isManaged = !!pool;
+  const avail = pool?.last_available ?? null;
+  const sold = pool?.last_sold ?? null;
+  const baseline = pool?.baseline_qty ?? null;
+  const baselineAt = pool?.baseline_at ? fmtDate(pool.baseline_at) : '–';
+  const updatedAt = pool?.updated_at ? fmtDate(pool.updated_at) : '–';
+  const availStr = avail === null ? '–' : `<span class="num ${avail < 0 ? 'neg' : 'pos'}">${avail}</span>`;
+  const soldStr = sold === null ? '–' : `<span class="num">${sold}</span>`;
+
+  return `<tr>
+    <td>
+      <div class="col-title" title="${escHtml(p.title)}">${escHtml(p.title)}</div>
+      <div class="col-handle">${escHtml(p.handle)}</div>
+    </td>
+    <td>${isManaged
+      ? `<span class="badge badge-managed">Managed</span>`
+      : `<span class="badge badge-unmanaged">No baseline</span>`}</td>
+    <td>${isManaged ? `<strong>${baseline}</strong><br><small style="color:var(--muted)">${baselineAt}</small>` : '–'}</td>
+    <td>${soldStr}</td>
+    <td>${availStr}</td>
+    <td style="font-size:.72rem;color:var(--muted)">${updatedAt}</td>
+    <td>
+      <div class="inline-form">
+        <input type="number" min="0" id="qty-${p.id}" placeholder="${isManaged ? baseline : 'qty'}" value="">
+        <button class="ibtn ibtn-save" onclick="setBaseline('${p.id}', false)">${isManaged ? 'Update' : 'Set'}</button>
+        ${isManaged ? `<button class="ibtn ibtn-reset" onclick="setBaseline('${p.id}', true)" title="Reset baseline to now">↺</button>` : ''}
+      </div>
+    </td>
+    <td>${isManaged ? `<button class="ibtn ibtn-rm" onclick="removePool('${p.id}', '${escHtml(p.title.replace(/'/g,"\\'")}')">✕</button>` : ''}</td>
+  </tr>`;
+}
+
+async function setBaseline(productId, isReset) {
+  const input = document.getElementById(`qty-${productId}`);
+  const qty = parseInt(input.value);
+  if (isNaN(qty) || qty < 0) { toast('Enter a valid quantity'); return; }
+
+  const action = isReset ? 'reset_baseline' : 'set_baseline';
+  try {
+    await api({ action, product_id: productId, baseline_qty: qty });
+    toast(isReset ? 'Baseline reset' : 'Baseline set');
+    input.value = '';
+    await init();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function removePool(productId, title) {
+  if (!confirm(`Remove pool management for:\n${title}\n\nThis deletes the baseline row. The next sync will skip this product.`)) return;
+  try {
+    await api({ action: 'remove_pool', product_id: productId });
+    toast('Removed from pool');
+    await init();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── ANALYTICS TAB ─────────────────────────────────────────────────────────────
+
+function populateProductSelect() {
+  const sel = document.getElementById('anaProduct');
+  const managed = allProducts.filter(p => p.pool);
+  sel.innerHTML = '<option value="">All managed products</option>' +
+    managed.map(p => `<option value="${p.id}">${escHtml(p.title)}</option>`).join('');
+}
+
+async function loadAnalytics() {
+  document.getElementById('dailyWrap').innerHTML = '<div class="empty"><span class="spinner"></span> Loading…</div>';
+  document.getElementById('statGrid').innerHTML = '';
+
+  const product_id = document.getElementById('anaProduct').value || undefined;
+  const date_from  = document.getElementById('anaFrom').value ? document.getElementById('anaFrom').value + 'T00:00:00Z' : undefined;
+  const date_to    = document.getElementById('anaTo').value   ? document.getElementById('anaTo').value   + 'T23:59:59Z' : undefined;
+
+  try {
+    const res = await api({ action: 'analytics', product_id, date_from, date_to });
+    analyticsData = res.rows || [];
+    renderAnalytics(product_id);
+  } catch(e) {
+    document.getElementById('dailyWrap').innerHTML = `<div class="empty">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderAnalytics(filterProductId) {
+  const rows = analyticsData;
+
+  // Build daily totals: date → {totalSold, byProduct: {productId: sold}}
+  const dailyMap = new Map();
+  const productTotals = new Map();
+
+  for (const row of rows) {
+    const day = row.ran_at.slice(0, 10);
+    if (!dailyMap.has(day)) dailyMap.set(day, { totalSold: 0, byProduct: {} });
+    const d = dailyMap.get(day);
+    d.totalSold += row.delta_sold || 0;
+    d.byProduct[row.product_id] = (d.byProduct[row.product_id] || 0) + (row.delta_sold || 0);
+
+    productTotals.set(row.product_id, (productTotals.get(row.product_id) || 0) + (row.delta_sold || 0));
+  }
+
+  const days = [...dailyMap.keys()].sort((a, b) => b.localeCompare(a));
+  const totalSold = [...productTotals.values()].reduce((s, v) => s + v, 0);
+  const avgPerDay = days.length ? (totalSold / days.length).toFixed(1) : 0;
+  const maxDay = days.reduce((mx, d) => dailyMap.get(d).totalSold > mx ? dailyMap.get(d).totalSold : mx, 0);
+
+  // Stat cards
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat-card"><div class="label">Total units sold</div><div class="val accent">${totalSold}</div></div>
+    <div class="stat-card"><div class="label">Days tracked</div><div class="val">${days.length}</div></div>
+    <div class="stat-card"><div class="label">Avg / day</div><div class="val">${avgPerDay}</div></div>
+    <div class="stat-card"><div class="label">Peak day</div><div class="val">${maxDay}</div></div>
+    <div class="stat-card"><div class="label">Products in data</div><div class="val">${productTotals.size}</div></div>
+  `;
+
+  if (!days.length) {
+    document.getElementById('dailyWrap').innerHTML = '<div class="empty">No data for this period.</div>';
+    return;
+  }
+
+  // If filtering a single product, show per-day breakdown
+  // Otherwise show daily totals across all products
+  const isSingle = !!filterProductId;
+  const colHeaders = isSingle
+    ? '<th>Date</th><th>Units Sold</th><th style="width:200px">Bar</th><th>Cumulative Sold</th><th>Available</th>'
+    : '<th>Date</th><th>Units Sold</th><th style="width:200px">Bar</th><th>Top Product</th>';
+
+  let cumSold = 0;
+  // Find the latest nt_pool_stock data for the selected product
+  const latestRow = isSingle ? rows.find(r => r.product_id === filterProductId) : null;
+
+  const tableRows = days.map(day => {
+    const d = dailyMap.get(day);
+    const sold = isSingle ? (d.byProduct[filterProductId] || 0) : d.totalSold;
+    cumSold += sold;
+    const barW = maxDay ? Math.round((sold / maxDay) * 160) : 0;
+
+    if (isSingle) {
+      const logRow = rows.find(r => r.ran_at.slice(0, 10) === day && r.product_id === filterProductId);
+      return `<tr>
+        <td>${day}</td>
+        <td><span class="num${sold ? ' pos' : ''}">${sold}</span></td>
+        <td><div class="bar-cell"><div class="bar-fill" style="width:${barW}px"></div><span style="font-size:.72rem;color:var(--muted)">${sold}</span></div></td>
+        <td class="num">${logRow?.sold ?? '–'}</td>
+        <td class="num ${(logRow?.new_available ?? 1) < 0 ? 'neg' : ''}">${logRow?.new_available ?? '–'}</td>
+      </tr>`;
+    } else {
+      // find top product for this day
+      const topPid = Object.entries(d.byProduct).sort((a, b) => b[1] - a[1])[0];
+      const topTitle = topPid
+        ? (allProducts.find(p => p.id === topPid[0])?.title || topPid[0].split('/').pop()) + ` (${topPid[1]})`
+        : '–';
+      return `<tr>
+        <td>${day}</td>
+        <td><span class="num${sold ? ' pos' : ''}">${sold}</span></td>
+        <td><div class="bar-cell"><div class="bar-fill" style="width:${barW}px"></div><span style="font-size:.72rem;color:var(--muted)">${sold}</span></div></td>
+        <td style="font-size:.75rem;color:var(--ink2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(topTitle)}</td>
+      </tr>`;
+    }
+  }).join('');
+
+  document.getElementById('dailyWrap').innerHTML = `
+    <table>
+      <thead><tr>${colHeaders}</tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+
+  // If multi-product view, also show per-product totals table below
+  if (!isSingle && productTotals.size > 1) {
+    const sorted = [...productTotals.entries()].sort((a, b) => b[1] - a[1]);
+    const maxProd = sorted[0][1];
+    const perProdRows = sorted.map(([pid, total]) => {
+      const p = allProducts.find(x => x.id === pid);
+      const title = p?.title || pid.split('/').pop();
+      const pool = p?.pool;
+      const bw = maxProd ? Math.round((total / maxProd) * 160) : 0;
+      return `<tr>
+        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(title)}</td>
+        <td class="num pos">${total}</td>
+        <td><div class="bar-cell"><div class="bar-fill" style="width:${bw}px"></div></div></td>
+        <td class="num ${(pool?.last_available ?? 1) < 0 ? 'neg' : ''}">${pool?.last_available ?? '–'}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('dailyWrap').innerHTML += `
+      <div style="margin-top:14px">
+        <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:8px 10px;background:#fdf5ec">Per-product totals</div>
+        <table>
+          <thead><tr><th>Product</th><th>Total Sold</th><th style="width:200px"></th><th>Current Available</th></tr></thead>
+          <tbody>${perProdRows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+// ── SEED MODAL ────────────────────────────────────────────────────────────────
+
+function openSeedModal() { document.getElementById('seedModal').style.display = 'flex'; }
+function closeSeedModal() { document.getElementById('seedModal').style.display = 'none'; }
+
+function parseSeedText(text) {
+  const qtys = {};
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  for (const line of lines) {
+    // Accept "Title: 25" or "Title, 25" or "Title\t25"
+    const m = line.match(/^(.+?)[\s]*[,:|\t][\s]*(\d+)\s*$/);
+    if (m) qtys[m[1].trim()] = parseInt(m[2]);
+  }
+  return qtys;
+}
+
+async function runSeed() {
+  const text = document.getElementById('seedText').value.trim();
+  if (!text) { toast('Paste title→qty data first'); return; }
+
+  const qtys = parseSeedText(text);
+  const count = Object.keys(qtys).length;
+  if (!count) { toast('Could not parse any title: qty pairs'); return; }
+
+  document.getElementById('seedPreview').textContent = `Parsed ${count} entries. Seeding…`;
+
+  try {
+    const res = await api({
+      action: 'seed_baselines',
+      qtys,
+      products: allProducts.map(p => ({ id: p.id, title: p.title, handle: p.handle })),
+    });
+    closeSeedModal();
+    toast(`Seeded ${res.matched} products${res.unmatched?.length ? `, ${res.unmatched.length} unmatched` : ''}`);
+    if (res.unmatched?.length) console.warn('Unmatched titles:', res.unmatched);
+    await init();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+
+async function api(body) {
+  const r = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
+
+// ── UTIL ──────────────────────────────────────────────────────────────────────
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// Set default date range (last 30 days)
+(function() {
+  const to = new Date();
+  const from = new Date(to); from.setDate(from.getDate() - 30);
+  document.getElementById('anaFrom').value = from.toISOString().slice(0, 10);
+  document.getElementById('anaTo').value = to.toISOString().slice(0, 10);
+})();
+
+init();
+</script>
+</body>
+</html>
