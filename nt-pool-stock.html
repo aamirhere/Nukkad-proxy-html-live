@@ -117,7 +117,13 @@ tr.prod-row.expanded .toggle-ico{transform:rotate(90deg)}
 
 /* seed modal */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal{background:#fff;border-radius:12px;padding:22px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal{background:#fff;border-radius:12px;padding:22px;max-width:620px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.preview-tbl{width:100%;border-collapse:collapse;font-size:.78rem;margin-top:8px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.preview-tbl th{background:#fdf5ec;padding:6px 10px;text-align:left;font-weight:700;color:var(--ink2);border-bottom:1px solid var(--line)}
+.preview-tbl td{padding:6px 10px;border-bottom:1px solid var(--line)}
+.preview-tbl tr:last-child td{border-bottom:none}
+.match-ok{color:var(--green);font-size:.7rem;font-weight:700}
+.match-miss{color:var(--red);font-size:.7rem;font-weight:700}
 .modal h2{font-family:Fraunces,Georgia,serif;font-size:1.05rem;margin-bottom:12px}
 .modal p{font-size:.8rem;color:var(--ink2);margin-bottom:10px;line-height:1.6}
 .modal textarea{width:100%;height:180px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-family:monospace;font-size:.78rem;resize:vertical}
@@ -273,21 +279,41 @@ ORDER  BY day DESC, units_sold DESC;</div>
   </div>
 </div>
 
-<!-- SEED MODAL -->
+<!-- BULK INVENTORY UPLOAD MODAL -->
 <div id="seedModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeSeedModal()">
   <div class="modal">
-    <h2>Seed Baselines</h2>
-    <p>Upload a <strong>CSV file</strong> with columns <code>title,qty</code> or <code>handle,qty</code> — or paste manually below.</p>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <label style="font-size:.78rem;color:var(--ink2);font-weight:700">Upload CSV:</label>
-      <input type="file" id="seedCsvFile" accept=".csv,text/csv" onchange="onCsvUpload(this)" style="font-size:.78rem">
+    <h2>Bulk Inventory Upload</h2>
+    <p>Upload a CSV with two columns: <strong>product title</strong> and <strong>quantity</strong>. Titles are matched against the Now or Never Sale collection (fuzzy). Sets Shopify inventory and saves baseline in one shot.</p>
+
+    <div style="background:#fdf5ec;border:1px solid var(--line);border-radius:7px;padding:10px 12px;margin-bottom:12px;font-size:.78rem;color:var(--ink2)">
+      <strong>CSV format (any delimiter: comma, tab, semicolon):</strong><br>
+      <code>But First Coffee, 45</code><br>
+      <code>Bhaiyaji Smile, 30</code><br>
+      Header row optional — will be auto-detected and skipped.
     </div>
-    <p style="margin-bottom:6px">Or paste manually — one per line: <code>Product Title: 25</code></p>
-    <textarea id="seedText" placeholder="Wooden Quote - Be Kind: 30&#10;Wooden Quote - Stay Strong: 15"></textarea>
+
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <label class="btn-ok" style="cursor:pointer;padding:8px 18px;border-radius:7px;font-size:.85rem">
+        📂 Choose CSV
+        <input type="file" id="seedCsvFile" accept=".csv,text/csv" onchange="onCsvUpload(this)" style="display:none">
+      </label>
+      <span id="csvFileName" style="font-size:.78rem;color:var(--muted)">No file chosen</span>
+    </div>
+
+    <div id="bulkPreview" style="display:none">
+      <div id="bulkStats" style="font-size:.8rem;margin-bottom:8px;font-weight:700;color:var(--ink2)"></div>
+      <div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:6px">
+        <table class="preview-tbl">
+          <thead><tr><th>CSV Title</th><th>Matched Product</th><th style="width:70px;text-align:right">Qty</th><th style="width:60px"></th></tr></thead>
+          <tbody id="bulkRows"></tbody>
+        </table>
+      </div>
+    </div>
+
     <div id="seedPreview" style="font-size:.75rem;color:var(--muted);margin-top:6px"></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeSeedModal()">Cancel</button>
-      <button class="btn-ok" onclick="runSeed()">Seed</button>
+      <button class="btn-ok" id="bulkSyncBtn" onclick="runBulkSync()" style="display:none">⬆ Set Baselines + Sync Shopify</button>
     </div>
   </div>
 </div>
@@ -793,8 +819,13 @@ function renderAnalytics(rows, filterPid) {
 
 function openSeedModal()  {
   document.getElementById('seedCsvFile').value = '';
-  document.getElementById('seedText').value = '';
   document.getElementById('seedPreview').textContent = '';
+  document.getElementById('csvFileName').textContent = 'No file chosen';
+  document.getElementById('bulkPreview').style.display = 'none';
+  document.getElementById('bulkSyncBtn').style.display = 'none';
+  document.getElementById('bulkSyncBtn').disabled = false;
+  document.getElementById('bulkSyncBtn').textContent = '⬆ Set Baselines + Sync Shopify';
+  window._bulkPreviewRows = [];
   document.getElementById('seedModal').style.display='flex';
 }
 function closeSeedModal() { document.getElementById('seedModal').style.display='none'; }
@@ -806,41 +837,93 @@ function onCsvUpload(input) {
   reader.onload = e => {
     const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
     // Detect header row — skip if first cell is non-numeric and looks like a header
-    const start = /^(title|handle|product|name)/i.test(lines[0]) ? 1 : 0;
-    const parsed = [];
+    // Detect delimiter: whichever of comma/tab/semicolon appears most in line 0
+    const l0 = lines[0] || '';
+    const delim = [',','\t',';'].sort((a,b) => (l0.split(b).length - l0.split(a).length))[0];
+
+    const isHeader = /^(title|handle|product|name|item)/i.test(lines[0].split(delim)[0].trim());
+    const start = isHeader ? 1 : 0;
+
+    const parsedItems = [];
     for (let i = start; i < lines.length; i++) {
-      // Support comma, tab, semicolon delimiters; handle quoted fields
-      const cols = lines[i].split(/,|\t|;/).map(c => c.replace(/^"|"$/g,'').trim());
-      if (cols.length >= 2) {
-        const qty = parseInt(cols[cols.length - 1]); // last col = qty
-        const title = cols.slice(0, cols.length - 1).join(' ').trim();
-        if (title && !isNaN(qty)) parsed.push(`${title}: ${qty}`);
+      const cols = lines[i].split(delim).map(c => c.replace(/^"|"$/g,'').trim());
+      if (cols.length < 2) continue;
+      // qty is always the last numeric column
+      let qtyIdx = -1;
+      for (let j = cols.length - 1; j >= 1; j--) {
+        if (!isNaN(parseInt(cols[j]))) { qtyIdx = j; break; }
       }
+      if (qtyIdx < 1) continue;
+      const title = cols.slice(0, qtyIdx).join(' ').trim();
+      const qty   = parseInt(cols[qtyIdx]);
+      if (title && !isNaN(qty)) parsedItems.push({ title, qty });
     }
-    document.getElementById('seedText').value = parsed.join('\n');
-    document.getElementById('seedPreview').textContent = `CSV loaded: ${parsed.length} rows parsed`;
+
+    // Client-side fuzzy preview: match against allProducts
+    const norm = s => s.toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+    const previewRows = parsedItems.map(item => {
+      const nInput = norm(item.title);
+      let best = null, bestScore = 0;
+      for (const p of allProducts) {
+        const nT = norm(p.title), nH = norm(p.handle.replace(/-/g,' '));
+        let score = 0;
+        if (nT === nInput || nH === nInput) score = 100;
+        else if (nT.includes(nInput) || nInput.includes(nT)) score = 80;
+        else {
+          const wA = new Set(nInput.split(' ')), wB = nT.split(' ');
+          score = wB.length ? Math.round(wB.filter(w=>wA.has(w)).length / Math.max(wA.size, wB.length) * 60) : 0;
+        }
+        if (score > bestScore) { bestScore = score; best = p; }
+      }
+      return { ...item, matched: bestScore >= 40 ? best : null, score: bestScore };
+    });
+
+    const matchCount = previewRows.filter(r => r.matched).length;
+    document.getElementById('csvFileName').textContent = `${file.name} — ${parsedItems.length} rows`;
+    document.getElementById('bulkStats').innerHTML =
+      `<span style="color:var(--green)">✓ ${matchCount} matched</span>` +
+      (parsedItems.length - matchCount ? `  <span style="color:var(--red)">✕ ${parsedItems.length - matchCount} unmatched</span>` : '');
+
+    document.getElementById('bulkRows').innerHTML = previewRows.map(r => `
+      <tr>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.title)}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${r.matched
+            ? `<span class="match-ok">✓</span> ${escHtml(r.matched.title)}`
+            : `<span class="match-miss">✕ no match</span>`}
+        </td>
+        <td style="text-align:right;font-family:monospace;font-weight:700">${r.qty}</td>
+        <td style="text-align:center">
+          ${r.matched ? `<input type="number" value="${r.qty}" min="0" style="width:60px;padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:.78rem;text-align:right" onchange="previewRows[${previewRows.indexOf(r)}].qty=parseInt(this.value)||0">` : ''}
+        </td>
+      </tr>`).join('');
+
+    // Store for submission
+    window._bulkPreviewRows = previewRows;
+    document.getElementById('bulkPreview').style.display = 'block';
+    document.getElementById('bulkSyncBtn').style.display = matchCount ? '' : 'none';
   };
   reader.readAsText(file);
 }
 
-async function runSeed() {
-  const text = document.getElementById('seedText').value.trim();
-  if (!text) { toast('Paste title→qty data first or upload a CSV'); return; }
-  const qtys = {};
-  text.split(/\r?\n/).filter(l=>l.trim()).forEach(line => {
-    const m = line.match(/^(.+?)[\s]*[,:|\t][\s]*(\d+)\s*$/);
-    if (m) qtys[m[1].trim()] = parseInt(m[2]);
-  });
-  const count = Object.keys(qtys).length;
-  if (!count) { toast('Could not parse any title: qty pairs'); return; }
-  document.getElementById('seedPreview').textContent = `Parsed ${count} entries. Seeding…`;
+async function runBulkSync() {
+  const rows = (window._bulkPreviewRows || []).filter(r => r.matched);
+  if (!rows.length) { toast('No matched products'); return; }
+  const btn = document.getElementById('bulkSyncBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing…';
+  document.getElementById('seedPreview').textContent = `Uploading ${rows.length} products to Shopify…`;
   try {
-    const res = await api({ action:'seed_baselines', qtys,
-      products: allProducts.map(p=>({id:p.id,title:p.title,handle:p.handle})) });
+    const items = rows.map(r => ({ title: r.title, qty: r.qty }));
+    const res = await api({ action: 'bulk_inventory_sync', items });
     closeSeedModal();
-    toast(`Seeded ${res.matched} products${res.unmatched?.length?`, ${res.unmatched.length} unmatched`:''}`);
+    toast(`✓ ${res.matched?.length||0} products synced to Shopify${res.unmatched?.length ? ` · ${res.unmatched.length} failed` : ''}`);
     await init();
-  } catch(e) { toast('Error: '+e.message); }
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '⬆ Set Baselines + Sync Shopify';
+  }
 }
 
 // ── UTIL ──────────────────────────────────────────────────────────────────────
