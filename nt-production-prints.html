@@ -262,6 +262,10 @@ function rowHTML(p) {
       </div>
     </div>
     <div class="row-actions">
+      <label class="act-btn" style="cursor:pointer;text-align:center">
+        📤 Upload Image
+        <input type="file" accept="image/*" style="display:none" onchange="uploadImage('${p.handle}', this)">
+      </label>
       <button class="act-btn" onclick="genA4('${p.handle}','single')">⬇ Single A4</button>
       <button class="act-btn" onclick="genA4('${p.handle}','tile2')">⬇ Tile ×2</button>
       <button class="act-btn orange" onclick="genA4('${p.handle}','tilemax')">⬇ Tile Max</button>
@@ -626,6 +630,45 @@ function toast(msg) {
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── DRIVE UPLOAD ──────────────────────────────────────────────────────────────
+
+async function uploadImage(handle, input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  toast(`Uploading ${file.name} to Drive…`);
+
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const dataUrl = e.target.result;
+    const [header, data] = dataUrl.split(',');
+    const mime_type = header.match(/:(.*?);/)[1];
+
+    try {
+      const res = await apiFetch({
+        action: 'upload_image',
+        handle,
+        filename: `${handle}.${file.name.split('.').pop()}`,
+        mime_type,
+        data,
+      });
+
+      if (!res.ok) throw new Error(res.error || 'Upload failed');
+
+      links[handle] = { drive_link: res.drive_link, drive_id: res.drive_id };
+      const p = allProducts.find(x => x.handle === handle);
+      if (p) p.is_new = false;
+      filterList();
+      updateHeader();
+      toast('✓ Uploaded & linked to Drive');
+    } catch(e) {
+      toast('Upload error: ' + e.message);
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 init();
