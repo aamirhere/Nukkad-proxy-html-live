@@ -201,7 +201,8 @@ tr.prod-row.expanded .toggle-ico{transform:rotate(90deg)}
     <label>To</label><input id="salTo" type="date">
     <button class="hbtn accent" onclick="loadSales()">Load Orders</button>
     <span id="salScanInfo" style="font-size:.75rem;color:var(--muted)"></span>
-    <button class="csv-btn" onclick="exportCsv()" id="csvBtn" style="display:none;margin-left:auto">⬇ Export CSV</button>
+    <button class="csv-btn" onclick="exportCsv()" id="csvBtn" style="display:none;margin-left:auto">⬇ Full Export</button>
+    <button class="csv-btn" onclick="exportUploadCsv()" id="uploadCsvBtn" style="display:none;background:var(--accent);color:#fff;border-color:var(--accent)">⬇ Download for Upload</button>
   </div>
   <div class="sales-stat" id="salesStatGrid"></div>
   <div id="salesWrap"><div class="empty">Set a date range and click Load Orders.</div></div>
@@ -576,6 +577,7 @@ async function loadSales() {
   document.getElementById('salesStatGrid').innerHTML = '';
   document.getElementById('salScanInfo').textContent = '';
   document.getElementById('csvBtn').style.display = 'none';
+  document.getElementById('uploadCsvBtn').style.display = 'none';
 
   const df = document.getElementById('salFrom').value;
   const dt = document.getElementById('salTo').value;
@@ -591,6 +593,7 @@ async function loadSales() {
     salesUniqueOrders = res.unique_orders_with_collection || 0;
     document.getElementById('salScanInfo').textContent = `${res.orders_scanned} orders scanned`;
     document.getElementById('csvBtn').style.display = '';
+    document.getElementById('uploadCsvBtn').style.display = '';
     renderSalesTable();
   } catch(e) {
     document.getElementById('salesWrap').innerHTML = `<div class="empty">Error: ${escHtml(e.message)}</div>`;
@@ -696,6 +699,23 @@ function exportCsv() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `pool-sales-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 500);
+}
+
+function exportUploadCsv() {
+  const df = document.getElementById('salFrom').value;
+  const dt = document.getElementById('salTo').value;
+  const label = (df || 'all') + (dt ? '_to_' + dt : '');
+  const rows = [...salesData].sort((a, b) => b.total_qty - a.total_qty);
+  const lines = ['Title,Units Sold'];
+  rows.forEach(r => {
+    lines.push([`"${r.title.replace(/"/g,'""')}"`, r.total_qty].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `inventory-upload-${label}.csv`;
   document.body.appendChild(a); a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 500);
 }
