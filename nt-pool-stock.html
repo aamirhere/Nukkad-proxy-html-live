@@ -141,6 +141,7 @@ tr.prod-row.expanded .toggle-ico{transform:rotate(90deg)}
   <span class="sub">Now or Never Sale — shared inventory pools</span>
   <div class="ml-auto" style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="hbtn" onclick="openSeedModal()">⬆ Seed Baselines</button>
+    <button class="hbtn" onclick="enableTracking(this)" id="trackBtn">📦 Enable Stock Tracking</button>
     <button class="hbtn" onclick="switchTab('sqlref')">📋 SQL / Setup</button>
     <button class="hbtn accent" onclick="init()">↺ Reload</button>
   </div>
@@ -276,8 +277,12 @@ ORDER  BY day DESC, units_sold DESC;</div>
 <div id="seedModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeSeedModal()">
   <div class="modal">
     <h2>Seed Baselines</h2>
-    <p>Paste <strong>product title → quantity</strong>, one per line.<br>
-    Format: <code>Product Title: 25</code> or <code>Product Title, 25</code></p>
+    <p>Upload a <strong>CSV file</strong> with columns <code>title,qty</code> or <code>handle,qty</code> — or paste manually below.</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <label style="font-size:.78rem;color:var(--ink2);font-weight:700">Upload CSV:</label>
+      <input type="file" id="seedCsvFile" accept=".csv,text/csv" onchange="onCsvUpload(this)" style="font-size:.78rem">
+    </div>
+    <p style="margin-bottom:6px">Or paste manually — one per line: <code>Product Title: 25</code></p>
     <textarea id="seedText" placeholder="Wooden Quote - Be Kind: 30&#10;Wooden Quote - Stay Strong: 15"></textarea>
     <div id="seedPreview" style="font-size:.75rem;color:var(--muted);margin-top:6px"></div>
     <div class="modal-btns">
@@ -316,7 +321,7 @@ async function init() {
 // ── TABS ──────────────────────────────────────────────────────────────────────
 
 function switchTab(name) {
-  const names = ['products','analytics','sqlref'];
+  const names = ['products','sales','analytics','sqlref'];
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', names[i]===name));
   document.querySelectorAll('.tab-content').forEach(tc => tc.classList.toggle('active', tc.id===`tab-${name}`));
 }
@@ -515,6 +520,7 @@ async function removePool(productId) {
 // ── SALES HISTORY ─────────────────────────────────────────────────────────────
 
 let salesData = [];
+let salesUniqueOrders = 0;
 let salesSort = { col: 'total_qty', dir: 'desc' };
 
 async function loadSales() {
@@ -534,6 +540,7 @@ async function loadSales() {
     });
     if (!res.ok) throw new Error(res.error || 'Failed');
     salesData = res.rows || [];
+    salesUniqueOrders = res.unique_orders_with_collection || 0;
     document.getElementById('salScanInfo').textContent = `${res.orders_scanned} orders scanned`;
     document.getElementById('csvBtn').style.display = '';
     renderSalesTable();
@@ -550,13 +557,12 @@ function renderSalesTable() {
   });
 
   const totalQty = rows.reduce((s, r) => s + r.total_qty, 0);
-  const totalOrders = rows.reduce((s, r) => s + r.order_count, 0);
   const maxQty = Math.max(...rows.map(r => r.total_qty), 1);
   const selling = rows.filter(r => r.total_qty > 0).length;
 
   document.getElementById('salesStatGrid').innerHTML = `
     <div class="stat-card"><div class="label">Total units sold</div><div class="val accent">${totalQty}</div></div>
-    <div class="stat-card"><div class="label">Total orders</div><div class="val">${totalOrders}</div></div>
+    <div class="stat-card"><div class="label">Orders with collection items</div><div class="val">${salesUniqueOrders}</div></div>
     <div class="stat-card"><div class="label">Products in collection</div><div class="val">${rows.length}</div></div>
     <div class="stat-card"><div class="label">Products with sales</div><div class="val">${selling}</div></div>`;
 
@@ -645,6 +651,25 @@ function exportCsv() {
   a.download = `pool-sales-${new Date().toISOString().slice(0,10)}.csv`;
   document.body.appendChild(a); a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 500);
+}
+
+// ── ENABLE INVENTORY TRACKING ─────────────────────────────────────────────────
+
+async function enableTracking(btn) {
+  if (!confirm('Enable inventory tracking for ALL products in the Now or Never Sale collection?\n\nThis sets "Track quantity" on every variant that isn\'t already tracked.')) return;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Enabling…';
+  try {
+    const res = await api({ action: 'enable_tracking' });
+    if (res.errors?.length) toast(`Done with ${res.errors.length} error(s): ${res.errors[0]}`);
+    else toast(`Inventory tracking enabled for ${res.updated} products`);
+  } catch(e) {
+    toast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
 }
 
 // ── ANALYTICS ─────────────────────────────────────────────────────────────────
@@ -745,12 +770,41 @@ function renderAnalytics(rows, filterPid) {
 
 // ── SEED MODAL ────────────────────────────────────────────────────────────────
 
-function openSeedModal()  { document.getElementById('seedModal').style.display='flex'; }
+function openSeedModal()  {
+  document.getElementById('seedCsvFile').value = '';
+  document.getElementById('seedText').value = '';
+  document.getElementById('seedPreview').textContent = '';
+  document.getElementById('seedModal').style.display='flex';
+}
 function closeSeedModal() { document.getElementById('seedModal').style.display='none'; }
+
+function onCsvUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
+    // Detect header row — skip if first cell is non-numeric and looks like a header
+    const start = /^(title|handle|product|name)/i.test(lines[0]) ? 1 : 0;
+    const parsed = [];
+    for (let i = start; i < lines.length; i++) {
+      // Support comma, tab, semicolon delimiters; handle quoted fields
+      const cols = lines[i].split(/,|\t|;/).map(c => c.replace(/^"|"$/g,'').trim());
+      if (cols.length >= 2) {
+        const qty = parseInt(cols[cols.length - 1]); // last col = qty
+        const title = cols.slice(0, cols.length - 1).join(' ').trim();
+        if (title && !isNaN(qty)) parsed.push(`${title}: ${qty}`);
+      }
+    }
+    document.getElementById('seedText').value = parsed.join('\n');
+    document.getElementById('seedPreview').textContent = `CSV loaded: ${parsed.length} rows parsed`;
+  };
+  reader.readAsText(file);
+}
 
 async function runSeed() {
   const text = document.getElementById('seedText').value.trim();
-  if (!text) { toast('Paste title→qty data first'); return; }
+  if (!text) { toast('Paste title→qty data first or upload a CSV'); return; }
   const qtys = {};
   text.split(/\r?\n/).filter(l=>l.trim()).forEach(line => {
     const m = line.match(/^(.+?)[\s]*[,:|\t][\s]*(\d+)\s*$/);
