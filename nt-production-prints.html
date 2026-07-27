@@ -65,6 +65,14 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 .act-btn.orange{background:var(--accent);color:#fff;border-color:var(--accent)}
 .act-btn.orange:hover{background:#b8401a}
 
+/* ── INLINE EDIT ── */
+.editable{cursor:pointer;border-bottom:1px dashed var(--muted)}
+.editable:hover{border-color:var(--accent);color:var(--accent)}
+.inline-input{border:1px solid var(--accent);border-radius:4px;padding:2px 6px;font-size:.82rem;color:var(--ink);width:80px}
+.size-wrap{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:.72rem;color:var(--ink2)}
+.del-btn{background:none;border:none;color:#ccc;cursor:pointer;font-size:.8rem;padding:2px 4px;flex-shrink:0}
+.del-btn:hover{color:#e74c3c}
+
 /* ── MODAL ── */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal{background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.2)}
@@ -77,6 +85,15 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 .modal-btns button{padding:7px 18px;border-radius:7px;border:none;cursor:pointer;font-size:.84rem;font-weight:700}
 .btn-cancel{background:#f0e8dc;color:var(--ink2)}
 .btn-save{background:var(--accent);color:#fff}
+
+/* ── DRIVE PICKER MODAL ── */
+#driveModal .modal{max-width:640px}
+.drive-search{width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:.88rem;margin-bottom:12px;color:var(--ink)}
+.drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;max-height:380px;overflow-y:auto}
+.drive-file{border:2px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.drive-file:hover{border-color:var(--accent)}
+.drive-file img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#f5ece0}
+.drive-file-name{font-size:.65rem;color:var(--ink2);padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .csv-area{font-size:.77rem;color:var(--ink2);background:#fdf5ec;border-radius:6px;padding:10px;margin-bottom:10px;line-height:1.7}
 .csv-area code{background:#e9ddca;border-radius:3px;padding:0 4px;font-size:.73rem}
@@ -101,6 +118,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
       📤 Bulk Upload Images
       <input type="file" accept="image/*" multiple style="display:none" onchange="bulkUploadImages(this)">
     </label>
+    <button class="hbtn" onclick="openAddModal()">+ Add Product</button>
     <button class="hbtn" onclick="openCsvModal()">↑ CSV Upload</button>
     <button class="hbtn" onclick="refreshProducts()">↺ Refresh</button>
   </div>
@@ -130,6 +148,38 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 
 <canvas id="offCanvas"></canvas>
 <div id="toast"></div>
+
+<!-- DRIVE PICKER MODAL -->
+<div id="driveModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeDrivePicker()">
+  <div class="modal" style="max-width:640px">
+    <h2>Browse Drive Folder</h2>
+    <input class="drive-search" id="driveSearch" type="text" placeholder="Search files…" oninput="filterDriveFiles()">
+    <div class="drive-grid" id="driveGrid"><div style="color:var(--muted);font-size:.85rem">Loading…</div></div>
+    <div class="modal-btns" style="margin-top:14px">
+      <button class="btn-cancel" onclick="closeDrivePicker()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANUAL ADD MODAL -->
+<div id="addModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal">
+    <h2>Add Product Manually</h2>
+    <label>Title *</label>
+    <input id="addTitle" type="text" placeholder="e.g. All Will Be Okay">
+    <label>Handle * (URL slug)</label>
+    <input id="addHandle" type="text" placeholder="e.g. all-will-be-okay">
+    <label>Size in mm (optional)</label>
+    <div class="mrow">
+      <input id="addSizeW" type="number" placeholder="Width mm" step="0.1">
+      <input id="addSizeH" type="number" placeholder="Height mm" step="0.1">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-save" onclick="saveAddModal()">Add</button>
+    </div>
+  </div>
+</div>
 
 <!-- DRIVE LINK MODAL -->
 <div id="linkModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeLinkModal()">
@@ -247,26 +297,42 @@ function rowHTML(p) {
          onerror="this.parentNode.innerHTML='<div class=no-img><span>📁</span><span>Load failed</span></div>'">`
     : `<div class="no-img"><span>📂</span><span>No image yet</span></div>`;
 
-  const sizeLabel = lk.size_w_mm ? `${lk.size_w_mm}×${lk.size_h_mm} mm` : '';
+  const lkW = lk.size_w_mm || '';
+  const lkH = lk.size_h_mm || '';
   const badge = p.is_new
     ? '<span class="new-badge">NEW</span>'
     : (!hasDrive ? '<span class="miss-badge">NO LINK</span>' : '');
+  const isManual = !!p.is_new;
 
   return `<div class="row${p.is_new ? ' is-new' : (!hasDrive ? ' missing' : '')}${isSelected ? ' selected' : ''}" id="row-${p.handle}">
     <div class="row-chk${isSelected ? ' checked' : ''}" onclick="toggleSelect('${p.handle}')">${isSelected ? '✓' : ''}</div>
-    <div class="row-thumb" onclick="openLinkModal('${p.handle}')">
+    <div class="row-thumb" onclick="openDrivePicker('${p.handle}')">
       ${thumbHtml}
       ${badge}
     </div>
     <div class="row-info">
-      <div class="row-title" title="${escHtml(p.title)}">${escHtml(p.title)}</div>
-      <div class="row-handle">${p.handle}</div>
-      ${sizeLabel ? `<div class="row-size">📐 ${sizeLabel}</div>` : ''}
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div>
+          <div class="row-title" title="${escHtml(p.title)}">${escHtml(p.title)}</div>
+          <div class="row-handle">${p.handle}</div>
+        </div>
+        <button class="del-btn" title="Delete" onclick="deleteRow('${p.handle}',${isManual})" style="margin-top:2px">✕</button>
+      </div>
+      <div class="size-wrap">
+        📐
+        <input class="inline-input" type="number" placeholder="W mm" step="0.1" value="${lkW}"
+          onchange="saveSize('${p.handle}','w',this.value)" style="width:68px">
+        ×
+        <input class="inline-input" type="number" placeholder="H mm" step="0.1" value="${lkH}"
+          onchange="saveSize('${p.handle}','h',this.value)" style="width:68px">
+        <span style="color:var(--muted)">mm</span>
+      </div>
       <div class="row-link ${hasDrive ? 'has-link' : 'no-link'}" onclick="openLinkModal('${p.handle}')">
-        ${hasDrive ? '✓ Drive linked — click to change' : '+ Add Drive link'}
+        ${hasDrive ? '✓ Drive linked — click to change' : '+ Paste Drive link'}
       </div>
     </div>
     <div class="row-actions">
+      <button class="act-btn" onclick="openDrivePicker('${p.handle}')">🗂 Browse Drive</button>
       <label class="act-btn" style="cursor:pointer;text-align:center">
         📤 Upload Image
         <input type="file" accept="image/*" style="display:none" onchange="uploadImage('${p.handle}', this)">
@@ -635,6 +701,134 @@ function toast(msg) {
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── INLINE SIZE EDIT ──────────────────────────────────────────────────────────
+
+async function saveSize(handle, dim, val) {
+  const lk = links[handle] || {};
+  if (dim === 'w') lk.size_w_mm = parseFloat(val) || null;
+  else             lk.size_h_mm = parseFloat(val) || null;
+  links[handle] = lk;
+  try {
+    await apiFetch({ action: 'save_link', handle, drive_link: lk.drive_link || null, drive_id: lk.drive_id || null, size_w_mm: lk.size_w_mm, size_h_mm: lk.size_h_mm });
+  } catch(e) { toast('Size save error: ' + e.message); }
+}
+
+// ── DELETE ROW ────────────────────────────────────────────────────────────────
+
+async function deleteRow(handle, isManual) {
+  if (!confirm(`Remove "${handle}"?`)) return;
+  try {
+    await apiFetch({ action: isManual ? 'delete_manual' : 'delete_link', handle });
+    if (isManual) {
+      allProducts = allProducts.filter(p => p.handle !== handle);
+    }
+    delete links[handle];
+    filtered = filtered.filter(p => p.handle !== handle);
+    document.getElementById(`row-${handle}`)?.remove();
+    updateHeader();
+    toast('Removed');
+  } catch(e) { toast('Delete error: ' + e.message); }
+}
+
+// ── MANUAL ADD ────────────────────────────────────────────────────────────────
+
+function openAddModal() {
+  document.getElementById('addTitle').value = '';
+  document.getElementById('addHandle').value = '';
+  document.getElementById('addSizeW').value = '';
+  document.getElementById('addSizeH').value = '';
+  document.getElementById('addModal').style.display = 'flex';
+}
+function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
+
+document.getElementById('addTitle').addEventListener('input', function() {
+  const h = document.getElementById('addHandle');
+  if (!h.dataset.edited) h.value = this.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+});
+document.getElementById('addHandle').addEventListener('input', function() { this.dataset.edited = '1'; });
+
+async function saveAddModal() {
+  const title  = document.getElementById('addTitle').value.trim();
+  const handle = document.getElementById('addHandle').value.trim();
+  const w = parseFloat(document.getElementById('addSizeW').value) || null;
+  const h = parseFloat(document.getElementById('addSizeH').value) || null;
+  if (!title || !handle) { toast('Title and handle required'); return; }
+  try {
+    await apiFetch({ action: 'add_manual', handle, title, size_w_mm: w, size_h_mm: h });
+    allProducts.unshift({ handle, title, shopify_image: null, size_w_in: null, size_h_in: null, size_label: null, is_new: true });
+    if (w || h) links[handle] = { size_w_mm: w, size_h_mm: h };
+    closeAddModal();
+    filterList();
+    updateHeader();
+    toast(`Added: ${title}`);
+  } catch(e) { toast('Add error: ' + e.message); }
+}
+
+// ── DRIVE PICKER ──────────────────────────────────────────────────────────────
+
+let driveFiles = null;
+let drivePickerHandle = null;
+
+async function openDrivePicker(handle) {
+  drivePickerHandle = handle;
+  document.getElementById('driveSearch').value = '';
+  document.getElementById('driveModal').style.display = 'flex';
+  document.getElementById('driveGrid').innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:20px">Loading Drive files…</div>';
+
+  if (!driveFiles) {
+    try {
+      const res = await apiFetch({ action: 'list_drive_files' });
+      if (!res.ok) throw new Error(res.error);
+      driveFiles = res.files;
+    } catch(e) {
+      document.getElementById('driveGrid').innerHTML = `<div style="color:#e74c3c;font-size:.85rem;padding:20px">Error: ${e.message}</div>`;
+      return;
+    }
+  }
+  renderDriveGrid(driveFiles);
+}
+
+function closeDrivePicker() {
+  document.getElementById('driveModal').style.display = 'none';
+  drivePickerHandle = null;
+}
+
+function filterDriveFiles() {
+  if (!driveFiles) return;
+  const q = document.getElementById('driveSearch').value.toLowerCase();
+  const filtered = q ? driveFiles.filter(f => f.name.toLowerCase().includes(q)) : driveFiles;
+  renderDriveGrid(filtered);
+}
+
+function renderDriveGrid(files) {
+  const grid = document.getElementById('driveGrid');
+  if (!files.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:20px">No files found</div>'; return; }
+  grid.innerHTML = files.map(f => `
+    <div class="drive-file" onclick="selectDriveFile('${f.id}','${escHtml(f.webViewLink)}','${escHtml(f.name)}')">
+      <img src="https://drive.google.com/thumbnail?id=${f.id}&sz=w200" alt="" loading="lazy"
+           onerror="this.style.background='#f5ece0';this.style.height='80px'">
+      <div class="drive-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</div>
+    </div>
+  `).join('');
+}
+
+async function selectDriveFile(driveId, driveLink, filename) {
+  const handle = drivePickerHandle;
+  if (!handle) return;
+  closeDrivePicker();
+  toast(`Linking ${filename}…`);
+  try {
+    const lk = links[handle] || {};
+    await apiFetch({ action: 'link_drive_file', handle, drive_id: driveId, drive_link: driveLink, size_w_mm: lk.size_w_mm || null, size_h_mm: lk.size_h_mm || null });
+    links[handle] = { ...lk, drive_id: driveId, drive_link: driveLink };
+    const p = allProducts.find(x => x.handle === handle);
+    if (p) p.is_new = false;
+    filterList();
+    updateHeader();
+    toast('✓ Linked');
+  } catch(e) { toast('Link error: ' + e.message); }
 }
 
 // ── BULK IMAGE UPLOAD ─────────────────────────────────────────────────────────
