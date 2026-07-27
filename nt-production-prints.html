@@ -96,6 +96,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
   <h1>🖨 Production Prints</h1>
   <span class="header-sub" id="headerSub">Loading…</span>
   <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="hbtn accent" onclick="scanDrive(this)">🔍 Scan Drive Folder</button>
     <button class="hbtn" onclick="openCsvModal()">↑ CSV Upload</button>
     <button class="hbtn" onclick="refreshProducts()">↺ Refresh</button>
   </div>
@@ -630,6 +631,44 @@ function toast(msg) {
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── SCAN DRIVE FOLDER ────────────────────────────────────────────────────────
+
+async function scanDrive(btn) {
+  if (!allProducts.length) { toast('Load products first'); return; }
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning…';
+  toast('Scanning Drive folder…');
+
+  try {
+    const res = await apiFetch({
+      action: 'scan_drive',
+      products: allProducts.map(p => ({ handle: p.handle, title: p.title })),
+    });
+
+    if (!res.ok) throw new Error(res.error || 'Scan failed');
+
+    // apply matched links locally
+    for (const m of res.results || []) {
+      links[m.handle] = { drive_link: m.drive_link, drive_id: m.drive_id };
+    }
+
+    filterList();
+    updateHeader();
+
+    const unmatchedNames = (res.unmatched_files || []).map(u => u.file).join(', ');
+    toast(`✓ Matched ${res.matched} images. ${res.unmatched} not matched${res.unmatched ? ': ' + unmatchedNames : ''}`);
+
+    if (res.unmatched > 0) {
+      console.log('Unmatched files:', res.unmatched_files);
+    }
+  } catch(e) {
+    toast('Scan error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Scan Drive Folder';
+  }
 }
 
 // ── DRIVE UPLOAD ──────────────────────────────────────────────────────────────
