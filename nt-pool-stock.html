@@ -382,8 +382,10 @@ function productRows(p) {
         ${isManaged ? `<button class="ibtn ibtn-reset" title="Reset baseline to now" onclick="setBaseline(${JSON.stringify(p.id)}, true)">↺</button>` : ''}
       </div>
     </td>
-    <td onclick="event.stopPropagation()">${isManaged
-      ? `<button class="ibtn ibtn-rm" onclick="removePool(${JSON.stringify(p.id)})">✕</button>` : ''}</td>
+    <td onclick="event.stopPropagation()" style="white-space:nowrap">
+      ${isManaged ? `<button class="ibtn ibtn-reset" title="Recount sold & update Shopify inventory now" onclick="syncNow(${JSON.stringify(p.id)}, this)">⟳ Sync</button> ` : ''}
+      ${isManaged ? `<button class="ibtn ibtn-rm" onclick="removePool(${JSON.stringify(p.id)})">✕</button>` : ''}
+    </td>
   </tr>
   <tr class="variant-panel" id="vp-${eid}">
     <td class="vp-cell" colspan="9">
@@ -517,6 +519,26 @@ async function removePool(productId) {
   } catch(e) { toast('Error: ' + e.message); }
 }
 
+// ── SYNC NOW ──────────────────────────────────────────────────────────────────
+
+async function syncNow(productId, btn) {
+  const p = allProducts.find(x => x.id === productId);
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '⏳';
+  try {
+    const res = await api({ action: 'sync_product', product_id: productId });
+    if (!res.ok) throw new Error(res.error || 'Sync failed');
+    toast(`${p?.title||'Product'}: ${res.new_available} available (${res.sold} sold since baseline)`);
+    delete loadedVariants[productId];
+    await init();
+  } catch(e) {
+    toast('Sync error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
 // ── SALES HISTORY ─────────────────────────────────────────────────────────────
 
 let salesData = [];
@@ -581,11 +603,10 @@ function renderSalesTable() {
       : '<span style="color:var(--muted)">–</span>';
     const base = r.baseline_qty !== null ? r.baseline_qty : '<span style="color:var(--muted)">–</span>';
 
-    // last 7 days qty
-    const df7 = new Date(); df7.setDate(df7.getDate() - 7);
-    const last7 = Object.entries(r.days || {})
-      .filter(([d]) => new Date(d) >= df7)
-      .reduce((s, [, q]) => s + q, 0);
+    // daily average over the days that had sales
+    const dayKeys = Object.keys(r.days || {});
+    const spanDays = Math.max(dayKeys.length, 1);
+    const dailyAvg = r.total_qty > 0 ? (r.total_qty / spanDays).toFixed(1) : '0';
 
     return `<tr>
       <td><span class="rank ${rankCls}">${rank}</span></td>
@@ -598,7 +619,7 @@ function renderSalesTable() {
         ${r.total_qty > 0 ? `<span class="heat-bar" style="width:${barW}px"></span>` : ''}
       </td>
       <td class="num">${r.order_count}</td>
-      <td class="num${last7 > 0 ? ' pos' : ''}">${last7}</td>
+      <td class="num${parseFloat(dailyAvg) > 0 ? ' pos' : ''}">${dailyAvg}</td>
       <td>${base}</td>
       <td>${avail}</td>
     </tr>`;
@@ -612,7 +633,7 @@ function renderSalesTable() {
           ${thEl('title','Product')}
           ${thEl('total_qty','Units Sold')}
           ${thEl('order_count','Orders')}
-          <th>Last 7 Days</th>
+          <th title="Average units per day in selected range">Avg/Day</th>
           ${thEl('baseline_qty','Baseline')}
           ${thEl('last_available','Pool Available')}
         </tr></thead>
