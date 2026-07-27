@@ -9,123 +9,117 @@
 body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b1d;min-height:100vh}
 :root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca}
 
-/* ── HEADER ── */
-.header{background:#fff;border-bottom:3px solid var(--accent);padding:12px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
-.header h1{font-family:Fraunces,Georgia,serif;font-size:1.25rem;color:var(--ink)}
-.header .sub{font-size:.75rem;color:var(--muted);margin-left:auto}
+.header{background:#fff;border-bottom:3px solid var(--accent);padding:12px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;flex-wrap:wrap}
+.header h1{font-family:Fraunces,Georgia,serif;font-size:1.2rem;color:var(--ink)}
+.header-sub{font-size:.75rem;color:var(--muted)}
 .hbtn{padding:6px 14px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.8rem;cursor:pointer;white-space:nowrap}
 .hbtn:hover{border-color:var(--accent);color:var(--accent)}
-.hbtn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.hbtn.primary:hover{background:#b8401a}
+.hbtn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
 
-/* ── CONTROLS ── */
-.controls{padding:14px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fdf5ec;border-bottom:1px solid var(--line)}
+.controls{padding:10px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fdf5ec;border-bottom:1px solid var(--line)}
 .search-wrap{flex:1;min-width:200px;position:relative}
-.search-wrap input{width:100%;padding:8px 12px 8px 36px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;background:#fff;color:var(--ink)}
-.search-wrap .ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.9rem;pointer-events:none}
+.search-wrap input{width:100%;padding:8px 12px 8px 34px;border:1px solid var(--line);border-radius:8px;font-size:.88rem;background:#fff;color:var(--ink)}
+.search-wrap .sico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:.85rem}
 .badge{background:var(--accent);color:#fff;border-radius:10px;font-size:.7rem;padding:1px 7px;font-weight:700}
-#selBar{display:none;padding:10px 20px;background:#3a2b1d;color:#fff;align-items:center;gap:12px;font-size:.9rem}
+
+/* ── BULK BAR ── */
+#selBar{display:none;padding:8px 20px;background:#3a2b1d;color:#fff;align-items:center;gap:10px;font-size:.85rem;flex-wrap:wrap}
 #selBar.show{display:flex}
-#selBar button{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:.82rem;font-weight:700}
-#selBar .gen-multi{background:var(--accent);color:#fff}
-#selBar .cancel-sel{background:transparent;color:#bbb;text-decoration:underline}
+#selBar button{padding:5px 13px;border-radius:6px;border:none;cursor:pointer;font-size:.8rem;font-weight:700}
+.sel-multi{background:var(--accent);color:#fff}
+.sel-dl{background:#fff;color:var(--ink)}
+.sel-cancel{background:transparent;color:#bbb;text-decoration:underline;font-weight:400}
 
-/* ── GRID ── */
-.grid-wrap{padding:16px 20px}
-.section-label{font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;margin-top:4px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+/* ── LIST ── */
+.list-wrap{padding:12px 20px;display:flex;flex-direction:column;gap:6px}
+.section-label{font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:8px 0 4px}
 
-/* ── CARD ── */
-.card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--line);position:relative;cursor:default;transition:box-shadow .15s}
-.card:hover{box-shadow:0 4px 18px rgba(0,0,0,.1)}
-.card.missing{border-color:#e74c3c;border-width:2px}
-.card.selected{outline:3px solid var(--accent)}
+.row{background:#fff;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;gap:12px;padding:8px 12px;transition:box-shadow .15s;position:relative}
+.row:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.row.missing{border-color:#e74c3c}
+.row.selected{outline:2px solid var(--accent);outline-offset:-1px}
+.row.is-new{border-color:#2ecc71;border-width:2px}
 
-.card-thumb{width:100%;aspect-ratio:1;background:#f5ece0;position:relative;overflow:hidden}
-.card-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.card-thumb .no-img{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;color:var(--muted);font-size:.8rem}
-.card-thumb .no-img .ico{font-size:1.8rem}
+.row-chk{width:18px;height:18px;border-radius:4px;border:2px solid var(--line);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#fff}
+.row-chk.checked{background:var(--accent);border-color:var(--accent)}
 
-/* hover overlay */
-.card-overlay{position:absolute;inset:0;background:rgba(20,12,4,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;opacity:0;transition:opacity .15s;pointer-events:none}
-.card:hover .card-overlay{opacity:1;pointer-events:auto}
-.card-overlay button{padding:6px 16px;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;width:80%;max-width:160px}
-.ov-single{background:#fff;color:var(--ink)}
-.ov-tile2{background:var(--accent);color:#fff}
-.ov-tilemax{background:var(--accent);color:#fff;opacity:.85}
-.ov-select{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)!important;font-weight:400}
-.card-overlay button:hover{filter:brightness(1.08)}
+.row-thumb{width:150px;height:150px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#f5ece0;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.row-thumb img{width:100%;height:100%;object-fit:cover}
+.row-thumb .no-img{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);font-size:.75rem;text-align:center;padding:8px}
+.row-thumb .no-img span:first-child{font-size:1.6rem}
 
-/* missing badge */
-.miss-badge{position:absolute;top:7px;left:7px;background:#e74c3c;color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.05em}
+.row-info{flex:1;min-width:0}
+.row-title{font-size:.88rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-handle{font-size:.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-size{font-size:.72rem;color:var(--ink2);margin-top:4px}
+.row-link{font-size:.72rem;margin-top:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.row-link.has-link{color:#2ecc71}
+.row-link.no-link{color:var(--accent);text-decoration:underline}
 
-/* sel checkbox */
-.sel-chk{position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:5px;border:2px solid rgba(255,255,255,.7);background:transparent;display:none;align-items:center;justify-content:center;color:#fff;font-size:.9rem;cursor:pointer;z-index:5}
-.sel-chk.show{display:flex}
-.sel-chk.checked{background:var(--accent);border-color:var(--accent)}
+.new-badge{position:absolute;top:8px;left:8px;background:#2ecc71;color:#fff;font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.05em}
+.miss-badge{position:absolute;top:8px;left:8px;background:#e74c3c;color:#fff;font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.05em}
 
-.card-body{padding:9px 10px 10px}
-.card-title{font-size:.78rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-size{font-size:.7rem;color:var(--muted);margin-top:2px}
-.card-link{font-size:.68rem;color:var(--accent);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline}
-.card-link.none{color:var(--muted);text-decoration:none;cursor:default}
+.row-actions{display:flex;flex-direction:column;gap:5px;flex-shrink:0}
+.act-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.75rem;cursor:pointer;white-space:nowrap;text-align:center}
+.act-btn:hover{border-color:var(--accent);color:var(--accent)}
+.act-btn.orange{background:var(--accent);color:#fff;border-color:var(--accent)}
+.act-btn.orange:hover{background:#b8401a}
 
-/* ── MODAL: DRIVE LINK ENTRY ── */
+/* ── MODAL ── */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal{background:#fff;border-radius:12px;padding:24px;max-width:440px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.2)}
-.modal h2{font-family:Fraunces,Georgia,serif;font-size:1.1rem;margin-bottom:14px}
-.modal label{font-size:.8rem;color:var(--ink2);display:block;margin-bottom:4px}
-.modal input,.modal textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:.88rem;color:var(--ink);margin-bottom:10px}
-.modal .row{display:flex;gap:8px}
-.modal .row input{margin-bottom:0}
-.modal-btns{display:flex;gap:8px;margin-top:4px;justify-content:flex-end}
-.modal-btns button{padding:7px 18px;border-radius:7px;border:none;cursor:pointer;font-size:.85rem;font-weight:700}
+.modal h2{font-family:Fraunces,Georgia,serif;font-size:1.05rem;margin-bottom:14px;color:var(--ink)}
+.modal label{font-size:.78rem;color:var(--ink2);display:block;margin-bottom:4px;margin-top:8px}
+.modal input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:.86rem;color:var(--ink);margin-bottom:6px}
+.modal .mrow{display:flex;gap:8px}
+.modal .mrow input{margin-bottom:0}
+.modal-btns{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.modal-btns button{padding:7px 18px;border-radius:7px;border:none;cursor:pointer;font-size:.84rem;font-weight:700}
 .btn-cancel{background:#f0e8dc;color:var(--ink2)}
 .btn-save{background:var(--accent);color:#fff}
 
-/* ── MODAL: CSV ── */
-.csv-area{font-size:.78rem;color:var(--ink2);background:#fdf5ec;border-radius:6px;padding:10px;margin-bottom:10px;line-height:1.6}
-.csv-area code{background:#e9ddca;border-radius:3px;padding:0 4px;font-size:.75rem}
-#csvFile{margin-bottom:8px}
-#csvPreview{font-size:.75rem;color:var(--ink2);max-height:120px;overflow-y:auto;background:#f6f0e8;border-radius:5px;padding:8px;display:none}
+.csv-area{font-size:.77rem;color:var(--ink2);background:#fdf5ec;border-radius:6px;padding:10px;margin-bottom:10px;line-height:1.7}
+.csv-area code{background:#e9ddca;border-radius:3px;padding:0 4px;font-size:.73rem}
+#csvPreview{font-size:.73rem;color:var(--ink2);max-height:100px;overflow-y:auto;background:#f6f0e8;border-radius:5px;padding:8px;display:none;margin-top:6px}
 
-/* ── SPINNER / TOAST ── */
-.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-#toast{position:fixed;bottom:24px;right:24px;background:#3a2b1d;color:#fff;padding:10px 20px;border-radius:8px;font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
+#toast{position:fixed;bottom:24px;right:24px;background:#3a2b1d;color:#fff;padding:10px 20px;border-radius:8px;font-size:.83rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;max-width:320px}
 #toast.show{opacity:1}
-
-/* ── CANVAS (off-screen) ── */
 #offCanvas{display:none}
-
-.loading-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:.9rem}
-.empty-msg{text-align:center;padding:40px 20px;color:var(--muted);font-size:.88rem}
+.empty-msg,.loading-msg{text-align:center;padding:50px 20px;color:var(--muted);font-size:.88rem}
 </style>
 </head>
 <body>
 
 <div class="header">
   <h1>🖨 Production Prints</h1>
-  <span class="sub" id="headerSub">Loading…</span>
-  <button class="hbtn" onclick="openCsvModal()">↑ CSV Upload</button>
-  <button class="hbtn" onclick="refreshProducts()">↺ Refresh Products</button>
+  <span class="header-sub" id="headerSub">Loading…</span>
+  <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="hbtn" onclick="openCsvModal()">↑ CSV Upload</button>
+    <button class="hbtn" onclick="refreshProducts()">↺ Refresh</button>
+  </div>
 </div>
 
 <div class="controls">
   <div class="search-wrap">
-    <span class="ico">🔍</span>
-    <input id="searchInput" type="text" placeholder="Search products…" oninput="filterGrid()">
+    <span class="sico">🔍</span>
+    <input id="searchInput" type="text" placeholder="Search products…" oninput="filterList()">
   </div>
   <span id="countBadge" class="badge">–</span>
+  <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--ink2);cursor:pointer">
+    <input type="checkbox" id="selAllChk" onchange="toggleSelectAll(this.checked)"> Select all
+  </label>
 </div>
 
 <div id="selBar">
   <span id="selCount">0 selected</span>
-  <button class="gen-multi" onclick="genMultiA4()">Generate Multi A4</button>
-  <button class="cancel-sel" onclick="cancelSelect()">Cancel</button>
+  <button class="sel-multi" onclick="genMultiA4()">📄 One A4 (all together)</button>
+  <button class="sel-dl" onclick="bulkDownload()">⬇ Download each (separate A4s)</button>
+  <button class="sel-cancel" onclick="cancelSelect()">Cancel</button>
 </div>
 
-<div class="grid-wrap" id="gridWrap">
+<div class="list-wrap" id="listWrap">
   <div class="loading-msg"><span class="spinner"></span> Loading products…</div>
 </div>
 
@@ -136,12 +130,12 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 <div id="linkModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeLinkModal()">
   <div class="modal">
     <h2 id="linkModalTitle">Set Drive Link</h2>
-    <label>Google Drive Link (shared, view access)</label>
+    <label>Google Drive link (must be shared → Anyone with link → Viewer)</label>
     <input id="linkInput" type="text" placeholder="https://drive.google.com/file/d/…/view">
-    <label>Size (optional — e.g. 5×7 in)</label>
-    <div class="row">
-      <input id="sizeW" type="number" placeholder="Width (mm)" step="0.1">
-      <input id="sizeH" type="number" placeholder="Height (mm)" step="0.1">
+    <label>Physical size in mm (optional — used for print scaling)</label>
+    <div class="mrow">
+      <input id="sizeW" type="number" placeholder="Width mm" step="0.1">
+      <input id="sizeH" type="number" placeholder="Height mm" step="0.1">
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeLinkModal()">Cancel</button>
@@ -153,12 +147,11 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 <!-- CSV MODAL -->
 <div id="csvModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeCsvModal()">
   <div class="modal">
-    <h2>CSV Upload</h2>
+    <h2>Upload Drive Links via CSV</h2>
     <div class="csv-area">
-      CSV format (header row required):<br>
-      <code>handle,drive_link,size_w_mm,size_h_mm</code><br>
-      or <code>title,drive_link,size_w_mm,size_h_mm</code><br>
-      <code>size_w_mm</code> and <code>size_h_mm</code> are optional.
+      Two columns, header row required:<br>
+      <code>handle,drive_link</code> &nbsp;or&nbsp; <code>title,drive_link</code><br>
+      Optional extra columns: <code>size_w_mm</code> &nbsp;<code>size_h_mm</code>
     </div>
     <input id="csvFile" type="file" accept=".csv,text/csv">
     <div id="csvPreview"></div>
@@ -171,15 +164,12 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 
 <script>
 const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-production-prints';
-
-// A4 at 300 DPI
 const A4_W = 2480, A4_H = 3508, MARGIN = 118, GAP = 59;
 
-let allProducts = [];  // [{handle, title, shopify_image, size_label, size_w_in, size_h_in}]
-let links = {};        // handle → {drive_link, drive_id, size_w_mm, size_h_mm}
+let allProducts = [];
+let links = {};
 let filtered = [];
 let selectedHandles = new Set();
-let selMode = false;
 let editingHandle = null;
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -190,10 +180,11 @@ async function init() {
     if (!res.ok) throw new Error(res.error || 'Load failed');
     allProducts = res.products || [];
     links = res.links || {};
-    renderGrid(allProducts);
+    filtered = allProducts;
+    renderList(filtered);
     updateHeader();
   } catch(e) {
-    document.getElementById('gridWrap').innerHTML = `<div class="loading-msg">Error: ${e.message}</div>`;
+    document.getElementById('listWrap').innerHTML = `<div class="loading-msg">Error: ${e.message}</div>`;
   }
 }
 
@@ -206,114 +197,122 @@ function updateHeader() {
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
 
-function filterGrid() {
+function filterList() {
   const q = document.getElementById('searchInput').value.toLowerCase().trim();
   filtered = q ? allProducts.filter(p => p.title.toLowerCase().includes(q) || p.handle.includes(q)) : allProducts;
-  renderGrid(filtered);
+  renderList(filtered);
   document.getElementById('countBadge').textContent = filtered.length;
 }
 
-function renderGrid(products) {
-  const wrap = document.getElementById('gridWrap');
+function renderList(products) {
+  const wrap = document.getElementById('listWrap');
   if (!products.length) { wrap.innerHTML = '<div class="empty-msg">No products found.</div>'; return; }
 
-  const missing = products.filter(p => !links[p.handle]?.drive_link);
-  const hasLink = products.filter(p => links[p.handle]?.drive_link);
+  // new products first, then missing Drive link, then linked
+  const isNew   = products.filter(p => p.is_new);
+  const missing = products.filter(p => !p.is_new && !links[p.handle]?.drive_link);
+  const hasLink = products.filter(p => !p.is_new &&  links[p.handle]?.drive_link);
 
   let html = '';
+  if (isNew.length) {
+    html += `<div class="section-label">🆕 New products (${isNew.length}) — add Drive link</div>`;
+    html += isNew.map(p => rowHTML(p)).join('');
+    if (missing.length || hasLink.length) html += '<div style="margin-top:8px"></div>';
+  }
   if (missing.length) {
-    html += `<div class="section-label">Missing Drive Link (${missing.length})</div>`;
-    html += `<div class="grid">${missing.map(p => cardHTML(p, true)).join('')}</div>`;
-    if (hasLink.length) html += '<div style="margin-top:18px"></div>';
+    html += `<div class="section-label">Missing Drive link (${missing.length})</div>`;
+    html += missing.map(p => rowHTML(p)).join('');
+    if (hasLink.length) html += '<div style="margin-top:8px"></div>';
   }
   if (hasLink.length) {
-    if (missing.length) html += `<div class="section-label">With Drive Link (${hasLink.length})</div>`;
-    html += `<div class="grid">${hasLink.map(p => cardHTML(p, false)).join('')}</div>`;
+    if (missing.length || isNew.length) html += `<div class="section-label">With Drive link (${hasLink.length})</div>`;
+    html += hasLink.map(p => rowHTML(p)).join('');
   }
+
   wrap.innerHTML = html;
 }
 
-function cardHTML(p, isMissing) {
+function rowHTML(p) {
   const lk = links[p.handle] || {};
-  const thumbSrc = lk.drive_id
-    ? `https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300`
-    : p.shopify_image || '';
-
-  const thumbHtml = thumbSrc
-    ? `<img src="${thumbSrc}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<div class=no-img><span class=ico>📁</span><span>No image</span></div>'">`
-    : `<div class="no-img"><span class="ico">📂</span><span>Add Drive link</span></div>`;
-
-  const sizeLabel = lk.size_w_mm
-    ? `${lk.size_w_mm}×${lk.size_h_mm} mm`
-    : p.size_label || '';
-
-  const linkLabel = lk.drive_link
-    ? `📎 Drive linked`
-    : `+ Add Drive link`;
-
+  const hasDrive = !!lk.drive_link;
   const isSelected = selectedHandles.has(p.handle);
 
-  return `<div class="card${isMissing ? ' missing' : ''}${isSelected ? ' selected' : ''}" id="card-${p.handle}">
-    <div class="card-thumb">
+  const thumbHtml = lk.drive_id
+    ? `<img src="https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300" alt="" loading="lazy"
+         onerror="this.parentNode.innerHTML='<div class=no-img><span>📁</span><span>Load failed</span></div>'">`
+    : `<div class="no-img"><span>📂</span><span>No image yet</span></div>`;
+
+  const sizeLabel = lk.size_w_mm ? `${lk.size_w_mm}×${lk.size_h_mm} mm` : '';
+  const badge = p.is_new
+    ? '<span class="new-badge">NEW</span>'
+    : (!hasDrive ? '<span class="miss-badge">NO LINK</span>' : '');
+
+  return `<div class="row${p.is_new ? ' is-new' : (!hasDrive ? ' missing' : '')}${isSelected ? ' selected' : ''}" id="row-${p.handle}">
+    <div class="row-chk${isSelected ? ' checked' : ''}" onclick="toggleSelect('${p.handle}')">${isSelected ? '✓' : ''}</div>
+    <div class="row-thumb" onclick="openLinkModal('${p.handle}')">
       ${thumbHtml}
-      ${isMissing ? '<span class="miss-badge">NO LINK</span>' : ''}
-      <div class="card-overlay">
-        <button class="ov-single" onclick="event.stopPropagation();genA4('${p.handle}','single')">⬇ Single A4</button>
-        <button class="ov-tile2" onclick="event.stopPropagation();genA4('${p.handle}','tile2')">⬇ Tile ×2</button>
-        <button class="ov-tilemax" onclick="event.stopPropagation();genA4('${p.handle}','tilemax')">⬇ Tile Max</button>
-        <button class="ov-select" onclick="event.stopPropagation();toggleSelect('${p.handle}')">☐ Select</button>
-      </div>
-      <div class="sel-chk${selMode ? ' show' : ''}${isSelected ? ' checked' : ''}" id="chk-${p.handle}" onclick="toggleSelect('${p.handle}')">
-        ${isSelected ? '✓' : ''}
+      ${badge}
+    </div>
+    <div class="row-info">
+      <div class="row-title" title="${escHtml(p.title)}">${escHtml(p.title)}</div>
+      <div class="row-handle">${p.handle}</div>
+      ${sizeLabel ? `<div class="row-size">📐 ${sizeLabel}</div>` : ''}
+      <div class="row-link ${hasDrive ? 'has-link' : 'no-link'}" onclick="openLinkModal('${p.handle}')">
+        ${hasDrive ? '✓ Drive linked — click to change' : '+ Add Drive link'}
       </div>
     </div>
-    <div class="card-body">
-      <div class="card-title" title="${escHtml(p.title)}">${escHtml(p.title)}</div>
-      ${sizeLabel ? `<div class="card-size">${sizeLabel}</div>` : ''}
-      <div class="card-link${lk.drive_link ? '' : ' none'}" onclick="openLinkModal('${p.handle}')">${linkLabel}</div>
+    <div class="row-actions">
+      <button class="act-btn" onclick="genA4('${p.handle}','single')">⬇ Single A4</button>
+      <button class="act-btn" onclick="genA4('${p.handle}','tile2')">⬇ Tile ×2</button>
+      <button class="act-btn orange" onclick="genA4('${p.handle}','tilemax')">⬇ Tile Max</button>
+      <button class="act-btn" onclick="toggleSelect('${p.handle}')">☐ Select</button>
     </div>
   </div>`;
 }
 
-// ── SELECTION ─────────────────────────────────────────────────────────────────
+// ── SELECT ────────────────────────────────────────────────────────────────────
 
 function toggleSelect(handle) {
-  if (!selMode) enterSelMode();
   if (selectedHandles.has(handle)) {
     selectedHandles.delete(handle);
   } else {
     selectedHandles.add(handle);
   }
-  updateSelUI(handle);
+  updateRowUI(handle);
+  updateSelBar();
 }
 
-function enterSelMode() {
-  selMode = true;
-  document.getElementById('selBar').classList.add('show');
-  // show all checkboxes
-  document.querySelectorAll('.sel-chk').forEach(el => el.classList.add('show'));
+function toggleSelectAll(checked) {
+  selectedHandles.clear();
+  if (checked) filtered.forEach(p => selectedHandles.add(p.handle));
+  filtered.forEach(p => updateRowUI(p.handle));
+  updateSelBar();
 }
 
 function cancelSelect() {
-  selMode = false;
   selectedHandles.clear();
-  document.getElementById('selBar').classList.remove('show');
-  document.querySelectorAll('.sel-chk').forEach(el => { el.classList.remove('show','checked'); el.textContent=''; });
-  document.querySelectorAll('.card.selected').forEach(el => el.classList.remove('selected'));
-  updateSelCount();
+  document.getElementById('selAllChk').checked = false;
+  filtered.forEach(p => updateRowUI(p.handle));
+  updateSelBar();
 }
 
-function updateSelUI(handle) {
-  const card = document.getElementById(`card-${handle}`);
-  const chk = document.getElementById(`chk-${handle}`);
+function updateRowUI(handle) {
+  const row = document.getElementById(`row-${handle}`);
+  const chk = row?.querySelector('.row-chk');
   const sel = selectedHandles.has(handle);
-  if (card) card.classList.toggle('selected', sel);
+  if (row) row.classList.toggle('selected', sel);
   if (chk) { chk.classList.toggle('checked', sel); chk.textContent = sel ? '✓' : ''; }
-  updateSelCount();
 }
 
-function updateSelCount() {
-  document.getElementById('selCount').textContent = `${selectedHandles.size} selected`;
+function updateSelBar() {
+  const bar = document.getElementById('selBar');
+  const n = selectedHandles.size;
+  if (n > 0) {
+    bar.classList.add('show');
+    document.getElementById('selCount').textContent = `${n} selected`;
+  } else {
+    bar.classList.remove('show');
+  }
 }
 
 // ── LINK MODAL ────────────────────────────────────────────────────────────────
@@ -337,12 +336,14 @@ async function saveLinkModal() {
   const w = parseFloat(document.getElementById('sizeW').value) || null;
   const h = parseFloat(document.getElementById('sizeH').value) || null;
   const drive_id = extractDriveId(url);
-  const payload = { action: 'save_link', handle, drive_link: url, drive_id, size_w_mm: w, size_h_mm: h };
   closeLinkModal();
   try {
-    await apiFetch(payload);
+    await apiFetch({ action: 'save_link', handle, drive_link: url, drive_id, size_w_mm: w, size_h_mm: h });
     links[handle] = { drive_link: url, drive_id, size_w_mm: w, size_h_mm: h };
-    filterGrid();
+    // mark as no longer new once link is added
+    const p = allProducts.find(x => x.handle === handle);
+    if (p) p.is_new = false;
+    filterList();
     updateHeader();
     toast('Link saved');
   } catch(e) { toast('Error: ' + e.message); }
@@ -351,7 +352,10 @@ async function saveLinkModal() {
 // ── CSV ───────────────────────────────────────────────────────────────────────
 
 function openCsvModal() { document.getElementById('csvModal').style.display = 'flex'; }
-function closeCsvModal() { document.getElementById('csvModal').style.display = 'none'; document.getElementById('csvPreview').style.display='none'; }
+function closeCsvModal() {
+  document.getElementById('csvModal').style.display = 'none';
+  document.getElementById('csvPreview').style.display = 'none';
+}
 
 document.getElementById('csvFile').addEventListener('change', function() {
   const file = this.files[0];
@@ -373,7 +377,6 @@ async function importCsv() {
   const rows = parseCsv(text);
   if (!rows.length) { toast('No data rows found'); return; }
 
-  // Build handle→link map; match by handle or by title
   const titleToHandle = {};
   allProducts.forEach(p => { titleToHandle[p.title.toLowerCase()] = p.handle; });
 
@@ -383,12 +386,7 @@ async function importCsv() {
     const handle = row.handle || titleToHandle[row.title?.toLowerCase()] || null;
     if (!handle || !row.drive_link) return;
     const drive_id = extractDriveId(row.drive_link);
-    newLinks[handle] = {
-      drive_link: row.drive_link,
-      drive_id,
-      size_w_mm: parseFloat(row.size_w_mm) || null,
-      size_h_mm: parseFloat(row.size_h_mm) || null,
-    };
+    newLinks[handle] = { drive_link: row.drive_link, drive_id, size_w_mm: parseFloat(row.size_w_mm)||null, size_h_mm: parseFloat(row.size_h_mm)||null };
     matched++;
   });
 
@@ -398,7 +396,7 @@ async function importCsv() {
     await apiFetch({ action: 'save_links_bulk', links: newLinks });
     Object.assign(links, newLinks);
     closeCsvModal();
-    filterGrid();
+    filterList();
     updateHeader();
     toast(`Imported ${matched} links`);
   } catch(e) { toast('Error: ' + e.message); }
@@ -419,11 +417,13 @@ function parseCsv(text) {
 // ── REFRESH ───────────────────────────────────────────────────────────────────
 
 async function refreshProducts() {
-  document.getElementById('gridWrap').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Refreshing from Shopify…</div>';
+  document.getElementById('listWrap').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Refreshing from Shopify…</div>';
   try {
     const res = await apiFetch({ action: 'refresh_products' });
     allProducts = res.products || [];
-    filterGrid();
+    links = res.links || {};
+    filtered = allProducts;
+    filterList();
     updateHeader();
     toast(`Refreshed: ${allProducts.length} products`);
   } catch(e) { toast('Error: ' + e.message); }
@@ -434,17 +434,14 @@ async function refreshProducts() {
 async function genA4(handle, mode) {
   const p = allProducts.find(x => x.handle === handle);
   const lk = links[handle];
-  if (!lk?.drive_id) { toast('No Drive link for this product'); return; }
+  if (!lk?.drive_id) { toast('No Drive link for this product — add one first'); return; }
 
   toast('Fetching image…');
   const imgData = await fetchProxiedImage(lk.drive_id);
-  if (!imgData) { toast('Could not load image — check Drive link & sharing'); return; }
+  if (!imgData) { toast('Could not load image — check Drive sharing (Anyone with link → Viewer)'); return; }
 
   const img = await loadImage(imgData);
-
-  // determine print size in pixels (300 DPI)
   const { pw, ph } = getPrintSize(p, lk);
-
   const canvas = document.getElementById('offCanvas');
   const ctx = canvas.getContext('2d');
 
@@ -453,32 +450,43 @@ async function genA4(handle, mode) {
     fillA4(ctx);
     const { x, y, w, h } = centerFit(pw, ph, A4_W, A4_H, MARGIN);
     ctx.drawImage(img, x, y, w, h);
-    drawLabel(ctx, p.title, x, y + h + 18, w);
+    drawLabel(ctx, p.title, x, y + h + 20, w);
     downloadCanvas(canvas, `${handle}-single.png`);
-
   } else if (mode === 'tile2') {
     canvas.width = A4_W; canvas.height = A4_H;
     fillA4(ctx);
-    const placements = tilePlacements(pw, ph, 2);
-    placements.forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
+    tilePlacements(pw, ph, 2).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
     downloadCanvas(canvas, `${handle}-tile2.png`);
-
   } else if (mode === 'tilemax') {
     canvas.width = A4_W; canvas.height = A4_H;
     fillA4(ctx);
     const max = maxTiles(pw, ph);
-    const placements = tilePlacements(pw, ph, max);
+    tilePlacements(pw, ph, max).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
     toast(`Tiling ${max} copies…`);
-    placements.forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
     downloadCanvas(canvas, `${handle}-tilemax.png`);
   }
 }
 
+// Bulk download — separate A4 per selected product (single layout)
+async function bulkDownload() {
+  const handles = [...selectedHandles];
+  if (!handles.length) { toast('Nothing selected'); return; }
+  toast(`Downloading ${handles.length} A4 sheets…`);
+  for (const handle of handles) {
+    const lk = links[handle];
+    if (!lk?.drive_id) { toast(`Skipped ${handle} — no Drive link`); continue; }
+    await genA4(handle, 'single');
+    await sleep(400);
+  }
+  toast('All done!');
+  cancelSelect();
+}
+
+// Multi-product: all selected items on a single A4
 async function genMultiA4() {
   if (!selectedHandles.size) { toast('Select products first'); return; }
-  toast(`Building multi-product A4 with ${selectedHandles.size} items…`);
+  toast(`Building A4 with ${selectedHandles.size} items…`);
 
-  // Load all images
   const items = [];
   for (const handle of selectedHandles) {
     const p = allProducts.find(x => x.handle === handle);
@@ -498,7 +506,6 @@ async function genMultiA4() {
   canvas.width = A4_W; canvas.height = A4_H;
   fillA4(ctx);
 
-  // Simple row-based packing: place each item scaled to fit remaining area
   const usableW = A4_W - 2 * MARGIN;
   const usableH = A4_H - 2 * MARGIN;
   const perItemH = Math.floor((usableH - GAP * (items.length - 1)) / items.length);
@@ -520,46 +527,31 @@ async function genMultiA4() {
 
 // ── CANVAS HELPERS ────────────────────────────────────────────────────────────
 
-function fillA4(ctx) {
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, A4_W, A4_H);
-}
+function fillA4(ctx) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, A4_W, A4_H); }
 
-function centerFit(pw, ph, canvasW, canvasH, margin) {
-  const usableW = canvasW - 2 * margin;
-  const usableH = canvasH - 2 * margin;
-  const scale = Math.min(usableW / pw, usableH / ph);
-  const w = Math.round(pw * scale);
-  const h = Math.round(ph * scale);
-  const x = margin + Math.round((usableW - w) / 2);
-  const y = margin + Math.round((usableH - h) / 2);
-  return { x, y, w, h };
+function centerFit(pw, ph, cW, cH, margin) {
+  const uW = cW - 2*margin, uH = cH - 2*margin;
+  const scale = Math.min(uW/pw, uH/ph);
+  const w = Math.round(pw*scale), h = Math.round(ph*scale);
+  return { x: margin + Math.round((uW-w)/2), y: margin + Math.round((uH-h)/2), w, h };
 }
 
 function maxTiles(pw, ph) {
-  const usableW = A4_W - 2 * MARGIN;
-  const usableH = A4_H - 2 * MARGIN;
-  const scale = Math.min(1, Math.min(usableW / pw, usableH / ph));
-  const iw = Math.round(pw * scale);
-  const ih = Math.round(ph * scale);
-  const cols = Math.floor((usableW + GAP) / (iw + GAP)) || 1;
-  const rows = Math.floor((usableH + GAP) / (ih + GAP)) || 1;
-  return Math.max(1, cols * rows);
+  const uW = A4_W-2*MARGIN, uH = A4_H-2*MARGIN;
+  const scale = Math.min(1, uW/pw, uH/ph);
+  const iw = Math.round(pw*scale), ih = Math.round(ph*scale);
+  return Math.max(1, Math.floor((uW+GAP)/(iw+GAP)) * Math.floor((uH+GAP)/(ih+GAP)));
 }
 
 function tilePlacements(pw, ph, count) {
-  const usableW = A4_W - 2 * MARGIN;
-  const usableH = A4_H - 2 * MARGIN;
-  const scale = Math.min(1, Math.min(usableW / pw, usableH / ph));
-  const iw = Math.round(pw * scale);
-  const ih = Math.round(ph * scale);
-
-  const cols = Math.max(1, Math.floor((usableW + GAP) / (iw + GAP)));
+  const uW = A4_W-2*MARGIN, uH = A4_H-2*MARGIN;
+  const scale = Math.min(1, uW/pw, uH/ph);
+  const iw = Math.round(pw*scale), ih = Math.round(ph*scale);
+  const cols = Math.max(1, Math.floor((uW+GAP)/(iw+GAP)));
   const places = [];
   for (let i = 0; i < count; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    places.push({ x: MARGIN + col * (iw + GAP), y: MARGIN + row * (ih + GAP), w: iw, h: ih });
+    const col = i % cols, row = Math.floor(i/cols);
+    places.push({ x: MARGIN+col*(iw+GAP), y: MARGIN+row*(ih+GAP), w: iw, h: ih });
   }
   return places;
 }
@@ -569,42 +561,23 @@ function drawLabel(ctx, text, x, y, maxW) {
   ctx.font = '28px sans-serif';
   ctx.fillStyle = '#888';
   ctx.textAlign = 'center';
-  const label = text.length > 50 ? text.slice(0, 48) + '…' : text;
-  ctx.fillText(label, x + maxW / 2, y, maxW);
+  ctx.fillText(text.length > 50 ? text.slice(0,48)+'…' : text, x+maxW/2, y, maxW);
   ctx.restore();
 }
 
-// ── SIZE HELPERS ──────────────────────────────────────────────────────────────
-
 function getPrintSize(p, lk) {
-  // prefer mm from link, else inches from product, else fallback square
-  if (lk?.size_w_mm && lk?.size_h_mm) {
-    return {
-      pw: Math.round(lk.size_w_mm / 25.4 * 300),
-      ph: Math.round(lk.size_h_mm / 25.4 * 300),
-    };
-  }
-  if (p.size_w_in && p.size_h_in) {
-    return {
-      pw: Math.round(p.size_w_in * 300),
-      ph: Math.round(p.size_h_in * 300),
-    };
-  }
-  // default: 4×4 in
+  if (lk?.size_w_mm && lk?.size_h_mm) return { pw: Math.round(lk.size_w_mm/25.4*300), ph: Math.round(lk.size_h_mm/25.4*300) };
+  if (p?.size_w_in && p?.size_h_in) return { pw: Math.round(p.size_w_in*300), ph: Math.round(p.size_h_in*300) };
   return { pw: 1200, ph: 1200 };
 }
 
 // ── IMAGE LOADING ─────────────────────────────────────────────────────────────
 
 async function fetchProxiedImage(driveId) {
-  const url = `https://drive.google.com/uc?export=download&id=${driveId}`;
   try {
-    const res = await apiFetch({ action: 'proxy_image', url });
+    const res = await apiFetch({ action: 'proxy_image', url: `https://drive.google.com/uc?export=download&id=${driveId}` });
     if (res.ok && res.data) return res.data;
-    if (res.too_large) {
-      toast('Image >5MB — trying thumbnail instead');
-      return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`;
-    }
+    if (res.too_large) return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`;
     return null;
   } catch { return null; }
 }
@@ -630,7 +603,7 @@ function downloadCanvas(canvas, filename) {
   }, 'image/png');
 }
 
-// ── DRIVE HELPERS ─────────────────────────────────────────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────────────────────
 
 function extractDriveId(url) {
   if (!url) return null;
@@ -638,27 +611,21 @@ function extractDriveId(url) {
   return m ? m[1] : null;
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
-
 async function apiFetch(body) {
-  const r = await fetch(API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return r.json();
 }
 
-// ── UTIL ──────────────────────────────────────────────────────────────────────
-
 function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 let toastTimer;
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
 }
 
 init();
