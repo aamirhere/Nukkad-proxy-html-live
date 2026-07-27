@@ -93,6 +93,28 @@ tr.prod-row.expanded .toggle-ico{transform:rotate(90deg)}
 .sql-box{background:#1a1a2e;color:#a8e6cf;border-radius:8px;padding:14px;font-family:monospace;font-size:.75rem;line-height:1.7;white-space:pre;overflow-x:auto;margin-bottom:12px}
 .sql-section h3{font-size:.85rem;font-weight:700;color:var(--ink2);margin-bottom:8px;margin-top:16px}
 
+/* sales tab */
+.sales-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:#fff;border-radius:8px;border:1px solid var(--line)}
+.sales-filters label{font-size:.78rem;color:var(--ink2);white-space:nowrap}
+.sales-filters input[type=date]{padding:6px 9px;border:1px solid var(--line);border-radius:6px;font-size:.82rem;background:#fff}
+.sales-stat{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:14px}
+.sales-tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--line);background:#fff}
+.sales-tbl{width:100%;border-collapse:collapse;font-size:.8rem}
+.sales-tbl th{background:#fff;padding:9px 10px;text-align:left;font-weight:700;color:var(--ink2);border-bottom:2px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+.sales-tbl th:hover{color:var(--accent)}
+.sales-tbl th.sort-asc::after{content:' ▲';font-size:.65rem}
+.sales-tbl th.sort-desc::after{content:' ▼';font-size:.65rem}
+.sales-tbl td{padding:7px 10px;border-bottom:1px solid var(--line)}
+.sales-tbl tr:last-child td{border-bottom:none}
+.sales-tbl tr:hover td{background:#fdf5ec}
+.rank{display:inline-block;width:20px;text-align:right;color:var(--muted);font-size:.72rem;margin-right:4px}
+.rank-1{color:#c0392b;font-weight:700}
+.rank-2{color:#e67e22;font-weight:700}
+.rank-3{color:#f1c40f;font-weight:700}
+.heat-bar{display:inline-block;height:10px;background:var(--accent);border-radius:3px;opacity:.6;vertical-align:middle;margin-left:6px}
+.csv-btn{padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:.75rem;cursor:pointer;color:var(--ink2)}
+.csv-btn:hover{border-color:var(--accent);color:var(--accent)}
+
 /* seed modal */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal{background:#fff;border-radius:12px;padding:22px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
@@ -126,6 +148,7 @@ tr.prod-row.expanded .toggle-ico{transform:rotate(90deg)}
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('products')">Products</div>
+  <div class="tab" onclick="switchTab('sales')">Sales History</div>
   <div class="tab" onclick="switchTab('analytics')">Analytics</div>
   <div class="tab" onclick="switchTab('sqlref')">SQL / Setup</div>
 </div>
@@ -162,6 +185,19 @@ tr.prod-row.expanded .toggle-ico{transform:rotate(90deg)}
       </tbody>
     </table>
   </div>
+</div>
+
+<!-- SALES HISTORY TAB -->
+<div id="tab-sales" class="tab-content">
+  <div class="sales-filters">
+    <label>From</label><input id="salFrom" type="date">
+    <label>To</label><input id="salTo" type="date">
+    <button class="hbtn accent" onclick="loadSales()">Load Orders</button>
+    <span id="salScanInfo" style="font-size:.75rem;color:var(--muted)"></span>
+    <button class="csv-btn" onclick="exportCsv()" id="csvBtn" style="display:none;margin-left:auto">⬇ Export CSV</button>
+  </div>
+  <div class="sales-stat" id="salesStatGrid"></div>
+  <div id="salesWrap"><div class="empty">Set a date range and click Load Orders.</div></div>
 </div>
 
 <!-- ANALYTICS TAB -->
@@ -474,6 +510,141 @@ async function removePool(productId) {
     delete loadedVariants[productId];
     await init();
   } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── SALES HISTORY ─────────────────────────────────────────────────────────────
+
+let salesData = [];
+let salesSort = { col: 'total_qty', dir: 'desc' };
+
+async function loadSales() {
+  document.getElementById('salesWrap').innerHTML = '<div class="empty"><span class="spinner"></span> Fetching orders from Shopify… (may take a moment)</div>';
+  document.getElementById('salesStatGrid').innerHTML = '';
+  document.getElementById('salScanInfo').textContent = '';
+  document.getElementById('csvBtn').style.display = 'none';
+
+  const df = document.getElementById('salFrom').value;
+  const dt = document.getElementById('salTo').value;
+
+  try {
+    const res = await api({
+      action: 'order_history',
+      date_from: df || undefined,
+      date_to:   dt || undefined,
+    });
+    if (!res.ok) throw new Error(res.error || 'Failed');
+    salesData = res.rows || [];
+    document.getElementById('salScanInfo').textContent = `${res.orders_scanned} orders scanned`;
+    document.getElementById('csvBtn').style.display = '';
+    renderSalesTable();
+  } catch(e) {
+    document.getElementById('salesWrap').innerHTML = `<div class="empty">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderSalesTable() {
+  const rows = [...salesData].sort((a, b) => {
+    const av = a[salesSort.col] ?? -1;
+    const bv = b[salesSort.col] ?? -1;
+    return salesSort.dir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+
+  const totalQty = rows.reduce((s, r) => s + r.total_qty, 0);
+  const totalOrders = rows.reduce((s, r) => s + r.order_count, 0);
+  const maxQty = Math.max(...rows.map(r => r.total_qty), 1);
+  const selling = rows.filter(r => r.total_qty > 0).length;
+
+  document.getElementById('salesStatGrid').innerHTML = `
+    <div class="stat-card"><div class="label">Total units sold</div><div class="val accent">${totalQty}</div></div>
+    <div class="stat-card"><div class="label">Total orders</div><div class="val">${totalOrders}</div></div>
+    <div class="stat-card"><div class="label">Products in collection</div><div class="val">${rows.length}</div></div>
+    <div class="stat-card"><div class="label">Products with sales</div><div class="val">${selling}</div></div>`;
+
+  function thEl(col, label) {
+    const active = salesSort.col === col;
+    const cls = active ? (salesSort.dir === 'asc' ? 'sort-asc' : 'sort-desc') : '';
+    return `<th class="${cls}" onclick="sortSales('${col}')">${label}</th>`;
+  }
+
+  const tRows = rows.map((r, i) => {
+    const rank = i + 1;
+    const rankCls = rank <= 3 ? `rank-${rank}` : '';
+    const barW = maxQty ? Math.round((r.total_qty / maxQty) * 120) : 0;
+    const avail = r.last_available !== null
+      ? `<span class="num ${r.last_available < 0 ? 'neg' : r.last_available > 0 ? 'pos' : ''}">${r.last_available}</span>`
+      : '<span style="color:var(--muted)">–</span>';
+    const base = r.baseline_qty !== null ? r.baseline_qty : '<span style="color:var(--muted)">–</span>';
+
+    // last 7 days qty
+    const df7 = new Date(); df7.setDate(df7.getDate() - 7);
+    const last7 = Object.entries(r.days || {})
+      .filter(([d]) => new Date(d) >= df7)
+      .reduce((s, [, q]) => s + q, 0);
+
+    return `<tr>
+      <td><span class="rank ${rankCls}">${rank}</span></td>
+      <td style="max-width:280px">
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block" title="${escHtml(r.title)}">${escHtml(r.title)}</span>
+        <span style="font-size:.68rem;color:var(--muted);font-family:monospace">${escHtml(r.handle)}</span>
+      </td>
+      <td>
+        <span class="num${r.total_qty > 0 ? ' pos' : ''}">${r.total_qty}</span>
+        ${r.total_qty > 0 ? `<span class="heat-bar" style="width:${barW}px"></span>` : ''}
+      </td>
+      <td class="num">${r.order_count}</td>
+      <td class="num${last7 > 0 ? ' pos' : ''}">${last7}</td>
+      <td>${base}</td>
+      <td>${avail}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('salesWrap').innerHTML = `
+    <div class="sales-tbl-wrap">
+      <table class="sales-tbl">
+        <thead><tr>
+          <th style="width:34px">#</th>
+          ${thEl('title','Product')}
+          ${thEl('total_qty','Units Sold')}
+          ${thEl('order_count','Orders')}
+          <th>Last 7 Days</th>
+          ${thEl('baseline_qty','Baseline')}
+          ${thEl('last_available','Pool Available')}
+        </tr></thead>
+        <tbody>${tRows}</tbody>
+      </table>
+    </div>`;
+}
+
+function sortSales(col) {
+  if (salesSort.col === col) {
+    salesSort.dir = salesSort.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    salesSort.col = col;
+    salesSort.dir = 'desc';
+  }
+  renderSalesTable();
+}
+
+function exportCsv() {
+  const rows = [...salesData].sort((a, b) => b.total_qty - a.total_qty);
+  const lines = ['Rank,Title,Handle,Units Sold,Orders,Baseline Qty,Pool Available'];
+  rows.forEach((r, i) => {
+    lines.push([
+      i + 1,
+      `"${r.title.replace(/"/g,'""')}"`,
+      r.handle,
+      r.total_qty,
+      r.order_count,
+      r.baseline_qty ?? '',
+      r.last_available ?? '',
+    ].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pool-sales-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 500);
 }
 
 // ── ANALYTICS ─────────────────────────────────────────────────────────────────
