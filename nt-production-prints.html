@@ -97,6 +97,10 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
   <span class="header-sub" id="headerSub">Loading…</span>
   <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
     <button class="hbtn accent" onclick="scanDrive(this)">🔍 Scan Drive Folder</button>
+    <label class="hbtn accent" style="cursor:pointer">
+      📤 Bulk Upload Images
+      <input type="file" accept="image/*" multiple style="display:none" onchange="bulkUploadImages(this)">
+    </label>
     <button class="hbtn" onclick="openCsvModal()">↑ CSV Upload</button>
     <button class="hbtn" onclick="refreshProducts()">↺ Refresh</button>
   </div>
@@ -631,6 +635,103 @@ function toast(msg) {
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── BULK IMAGE UPLOAD ─────────────────────────────────────────────────────────
+
+function normStr(s) {
+  return s.toLowerCase().replace(/\.[^.]+$/, '').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function fuzzyScore(a, b) {
+  if (a === b) return 100;
+  if (a.includes(b) || b.includes(a)) return 80;
+  const aw = new Set(a.split(' ').filter(Boolean));
+  const bw = b.split(' ').filter(Boolean);
+  const shared = bw.filter(w => aw.has(w)).length;
+  const total = Math.max(aw.size, bw.length);
+  return total > 0 ? Math.round((shared / total) * 60) : 0;
+}
+
+function matchFileToProduct(filename) {
+  const normFile = normStr(filename);
+  let bestScore = 0, bestProduct = null;
+  for (const p of allProducts) {
+    const score = Math.max(fuzzyScore(normFile, normStr(p.handle)), fuzzyScore(normFile, normStr(p.title)));
+    if (score > bestScore) { bestScore = score; bestProduct = p; }
+  }
+  return bestScore >= 40 ? { product: bestProduct, score: bestScore } : null;
+}
+
+async function bulkUploadImages(input) {
+  const files = [...input.files];
+  input.value = '';
+  if (!files.length) return;
+  if (!allProducts.length) { toast('Load products first'); return; }
+
+  let done = 0, matched = 0, skipped = 0;
+  const unmatched = [];
+
+  toast(`Uploading ${files.length} images…`);
+
+  for (const file of files) {
+    const match = matchFileToProduct(file.name);
+    if (!match) {
+      unmatched.push(file.name);
+      skipped++;
+      done++;
+      toast(`(${done}/${files.length}) No match: ${file.name}`);
+      continue;
+    }
+
+    const { product } = match;
+    toast(`(${done + 1}/${files.length}) Uploading: ${file.name} → ${product.title}`);
+
+    try {
+      const data = await fileToBase64(file);
+      const mime_type = file.type || 'image/jpeg';
+      const res = await apiFetch({
+        action: 'upload_image',
+        handle: product.handle,
+        filename: file.name,
+        mime_type,
+        data,
+      });
+      if (!res.ok) throw new Error(res.error);
+      links[product.handle] = { drive_link: res.drive_link, drive_id: res.drive_id };
+      const p = allProducts.find(x => x.handle === product.handle);
+      if (p) p.is_new = false;
+      matched++;
+    } catch(e) {
+      unmatched.push(`${file.name} (error: ${e.message})`);
+      skipped++;
+    }
+
+    done++;
+    await sleep(300);
+  }
+
+  filterList();
+  updateHeader();
+
+  if (unmatched.length) {
+    console.log('Unmatched/failed files:', unmatched);
+    toast(`✓ ${matched} uploaded. ${skipped} not matched — check console for list`);
+  } else {
+    toast(`✓ All ${matched} images uploaded and linked!`);
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const [, data] = e.target.result.split(',');
+      resolve(data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ── SCAN DRIVE FOLDER ────────────────────────────────────────────────────────
