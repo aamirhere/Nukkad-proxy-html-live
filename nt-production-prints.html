@@ -252,9 +252,11 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
   <div class="modal">
     <h2>Upload Drive Links via CSV</h2>
     <div class="csv-area">
-      Two columns, header row required:<br>
-      <code>handle,drive_link</code> &nbsp;or&nbsp; <code>title,drive_link</code><br>
-      Optional extra columns: <code>size_w_mm</code> &nbsp;<code>size_h_mm</code>
+      Header row required. Columns (any order):<br>
+      <code>handle</code> or <code>title</code> — required to match product<br>
+      <code>drive_link</code> — optional (omit to update size only)<br>
+      <code>size_h_mm</code> — optional, overrides metafield size<br>
+      CSV is the final say — size here overrides Shopify metafield.
     </div>
     <input id="csvFile" type="file" accept=".csv,text/csv">
     <div id="csvPreview"></div>
@@ -551,9 +553,17 @@ async function importCsv() {
   let matched = 0;
   rows.forEach(row => {
     const handle = row.handle || (row.title ? fuzzyFindHandle(row.title) : null);
-    if (!handle || !row.drive_link) { if (row.title) unmatched.push(row.title); return; }
-    const drive_id = extractDriveId(row.drive_link);
-    newLinks[handle] = { drive_link: row.drive_link, drive_id, size_w_mm: parseFloat(row.size_w_mm)||null, size_h_mm: parseFloat(row.size_h_mm)||null };
+    const hasLink = !!row.drive_link;
+    const hasSize = !!(row.size_h_mm || row.size_w_mm);
+    if (!handle || (!hasLink && !hasSize)) { if (row.title || row.handle) unmatched.push(row.title || row.handle); return; }
+    const drive_id = hasLink ? extractDriveId(row.drive_link) : (links[handle]?.drive_id || null);
+    const existing = links[handle] || {};
+    newLinks[handle] = {
+      drive_link: hasLink ? row.drive_link : (existing.drive_link || null),
+      drive_id,
+      size_w_mm: hasSize && row.size_w_mm ? parseFloat(row.size_w_mm) : (existing.size_w_mm || null),
+      size_h_mm: hasSize && row.size_h_mm ? parseFloat(row.size_h_mm) : (existing.size_h_mm || null),
+    };
     matched++;
   });
 
