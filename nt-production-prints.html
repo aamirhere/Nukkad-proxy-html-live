@@ -388,9 +388,9 @@ function rowHTML(p) {
           📐 L: <span class="size-val">${lkH ? (lkH/25.4).toFixed(1) + '"' : '—'}</span>
           <button class="size-edit-btn" onclick="editSize('${p.handle}')" title="Edit length">✏</button>
         </div>
-        ${!hasImage ? `<div style="display:flex;gap:6px;margin-top:4px">
-          <button class="act-btn" onclick="openDrivePicker('${p.handle}')">🗂 Browse</button>
-          <label class="act-btn" style="cursor:pointer;text-align:center">📤 Upload<input type="file" accept="image/*" style="display:none" onchange="uploadImage('${p.handle}',this)"></label>
+        ${!hasImage ? `<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+          <button style="padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.73rem;cursor:pointer;white-space:nowrap" onclick="openDrivePicker('${p.handle}')">🗂 Browse</button>
+          <label style="padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.73rem;cursor:pointer;white-space:nowrap">📤 Upload<input type="file" accept="image/*" style="display:none" onchange="uploadImage('${p.handle}',this)"></label>
         </div>` : ''}
       </div>
     </div>
