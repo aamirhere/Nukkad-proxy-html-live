@@ -711,39 +711,51 @@ async function genMultiA4() {
   const ctx = canvas.getContext('2d');
   const dataUrls = []; // { url, landscape }
 
-  // flush current portrait page
-  let portItems = [], curY = MARGIN;
+  // sort: portrait items first, landscape items after — so they group naturally
+  const portList = items.filter(i => !i.needsLand);
+  const landList  = items.filter(i =>  i.needsLand);
+
   const portUsableW = A4_W - 2*MARGIN;
+  const lUsableW    = A4_H - 2*MARGIN;
+  const lUsableH    = A4_W - 2*MARGIN;
+
+  let portItems = [], portCurY = MARGIN;
   const flushPortrait = () => {
     if (!portItems.length) return;
     canvas.width = A4_W; canvas.height = A4_H;
     fillA4(ctx);
     portItems.forEach(({ img, x, y, w, h }) => ctx.drawImage(img, x, y, w, h));
     dataUrls.push({ url: canvas.toDataURL('image/png'), landscape: false });
-    portItems = []; curY = MARGIN;
+    portItems = []; portCurY = MARGIN;
   };
 
-  for (const item of items) {
-    if (item.needsLand) {
-      // flush any pending portrait items first
-      flushPortrait();
-      // render this item alone on a landscape page
-      const lUsableW = A4_H - 2*MARGIN, lUsableH = A4_W - 2*MARGIN;
-      const scale = Math.min(1, lUsableW/item.pw, lUsableH/item.ph);
-      const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
-      canvas.width = A4_H; canvas.height = A4_W;
-      fillA4(ctx);
-      ctx.drawImage(item.img, MARGIN + Math.round((lUsableW-dw)/2), MARGIN + Math.round((lUsableH-dh)/2), dw, dh);
-      dataUrls.push({ url: canvas.toDataURL('image/png'), landscape: true });
-    } else {
-      const scale = Math.min(1, portUsableW/item.pw);
-      const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
-      if (portItems.length && curY + dh > A4_H - MARGIN) flushPortrait();
-      portItems.push({ img: item.img, x: MARGIN + Math.round((portUsableW-dw)/2), y: curY, w: dw, h: dh });
-      curY += dh + GAP;
-    }
+  let landItems = [], landCurY = MARGIN;
+  const flushLandscape = () => {
+    if (!landItems.length) return;
+    canvas.width = A4_H; canvas.height = A4_W;
+    fillA4(ctx);
+    landItems.forEach(({ img, x, y, w, h }) => ctx.drawImage(img, x, y, w, h));
+    dataUrls.push({ url: canvas.toDataURL('image/png'), landscape: true });
+    landItems = []; landCurY = MARGIN;
+  };
+
+  for (const item of portList) {
+    const scale = Math.min(1, portUsableW/item.pw);
+    const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
+    if (portItems.length && portCurY + dh > A4_H - MARGIN) flushPortrait();
+    portItems.push({ img: item.img, x: MARGIN + Math.round((portUsableW-dw)/2), y: portCurY, w: dw, h: dh });
+    portCurY += dh + GAP;
   }
   flushPortrait();
+
+  for (const item of landList) {
+    const scale = Math.min(1, lUsableW/item.pw, lUsableH/item.ph);
+    const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
+    if (landItems.length && landCurY + dh > A4_W - MARGIN) flushLandscape();
+    landItems.push({ img: item.img, x: MARGIN + Math.round((lUsableW-dw)/2), y: landCurY, w: dw, h: dh });
+    landCurY += dh + GAP;
+  }
+  flushLandscape();
 
   toast(`${dataUrls.length} page(s) — opening print dialog…`);
   const win = window.open('', '_blank');
