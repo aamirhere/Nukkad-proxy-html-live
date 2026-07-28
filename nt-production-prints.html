@@ -912,9 +912,11 @@ let driveSearchTimer = null;
 
 async function openDrivePicker(handle) {
   drivePickerHandle = handle;
-  document.getElementById('driveSearch').value = '';
+  const p = allProducts.find(x => x.handle === handle);
+  const preSearch = p ? p.title : '';
+  document.getElementById('driveSearch').value = preSearch;
   document.getElementById('driveModal').style.display = 'flex';
-  await loadDriveFiles('');
+  await loadDriveFiles(preSearch);
 }
 
 async function loadDriveFiles(search) {
