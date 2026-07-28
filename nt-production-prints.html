@@ -587,7 +587,7 @@ async function genA4(handle, mode) {
   if (!imgData) { toast('Could not load image — check Drive sharing (Anyone with link → Viewer)'); return; }
 
   const img = await loadImage(imgData);
-  const { pw, ph } = getPrintSize(p, lk);
+  const { pw, ph } = getPrintSize(p, lk, img);
   const canvas = document.getElementById('offCanvas');
   const ctx = canvas.getContext('2d');
 
@@ -641,7 +641,7 @@ async function genMultiA4() {
     const imgData = await fetchProxiedImage(lk.drive_id);
     if (!imgData) { toast(`Image failed: ${handle}`); continue; }
     const img = await loadImage(imgData);
-    const { pw, ph } = getPrintSize(p, lk);
+    const { pw, ph } = getPrintSize(p, lk, img);
     items.push({ img, pw, ph, title: p.title });
   }
 
@@ -711,9 +711,18 @@ function drawLabel(ctx, text, x, y, maxW) {
   ctx.restore();
 }
 
-function getPrintSize(p, lk) {
-  if (lk?.size_w_mm && lk?.size_h_mm) return { pw: Math.round(lk.size_w_mm/25.4*300), ph: Math.round(lk.size_h_mm/25.4*300) };
-  if (p?.size_w_in && p?.size_h_in) return { pw: Math.round(p.size_w_in*300), ph: Math.round(p.size_h_in*300) };
+function getPrintSize(p, lk, img) {
+  // length (longer side) in mm → pixels at 300 DPI
+  const lenMm = lk?.size_h_mm || (p?.size_h_in ? p.size_h_in * 25.4 : null);
+  if (lenMm && img) {
+    const aspect = img.naturalWidth / img.naturalHeight;
+    // length is the height of the physical piece; width is proportional
+    const ph = Math.round(lenMm / 25.4 * 300);
+    const pw = Math.round(ph * aspect);
+    return { pw, ph };
+  }
+  // fallback: use image natural size capped at A4 usable area
+  if (img) return { pw: img.naturalWidth, ph: img.naturalHeight };
   return { pw: 1200, ph: 1200 };
 }
 
