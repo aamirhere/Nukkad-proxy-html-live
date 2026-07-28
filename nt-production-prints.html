@@ -740,8 +740,9 @@ async function genMultiA4() {
     if (!imgData) continue;
     const img = await loadImage(imgData);
     const { pw, ph } = getPrintSize(p, lk, img);
+    const hasSize = !!(lk?.size_h_mm || lk?.size_w_mm || p?.size_h_in);
     const needsLand = pw > A4_W - 2*MARGIN;
-    items.push({ img, pw, ph, needsLand });
+    items.push({ img, pw, ph, needsLand, hasSize });
   }
 
   if (!items.length) { toast('No images loaded'); return; }
@@ -755,8 +756,12 @@ async function genMultiA4() {
   const landList  = items.filter(i =>  i.needsLand);
 
   const portUsableW = A4_W - 2*MARGIN;
+  const portUsableH = A4_H - 2*MARGIN;
   const lUsableW    = A4_H - 2*MARGIN;
   const lUsableH    = A4_W - 2*MARGIN;
+  // cap no-size items at half the usable height so at least 2 can pack per page
+  const noSizeCapH  = Math.floor((portUsableH - GAP) / 2);
+  const noSizeCapHl = Math.floor((lUsableH - GAP) / 2);
 
   let portItems = [], portCurY = MARGIN;
   const flushPortrait = () => {
@@ -779,7 +784,8 @@ async function genMultiA4() {
   };
 
   for (const item of portList) {
-    const scale = Math.min(1, portUsableW/item.pw);
+    const maxH = item.hasSize ? portUsableH : noSizeCapH;
+    const scale = Math.min(1, portUsableW/item.pw, maxH/item.ph);
     const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
     if (portItems.length && portCurY + dh > A4_H - MARGIN) flushPortrait();
     portItems.push({ img: item.img, x: MARGIN + Math.round((portUsableW-dw)/2), y: portCurY, w: dw, h: dh });
@@ -788,7 +794,8 @@ async function genMultiA4() {
   flushPortrait();
 
   for (const item of landList) {
-    const scale = Math.min(1, lUsableW/item.pw, lUsableH/item.ph);
+    const maxH = item.hasSize ? lUsableH : noSizeCapHl;
+    const scale = Math.min(1, lUsableW/item.pw, maxH/item.ph);
     const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
     if (landItems.length && landCurY + dh > A4_W - MARGIN) flushLandscape();
     landItems.push({ img: item.img, x: MARGIN + Math.round((lUsableW-dw)/2), y: landCurY, w: dw, h: dh });
