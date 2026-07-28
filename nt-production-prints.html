@@ -157,8 +157,8 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 <!-- DRIVE PICKER MODAL -->
 <div id="driveModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeDrivePicker()">
   <div class="modal" style="max-width:640px">
-    <h2>Browse Drive Folder</h2>
-    <input class="drive-search" id="driveSearch" type="text" placeholder="Search files…" oninput="filterDriveFiles()">
+    <h2>Browse Drive</h2>
+    <input class="drive-search" id="driveSearch" type="text" placeholder="Search all Drive… (empty = show folder)" oninput="filterDriveFiles()">
     <div class="drive-grid" id="driveGrid"><div style="color:var(--muted);font-size:.85rem">Loading…</div></div>
     <div class="modal-btns" style="margin-top:14px">
       <button class="btn-cancel" onclick="closeDrivePicker()">Cancel</button>
@@ -802,23 +802,25 @@ async function saveAddModal() {
 let driveFiles = null;
 let drivePickerHandle = null;
 
+let driveSearchTimer = null;
+
 async function openDrivePicker(handle) {
   drivePickerHandle = handle;
   document.getElementById('driveSearch').value = '';
   document.getElementById('driveModal').style.display = 'flex';
-  document.getElementById('driveGrid').innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:20px">Loading Drive files…</div>';
+  await loadDriveFiles('');
+}
 
-  if (!driveFiles) {
-    try {
-      const res = await apiFetch({ action: 'list_drive_files' });
-      if (!res.ok) throw new Error(res.error);
-      driveFiles = res.files;
-    } catch(e) {
-      document.getElementById('driveGrid').innerHTML = `<div style="color:#e74c3c;font-size:.85rem;padding:20px">Error: ${e.message}</div>`;
-      return;
-    }
+async function loadDriveFiles(search) {
+  document.getElementById('driveGrid').innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:20px">Loading…</div>';
+  try {
+    const res = await apiFetch({ action: 'list_drive_files', search: search || '' });
+    if (!res.ok) throw new Error(res.error);
+    if (!search) driveFiles = res.files; // cache folder listing
+    renderDriveGrid(res.files);
+  } catch(e) {
+    document.getElementById('driveGrid').innerHTML = `<div style="color:#e74c3c;font-size:.85rem;padding:20px">Error: ${e.message}</div>`;
   }
-  renderDriveGrid(driveFiles);
 }
 
 function closeDrivePicker() {
@@ -827,10 +829,11 @@ function closeDrivePicker() {
 }
 
 function filterDriveFiles() {
-  if (!driveFiles) return;
-  const q = document.getElementById('driveSearch').value.toLowerCase();
-  const filtered = q ? driveFiles.filter(f => f.name.toLowerCase().includes(q)) : driveFiles;
-  renderDriveGrid(filtered);
+  clearTimeout(driveSearchTimer);
+  const q = document.getElementById('driveSearch').value.trim();
+  if (!q) { renderDriveGrid(driveFiles || []); return; }
+  // debounce 400ms then search all Drive via API
+  driveSearchTimer = setTimeout(() => loadDriveFiles(q), 400);
 }
 
 function renderDriveGrid(files) {
