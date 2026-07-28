@@ -626,22 +626,30 @@ async function genA4(handle, mode) {
   const ctx = canvas.getContext('2d');
 
   if (mode === 'single') {
-    canvas.width = A4_W; canvas.height = A4_H;
+    // auto-pick portrait vs landscape A4 — whichever gives the larger printed image
+    const portScale = Math.min((A4_W - 2*MARGIN) / pw, (A4_H - 2*MARGIN) / ph);
+    const landScale = Math.min((A4_H - 2*MARGIN) / pw, (A4_W - 2*MARGIN) / ph);
+    const useLand   = landScale > portScale;
+    const cW = useLand ? A4_H : A4_W;
+    const cH = useLand ? A4_W : A4_H;
+    canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
-    const { x, y, w, h } = centerFit(pw, ph, A4_W, A4_H, MARGIN);
+    const { x, y, w, h } = centerFit(pw, ph, cW, cH, MARGIN);
     ctx.drawImage(img, x, y, w, h);
     drawLabel(ctx, p.title, x, y + h + 20, w);
     downloadCanvas(canvas, `${handle}-single.png`);
   } else if (mode === 'tile2') {
-    canvas.width = A4_W; canvas.height = A4_H;
+    const { cW, cH } = bestA4(pw, ph);
+    canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
-    tilePlacements(pw, ph, 2).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
+    tilePlacements(pw, ph, 2, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
     downloadCanvas(canvas, `${handle}-tile2.png`);
   } else if (mode === 'tilemax') {
-    canvas.width = A4_W; canvas.height = A4_H;
+    const { cW, cH } = bestA4(pw, ph);
+    canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
-    const max = maxTiles(pw, ph);
-    tilePlacements(pw, ph, max).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
+    const max = maxTiles(pw, ph, cW, cH);
+    tilePlacements(pw, ph, max, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
     toast(`Tiling ${max} copies…`);
     downloadCanvas(canvas, `${handle}-tilemax.png`);
   }
@@ -707,7 +715,14 @@ async function genMultiA4() {
 
 // ── CANVAS HELPERS ────────────────────────────────────────────────────────────
 
-function fillA4(ctx) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, A4_W, A4_H); }
+function fillA4(ctx) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height); }
+
+// returns portrait or landscape A4 dims, whichever fits the image at a larger scale
+function bestA4(pw, ph) {
+  const ps = Math.min((A4_W-2*MARGIN)/pw, (A4_H-2*MARGIN)/ph);
+  const ls = Math.min((A4_H-2*MARGIN)/pw, (A4_W-2*MARGIN)/ph);
+  return ls > ps ? { cW: A4_H, cH: A4_W } : { cW: A4_W, cH: A4_H };
+}
 
 function centerFit(pw, ph, cW, cH, margin) {
   const uW = cW - 2*margin, uH = cH - 2*margin;
@@ -716,15 +731,15 @@ function centerFit(pw, ph, cW, cH, margin) {
   return { x: margin + Math.round((uW-w)/2), y: margin + Math.round((uH-h)/2), w, h };
 }
 
-function maxTiles(pw, ph) {
-  const uW = A4_W-2*MARGIN, uH = A4_H-2*MARGIN;
+function maxTiles(pw, ph, cW = A4_W, cH = A4_H) {
+  const uW = cW-2*MARGIN, uH = cH-2*MARGIN;
   const scale = Math.min(1, uW/pw, uH/ph);
   const iw = Math.round(pw*scale), ih = Math.round(ph*scale);
   return Math.max(1, Math.floor((uW+GAP)/(iw+GAP)) * Math.floor((uH+GAP)/(ih+GAP)));
 }
 
-function tilePlacements(pw, ph, count) {
-  const uW = A4_W-2*MARGIN, uH = A4_H-2*MARGIN;
+function tilePlacements(pw, ph, count, cW = A4_W, cH = A4_H) {
+  const uW = cW-2*MARGIN, uH = cH-2*MARGIN;
   const scale = Math.min(1, uW/pw, uH/ph);
   const iw = Math.round(pw*scale), ih = Math.round(ph*scale);
   const cols = Math.max(1, Math.floor((uW+GAP)/(iw+GAP)));
@@ -746,16 +761,19 @@ function drawLabel(ctx, text, x, y, maxW) {
 }
 
 function getPrintSize(p, lk, img) {
-  // length (longer side) in mm → pixels at 300 DPI
   const lenMm = lk?.size_h_mm || (p?.size_h_in ? p.size_h_in * 25.4 : null);
   if (lenMm && img) {
+    const lenPx  = Math.round(lenMm / 25.4 * 300);
     const aspect = img.naturalWidth / img.naturalHeight;
-    // length is the height of the physical piece; width is proportional
-    const ph = Math.round(lenMm / 25.4 * 300);
-    const pw = Math.round(ph * aspect);
-    return { pw, ph };
+    // length = long side of the physical piece = long side of the image
+    if (aspect >= 1) {
+      // landscape image → length is the width
+      return { pw: lenPx, ph: Math.round(lenPx / aspect) };
+    } else {
+      // portrait image → length is the height
+      return { pw: Math.round(lenPx * aspect), ph: lenPx };
+    }
   }
-  // fallback: use image natural size capped at A4 usable area
   if (img) return { pw: img.naturalWidth, ph: img.naturalHeight };
   return { pw: 1200, ph: 1200 };
 }
