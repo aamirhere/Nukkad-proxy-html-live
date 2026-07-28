@@ -646,9 +646,8 @@ async function genA4(handle, mode) {
     const hasSize = !!(lk?.size_h_mm || p?.size_h_in);
     if (!hasSize) toast('⚠ No size set — fitting to A4. Set the length (📐) for exact physical size.', true);
 
-    const portScale = Math.min((A4_W - 2*MARGIN) / pw, (A4_H - 2*MARGIN) / ph);
-    const landScale = Math.min((A4_H - 2*MARGIN) / pw, (A4_W - 2*MARGIN) / ph);
-    const useLand   = landScale > portScale || pw > A4_W - 2*MARGIN;
+    // landscape only when physical width can't fit in portrait page width
+    const useLand = pw > A4_W - 2*MARGIN;
     const cW = useLand ? A4_H : A4_W;
     const cH = useLand ? A4_W : A4_H;
     canvas.width = cW; canvas.height = cH;
@@ -738,9 +737,7 @@ function fillA4(ctx) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, ctx.canvas.
 
 // returns portrait or landscape A4 dims, whichever fits the image at a larger scale
 function bestA4(pw, ph) {
-  const ps = Math.min((A4_W-2*MARGIN)/pw, (A4_H-2*MARGIN)/ph);
-  const ls = Math.min((A4_H-2*MARGIN)/pw, (A4_W-2*MARGIN)/ph);
-  const useLand = ls > ps || pw > A4_W - 2*MARGIN;
+  const useLand = pw > A4_W - 2*MARGIN;
   return useLand ? { cW: A4_H, cH: A4_W } : { cW: A4_W, cH: A4_H };
 }
 
