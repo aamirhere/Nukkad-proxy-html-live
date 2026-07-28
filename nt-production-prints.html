@@ -99,7 +99,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 .size-val{cursor:default}
 .size-edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.7rem;padding:1px 4px;border-radius:3px}
 .size-edit-btn:hover{color:var(--accent);background:#fdf5ec}
-.del-btn{background:none;border:none;color:#ccc;cursor:pointer;font-size:.8rem;padding:2px 4px;flex-shrink:0}
+.del-btn{position:absolute;top:4px;right:6px;background:none;border:none;color:#ccc;cursor:pointer;font-size:.8rem;padding:2px 4px;line-height:1;z-index:5}
 .del-btn:hover{color:#e74c3c}
 
 /* ── MODAL ── */
@@ -150,6 +150,11 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
   .dl-menu{bottom:auto;top:100%;margin-bottom:0;margin-top:2px}
 }
 
+.hbtn-wrap{position:relative}
+.hbtn-menu{display:none;position:absolute;right:0;top:100%;margin-top:3px;background:#fff;border:1px solid var(--line);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:100;min-width:170px;overflow:hidden}
+.hbtn-wrap.open .hbtn-menu{display:block}
+.hbtn-menu button{display:block;width:100%;padding:9px 14px;text-align:left;background:none;border:none;font-size:.78rem;color:var(--ink2);cursor:pointer;white-space:nowrap}
+.hbtn-menu button:hover{background:#fdf5ec;color:var(--accent)}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
 #toast{position:fixed;bottom:24px;right:24px;background:#3a2b1d;color:#fff;padding:10px 20px;border-radius:8px;font-size:.83rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;max-width:360px;word-break:break-word;line-height:1.4}
@@ -171,6 +176,14 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
     </label>
     <button class="hbtn" onclick="openAddModal()">+ Add</button>
     <button class="hbtn" onclick="openCsvModal()">↑ CSV</button>
+    <div class="hbtn-wrap" id="csvDlWrap">
+      <button class="hbtn" onclick="toggleCsvDlMenu(event)">↓ CSV ▾</button>
+      <div class="hbtn-menu">
+        <button onclick="downloadCsv('no_size')">No size (to fill in)</button>
+        <button onclick="downloadCsv('with_size')">All with size</button>
+        <button onclick="downloadCsv('all')">All products</button>
+      </div>
+    </div>
     <button class="hbtn" onclick="refreshProducts()">↺</button>
   </div>
 </div>
@@ -377,12 +390,9 @@ function rowHTML(p) {
         ${newBadge}
       </div>
       <div class="row-info">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
-          <div style="min-width:0;flex:1">
+        <div style="min-width:0">
             <div class="row-title" title="${escHtml(p.title)}">${escHtml(p.title)}</div>
             <div class="row-handle">${p.handle}</div>
-          </div>
-          <button class="del-btn" title="Delete" onclick="deleteRow('${p.handle}',${isManual})">✕</button>
         </div>
         <div class="size-wrap" id="size-${p.handle}">
           📐 L: <span class="size-val">${lkH ? (lkH/25.4).toFixed(1) + '"' : '—'}</span>
@@ -394,6 +404,7 @@ function rowHTML(p) {
         </div>` : ''}
       </div>
     </div>
+    <button class="del-btn" title="Delete" onclick="deleteRow('${p.handle}',${isManual})">✕</button>
     <div class="row-actions">
       <div class="dl-wrap" id="dlw-${p.handle}">
         <button class="act-btn orange" style="width:100%" onclick="toggleDlMenu('${p.handle}',event)">⬇ PDF ▾</button>
@@ -423,6 +434,32 @@ function toggleDlMenu(handle, e) {
   if (!wasOpen) wrap.classList.add('open');
 }
 
+function toggleCsvDlMenu(e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('csvDlWrap');
+  wrap.classList.toggle('open');
+}
+
+function downloadCsv(mode) {
+  document.getElementById('csvDlWrap').classList.remove('open');
+  const rows = [['handle','title','size_h_mm','size_w_mm','has_image']];
+  for (const p of allProducts) {
+    const lk = links[p.handle] || {};
+    const hMm = lk.size_h_mm || '';
+    const wMm = lk.size_w_mm || '';
+    const hasImg = !!(lk.image_url || lk.drive_id || lk.thumbnail_link);
+    if (mode === 'no_size' && hMm) continue;
+    if (mode === 'with_size' && !hMm) continue;
+    rows.push([p.handle, `"${(p.title||'').replace(/"/g,'""')}"`, hMm, wMm, hasImg ? 'yes' : '']);
+  }
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `prints-${mode}-${Date.now()}.csv`;
+  a.click();
+  toast(`Downloaded ${rows.length - 1} rows`);
+}
+
 function togglePillDl(e) {
   e.stopPropagation();
   const wrap = document.getElementById('pillDlWrap');
@@ -438,7 +475,7 @@ function toggleChgMenu(handle, e) {
 }
 
 document.addEventListener('click', () => {
-  document.querySelectorAll('.dl-wrap.open,.pill-dl-wrap.open,.thumb-change-wrap.open').forEach(w => w.classList.remove('open'));
+  document.querySelectorAll('.dl-wrap.open,.pill-dl-wrap.open,.thumb-change-wrap.open,.hbtn-wrap.open').forEach(w => w.classList.remove('open'));
 });
 
 function toggleSelect(handle) {
