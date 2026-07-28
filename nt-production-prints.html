@@ -54,7 +54,14 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 .row-chk{width:18px;height:18px;border-radius:4px;border:2px solid var(--line);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#fff;margin-top:2px}
 .row-chk.checked{background:var(--accent);border-color:var(--accent)}
 
-.row-thumb{width:72px;height:72px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#e8ddd0;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;border:1.5px solid var(--line)}
+.row-thumb{width:72px;height:72px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#e8ddd0;display:flex;align-items:center;justify-content:center;position:relative;border:1.5px solid var(--line)}
+.thumb-change-wrap{position:absolute;bottom:0;left:0;right:0;display:flex;flex-direction:column;align-items:stretch}
+.thumb-change-btn{width:100%;background:rgba(0,0,0,.38);color:#fff;font-size:.58rem;border:none;padding:3px 0;cursor:pointer;letter-spacing:.03em;opacity:.7}
+.thumb-change-btn:hover{opacity:1;background:rgba(0,0,0,.55)}
+.thumb-change-menu{display:none;background:#fff;border:1px solid var(--line);border-radius:0 0 5px 5px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:50;position:absolute;bottom:100%;left:0;right:0;min-width:130px}
+.thumb-change-wrap.open .thumb-change-menu{display:block}
+.thumb-change-menu button,.thumb-change-menu label{display:block;width:100%;text-align:left;padding:7px 10px;font-size:.78rem;color:var(--ink);background:none;border:none;cursor:pointer;white-space:nowrap}
+.thumb-change-menu button:hover,.thumb-change-menu label:hover{background:#f5ede3}
 .row-thumb img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
 .row-thumb .no-img{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:.6rem;text-align:center;padding:4px}
 .row-thumb .no-img span:first-child{font-size:1.1rem}
@@ -302,8 +309,8 @@ async function init() {
 
 function updateHeader() {
   const total = allProducts.length;
-  const missing = allProducts.filter(p => !links[p.handle]?.drive_link).length;
-  document.getElementById('headerSub').textContent = `${total} products · ${missing} without Drive link`;
+  const noImg = allProducts.filter(p => { const lk = links[p.handle]; return !(lk?.image_url || lk?.drive_id || lk?.thumbnail_link); }).length;
+  document.getElementById('headerSub').textContent = `${total} products · ${noImg} without image`;
   document.getElementById('countBadge').textContent = filtered.length || total;
 }
 
@@ -329,61 +336,45 @@ function filterList() {
 function renderList(products) {
   const wrap = document.getElementById('listWrap');
   if (!products.length) { wrap.innerHTML = '<div class="empty-msg">No products found.</div>'; return; }
-
-  // new products first, then missing Drive link, then linked
-  const isNew   = products.filter(p => p.is_new);
-  const missing = products.filter(p => !p.is_new && !links[p.handle]?.drive_link);
-  const hasLink = products.filter(p => !p.is_new &&  links[p.handle]?.drive_link);
-
-  let html = '';
-  if (isNew.length) {
-    html += `<div class="section-label">🆕 New products (${isNew.length}) — add Drive link</div>`;
-    html += isNew.map(p => rowHTML(p)).join('');
-    if (missing.length || hasLink.length) html += '<div style="margin-top:8px"></div>';
-  }
-  if (missing.length) {
-    html += `<div class="section-label">Missing Drive link (${missing.length})</div>`;
-    html += missing.map(p => rowHTML(p)).join('');
-    if (hasLink.length) html += '<div style="margin-top:8px"></div>';
-  }
-  if (hasLink.length) {
-    if (missing.length || isNew.length) html += `<div class="section-label">With Drive link (${hasLink.length})</div>`;
-    html += hasLink.map(p => rowHTML(p)).join('');
-  }
-
-  wrap.innerHTML = html;
+  wrap.innerHTML = products.map(p => rowHTML(p)).join('');
 }
 
 function rowHTML(p) {
   const lk = links[p.handle] || {};
-  const hasDrive = !!lk.drive_link;
   const isSelected = selectedHandles.has(p.handle);
+  const isManual = !!p.is_new;
 
   const rowThumbSrc = lk.image_url
     ? lk.image_url
     : lk.thumbnail_link
       ? lk.thumbnail_link.replace(/=s\d+$/, '=s300')
       : (lk.drive_id ? `https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300` : null);
-  const thumbHtml = rowThumbSrc
+  const hasImage = !!rowThumbSrc;
+
+  const thumbInner = hasImage
     ? `<img src="${rowThumbSrc}" alt="" loading="lazy"
-         onerror="this.parentNode.innerHTML='<div class=no-img><span>🔒</span><span>Not public</span></div>'">`
-    : `<div class="no-img"><span>📂</span><span>No image yet</span></div>`;
+         onerror="this.parentNode.innerHTML='<div class=no-img><span>🔒</span><span>No access</span></div>'">
+       <div class="thumb-change-wrap" id="chg-${p.handle}">
+         <button class="thumb-change-btn" onclick="toggleChgMenu('${p.handle}',event)">✎ Change</button>
+         <div class="thumb-change-menu">
+           <button onclick="openDrivePicker('${p.handle}')">🗂 Browse Drive</button>
+           <label style="display:block;cursor:pointer">📤 Upload file<input type="file" accept="image/*" style="display:none" onchange="uploadImage('${p.handle}',this)"></label>
+         </div>
+       </div>`
+    : `<div class="no-img"><span>📂</span><span>No image</span></div>`;
 
+  const newBadge = p.is_new ? '<span class="new-badge">NEW</span>' : '';
   const lkH = lk.size_h_mm || '';
-  const badge = p.is_new
-    ? '<span class="new-badge">NEW</span>'
-    : (!hasDrive ? '<span class="miss-badge">NO LINK</span>' : '');
-  const isManual = !!p.is_new;
 
-  return `<div class="row${p.is_new ? ' is-new' : (!hasDrive ? ' missing' : '')}${isSelected ? ' selected' : ''}" id="row-${p.handle}" onclick="rowClick(event,'${p.handle}')"
+  return `<div class="row${p.is_new ? ' is-new' : ''}${isSelected ? ' selected' : ''}" id="row-${p.handle}" onclick="rowClick(event,'${p.handle}')"
     ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
     ondragleave="this.classList.remove('drag-over')"
     ondrop="event.preventDefault();event.stopPropagation();this.classList.remove('drag-over');handleRowDrop('${p.handle}',event)">
     <div class="row-top">
       <div class="row-chk${isSelected ? ' checked' : ''}">${isSelected ? '✓' : ''}</div>
-      <div class="row-thumb" onclick="openDrivePicker('${p.handle}')">
-        ${thumbHtml}
-        ${badge}
+      <div class="row-thumb">
+        ${thumbInner}
+        ${newBadge}
       </div>
       <div class="row-info">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
@@ -397,23 +388,19 @@ function rowHTML(p) {
           📐 L: <span class="size-val">${lkH ? (lkH/25.4).toFixed(1) + '"' : '—'}</span>
           <button class="size-edit-btn" onclick="editSize('${p.handle}')" title="Edit length">✏</button>
         </div>
-        <div class="row-link ${hasDrive ? 'has-link' : 'no-link'}" onclick="openLinkModal('${p.handle}')">
-          ${hasDrive ? '✓ Linked' : '+ Paste link'}
-        </div>
+        ${!hasImage ? `<div style="display:flex;gap:6px;margin-top:4px">
+          <button class="act-btn" onclick="openDrivePicker('${p.handle}')">🗂 Browse</button>
+          <label class="act-btn" style="cursor:pointer;text-align:center">📤 Upload<input type="file" accept="image/*" style="display:none" onchange="uploadImage('${p.handle}',this)"></label>
+        </div>` : ''}
       </div>
     </div>
     <div class="row-actions">
-      <button class="act-btn" onclick="openDrivePicker('${p.handle}')">🗂 Browse</button>
-      <label class="act-btn" style="cursor:pointer;text-align:center">
-        📤 Upload
-        <input type="file" accept="image/*" style="display:none" onchange="uploadImage('${p.handle}', this)">
-      </label>
       <div class="dl-wrap" id="dlw-${p.handle}">
-        <button class="act-btn orange" style="width:100%" onclick="toggleDlMenu('${p.handle}',event)">⬇ Download ▾</button>
+        <button class="act-btn orange" style="width:100%" onclick="toggleDlMenu('${p.handle}',event)">⬇ PDF ▾</button>
         <div class="dl-menu">
-          <button onclick="genA4('${p.handle}','single')">Single A4</button>
-          <button onclick="genA4('${p.handle}','tile2')">Tile ×2</button>
-          <button onclick="genA4('${p.handle}','tilemax')">Tile Max</button>
+          <button onclick="genPDF('${p.handle}','single')">Single A4</button>
+          <button onclick="genPDF('${p.handle}','tile2')">Tile ×2</button>
+          <button onclick="genPDF('${p.handle}','tilemax')">Tile Max</button>
         </div>
       </div>
     </div>
@@ -424,7 +411,7 @@ function rowHTML(p) {
 
 function rowClick(e, handle) {
   // don't select if clicking interactive elements
-  if (e.target.closest('button,input,label,a,.dl-wrap,.row-thumb,.size-edit-btn,.del-btn')) return;
+  if (e.target.closest('button,input,label,a,.dl-wrap,.thumb-change-wrap,.size-edit-btn,.del-btn')) return;
   toggleSelect(handle);
 }
 
@@ -442,8 +429,16 @@ function togglePillDl(e) {
   wrap.classList.toggle('open');
 }
 
+function toggleChgMenu(handle, e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('chg-' + handle);
+  const wasOpen = wrap.classList.contains('open');
+  document.querySelectorAll('.thumb-change-wrap.open').forEach(w => w.classList.remove('open'));
+  if (!wasOpen) wrap.classList.add('open');
+}
+
 document.addEventListener('click', () => {
-  document.querySelectorAll('.dl-wrap.open,.pill-dl-wrap.open').forEach(w => w.classList.remove('open'));
+  document.querySelectorAll('.dl-wrap.open,.pill-dl-wrap.open,.thumb-change-wrap.open').forEach(w => w.classList.remove('open'));
 });
 
 function toggleSelect(handle) {
@@ -633,7 +628,7 @@ async function refreshProducts() {
 
 // ── A4 GENERATION ─────────────────────────────────────────────────────────────
 
-async function genA4(handle, mode) {
+async function genA4(handle, mode, asPDF = false) {
   const p = allProducts.find(x => x.handle === handle);
   const lk = links[handle];
   if (!lk?.image_url && !lk?.drive_id) { toast('No image for this product — upload or link one first'); return; }
@@ -662,21 +657,20 @@ async function genA4(handle, mode) {
     const { x, y, w, h } = hasSize ? placePrint(pw, ph, cW, cH, MARGIN) : centerFit(pw, ph, cW, cH, MARGIN);
     ctx.drawImage(img, x, y, w, h);
     drawLabel(ctx, p.title, x, y + h + 20, w);
-    downloadCanvas(canvas, `${handle}-single.png`);
+    asPDF ? canvasToPDF(canvas, p.title) : downloadCanvas(canvas, `${handle}-single.png`);
   } else if (mode === 'tile2') {
     const { cW, cH } = bestA4(pw, ph);
     canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
     tilePlacements(pw, ph, 2, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
-    downloadCanvas(canvas, `${handle}-tile2.png`);
+    asPDF ? canvasToPDF(canvas, p.title) : downloadCanvas(canvas, `${handle}-tile2.png`);
   } else if (mode === 'tilemax') {
     const { cW, cH } = bestA4(pw, ph);
     canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
     const max = maxTiles(pw, ph, cW, cH);
     tilePlacements(pw, ph, max, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
-    toast(`Tiling ${max} copies…`);
-    downloadCanvas(canvas, `${handle}-tilemax.png`);
+    asPDF ? canvasToPDF(canvas, p.title) : downloadCanvas(canvas, `${handle}-tilemax.png`);
   }
 }
 
@@ -687,8 +681,8 @@ async function bulkDownload() {
   toast(`Downloading ${handles.length} A4 sheets…`);
   for (const handle of handles) {
     const lk = links[handle];
-    if (!lk?.drive_id) { toast(`Skipped ${handle} — no Drive link`); continue; }
-    await genA4(handle, 'single');
+    if (!lk?.image_url && !lk?.drive_id) { toast(`Skipped ${handle} — no image`); continue; }
+    await genPDF(handle, 'single');
     await sleep(400);
   }
   toast('All done!');
@@ -833,15 +827,32 @@ function loadImage(src) {
 }
 
 function downloadCanvas(canvas, filename) {
-  toast('Generating PNG…');
   canvas.toBlob(blob => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-    toast('Downloaded: ' + filename);
   }, 'image/png');
+}
+
+function canvasToPDF(canvas, title) {
+  toast('Opening PDF print dialog…');
+  const dataUrl = canvas.toDataURL('image/png');
+  const isLand = canvas.width > canvas.height;
+  const w = window.open('', '_blank');
+  w.document.write(`<!doctype html><html><head><title>${title}</title><style>
+    *{margin:0;padding:0}
+    @page{size:A4 ${isLand ? 'landscape' : 'portrait'};margin:0}
+    body{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#fff}
+    img{max-width:100%;max-height:100%;object-fit:contain}
+  </style></head><body><img src="${dataUrl}"></body></html>`);
+  w.document.close();
+  w.onload = () => { w.focus(); w.print(); };
+}
+
+async function genPDF(handle, mode) {
+  await genA4(handle, mode, true);
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
