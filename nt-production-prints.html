@@ -906,9 +906,7 @@ async function deleteRow(handle, isManual) {
   if (!confirm(`Remove "${handle}"?`)) return;
   try {
     await apiFetch({ action: isManual ? 'delete_manual' : 'delete_link', handle });
-    if (isManual) {
-      allProducts = allProducts.filter(p => p.handle !== handle);
-    }
+    allProducts = allProducts.filter(p => p.handle !== handle);
     delete links[handle];
     filtered = filtered.filter(p => p.handle !== handle);
     document.getElementById(`row-${handle}`)?.remove();
