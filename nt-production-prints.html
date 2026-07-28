@@ -636,7 +636,7 @@ async function genA4(handle, mode) {
     const cH = useLand ? A4_W : A4_H;
     canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
-    const { x, y, w, h } = centerFit(pw, ph, cW, cH, MARGIN);
+    const { x, y, w, h } = placePrint(pw, ph, cW, cH, MARGIN);
     ctx.drawImage(img, x, y, w, h);
     drawLabel(ctx, p.title, x, y + h + 20, w);
     downloadCanvas(canvas, `${handle}-single.png`);
@@ -725,6 +725,13 @@ function bestA4(pw, ph) {
   const ls = Math.min((A4_H-2*MARGIN)/pw, (A4_W-2*MARGIN)/ph);
   const useLand = ls > ps || pw > A4_W - 2*MARGIN;
   return useLand ? { cW: A4_H, cH: A4_W } : { cW: A4_W, cH: A4_H };
+}
+
+function placePrint(pw, ph, cW, cH, margin) {
+  const uW = cW - 2*margin, uH = cH - 2*margin;
+  const scale = Math.min(1, uW/pw, uH/ph); // never enlarge beyond physical size
+  const w = Math.round(pw*scale), h = Math.round(ph*scale);
+  return { x: margin + Math.round((uW-w)/2), y: margin + Math.round((uH-h)/2), w, h };
 }
 
 function centerFit(pw, ph, cW, cH, margin) {
