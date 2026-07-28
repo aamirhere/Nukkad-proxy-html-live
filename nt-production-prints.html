@@ -23,19 +23,25 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 .search-wrap .sico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:.85rem}
 .badge{background:var(--accent);color:#fff;border-radius:10px;font-size:.7rem;padding:1px 7px;font-weight:700}
 
-/* ── BULK BAR ── */
-#selBar{display:none;padding:8px 20px;background:#3a2b1d;color:#fff;align-items:center;gap:10px;font-size:.85rem;flex-wrap:wrap}
-#selBar.show{display:flex}
-#selBar button{padding:5px 13px;border-radius:6px;border:none;cursor:pointer;font-size:.8rem;font-weight:700}
-.sel-multi{background:var(--accent);color:#fff}
-.sel-dl{background:#fff;color:var(--ink)}
-.sel-cancel{background:transparent;color:#bbb;text-decoration:underline;font-weight:400}
+/* ── FLOATING SELECTION PILL ── */
+#selPill{display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3a2b1d;color:#fff;border-radius:100px;padding:8px 8px 8px 18px;align-items:center;gap:8px;font-size:.82rem;box-shadow:0 4px 24px rgba(0,0,0,.35);z-index:300;white-space:nowrap}
+#selPill.show{display:flex}
+#selPill .pill-count{font-weight:700;margin-right:2px}
+#selPill .pill-btn{padding:6px 14px;border-radius:100px;border:none;cursor:pointer;font-size:.78rem;font-weight:700;white-space:nowrap}
+.pill-multi{background:var(--accent);color:#fff}
+.pill-each{background:#fff;color:var(--ink)}
+.pill-cancel{background:transparent;color:#aaa;padding:6px 10px;font-size:1rem;line-height:1}
+#selPill .pill-dl-wrap{position:relative}
+#selPill .pill-dl-menu{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);min-width:170px;overflow:hidden}
+#selPill .pill-dl-wrap.open .pill-dl-menu{display:block}
+#selPill .pill-dl-menu button{display:block;width:100%;padding:10px 16px;text-align:left;background:none;border:none;font-size:.82rem;color:var(--ink2);cursor:pointer}
+#selPill .pill-dl-menu button:hover{background:#fdf5ec;color:var(--accent)}
 
 /* ── LIST ── */
 .list-wrap{padding:8px 10px;display:flex;flex-direction:column;gap:6px}
 .section-label{font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:8px 0 4px}
 
-.row{background:#fff;border:1px solid var(--line);border-radius:8px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:0;padding:8px;transition:box-shadow .15s;position:relative}
+.row{background:#fff;border:1px solid var(--line);border-radius:8px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:0;padding:8px;transition:box-shadow .15s;position:relative;cursor:pointer;user-select:none}
 .row:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
 .row.missing{border-color:#e74c3c}
 .row.selected{outline:2px solid var(--accent);outline-offset:-1px}
@@ -172,11 +178,16 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
   </label>
 </div>
 
-<div id="selBar">
-  <span id="selCount">0 selected</span>
-  <button class="sel-multi" onclick="genMultiA4()">📄 One A4 (all together)</button>
-  <button class="sel-dl" onclick="bulkDownload()">⬇ Download each (separate A4s)</button>
-  <button class="sel-cancel" onclick="cancelSelect()">Cancel</button>
+<div id="selPill">
+  <span class="pill-count" id="selCount">0</span> selected
+  <div class="pill-dl-wrap" id="pillDlWrap">
+    <button class="pill-btn pill-multi" onclick="togglePillDl(event)">⬇ Download ▾</button>
+    <div class="pill-dl-menu">
+      <button onclick="bulkDownload()">⬇ Each on separate A4</button>
+      <button onclick="genMultiA4()">📄 All on one A4</button>
+    </div>
+  </div>
+  <button class="pill-btn pill-cancel" onclick="cancelSelect()" title="Clear selection">✕</button>
 </div>
 
 <div class="list-wrap" id="listWrap">
@@ -343,9 +354,9 @@ function rowHTML(p) {
     : (!hasDrive ? '<span class="miss-badge">NO LINK</span>' : '');
   const isManual = !!p.is_new;
 
-  return `<div class="row${p.is_new ? ' is-new' : (!hasDrive ? ' missing' : '')}${isSelected ? ' selected' : ''}" id="row-${p.handle}">
+  return `<div class="row${p.is_new ? ' is-new' : (!hasDrive ? ' missing' : '')}${isSelected ? ' selected' : ''}" id="row-${p.handle}" onclick="rowClick(event,'${p.handle}')">
     <div class="row-top">
-      <div class="row-chk${isSelected ? ' checked' : ''}" onclick="toggleSelect('${p.handle}')">${isSelected ? '✓' : ''}</div>
+      <div class="row-chk${isSelected ? ' checked' : ''}">${isSelected ? '✓' : ''}</div>
       <div class="row-thumb" onclick="openDrivePicker('${p.handle}')">
         ${thumbHtml}
         ${badge}
@@ -381,12 +392,17 @@ function rowHTML(p) {
           <button onclick="genA4('${p.handle}','tilemax')">Tile Max</button>
         </div>
       </div>
-      <button class="act-btn${isSelected ? ' checked' : ''}" onclick="toggleSelect('${p.handle}')" style="${isSelected ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : ''}">☐ Select</button>
     </div>
   </div>`;
 }
 
 // ── SELECT ────────────────────────────────────────────────────────────────────
+
+function rowClick(e, handle) {
+  // don't select if clicking interactive elements
+  if (e.target.closest('button,input,label,a,.dl-wrap,.row-thumb,.size-edit-btn,.del-btn')) return;
+  toggleSelect(handle);
+}
 
 function toggleDlMenu(handle, e) {
   e.stopPropagation();
@@ -395,7 +411,16 @@ function toggleDlMenu(handle, e) {
   document.querySelectorAll('.dl-wrap.open').forEach(w => w.classList.remove('open'));
   if (!wasOpen) wrap.classList.add('open');
 }
-document.addEventListener('click', () => document.querySelectorAll('.dl-wrap.open').forEach(w => w.classList.remove('open')));
+
+function togglePillDl(e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('pillDlWrap');
+  wrap.classList.toggle('open');
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.dl-wrap.open,.pill-dl-wrap.open').forEach(w => w.classList.remove('open'));
+});
 
 function toggleSelect(handle) {
   if (selectedHandles.has(handle)) {
@@ -430,14 +455,11 @@ function updateRowUI(handle) {
 }
 
 function updateSelBar() {
-  const bar = document.getElementById('selBar');
+  const pill = document.getElementById('selPill');
   const n = selectedHandles.size;
-  if (n > 0) {
-    bar.classList.add('show');
-    document.getElementById('selCount').textContent = `${n} selected`;
-  } else {
-    bar.classList.remove('show');
-  }
+  document.getElementById('selCount').textContent = n;
+  pill.classList.toggle('show', n > 0);
+  if (!n) document.getElementById('pillDlWrap').classList.remove('open');
 }
 
 // ── LINK MODAL ────────────────────────────────────────────────────────────────
