@@ -342,9 +342,11 @@ function rowHTML(p) {
   const hasDrive = !!lk.drive_link;
   const isSelected = selectedHandles.has(p.handle);
 
-  const rowThumbSrc = lk.thumbnail_link
-    ? lk.thumbnail_link.replace(/=s\d+$/, '=s300')
-    : (lk.drive_id ? `https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300` : null);
+  const rowThumbSrc = lk.image_url
+    ? lk.image_url
+    : lk.thumbnail_link
+      ? lk.thumbnail_link.replace(/=s\d+$/, '=s300')
+      : (lk.drive_id ? `https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300` : null);
   const thumbHtml = rowThumbSrc
     ? `<img src="${rowThumbSrc}" alt="" loading="lazy"
          onerror="this.parentNode.innerHTML='<div class=no-img><span>🔒</span><span>Not public</span></div>'">`
@@ -614,10 +616,10 @@ async function refreshProducts() {
 async function genA4(handle, mode) {
   const p = allProducts.find(x => x.handle === handle);
   const lk = links[handle];
-  if (!lk?.drive_id) { toast('No Drive link for this product — add one first'); return; }
+  if (!lk?.image_url && !lk?.drive_id) { toast('No image for this product — upload or link one first'); return; }
 
   toast('Fetching image…');
-  const imgData = await fetchProxiedImage(lk.drive_id);
+  const imgData = lk.image_url ? lk.image_url : await fetchProxiedImage(lk.drive_id);
   if (!imgData) { toast('Could not load image — check Drive sharing (Anyone with link → Viewer)'); return; }
 
   const img = await loadImage(imgData);
@@ -1075,7 +1077,7 @@ async function bulkUploadImages(input) {
         data,
       });
       if (!res.ok) throw new Error(res.error);
-      links[product.handle] = { drive_link: res.drive_link, drive_id: res.drive_id };
+      links[product.handle] = { ...links[product.handle], image_url: res.image_url || null, drive_link: res.drive_link || null, drive_id: res.drive_id || null };
       const p = allProducts.find(x => x.handle === product.handle);
       if (p) p.is_new = false;
       matched++;
@@ -1171,12 +1173,12 @@ async function uploadImage(handle, input) {
 
       if (!res.ok) throw new Error(res.error || 'Upload failed');
 
-      links[handle] = { drive_link: res.drive_link, drive_id: res.drive_id };
+      links[handle] = { ...links[handle], image_url: res.image_url || null, drive_link: res.drive_link || null, drive_id: res.drive_id || null };
       const p = allProducts.find(x => x.handle === handle);
       if (p) p.is_new = false;
       filterList();
       updateHeader();
-      toast('✓ Uploaded & linked to Drive');
+      toast('✓ Uploaded & saved');
     } catch(e) {
       toast('Upload error: ' + e.message);
     }
