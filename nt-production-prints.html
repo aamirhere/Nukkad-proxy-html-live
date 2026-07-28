@@ -701,48 +701,65 @@ async function genMultiA4() {
     if (!imgData) continue;
     const img = await loadImage(imgData);
     const { pw, ph } = getPrintSize(p, lk, img);
-    // scale to fit portrait usable width, cap at physical size
-    const scale = Math.min(1, (A4_W - 2*MARGIN) / pw);
-    items.push({ img, w: Math.round(pw*scale), h: Math.round(ph*scale) });
+    const needsLand = pw > A4_W - 2*MARGIN;
+    items.push({ img, pw, ph, needsLand });
   }
 
   if (!items.length) { toast('No images loaded'); return; }
 
-  // pack items vertically onto portrait A4 pages
   const canvas = document.getElementById('offCanvas');
   const ctx = canvas.getContext('2d');
-  const usableW = A4_W - 2*MARGIN;
-  const dataUrls = [];
+  const dataUrls = []; // { url, landscape }
 
-  let pageItems = [], curY = MARGIN;
-  const flush = () => {
+  // flush current portrait page
+  let portItems = [], curY = MARGIN;
+  const portUsableW = A4_W - 2*MARGIN;
+  const flushPortrait = () => {
+    if (!portItems.length) return;
     canvas.width = A4_W; canvas.height = A4_H;
     fillA4(ctx);
-    pageItems.forEach(({ img, x, y, w, h }) => ctx.drawImage(img, x, y, w, h));
-    dataUrls.push(canvas.toDataURL('image/png'));
-    pageItems = []; curY = MARGIN;
+    portItems.forEach(({ img, x, y, w, h }) => ctx.drawImage(img, x, y, w, h));
+    dataUrls.push({ url: canvas.toDataURL('image/png'), landscape: false });
+    portItems = []; curY = MARGIN;
   };
 
   for (const item of items) {
-    if (pageItems.length && curY + item.h > A4_H - MARGIN) flush();
-    pageItems.push({ img: item.img, x: MARGIN + Math.round((usableW - item.w)/2), y: curY, w: item.w, h: item.h });
-    curY += item.h + GAP;
+    if (item.needsLand) {
+      // flush any pending portrait items first
+      flushPortrait();
+      // render this item alone on a landscape page
+      const lUsableW = A4_H - 2*MARGIN, lUsableH = A4_W - 2*MARGIN;
+      const scale = Math.min(1, lUsableW/item.pw, lUsableH/item.ph);
+      const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
+      canvas.width = A4_H; canvas.height = A4_W;
+      fillA4(ctx);
+      ctx.drawImage(item.img, MARGIN + Math.round((lUsableW-dw)/2), MARGIN + Math.round((lUsableH-dh)/2), dw, dh);
+      dataUrls.push({ url: canvas.toDataURL('image/png'), landscape: true });
+    } else {
+      const scale = Math.min(1, portUsableW/item.pw);
+      const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
+      if (portItems.length && curY + dh > A4_H - MARGIN) flushPortrait();
+      portItems.push({ img: item.img, x: MARGIN + Math.round((portUsableW-dw)/2), y: curY, w: dw, h: dh });
+      curY += dh + GAP;
+    }
   }
-  if (pageItems.length) flush();
+  flushPortrait();
 
   toast(`${dataUrls.length} page(s) — opening print dialog…`);
   const win = window.open('', '_blank');
   if (!win) { toast('Allow popups to download multi-page PDF'); return; }
-  const imgs = dataUrls.map((url, i) =>
-    `<div class="pg"><img src="${url}"></div>`
+  const pageHtml = dataUrls.map(({ url, landscape }) =>
+    `<div class="pg ${landscape ? 'land' : 'port'}"><img src="${url}"></div>`
   ).join('');
   win.document.write(`<!doctype html><html><head><style>
     *{margin:0;padding:0;box-sizing:border-box}
-    @page{size:A4 portrait;margin:0}
-    .pg{page-break-after:always;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+    .pg{page-break-after:always;display:flex;align-items:center;justify-content:center}
     .pg:last-child{page-break-after:auto}
+    .port{width:210mm;height:297mm} .land{width:297mm;height:210mm}
+    @media print{.port{page:port} .land{page:land}}
+    @page port{size:A4 portrait;margin:0} @page land{size:A4 landscape;margin:0}
     img{width:100%;height:100%;object-fit:contain}
-  </style></head><body>${imgs}</body></html>`);
+  </style></head><body>${pageHtml}</body></html>`);
   win.document.close();
   win.addEventListener('load', () => { win.focus(); win.print(); });
   cancelSelect();
