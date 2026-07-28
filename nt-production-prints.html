@@ -80,8 +80,11 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 /* ── INLINE EDIT ── */
 .editable{cursor:pointer;border-bottom:1px dashed var(--muted)}
 .editable:hover{border-color:var(--accent);color:var(--accent)}
-.inline-input{border:1px solid var(--accent);border-radius:4px;padding:2px 6px;font-size:.82rem;color:var(--ink);width:80px}
+.inline-input{border:1px solid var(--accent);border-radius:4px;padding:2px 6px;font-size:.82rem;color:var(--ink);width:70px}
 .size-wrap{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:.72rem;color:var(--ink2)}
+.size-val{cursor:default}
+.size-edit-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.7rem;padding:1px 4px;border-radius:3px}
+.size-edit-btn:hover{color:var(--accent);background:#fdf5ec}
 .del-btn{background:none;border:none;color:#ccc;cursor:pointer;font-size:.8rem;padding:2px 4px;flex-shrink:0}
 .del-btn:hover{color:#e74c3c}
 
@@ -334,7 +337,6 @@ function rowHTML(p) {
          onerror="this.parentNode.innerHTML='<div class=no-img><span>🔒</span><span>Not public</span></div>'">`
     : `<div class="no-img"><span>📂</span><span>No image yet</span></div>`;
 
-  const lkW = lk.size_w_mm || '';
   const lkH = lk.size_h_mm || '';
   const badge = p.is_new
     ? '<span class="new-badge">NEW</span>'
@@ -356,11 +358,9 @@ function rowHTML(p) {
           </div>
           <button class="del-btn" title="Delete" onclick="deleteRow('${p.handle}',${isManual})">✕</button>
         </div>
-        <div class="size-wrap">
-          📐 W<input class="inline-input" type="number" placeholder="mm" step="0.1" value="${lkW}"
-            onchange="saveSize('${p.handle}','w',this.value)" style="width:52px">
-          L<input class="inline-input" type="number" placeholder="mm" step="0.1" value="${lkH}"
-            onchange="saveSize('${p.handle}','h',this.value)" style="width:52px">mm
+        <div class="size-wrap" id="size-${p.handle}">
+          📐 L: <span class="size-val">${lkH ? lkH + ' mm' : '—'}</span>
+          <button class="size-edit-btn" onclick="editSize('${p.handle}')" title="Edit length">✏</button>
         </div>
         <div class="row-link ${hasDrive ? 'has-link' : 'no-link'}" onclick="openLinkModal('${p.handle}')">
           ${hasDrive ? '✓ Linked' : '+ Paste link'}
@@ -776,13 +776,34 @@ function toast(msg) {
 
 // ── INLINE SIZE EDIT ──────────────────────────────────────────────────────────
 
-async function saveSize(handle, dim, val) {
+function editSize(handle) {
+  const wrap = document.getElementById('size-' + handle);
+  if (!wrap) return;
   const lk = links[handle] || {};
-  if (dim === 'w') lk.size_w_mm = parseFloat(val) || null;
-  else             lk.size_h_mm = parseFloat(val) || null;
+  const cur = lk.size_h_mm || '';
+  wrap.innerHTML = `📐 L: <input class="inline-input" type="number" placeholder="mm" step="0.1" value="${cur}" id="sinput-${handle}" style="width:60px">mm
+    <button class="size-edit-btn" onclick="commitSize('${handle}')" style="color:var(--accent)">✓</button>
+    <button class="size-edit-btn" onclick="cancelSize('${handle}')">✕</button>`;
+  document.getElementById('sinput-' + handle)?.focus();
+}
+
+function cancelSize(handle) {
+  const lk = links[handle] || {};
+  const wrap = document.getElementById('size-' + handle);
+  if (wrap) wrap.innerHTML = `📐 L: <span class="size-val">${lk.size_h_mm ? lk.size_h_mm + ' mm' : '—'}</span>
+    <button class="size-edit-btn" onclick="editSize('${handle}')" title="Edit length">✏</button>`;
+}
+
+async function commitSize(handle) {
+  const input = document.getElementById('sinput-' + handle);
+  const val = parseFloat(input?.value) || null;
+  const lk = links[handle] || {};
+  lk.size_h_mm = val;
   links[handle] = lk;
+  cancelSize(handle);
   try {
-    await apiFetch({ action: 'save_link', handle, drive_link: lk.drive_link || null, drive_id: lk.drive_id || null, size_w_mm: lk.size_w_mm, size_h_mm: lk.size_h_mm });
+    await apiFetch({ action: 'save_link', handle, drive_link: lk.drive_link || null, drive_id: lk.drive_id || null, size_w_mm: lk.size_w_mm || null, size_h_mm: val });
+    toast('✓ Length saved');
   } catch(e) { toast('Size save error: ' + e.message); }
 }
 
