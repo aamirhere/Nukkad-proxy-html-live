@@ -198,7 +198,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
     <button class="pill-btn pill-multi" onclick="togglePillDl(event)">⬇ Download ▾</button>
     <div class="pill-dl-menu">
       <button onclick="bulkDownload()">⬇ Each on separate A4</button>
-      <button onclick="genMultiA4()">📄 All on one A4</button>
+      <button onclick="genMultiA4()">📄 Print all (multi-page PDF)</button>
     </div>
   </div>
   <button class="pill-btn pill-cancel" onclick="cancelSelect()" title="Clear selection">✕</button>
@@ -655,7 +655,6 @@ async function genA4(handle, mode) {
     // if size is known: exact physical size (never enlarge). if unknown: fit to usable area.
     const { x, y, w, h } = hasSize ? placePrint(pw, ph, cW, cH, MARGIN) : centerFit(pw, ph, cW, cH, MARGIN);
     ctx.drawImage(img, x, y, w, h);
-    drawLabel(ctx, p.title, x, y + h + 20, w);
     downloadCanvas(canvas, `${handle}-single.png`);
   } else if (mode === 'tile2') {
     const { cW, cH } = bestA4(pw, ph);
@@ -688,46 +687,64 @@ async function bulkDownload() {
   cancelSelect();
 }
 
-// Multi-product: all selected items on a single A4
+// Multi-product: pack onto A4 pages, open print window for PDF
 async function genMultiA4() {
   if (!selectedHandles.size) { toast('Select products first'); return; }
-  toast(`Building A4 with ${selectedHandles.size} items…`);
+  toast(`Loading ${selectedHandles.size} images…`);
 
   const items = [];
   for (const handle of selectedHandles) {
     const p = allProducts.find(x => x.handle === handle);
     const lk = links[handle];
-    if (!lk?.drive_id) { toast(`No Drive link: ${handle}`); continue; }
-    const imgData = await fetchProxiedImage(lk.drive_id);
-    if (!imgData) { toast(`Image failed: ${handle}`); continue; }
+    if (!lk?.image_url && !lk?.drive_id) { toast(`Skipped ${handle} — no image`); continue; }
+    const imgData = lk.image_url || await fetchProxiedImage(lk.drive_id);
+    if (!imgData) continue;
     const img = await loadImage(imgData);
     const { pw, ph } = getPrintSize(p, lk, img);
-    items.push({ img, pw, ph, title: p.title });
+    // scale to fit portrait usable width, cap at physical size
+    const scale = Math.min(1, (A4_W - 2*MARGIN) / pw);
+    items.push({ img, w: Math.round(pw*scale), h: Math.round(ph*scale) });
   }
 
   if (!items.length) { toast('No images loaded'); return; }
 
+  // pack items vertically onto portrait A4 pages
   const canvas = document.getElementById('offCanvas');
   const ctx = canvas.getContext('2d');
-  canvas.width = A4_W; canvas.height = A4_H;
-  fillA4(ctx);
+  const usableW = A4_W - 2*MARGIN;
+  const dataUrls = [];
 
-  const usableW = A4_W - 2 * MARGIN;
-  const usableH = A4_H - 2 * MARGIN;
-  const perItemH = Math.floor((usableH - GAP * (items.length - 1)) / items.length);
+  let pageItems = [], curY = MARGIN;
+  const flush = () => {
+    canvas.width = A4_W; canvas.height = A4_H;
+    fillA4(ctx);
+    pageItems.forEach(({ img, x, y, w, h }) => ctx.drawImage(img, x, y, w, h));
+    dataUrls.push(canvas.toDataURL('image/png'));
+    pageItems = []; curY = MARGIN;
+  };
 
-  let curY = MARGIN;
-  items.forEach(item => {
-    const scale = Math.min(usableW / item.pw, perItemH / item.ph);
-    const dw = Math.round(item.pw * scale);
-    const dh = Math.round(item.ph * scale);
-    const dx = MARGIN + Math.round((usableW - dw) / 2);
-    ctx.drawImage(item.img, dx, curY, dw, dh);
-    drawLabel(ctx, item.title, dx, curY + dh + 14, dw);
-    curY += perItemH + GAP;
-  });
+  for (const item of items) {
+    if (pageItems.length && curY + item.h > A4_H - MARGIN) flush();
+    pageItems.push({ img: item.img, x: MARGIN + Math.round((usableW - item.w)/2), y: curY, w: item.w, h: item.h });
+    curY += item.h + GAP;
+  }
+  if (pageItems.length) flush();
 
-  downloadCanvas(canvas, `multi-${Date.now()}.png`);
+  toast(`${dataUrls.length} page(s) — opening print dialog…`);
+  const win = window.open('', '_blank');
+  if (!win) { toast('Allow popups to download multi-page PDF'); return; }
+  const imgs = dataUrls.map((url, i) =>
+    `<div class="pg"><img src="${url}"></div>`
+  ).join('');
+  win.document.write(`<!doctype html><html><head><style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    @page{size:A4 portrait;margin:0}
+    .pg{page-break-after:always;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+    .pg:last-child{page-break-after:auto}
+    img{width:100%;height:100%;object-fit:contain}
+  </style></head><body>${imgs}</body></html>`);
+  win.document.close();
+  win.addEventListener('load', () => { win.focus(); win.print(); });
   cancelSelect();
 }
 
