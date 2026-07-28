@@ -326,8 +326,11 @@ function rowHTML(p) {
   const hasDrive = !!lk.drive_link;
   const isSelected = selectedHandles.has(p.handle);
 
-  const thumbHtml = lk.drive_id
-    ? `<img src="https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300" alt="" loading="lazy"
+  const rowThumbSrc = lk.thumbnail_link
+    ? lk.thumbnail_link.replace(/=s\d+$/, '=s300')
+    : (lk.drive_id ? `https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300` : null);
+  const thumbHtml = rowThumbSrc
+    ? `<img src="${rowThumbSrc}" alt="" loading="lazy"
          onerror="this.parentNode.innerHTML='<div class=no-img><span>🔒</span><span>Not public</span></div>'">`
     : `<div class="no-img"><span>📂</span><span>No image yet</span></div>`;
 
@@ -873,27 +876,35 @@ function filterDriveFiles() {
   driveSearchTimer = setTimeout(() => loadDriveFiles(q), 400);
 }
 
+let driveFileMap = {};  // idx → file object for picker
+
 function renderDriveGrid(files) {
   const grid = document.getElementById('driveGrid');
   if (!files.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:20px">No files found</div>'; return; }
-  grid.innerHTML = files.map(f => `
-    <div class="drive-file" onclick="selectDriveFile('${f.id}','${escHtml(f.webViewLink)}','${escHtml(f.name)}')">
-      <img src="https://drive.google.com/thumbnail?id=${f.id}&sz=w200" alt="" loading="lazy"
-           onerror="this.style.background='#f5ece0';this.style.height='80px'">
+  driveFileMap = {};
+  grid.innerHTML = files.map((f, i) => {
+    driveFileMap[i] = f;
+    const thumb = f.thumbnailLink
+      ? f.thumbnailLink.replace(/=s\d+$/, '=s200')
+      : `https://drive.google.com/thumbnail?id=${f.id}&sz=w200`;
+    return `<div class="drive-file" onclick="selectDriveFile(${i})">
+      <img src="${thumb}" alt="" loading="lazy" onerror="this.style.background='#f5ece0';this.style.height='80px'">
       <div class="drive-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
-async function selectDriveFile(driveId, driveLink, filename) {
+async function selectDriveFile(idx) {
+  const f = driveFileMap[idx];
+  if (!f) return;
   const handle = drivePickerHandle;
   if (!handle) return;
   closeDrivePicker();
-  toast(`Linking ${filename}…`);
+  toast(`Linking ${f.name}…`);
   try {
     const lk = links[handle] || {};
-    await apiFetch({ action: 'link_drive_file', handle, drive_id: driveId, drive_link: driveLink, size_w_mm: lk.size_w_mm || null, size_h_mm: lk.size_h_mm || null });
-    links[handle] = { ...lk, drive_id: driveId, drive_link: driveLink };
+    await apiFetch({ action: 'link_drive_file', handle, drive_id: f.id, drive_link: f.webViewLink, size_w_mm: lk.size_w_mm || null, size_h_mm: lk.size_h_mm || null });
+    links[handle] = { ...lk, drive_id: f.id, drive_link: f.webViewLink, thumbnail_link: f.thumbnailLink || null };
     const p = allProducts.find(x => x.handle === handle);
     if (p) p.is_new = false;
     filterList();
@@ -1017,7 +1028,7 @@ async function scanDrive(btn) {
 
     // apply matched links locally
     for (const m of res.results || []) {
-      links[m.handle] = { drive_link: m.drive_link, drive_id: m.drive_id };
+      links[m.handle] = { drive_link: m.drive_link, drive_id: m.drive_id, thumbnail_link: m.thumbnail_link || null };
     }
 
     filterList();
