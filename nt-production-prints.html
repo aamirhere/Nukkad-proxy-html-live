@@ -172,6 +172,12 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
     <span class="sico">🔍</span>
     <input id="searchInput" type="text" placeholder="Search products…" oninput="filterList()">
   </div>
+  <select id="filterSel" onchange="filterList()" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);cursor:pointer">
+    <option value="all">All</option>
+    <option value="no_image">No image</option>
+    <option value="no_size">No size</option>
+    <option value="no_image_or_size">No image or size</option>
+  </select>
   <span id="countBadge" class="badge">–</span>
   <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--ink2);cursor:pointer">
     <input type="checkbox" id="selAllChk" onchange="toggleSelectAll(this.checked)"> Select all
@@ -303,8 +309,18 @@ function updateHeader() {
 // ── RENDER ────────────────────────────────────────────────────────────────────
 
 function filterList() {
-  const q = document.getElementById('searchInput').value.toLowerCase().trim();
-  filtered = q ? allProducts.filter(p => p.title.toLowerCase().includes(q) || p.handle.includes(q)) : allProducts;
+  const q   = document.getElementById('searchInput').value.toLowerCase().trim();
+  const sel = document.getElementById('filterSel').value;
+  filtered = allProducts.filter(p => {
+    if (q && !p.title.toLowerCase().includes(q) && !p.handle.includes(q)) return false;
+    const lk = links[p.handle];
+    const hasImage = !!(lk?.image_url || lk?.drive_id || lk?.thumbnail_link);
+    const hasSize  = !!(lk?.size_h_mm || lk?.size_w_mm || p.size_h_in);
+    if (sel === 'no_image')         return !hasImage;
+    if (sel === 'no_size')          return !hasSize;
+    if (sel === 'no_image_or_size') return !hasImage || !hasSize;
+    return true;
+  });
   renderList(filtered);
   document.getElementById('countBadge').textContent = filtered.length;
 }
