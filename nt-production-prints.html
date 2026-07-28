@@ -144,7 +144,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-#toast{position:fixed;bottom:24px;right:24px;background:#3a2b1d;color:#fff;padding:10px 20px;border-radius:8px;font-size:.83rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;max-width:320px}
+#toast{position:fixed;bottom:24px;right:24px;background:#3a2b1d;color:#fff;padding:10px 20px;border-radius:8px;font-size:.83rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;max-width:360px;word-break:break-word;line-height:1.4}
 #toast.show{opacity:1}
 #offCanvas{display:none}
 .empty-msg,.loading-msg{text-align:center;padding:50px 20px;color:var(--muted);font-size:.88rem}
@@ -570,12 +570,14 @@ async function importCsv() {
   if (!matched) { toast('No matching products found in CSV'); return; }
 
   try {
+    toast(`⏳ Saving ${matched} rows to database…`, true);
     await apiFetch({ action: 'save_links_bulk', links: newLinks });
     Object.assign(links, newLinks);
     closeCsvModal();
     filterList();
     updateHeader();
-    toast(`Imported ${matched} links${unmatched.length ? `. ${unmatched.length} not matched: ${unmatched.slice(0,5).join(', ')}${unmatched.length>5?'…':''}` : ''}`);
+    const unmsg = unmatched.length ? ` · ${unmatched.length} unmatched: ${unmatched.slice(0,5).join(', ')}${unmatched.length>5?'…':''}` : '';
+    toast(`✓ CSV imported — ${matched} products updated${unmsg}`);
     if (unmatched.length) console.log('CSV unmatched titles:', unmatched);
   } catch(e) { toast('Error: ' + e.message); }
 }
@@ -808,12 +810,13 @@ function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, persist) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+  if (!persist) toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
 }
+function toastClear() { const el = document.getElementById('toast'); el.classList.remove('show'); }
 
 // ── INLINE SIZE EDIT ──────────────────────────────────────────────────────────
 
@@ -966,7 +969,7 @@ async function selectDriveFile(idx) {
   toast(`Linking ${f.name}…`);
   try {
     const lk = links[handle] || {};
-    await apiFetch({ action: 'link_drive_file', handle, drive_id: f.id, drive_link: f.webViewLink, size_w_mm: lk.size_w_mm || null, size_h_mm: lk.size_h_mm || null });
+    await apiFetch({ action: 'link_drive_file', handle, drive_id: f.id, drive_link: f.webViewLink, thumbnail_link: f.thumbnailLink || null, size_w_mm: lk.size_w_mm || null, size_h_mm: lk.size_h_mm || null });
     links[handle] = { ...lk, drive_id: f.id, drive_link: f.webViewLink, thumbnail_link: f.thumbnailLink || null };
     const p = allProducts.find(x => x.handle === handle);
     if (p) p.is_new = false;
@@ -1079,7 +1082,7 @@ async function scanDrive(btn) {
   if (!allProducts.length) { toast('Load products first'); return; }
   btn.disabled = true;
   btn.textContent = '⏳ Scanning…';
-  toast('Scanning Drive folder…');
+  toast('⏳ Connecting to Drive… listing images in both folders', true);
 
   try {
     const res = await apiFetch({
@@ -1089,7 +1092,6 @@ async function scanDrive(btn) {
 
     if (!res.ok) throw new Error(res.error || 'Scan failed');
 
-    // apply matched links locally
     for (const m of res.results || []) {
       links[m.handle] = { drive_link: m.drive_link, drive_id: m.drive_id, thumbnail_link: m.thumbnail_link || null };
     }
@@ -1097,12 +1099,9 @@ async function scanDrive(btn) {
     filterList();
     updateHeader();
 
-    const unmatchedNames = (res.unmatched_files || []).map(u => u.file).join(', ');
-    toast(`✓ Matched ${res.matched} images. ${res.unmatched} not matched${res.unmatched ? ': ' + unmatchedNames : ''}`);
-
-    if (res.unmatched > 0) {
-      console.log('Unmatched files:', res.unmatched_files);
-    }
+    const unmatchedNames = (res.unmatched_files || []).map(u => u.file).slice(0, 8).join(', ');
+    toast(`✓ Scan done — matched ${res.matched} images, ${res.unmatched} Drive files not matched${res.unmatched ? ': ' + unmatchedNames : ''}`);
+    if (res.unmatched > 0) console.log('Unmatched files:', res.unmatched_files);
   } catch(e) {
     toast('Scan error: ' + e.message);
   } finally {
