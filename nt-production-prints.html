@@ -46,6 +46,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 .row.missing{border-color:#e74c3c}
 .row.selected{outline:2px solid var(--accent);outline-offset:-1px}
 .row.is-new{border-color:#2ecc71;border-width:2px}
+.row.drag-over{outline:2px dashed var(--accent);outline-offset:-2px;background:rgba(212,84,31,.06)}
 
 /* top section: checkbox + thumb + info */
 .row-top{display:flex;align-items:flex-start;gap:8px;width:100%}
@@ -374,7 +375,10 @@ function rowHTML(p) {
     : (!hasDrive ? '<span class="miss-badge">NO LINK</span>' : '');
   const isManual = !!p.is_new;
 
-  return `<div class="row${p.is_new ? ' is-new' : (!hasDrive ? ' missing' : '')}${isSelected ? ' selected' : ''}" id="row-${p.handle}" onclick="rowClick(event,'${p.handle}')">
+  return `<div class="row${p.is_new ? ' is-new' : (!hasDrive ? ' missing' : '')}${isSelected ? ' selected' : ''}" id="row-${p.handle}" onclick="rowClick(event,'${p.handle}')"
+    ondragover="event.preventDefault();event.stopPropagation();this.classList.add('drag-over')"
+    ondragleave="this.classList.remove('drag-over')"
+    ondrop="event.preventDefault();event.stopPropagation();this.classList.remove('drag-over');handleRowDrop('${p.handle}',event)">
     <div class="row-top">
       <div class="row-chk${isSelected ? ' checked' : ''}">${isSelected ? '✓' : ''}</div>
       <div class="row-thumb" onclick="openDrivePicker('${p.handle}')">
@@ -1173,10 +1177,20 @@ async function scanDrive(btn) {
 
 // ── DRIVE UPLOAD ──────────────────────────────────────────────────────────────
 
+function handleRowDrop(handle, event) {
+  const file = event.dataTransfer?.files?.[0];
+  if (!file || !file.type.startsWith('image/')) { toast('Drop an image file'); return; }
+  uploadFile(handle, file);
+}
+
 async function uploadImage(handle, input) {
   const file = input.files[0];
   if (!file) return;
   input.value = '';
+  uploadFile(handle, file);
+}
+
+async function uploadFile(handle, file) {
 
   toast(`Uploading ${file.name} to Drive…`);
 
