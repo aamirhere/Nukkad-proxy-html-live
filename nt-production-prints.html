@@ -198,6 +198,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
     <option value="no_image">No image</option>
     <option value="no_size">No size</option>
     <option value="no_image_or_size">No image or size</option>
+    <option value="no_access">No access (Drive 🔒)</option>
   </select>
   <span id="countBadge" class="badge">–</span>
   <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--ink2);cursor:pointer">
@@ -302,6 +303,7 @@ let allProducts = [];
 let links = {};
 let filtered = [];
 let selectedHandles = new Set();
+let accessErrors = new Set(); // handles where Drive thumbnail returned 403
 let editingHandle = null;
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -340,6 +342,7 @@ function filterList() {
     if (sel === 'no_image')         return !hasImage;
     if (sel === 'no_size')          return !hasSize;
     if (sel === 'no_image_or_size') return !hasImage || !hasSize;
+    if (sel === 'no_access')        return accessErrors.has(p.handle);
     return true;
   });
   renderList(filtered);
@@ -365,8 +368,7 @@ function rowHTML(p) {
   const hasImage = !!rowThumbSrc;
 
   const thumbInner = hasImage
-    ? `<img src="${rowThumbSrc}" alt="" loading="lazy"
-         onerror="this.parentNode.innerHTML='<div class=no-img><span>🔒</span><span>No access</span></div>'">
+    ? `<img src="${rowThumbSrc}" alt="" loading="lazy" onerror="thumbError(this,'${p.handle}')">
        <div class="thumb-change-wrap" id="chg-${p.handle}">
          <button class="thumb-change-btn" onclick="toggleChgMenu('${p.handle}',event)">✎ Change</button>
          <div class="thumb-change-menu">
@@ -931,6 +933,20 @@ async function genPDF(handle, mode) {
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
+
+function thumbError(img, handle) {
+  accessErrors.add(handle);
+  // replace only the img — leave the Change/Upload button sibling intact
+  const el = document.createElement('div');
+  el.className = 'no-img';
+  el.innerHTML = '<span>🔒</span><span>No access</span>';
+  const uploadLabel = document.createElement('label');
+  uploadLabel.style.cssText = 'margin-top:4px;padding:3px 8px;border-radius:5px;border:1px solid #ccc;background:#fff;font-size:.7rem;cursor:pointer;color:#555';
+  uploadLabel.innerHTML = '📤 Upload<input type="file" accept="image/*" style="display:none">';
+  uploadLabel.querySelector('input').addEventListener('change', function(){ uploadImage(handle, this); });
+  el.appendChild(uploadLabel);
+  img.replaceWith(el);
+}
 
 function extractDriveId(url) {
   if (!url) return null;
