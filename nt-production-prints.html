@@ -465,11 +465,31 @@ async function importCsv() {
   const titleToHandle = {};
   allProducts.forEach(p => { titleToHandle[p.title.toLowerCase()] = p.handle; });
 
+  // fuzzy title match: normalize then find best product
+  function normT(s) { return (s||'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim(); }
+  function fuzzyFindHandle(csvTitle) {
+    const exact = titleToHandle[csvTitle.toLowerCase()];
+    if (exact) return exact;
+    const norm = normT(csvTitle);
+    let best = null, bestScore = 0;
+    for (const p of allProducts) {
+      const pn = normT(p.title);
+      if (pn === norm) return p.handle;
+      if (pn.includes(norm) || norm.includes(pn)) { if (60 > bestScore) { bestScore = 60; best = p.handle; } continue; }
+      const aw = new Set(norm.split(' ')), bw = pn.split(' ');
+      const sh = bw.filter(w=>aw.has(w)).length;
+      const sc = Math.round(sh / Math.max(aw.size, bw.length) * 50);
+      if (sc > bestScore) { bestScore = sc; best = p.handle; }
+    }
+    return bestScore >= 30 ? best : null;
+  }
+
   const newLinks = {};
+  const unmatched = [];
   let matched = 0;
   rows.forEach(row => {
-    const handle = row.handle || titleToHandle[row.title?.toLowerCase()] || null;
-    if (!handle || !row.drive_link) return;
+    const handle = row.handle || (row.title ? fuzzyFindHandle(row.title) : null);
+    if (!handle || !row.drive_link) { if (row.title) unmatched.push(row.title); return; }
     const drive_id = extractDriveId(row.drive_link);
     newLinks[handle] = { drive_link: row.drive_link, drive_id, size_w_mm: parseFloat(row.size_w_mm)||null, size_h_mm: parseFloat(row.size_h_mm)||null };
     matched++;
@@ -483,7 +503,8 @@ async function importCsv() {
     closeCsvModal();
     filterList();
     updateHeader();
-    toast(`Imported ${matched} links`);
+    toast(`Imported ${matched} links${unmatched.length ? `. ${unmatched.length} not matched: ${unmatched.slice(0,5).join(', ')}${unmatched.length>5?'…':''}` : ''}`);
+    if (unmatched.length) console.log('CSV unmatched titles:', unmatched);
   } catch(e) { toast('Error: ' + e.message); }
 }
 
