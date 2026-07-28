@@ -628,7 +628,7 @@ async function refreshProducts() {
 
 // ── A4 GENERATION ─────────────────────────────────────────────────────────────
 
-async function genA4(handle, mode, asPDF = false) {
+async function genA4(handle, mode) {
   const p = allProducts.find(x => x.handle === handle);
   const lk = links[handle];
   if (!lk?.image_url && !lk?.drive_id) { toast('No image for this product — upload or link one first'); return; }
@@ -657,20 +657,20 @@ async function genA4(handle, mode, asPDF = false) {
     const { x, y, w, h } = hasSize ? placePrint(pw, ph, cW, cH, MARGIN) : centerFit(pw, ph, cW, cH, MARGIN);
     ctx.drawImage(img, x, y, w, h);
     drawLabel(ctx, p.title, x, y + h + 20, w);
-    asPDF ? canvasToPDF(canvas, p.title) : downloadCanvas(canvas, `${handle}-single.png`);
+    downloadCanvas(canvas, `${handle}-single.png`);
   } else if (mode === 'tile2') {
     const { cW, cH } = bestA4(pw, ph);
     canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
     tilePlacements(pw, ph, 2, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
-    asPDF ? canvasToPDF(canvas, p.title) : downloadCanvas(canvas, `${handle}-tile2.png`);
+    downloadCanvas(canvas, `${handle}-tile2.png`);
   } else if (mode === 'tilemax') {
     const { cW, cH } = bestA4(pw, ph);
     canvas.width = cW; canvas.height = cH;
     fillA4(ctx);
     const max = maxTiles(pw, ph, cW, cH);
     tilePlacements(pw, ph, max, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
-    asPDF ? canvasToPDF(canvas, p.title) : downloadCanvas(canvas, `${handle}-tilemax.png`);
+    downloadCanvas(canvas, `${handle}-tilemax.png`);
   }
 }
 
@@ -827,28 +827,14 @@ function loadImage(src) {
 }
 
 function downloadCanvas(canvas, filename) {
+  toast('Downloading…');
   canvas.toBlob(blob => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); toastClear(); }, 1200);
   }, 'image/png');
-}
-
-function canvasToPDF(canvas, title) {
-  toast('Opening PDF print dialog…');
-  const dataUrl = canvas.toDataURL('image/png');
-  const isLand = canvas.width > canvas.height;
-  const w = window.open('', '_blank');
-  w.document.write(`<!doctype html><html><head><title>${title}</title><style>
-    *{margin:0;padding:0}
-    @page{size:A4 ${isLand ? 'landscape' : 'portrait'};margin:0}
-    body{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#fff}
-    img{max-width:100%;max-height:100%;object-fit:contain}
-  </style></head><body><img src="${dataUrl}"></body></html>`);
-  w.document.close();
-  w.onload = () => { w.focus(); w.print(); };
 }
 
 async function genPDF(handle, mode) {
