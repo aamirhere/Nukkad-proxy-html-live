@@ -916,7 +916,9 @@ async function openDrivePicker(handle) {
   const preSearch = p ? p.title : '';
   document.getElementById('driveSearch').value = preSearch;
   document.getElementById('driveModal').style.display = 'flex';
-  await loadDriveFiles(preSearch);
+  // always load both folders; filter client-side by pre-filled title
+  await loadDriveFiles('');
+  if (preSearch && driveFiles.length) filterDriveFilesLocal(preSearch);
 }
 
 async function loadDriveFiles(search) {
@@ -936,11 +938,24 @@ function closeDrivePicker() {
   drivePickerHandle = null;
 }
 
+function filterDriveFilesLocal(q) {
+  const norm = q.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const matches = (driveFiles || []).filter(f => {
+    const fn = f.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return fn.includes(norm) || norm.includes(fn.replace(/\.[^.]+$/, ''));
+  });
+  renderDriveGrid(matches.length ? matches : (driveFiles || []));
+}
+
 function filterDriveFiles() {
   clearTimeout(driveSearchTimer);
   const q = document.getElementById('driveSearch').value.trim();
   if (!q) { renderDriveGrid(driveFiles || []); return; }
-  // debounce 400ms then search all Drive via API
+  // filter folder files client-side first
+  const norm = q.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const local = (driveFiles || []).filter(f => f.name.toLowerCase().replace(/[^a-z0-9]/g, '').includes(norm));
+  if (local.length) { renderDriveGrid(local); return; }
+  // no local match → search all Drive after debounce
   driveSearchTimer = setTimeout(() => loadDriveFiles(q), 400);
 }
 
