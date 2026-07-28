@@ -668,10 +668,11 @@ async function refreshProducts() {
 async function genA4(handle, mode) {
   const p = allProducts.find(x => x.handle === handle);
   const lk = links[handle];
-  if (!lk?.image_url && !lk?.drive_id) { toast('No image for this product — upload or link one first'); return; }
+  const driveId = lk?.drive_id || extractDriveId(lk?.thumbnail_link) || extractDriveId(lk?.drive_link);
+  if (!lk?.image_url && !driveId) { toast('No image for this product — upload or link one first'); return; }
 
   toast('Fetching image…');
-  const imgData = lk.image_url ? lk.image_url : await fetchProxiedImage(lk.drive_id);
+  const imgData = lk.image_url ? lk.image_url : await fetchProxiedImage(driveId);
   if (!imgData) { toast('Could not load image — check Drive sharing (Anyone with link → Viewer)'); return; }
 
   const img = await loadImage(imgData);
@@ -733,8 +734,9 @@ async function genMultiA4() {
   for (const handle of selectedHandles) {
     const p = allProducts.find(x => x.handle === handle);
     const lk = links[handle];
-    if (!lk?.image_url && !lk?.drive_id) { toast(`Skipped ${handle} — no image`); continue; }
-    const imgData = lk.image_url || await fetchProxiedImage(lk.drive_id);
+    const driveId = lk?.drive_id || extractDriveId(lk?.thumbnail_link) || extractDriveId(lk?.drive_link);
+    if (!lk?.image_url && !driveId) { toast(`Skipped ${handle} — no image`); continue; }
+    const imgData = lk.image_url || await fetchProxiedImage(driveId);
     if (!imgData) continue;
     const img = await loadImage(imgData);
     const { pw, ph } = getPrintSize(p, lk, img);
