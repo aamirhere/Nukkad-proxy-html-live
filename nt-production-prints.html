@@ -628,10 +628,10 @@ async function genA4(handle, mode) {
   const ctx = canvas.getContext('2d');
 
   if (mode === 'single') {
-    // auto-pick portrait vs landscape A4 — whichever gives the larger printed image
     const portScale = Math.min((A4_W - 2*MARGIN) / pw, (A4_H - 2*MARGIN) / ph);
     const landScale = Math.min((A4_H - 2*MARGIN) / pw, (A4_W - 2*MARGIN) / ph);
-    const useLand   = landScale > portScale;
+    // force landscape if piece is wider than portrait usable width (e.g. 9" > 8.27")
+    const useLand   = landScale > portScale || pw > A4_W - 2*MARGIN;
     const cW = useLand ? A4_H : A4_W;
     const cH = useLand ? A4_W : A4_H;
     canvas.width = cW; canvas.height = cH;
@@ -723,7 +723,8 @@ function fillA4(ctx) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, ctx.canvas.
 function bestA4(pw, ph) {
   const ps = Math.min((A4_W-2*MARGIN)/pw, (A4_H-2*MARGIN)/ph);
   const ls = Math.min((A4_H-2*MARGIN)/pw, (A4_W-2*MARGIN)/ph);
-  return ls > ps ? { cW: A4_H, cH: A4_W } : { cW: A4_W, cH: A4_H };
+  const useLand = ls > ps || pw > A4_W - 2*MARGIN;
+  return useLand ? { cW: A4_H, cH: A4_W } : { cW: A4_W, cH: A4_H };
 }
 
 function centerFit(pw, ph, cW, cH, margin) {
