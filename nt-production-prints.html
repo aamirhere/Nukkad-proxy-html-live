@@ -903,7 +903,11 @@ async function fetchProxiedImage(driveId) {
   try {
     const res = await apiFetch({ action: 'proxy_image', url: `https://drive.google.com/uc?export=download&id=${driveId}` });
     if (res.ok && res.data) return res.data;
-    if (res.too_large) return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`;
+    if (res.too_large) {
+      // proxy the thumbnail so canvas doesn't get tainted by a cross-origin URL
+      const t = await apiFetch({ action: 'proxy_image', url: `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200` });
+      if (t.ok && t.data) return t.data;
+    }
     return null;
   } catch { return null; }
 }
@@ -913,6 +917,8 @@ function loadImage(src) {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = reject;
+    // crossOrigin needed for Supabase/HTTPS image_url so canvas isn't tainted
+    if (src && src.startsWith('https://')) img.crossOrigin = 'anonymous';
     img.src = src;
   });
 }
