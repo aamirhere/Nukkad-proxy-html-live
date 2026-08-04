@@ -241,7 +241,12 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 
 /* ── color chips ── */
-.color-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.color-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
 .color-chip {
   padding: 4px 12px;
   border-radius: 20px;
@@ -252,6 +257,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   color: var(--ink2);
   cursor: pointer;
   transition: all .15s;
+  white-space: nowrap;
 }
 .color-chip:hover  { border-color: var(--accent); color: var(--accent); }
 .color-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -271,22 +277,36 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   padding: 10px 14px;
   user-select: none;
 }
-.dg-title { font-weight: 700; font-size: .88rem; color: var(--ink); flex: 1; }
+.dg-info { flex: 1; min-width: 0; }
+.dg-title { font-weight: 700; font-size: .88rem; color: var(--ink); }
 .dg-colors-summary { font-size: .72rem; color: var(--muted); margin-top: 2px; }
-.dg-group-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+.dg-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .dg-chevron {
   color: var(--muted);
   font-size: .7rem;
   transition: transform .2s;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 6px 8px;
   border-radius: 4px;
   flex-shrink: 0;
+  line-height: 1;
 }
 .dg-chevron:hover { background: var(--bg2); }
 .dg-card.open .dg-chevron { transform: rotate(180deg); }
 .dg-body { display: none; border-top: 1px solid var(--line); }
 .dg-card.open .dg-body { display: block; }
+
+/* on narrow screens, stack info above actions */
+@media (max-width: 480px) {
+  .dg-head { flex-wrap: wrap; }
+  .dg-info  { width: 100%; flex: none; }
+  .dg-actions-row { width: 100%; justify-content: flex-end; }
+}
 
 /* ── unit rows ── */
 .unit-row {
@@ -401,6 +421,51 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   .app-header, .toolbar, .date-bar, .color-chips, .unit-btn, .nav-btn { display: none !important; }
   body { background: #fff; }
   .dg-card.open .dg-body, .dg-body { display: block !important; }
+}
+
+/* ── mobile ── */
+@media (max-width: 600px) {
+  .app-header { gap: 10px; padding: 0 10px; }
+  .app-logo   { font-size: .82rem; }
+  .app-nav    { gap: 2px; }
+  .nav-btn    { padding: 5px 8px; font-size: .73rem; gap: 3px; }
+  .nav-sales  { padding: 5px 6px; font-size: .73rem; }
+
+  .view { padding: 14px 10px 60px; }
+
+  .toolbar { gap: 6px; }
+  .btn      { padding: 6px 10px; font-size: .76rem; }
+
+  /* inventory rows */
+  .inv-row    { gap: 8px; padding: 7px 10px; }
+  .inv-thumb, .inv-thumb-placeholder { width: 32px; height: 32px; }
+  .inv-title  { font-size: .8rem; }
+  .inv-del    { opacity: 1; } /* always visible on touch */
+
+  /* date bar */
+  .date-bar { gap: 7px; }
+  .date-bar input[type=date] { font-size: .78rem; padding: 6px 8px; }
+
+  /* color chips — horizontal scroll */
+  .color-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .color-chips::-webkit-scrollbar { display: none; }
+
+  /* unit rows */
+  .unit-row   { padding: 7px 10px; gap: 7px; }
+  .unit-order { font-size: .74rem; }
+  .unit-color { font-size: .68rem; padding: 1px 6px; }
+  .unit-btn   { padding: 4px 10px; font-size: .72rem; }
+
+  /* emergency */
+  .emg-row { padding: 9px 10px; gap: 8px; }
+  .emg-date-tabs { gap: 4px; }
+  .emg-tab  { padding: 4px 10px; font-size: .74rem; }
 }
 </style>
 </head>
@@ -719,7 +784,7 @@ function renderGroup(g) {
     const isPicked = u0.picked;
     const isEmerg  = u0.is_emergency;
     if (isEmerg) {
-      groupBtns = `<span class="emg-label" style="font-size:.72rem;font-weight:700;color:var(--red);background:#fff0ee;border-radius:10px;padding:2px 8px">⚠ No stock</span>`;
+      groupBtns = `<span class="emg-label">⚠ No stock</span>`;
     } else {
       groupBtns = `
         <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
@@ -743,12 +808,14 @@ function renderGroup(g) {
   return `
   <div class="dg-card" id="dg-${g.handle}">
     <div class="dg-head">
-      <div style="flex:1;min-width:0">
+      <div class="dg-info">
         <div class="dg-title">${g.title}</div>
         <div class="dg-colors-summary">${statusLine}</div>
       </div>
-      <div class="dg-group-actions">${groupBtns}</div>
-      ${!isSingle ? `<span class="dg-chevron" onclick="toggleGroup('${g.handle}')">▼</span>` : ''}
+      <div class="dg-actions-row">
+        ${groupBtns}
+        ${!isSingle ? `<span class="dg-chevron" onclick="toggleGroup('${g.handle}')">▼</span>` : ''}
+      </div>
     </div>
     ${!isSingle ? `
     <div class="dg-body" id="dgbody-${g.handle}">
@@ -837,7 +904,6 @@ async function togglePick(u) {
   const newPicked = !cur.picked;
   localState[k] = { ...cur, picked: newPicked };
 
-  // update in currentUnits
   const idx = currentUnits.findIndex(x => stateKey(x) === k);
   if (idx >= 0) currentUnits[idx].picked = newPicked;
 
@@ -845,7 +911,8 @@ async function togglePick(u) {
   const date = document.getElementById('ordersDate').value;
   try {
     await api({ action: 'save_picked', ...u, date, picked: newPicked });
-  } catch { toast('Sync failed'); }
+    toast(newPicked ? `✓ Saved: ${u.order_name} picked` : `Saved: ${u.order_name} unpicked`);
+  } catch { toast('Save failed — please retry'); }
 }
 
 async function markEmergency(u) {
@@ -859,8 +926,8 @@ async function markEmergency(u) {
   updateEmergencyBadge();
   try {
     await api({ action: 'save_emergency', ...u, date, is_emergency: true });
-    toast('Marked as no stock — added to emergency');
-  } catch { toast('Sync failed'); }
+    toast(`⚠ Saved: ${u.order_name} → No Stock`);
+  } catch { toast('Save failed — please retry'); }
 }
 
 // ── EMERGENCY ─────────────────────────────────────────────────────────────────
