@@ -594,6 +594,17 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <option value="stock_asc">Least stock ↑</option>
       <option value="name_asc">A–Z</option>
     </select>
+    <select id="invPeriod" onchange="applyOrderBadges()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
+      <option value="this_month">This month</option>
+      <option value="last_month">Last month</option>
+      <option value="this_quarter">This quarter</option>
+      <option value="last_quarter">Last quarter</option>
+      <option value="this_cal_year">This year</option>
+      <option value="last_cal_year">Last year</option>
+      <option value="this_fy">This FY (Apr–Mar)</option>
+      <option value="last_fy">Last FY (Apr–Mar)</option>
+      <option value="all_time">All time</option>
+    </select>
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
     <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
   </div>
@@ -707,6 +718,54 @@ function switchView(view) {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
+// orderStats = { handle: { "YYYY-MM": qty, ... } }  (loaded once, filtered client-side)
+
+function getPeriodMonths() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(); // m is 0-based
+  const ym = (yr, mo) => `${yr}-${String(mo + 1).padStart(2, '0')}`;
+  const range = (fromYr, fromMo, toYr, toMo) => {
+    const months = [];
+    let yr = fromYr, mo = fromMo;
+    while (yr < toYr || (yr === toYr && mo <= toMo)) {
+      months.push(ym(yr, mo));
+      mo++; if (mo > 11) { mo = 0; yr++; }
+    }
+    return months;
+  };
+  const period = document.getElementById('invPeriod')?.value || 'all_time';
+  if (period === 'this_month')    return [ym(y, m)];
+  if (period === 'last_month')    return m === 0 ? [ym(y-1, 11)] : [ym(y, m-1)];
+  if (period === 'this_quarter') {
+    const q = Math.floor(m / 3);
+    return range(y, q*3, y, Math.min(q*3+2, m));
+  }
+  if (period === 'last_quarter') {
+    const q = Math.floor(m / 3) - 1;
+    if (q < 0) return range(y-1, 9, y-1, 11);
+    return range(y, q*3, y, q*3+2);
+  }
+  if (period === 'this_cal_year')  return range(y, 0, y, m);
+  if (period === 'last_cal_year')  return range(y-1, 0, y-1, 11);
+  if (period === 'this_fy') {
+    // FY starts April; if current month < April, FY started last year
+    const fyStart = m >= 3 ? y : y - 1;
+    return range(fyStart, 3, m >= 3 ? y : y, m >= 3 ? m : m + 12 > 11 ? 11 : m);
+  }
+  if (period === 'last_fy') {
+    const fyStart = (m >= 3 ? y : y - 1) - 1;
+    return range(fyStart, 3, fyStart + 1, 2);
+  }
+  return null; // all_time: null means sum everything
+}
+
+function sumStatsForPeriod(monthlyMap) {
+  const months = getPeriodMonths();
+  if (!monthlyMap) return 0;
+  if (months === null) return Object.values(monthlyMap).reduce((s, v) => s + v, 0);
+  return months.reduce((s, k) => s + (monthlyMap[k] || 0), 0);
+}
+
 function setOrderBadgesLoading() {
   document.querySelectorAll('.inv-order-count').forEach(el => {
     el.textContent = '…';
@@ -719,15 +778,12 @@ function applyOrderBadges() {
     const handle = row.id.replace(/^inv-/, '');
     const badge = row.querySelector('.inv-order-count');
     if (!badge) return;
-    const count = orderStats[handle] || 0;
+    const count = sumStatsForPeriod(orderStats[handle]);
     badge.textContent = count > 0 ? `${count} orders` : '—';
     badge.style.opacity = '';
   });
-  // re-sort the list without re-rendering
   const sort = document.getElementById('invSort')?.value || 'orders_desc';
-  if (sort.startsWith('orders_')) {
-    renderInventory();
-  }
+  if (sort.startsWith('orders_')) renderInventory();
 }
 
 async function loadOrderStats() {
@@ -947,8 +1003,8 @@ function renderInventory() {
   });
 
   visible.sort((a, b) => {
-    if (sort === 'orders_desc') return (orderStats[b.handle] || 0) - (orderStats[a.handle] || 0);
-    if (sort === 'orders_asc')  return (orderStats[a.handle] || 0) - (orderStats[b.handle] || 0);
+    if (sort === 'orders_desc') return sumStatsForPeriod(orderStats[b.handle]) - sumStatsForPeriod(orderStats[a.handle]);
+    if (sort === 'orders_asc')  return sumStatsForPeriod(orderStats[a.handle]) - sumStatsForPeriod(orderStats[b.handle]);
     if (sort === 'stock_desc')  return (b.stock ?? -1) - (a.stock ?? -1);
     if (sort === 'stock_asc')   return (a.stock ?? Infinity) - (b.stock ?? Infinity);
     return a.title.localeCompare(b.title);
@@ -970,7 +1026,7 @@ function renderInventory() {
     const isNA  = p.stock === null;
     const isZero = p.stock === 0;
     const chipClass = isNA ? 'na' : isZero ? 'zero' : 'counted';
-    const orders = orderStats[p.handle] || 0;
+    const orders = sumStatsForPeriod(orderStats[p.handle]);
     const ordersLabel = orders > 0 ? `${orders} orders` : '—';
     const chipInner = isNA
       ? `<span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">N/A — tap to count</span>`
