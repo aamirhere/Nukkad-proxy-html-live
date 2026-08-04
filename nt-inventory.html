@@ -167,6 +167,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 .inv-title { flex: 1; font-size: .85rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
 .inv-handle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+.inv-order-count {
+  font-size: .75rem; font-weight: 600; color: var(--ink2);
+  background: var(--bg2); border-radius: 8px; padding: 2px 8px;
+  white-space: nowrap; flex-shrink: 0; min-width: 60px; text-align: center;
+}
 .inv-del {
   background: none;
   border: 1px solid var(--line);
@@ -581,6 +586,20 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <option value="counted">Counted</option>
       <option value="zero">Out of stock</option>
     </select>
+    <select id="invSort" onchange="renderInventory()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
+      <option value="orders_desc">Most ordered ↓</option>
+      <option value="orders_asc">Least ordered ↑</option>
+      <option value="stock_desc">Most stock ↓</option>
+      <option value="stock_asc">Least stock ↑</option>
+      <option value="name_asc">A–Z</option>
+    </select>
+    <select id="invPeriod" onchange="loadOrderStats()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
+      <option value="this_month">This month</option>
+      <option value="last_month">Last month</option>
+      <option value="this_quarter">This quarter</option>
+      <option value="this_year">This year</option>
+      <option value="all_time">All time</option>
+    </select>
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
     <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
   </div>
@@ -662,6 +681,7 @@ const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
 let allProducts   = [];
+let orderStats    = {}; // handle → order qty for selected period
 let currentUnits  = []; // orders view
 let activeColor   = '';
 let serialCounter = 0;
@@ -693,12 +713,53 @@ function switchView(view) {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
+function getPeriodDates() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const today = fmt(now);
+  const period = document.getElementById('invPeriod')?.value || 'this_month';
+  if (period === 'this_month') {
+    return { from: `${y}-${pad(m+1)}-01`, to: today };
+  }
+  if (period === 'last_month') {
+    const d = new Date(y, m, 0);
+    const f = new Date(y, m-1, 1);
+    return { from: fmt(f), to: fmt(d) };
+  }
+  if (period === 'this_quarter') {
+    const q = Math.floor(m / 3);
+    return { from: `${y}-${pad(q*3+1)}-01`, to: today };
+  }
+  if (period === 'this_year') {
+    return { from: `${y}-01-01`, to: today };
+  }
+  return { from: '2020-01-01', to: today };
+}
+
+async function loadOrderStats() {
+  const periodEl = document.getElementById('invPeriod');
+  if (periodEl) periodEl.disabled = true;
+  try {
+    const { from, to } = getPeriodDates();
+    const res = await api({ action: 'load_order_stats', from, to });
+    orderStats = res.stats || {};
+    renderInventory();
+  } catch (e) {
+    toast('Order stats error: ' + e.message);
+  } finally {
+    if (periodEl) periodEl.disabled = false;
+  }
+}
+
 async function init() {
   try {
     const res = await api({ action: 'load_products' });
     allProducts = res.products || [];
     renderInventory();
   } catch (e) { toast('Failed to load products: ' + e.message); }
+  loadOrderStats();
 }
 
 // ── ADD PRODUCT MODAL ─────────────────────────────────────────────────────────
@@ -881,15 +942,24 @@ function parseCSVLine(line) {
 // ── INVENTORY ─────────────────────────────────────────────────────────────────
 
 function renderInventory() {
-  const q   = document.getElementById('invSearch').value.toLowerCase().trim();
-  const fil = document.getElementById('invFilter').value;
+  const q    = document.getElementById('invSearch').value.toLowerCase().trim();
+  const fil  = document.getElementById('invFilter').value;
+  const sort = document.getElementById('invSort')?.value || 'orders_desc';
 
-  const visible = allProducts.filter(p => {
+  let visible = allProducts.filter(p => {
     if (q && !p.title.toLowerCase().includes(q) && !p.handle.includes(q)) return false;
     if (fil === 'na')      return p.stock === null;
     if (fil === 'counted') return p.stock !== null && p.stock > 0;
     if (fil === 'zero')    return p.stock === 0;
     return true;
+  });
+
+  visible.sort((a, b) => {
+    if (sort === 'orders_desc') return (orderStats[b.handle] || 0) - (orderStats[a.handle] || 0);
+    if (sort === 'orders_asc')  return (orderStats[a.handle] || 0) - (orderStats[b.handle] || 0);
+    if (sort === 'stock_desc')  return (b.stock ?? -1) - (a.stock ?? -1);
+    if (sort === 'stock_asc')   return (a.stock ?? Infinity) - (b.stock ?? Infinity);
+    return a.title.localeCompare(b.title);
   });
 
   const na      = allProducts.filter(p => p.stock === null).length;
@@ -908,7 +978,9 @@ function renderInventory() {
     const isNA  = p.stock === null;
     const isZero = p.stock === 0;
     const chipClass = isNA ? 'na' : isZero ? 'zero' : 'counted';
-    const stockLabel = isNA ? 'N/A — tap to count' : String(p.stock);
+    const stockLabel = isNA ? 'N/A — tap to count' : `qty ${p.stock}`;
+    const orders = orderStats[p.handle] || 0;
+    const ordersLabel = orders > 0 ? `${orders} orders` : '—';
     return `
     <div class="inv-row" id="inv-${p.handle}">
       ${p.image
@@ -919,6 +991,7 @@ function renderInventory() {
         ${p.title}
         <div class="inv-handle">${p.handle}</div>
       </div>
+      <span class="inv-order-count">${ordersLabel}</span>
       <div class="stock-chip ${chipClass}" onclick="editStock('${p.handle}')" id="chip-${p.handle}">
         <span class="stock-num" id="stocklabel-${p.handle}">${stockLabel}</span>
       </div>
@@ -952,7 +1025,7 @@ function editStock(handle) {
     chip.querySelector('input')?.replaceWith(Object.assign(document.createElement('span'), {
       className: 'stock-num',
       id: `stocklabel-${handle}`,
-      textContent: val === null ? 'N/A — tap to count' : String(val),
+      textContent: val === null ? 'N/A — tap to count' : `qty ${val}`,
     }));
     chip.className = `stock-chip ${val === null ? 'na' : val === 0 ? 'zero' : 'counted'}`;
     if (p) p.stock = val;
