@@ -1060,16 +1060,16 @@ function renderGroup(g) {
       groupBtns = `<span class="emg-label">⚠ No stock</span>`;
     } else {
       groupBtns = `
-        <button class="unit-btn nostock" onclick="markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>
-        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
+        <button class="unit-btn nostock" onclick="event.stopPropagation();markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>
+        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
           ${isPicked ? '✓ Picked' : 'Pick'}
         </button>`;
     }
   } else {
     const allPicked = pickedCount === total && total > 0;
     groupBtns = `
-      <button class="unit-btn nostock" onclick="noStockAll('${g.handle}')">No Stock All</button>
-      <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="pickAll('${g.handle}')">
+      <button class="unit-btn nostock" onclick="event.stopPropagation();noStockAll('${g.handle}')">No Stock All</button>
+      <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();pickAll('${g.handle}')">
         ${allPicked ? '✓ All Picked' : 'Pick All'}
       </button>`;
   }
@@ -1082,7 +1082,7 @@ function renderGroup(g) {
         <div class="dg-title">${g.title} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
-      <div class="dg-actions-row" onclick="event.stopPropagation()">
+      <div class="dg-actions-row">
         ${groupBtns}
         ${!isSingle ? `<span class="dg-chevron">▼</span>` : ''}
       </div>
