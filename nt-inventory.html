@@ -310,9 +310,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   padding: 10px 14px;
   user-select: none;
 }
-.dg-info { flex: 1; min-width: 0; }
-.dg-title { font-weight: 700; font-size: .88rem; color: var(--ink); }
-.dg-colors-summary { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+.dg-info  { flex: 1; min-width: 0; }
+.dg-title { font-weight: 700; font-size: .95rem; color: var(--ink); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; line-height: 1.4; }
+.dg-color-tag { font-size: .8rem; font-weight: 700; color: var(--ink2); background: var(--bg2); border-radius: 10px; padding: 2px 9px; flex-shrink: 0; }
+.dg-order-tag { font-size: .78rem; color: var(--muted); font-weight: 400; }
+.dg-status-line { font-size: .72rem; color: var(--muted); margin-top: 2px; }
 .dg-actions-row {
   display: flex;
   align-items: center;
@@ -449,11 +451,50 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 #toast.show { opacity: 1; }
 
+/* ── shopify suggestion dropdown ── */
+.sugg-wrap { position: relative; }
+.shopify-sugg {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.12); z-index: 400;
+  max-height: 240px; overflow-y: auto; display: none;
+}
+.shopify-sugg.open { display: block; }
+.sugg-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; cursor: pointer;
+  border-bottom: 1px solid var(--bg2);
+}
+.sugg-row:last-child { border-bottom: none; }
+.sugg-row:hover { background: var(--bg); }
+.sugg-img { width: 30px; height: 30px; border-radius: 4px; object-fit: cover; background: var(--bg2); flex-shrink: 0; }
+.sugg-title { font-size: .82rem; font-weight: 600; color: var(--ink); }
+.sugg-handle { font-size: .72rem; color: var(--muted); }
+
+/* ── csv bar ── */
+.csv-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.csv-bar label.btn { cursor: pointer; }
+
 /* ── print ── */
 @media print {
-  .app-header, .toolbar, .date-bar, .color-chips, .unit-btn, .nav-btn { display: none !important; }
+  .app-header, .toolbar, .date-bar, .color-chips, .unit-btn,
+  .nav-btn, .csv-bar, .dg-chevron, .dg-actions-row { display: none !important; }
   body { background: #fff; }
-  .dg-card.open .dg-body, .dg-body { display: block !important; }
+  .view { padding: 10px; }
+  .page-hd { margin-bottom: 10px; }
+  .design-groups {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .dg-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; border-radius: 6px; }
+  .dg-card .dg-body { display: block !important; }
+  .dg-head { padding: 6px 10px; }
+  .dg-title { font-size: .82rem; }
+  .dg-color-tag { font-size: .7rem; padding: 1px 5px; }
+  .dg-order-tag { font-size: .7rem; }
+  .unit-row { padding: 4px 10px; }
+  .unit-row.picked { opacity: 1; background: #f0f9f4; }
 }
 
 /* ── mobile ── */
@@ -540,6 +581,14 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
     <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
   </div>
+  <div class="csv-bar">
+    <button class="btn btn-ghost" onclick="downloadCSV()">⬇ Export CSV</button>
+    <label class="btn btn-ghost">
+      ⬆ Import CSV
+      <input type="file" accept=".csv" style="display:none" onchange="uploadCSV(this.files[0]);this.value=''">
+    </label>
+    <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
+  </div>
   <div class="inv-list" id="invList">
     <div class="loading-row"></div>
     <div class="loading-row"></div>
@@ -588,13 +637,14 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   <div class="modal">
     <h3>Add Product</h3>
     <p>Enter the Shopify product handle to add it to inventory. The handle is the URL slug (e.g. <em>best-bhai-ever</em>).</p>
-    <div class="modal-field">
-      <label>Product Handle</label>
-      <input id="addHandle" type="text" placeholder="e.g. best-bhai-ever" oninput="onAddHandleInput()">
+    <div class="modal-field sugg-wrap">
+      <label>Search Shopify or enter handle directly</label>
+      <input id="addHandle" type="text" placeholder="Type to search, or paste handle…" oninput="onAddHandleInput()" autocomplete="off">
+      <div class="shopify-sugg" id="shopifySugg"></div>
     </div>
     <div class="modal-field">
       <label>Display Title</label>
-      <input id="addTitle" type="text" placeholder="e.g. Best Bhai Ever">
+      <input id="addTitle" type="text" placeholder="e.g. Best Bhai Ever" oninput="this.dataset.manuallyEdited='1'">
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
@@ -652,6 +702,9 @@ async function init() {
 function openAddModal() {
   document.getElementById('addHandle').value = '';
   document.getElementById('addTitle').value  = '';
+  document.getElementById('addTitle').dataset.manuallyEdited = '';
+  document.getElementById('shopifySugg').classList.remove('open');
+  selectedProductImage = null;
   document.getElementById('addModal').classList.add('open');
   setTimeout(() => document.getElementById('addHandle').focus(), 50);
 }
@@ -661,13 +714,44 @@ function closeAddModal(e) {
   document.getElementById('addModal').classList.remove('open');
 }
 
+let _searchTimer;
+let selectedProductImage = null;
+
 function onAddHandleInput() {
-  const h = document.getElementById('addHandle').value.trim().toLowerCase();
+  const h = document.getElementById('addHandle').value.trim();
   const titleEl = document.getElementById('addTitle');
-  if (!titleEl.value) {
-    // auto-fill title from handle: "best-bhai-ever" → "Best Bhai Ever"
+  if (!titleEl.dataset.manuallyEdited) {
     titleEl.value = h.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
+  clearTimeout(_searchTimer);
+  const sugg = document.getElementById('shopifySugg');
+  if (h.length < 2) { sugg.classList.remove('open'); return; }
+  _searchTimer = setTimeout(() => doShopifySearch(h), 400);
+}
+
+async function doShopifySearch(query) {
+  try {
+    const res = await api({ action: 'search_shopify', query });
+    const sugg = document.getElementById('shopifySugg');
+    if (!res.products?.length) { sugg.classList.remove('open'); return; }
+    sugg.innerHTML = res.products.map(p => `
+      <div class="sugg-row" onclick="selectSuggestion(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+        ${p.image ? `<img class="sugg-img" src="${p.image}" alt="">` : '<div class="sugg-img"></div>'}
+        <div>
+          <div class="sugg-title">${p.title}</div>
+          <div class="sugg-handle">${p.handle}</div>
+        </div>
+      </div>`).join('');
+    sugg.classList.add('open');
+  } catch {}
+}
+
+function selectSuggestion(p) {
+  document.getElementById('addHandle').value = p.handle;
+  document.getElementById('addTitle').value  = p.title;
+  document.getElementById('addTitle').dataset.manuallyEdited = '1';
+  selectedProductImage = p.image || null;
+  document.getElementById('shopifySugg').classList.remove('open');
 }
 
 async function submitAddProduct() {
@@ -680,10 +764,10 @@ async function submitAddProduct() {
   btn.textContent = 'Adding…';
 
   try {
-    await api({ action: 'add_product', handle, title: title || handle });
+    await api({ action: 'add_product', handle, title: title || handle, image_url: selectedProductImage });
     // add to local list
     if (!allProducts.find(p => p.handle === handle)) {
-      allProducts.unshift({ handle, title: title || handle, image: null, stock: null, counted_at: null });
+      allProducts.unshift({ handle, title: title || handle, image: selectedProductImage, stock: null, counted_at: null });
       renderInventory();
     }
     toast(`Added: ${title || handle}`);
@@ -719,6 +803,70 @@ async function deleteProduct(handle, title, event) {
   } catch (e) { toast('Delete failed'); }
 }
 
+function downloadCSV() {
+  const rows = [['handle', 'title', 'stock_count']];
+  for (const p of allProducts) {
+    rows.push([p.handle, p.title, p.stock === null ? '' : p.stock]);
+  }
+  const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `inventory-${todayIST()}.csv`;
+  a.click();
+}
+
+function downloadTemplate() {
+  const csv = '"handle","title","stock_count"\n"example-handle","Example Product","10"\n"another-handle","Another Product",""\n';
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'inventory-template.csv';
+  a.click();
+}
+
+async function uploadCSV(file) {
+  if (!file) return;
+  const text = await file.text();
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) { toast('CSV appears empty'); return; }
+  const headers = parseCSVLine(lines[0]);
+  const handleIdx = headers.findIndex(h => h.trim().toLowerCase() === 'handle');
+  const stockIdx  = headers.findIndex(h => h.trim().toLowerCase() === 'stock_count');
+  if (handleIdx === -1 || stockIdx === -1) {
+    toast('CSV must have "handle" and "stock_count" columns');
+    return;
+  }
+  let updated = 0, errors = 0;
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols   = parseCSVLine(lines[i]);
+    const handle = cols[handleIdx]?.replace(/^"|"$/g,'').trim();
+    const raw    = cols[stockIdx]?.replace(/^"|"$/g,'').trim();
+    if (!handle) continue;
+    const val = raw === '' || raw === undefined ? null : parseInt(raw, 10);
+    try {
+      await api({ action: 'update_stock', handle, stock_count: val });
+      const p = allProducts.find(x => x.handle === handle);
+      if (p) p.stock = val;
+      updated++;
+    } catch { errors++; }
+  }
+  renderInventory();
+  toast(`Updated ${updated} products${errors ? ` · ${errors} errors` : ''}`);
+}
+
+function parseCSVLine(line) {
+  const result = []; let cur = ''; let inQ = false;
+  for (const ch of line) {
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur);
+  return result;
+}
+
 // ── INVENTORY ─────────────────────────────────────────────────────────────────
 
 function renderInventory() {
@@ -735,8 +883,9 @@ function renderInventory() {
 
   const na      = allProducts.filter(p => p.stock === null).length;
   const counted = allProducts.filter(p => p.stock !== null).length;
+  const totalStock = allProducts.reduce((s, p) => s + (p.stock || 0), 0);
   document.getElementById('invSubtitle').textContent =
-    `${allProducts.length} designs · ${counted} counted · ${na} not yet counted`;
+    `${allProducts.length} designs · ${counted} counted · ${na} not yet counted · ${totalStock} units in stock`;
 
   if (!visible.length) {
     document.getElementById('invList').innerHTML =
@@ -880,17 +1029,16 @@ function renderGroup(g) {
   const isSingle    = total === 1;
   const u0          = g.units[0];
 
-  // Color breakdown: "2× Blue · 1× Pink"
-  const colorSummary = Object.entries(g.colorCounts)
-    .map(([c, n]) => `${n}× ${c}`).join(' · ');
+  const colorLine = Object.entries(g.colorCounts)
+    .map(([c, n]) => `<span class="dg-color-tag">${n}× ${c}</span>`).join('');
 
-  // Status line below title
+  const orderTag = isSingle ? `<span class="dg-order-tag">${u0.order_name}</span>` : '';
+
   const statusParts = [];
-  if (emergCount)  statusParts.push(`<span style="color:var(--red);font-weight:700">${emergCount} ⚠ no stock</span>`);
-  if (pickedCount) statusParts.push(`<span style="color:var(--green)">${pickedCount}/${total} picked</span>`);
-  const statusLine = [colorSummary, ...statusParts].filter(Boolean).join(' · ');
+  if (emergCount)  statusParts.push(`<span style="color:var(--red)">${emergCount} ⚠ no stock</span>`);
+  if (pickedCount && !isSingle) statusParts.push(`<span style="color:var(--green)">${pickedCount}/${total} picked</span>`);
+  const statusLine = statusParts.join(' · ');
 
-  // Action buttons at group level
   let groupBtns;
   if (isSingle) {
     const isPicked = u0.picked;
@@ -899,17 +1047,13 @@ function renderGroup(g) {
       groupBtns = `<span class="emg-label">⚠ No stock</span>`;
     } else {
       groupBtns = `
-        <button class="unit-btn nostock"
-          onclick="markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
-          No Stock
-        </button>
-        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
-          onclick="togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
+        <button class="unit-btn nostock" onclick="markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>
+        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
           ${isPicked ? '✓ Picked' : 'Pick'}
         </button>`;
     }
   } else {
-    const allPicked = pickedCount === total;
+    const allPicked = pickedCount === total && total > 0;
     groupBtns = `
       <button class="unit-btn nostock" onclick="noStockAll('${g.handle}')">No Stock All</button>
       <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="pickAll('${g.handle}')">
@@ -921,8 +1065,8 @@ function renderGroup(g) {
   <div class="dg-card" id="dg-${g.handle}">
     <div class="dg-head">
       <div class="dg-info">
-        <div class="dg-title">${g.title}</div>
-        <div class="dg-colors-summary">${statusLine}</div>
+        <div class="dg-title">${g.title} ${colorLine} ${orderTag}</div>
+        ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
       <div class="dg-actions-row">
         ${groupBtns}
@@ -1109,8 +1253,16 @@ function updateEmergencyBadge(count) {
 // ── PDF ───────────────────────────────────────────────────────────────────────
 
 function downloadPDF() {
-  // open all groups before printing
-  document.querySelectorAll('.dg-card').forEach(c => c.classList.add('open'));
+  const toClose = [];
+  document.querySelectorAll('.dg-card:not(.open)').forEach(c => {
+    c.classList.add('open');
+    toClose.push(c);
+  });
+  const handler = () => {
+    toClose.forEach(c => c.classList.remove('open'));
+    window.removeEventListener('afterprint', handler);
+  };
+  window.addEventListener('afterprint', handler);
   window.print();
 }
 
