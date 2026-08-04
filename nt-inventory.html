@@ -484,6 +484,43 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .csv-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
 .csv-bar label.btn { cursor: pointer; }
 
+/* ── cut list ── */
+.cut-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.cut-cap-wrap { display: flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--ink2); }
+.cut-cap-wrap input { width: 56px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+  font-family: var(--fb); font-size: .82rem; text-align: center; color: var(--ink); background: #fff; }
+.cut-summary { font-size: .8rem; color: var(--muted); margin-bottom: 14px; }
+.cut-table { width: 100%; border-collapse: collapse; }
+.cut-table th { text-align: left; font-size: .72rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em; padding: 6px 10px; border-bottom: 2px solid var(--line); }
+.cut-table td { padding: 8px 10px; font-size: .82rem; border-bottom: 1px solid var(--bg2); vertical-align: middle; }
+.cut-table tr:last-child td { border-bottom: none; }
+.cut-table tr:hover td { background: var(--bg); }
+.cut-table tr.emg-row-tr td { background: #fff5f5; }
+.cut-table tr.low-row-tr td { background: #fffbf0; }
+.cut-rank { font-size: .7rem; color: var(--muted); font-weight: 700; width: 24px; }
+.cut-title { font-weight: 600; color: var(--ink); }
+.cut-thumb { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; background: var(--bg2); border: 1px solid var(--line); flex-shrink: 0; }
+.cut-thumb-wrap { display: flex; align-items: center; gap: 8px; }
+.cut-stat { text-align: right; white-space: nowrap; }
+.cut-stat.warn { color: var(--red); font-weight: 700; }
+.cut-stat.ok   { color: var(--green); }
+.cut-produce { font-weight: 700; color: var(--accent); font-size: .9rem; text-align: right; }
+.cut-badge { display: inline-block; border-radius: 10px; padding: 2px 8px; font-size: .68rem; font-weight: 700; }
+.cut-badge.emg { background: #fff0ee; color: var(--red); }
+.cut-badge.low { background: #fffbea; color: #a07800; }
+.cut-badge.ok  { background: #f0faf4; color: var(--green); }
+.cut-badge.na  { background: var(--bg2); color: var(--muted); }
+.trend-up { color: var(--red); font-size: .7rem; font-weight: 700; }
+.trend-flat { color: var(--muted); font-size: .7rem; }
+.cut-actions { display: flex; gap: 8px; margin-top: 16px; }
+.prod-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-radius: 8px; background: var(--accent); color: #fff; font-size: .82rem; font-weight: 700;
+  text-decoration: none; border: none; cursor: pointer; font-family: var(--fb); }
+.prod-link:hover { background: #b8431a; }
+.prod-link.ghost { background: #fff; color: var(--ink2); border: 1px solid var(--line); }
+.prod-link.ghost:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ── print ── */
 @media print {
   .app-header, .toolbar, .date-bar, .color-chips, .unit-btn,
@@ -569,6 +606,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       🚨 Emergency
       <span class="nav-badge hidden" id="emergencyCountBadge"></span>
     </button>
+    <button class="nav-btn" onclick="switchView('cutlist')">✂ Cut List</button>
   </nav>
   <a class="nav-sales" href="nt-pool-stock.html">💰 Sales ↗</a>
 </header>
@@ -661,6 +699,31 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   </div>
 </div>
 
+<!-- ── CUT LIST ───────────────────────────────────────────────────────────── -->
+<div class="view" id="view-cutlist">
+  <div class="page-hd">
+    <h2>Cut List</h2>
+    <p>What to produce today — sorted by urgency</p>
+  </div>
+  <div class="cut-controls">
+    <div class="cut-cap-wrap">
+      <label for="cutCapacity">Capacity today:</label>
+      <input id="cutCapacity" type="number" min="1" max="500" value="150" oninput="renderCutList()">
+      <span style="color:var(--muted)">units</span>
+    </div>
+    <button class="btn btn-ghost" onclick="renderCutList()">↻ Recalculate</button>
+    <button class="btn btn-primary" onclick="sendCutListToProduction()">→ Send to Production</button>
+  </div>
+  <p class="cut-summary" id="cutSummary"></p>
+  <div id="cutListContainer">
+    <div class="empty-state"><div class="icon">📊</div><p>Load inventory and order stats first</p></div>
+  </div>
+  <div class="cut-actions" id="cutActions" style="display:none">
+    <a class="prod-link" href="nt-production-prints.html?mode=cutlist" id="prodPrintsLink">🖨 Open Production Prints</a>
+    <a class="prod-link ghost" href="nt-production-queue.html" target="_blank">📋 Production Queue</a>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- ── ADD PRODUCT MODAL ────────────────────────────────────────────────────── -->
@@ -717,6 +780,9 @@ function switchView(view) {
   }
   if (view === 'emergency') {
     loadEmergencyView();
+  }
+  if (view === 'cutlist') {
+    renderCutList();
   }
 }
 
@@ -1483,6 +1549,169 @@ async function api(body) {
   const data = await r.json();
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+// ── CUT LIST ──────────────────────────────────────────────────────────────────
+
+function computePredictions() {
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  // last 30 days and last 60 days in IST months (for recent trend)
+  function getLast30Months() {
+    const result = new Set();
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(nowMs - i * 30 * 86400000);
+      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+      result.add(`${ist.getUTCFullYear()}-${String(ist.getUTCMonth()+1).padStart(2,'0')}`);
+    }
+    return [...result];
+  }
+  function getLast60Months() {
+    const result = new Set();
+    for (let i = 0; i < 4; i++) {
+      const d = new Date(nowMs - i * 30 * 86400000);
+      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+      result.add(`${ist.getUTCFullYear()}-${String(ist.getUTCMonth()+1).padStart(2,'0')}`);
+    }
+    return [...result];
+  }
+
+  const months30 = getLast30Months();
+  const months60 = getLast60Months();
+
+  return allProducts.map(p => {
+    const map = orderStats[p.handle] || {};
+    const qty30 = months30.reduce((s, m) => s + (map[m] || 0), 0);
+    const qty60 = months60.reduce((s, m) => s + (map[m] || 0), 0);
+
+    const vel30 = qty30 / 30;   // orders per day (last ~30d)
+    const vel60 = qty60 / 60;   // orders per day (last ~60d)
+
+    const stock = p.stock;
+    const daysToEmpty = (stock !== null && vel30 > 0) ? stock / vel30 : null;
+    const suggested = Math.ceil(vel30 * 14);   // 2-week buffer
+    const toProduce = stock !== null ? Math.max(0, suggested - stock) : suggested || 0;
+
+    const trendUp = vel60 > 0 && vel30 > vel60 * 1.5;
+
+    // urgency score for sorting
+    let score = 0;
+    if (toProduce > 0) {
+      if (daysToEmpty !== null && daysToEmpty < 1)  score += 1000;
+      else if (daysToEmpty !== null && daysToEmpty < 3)  score += 200;
+      else if (daysToEmpty !== null && daysToEmpty < 7)  score += 50;
+      else if (daysToEmpty !== null && daysToEmpty < 14) score += 10;
+      score += vel30 * 3;
+      if (trendUp) score *= 1.5;
+    }
+
+    return { ...p, vel30, vel60, daysToEmpty, suggested, toProduce, trendUp, score };
+  });
+}
+
+function renderCutList() {
+  if (!allProducts.length) return;
+  const capacity = parseInt(document.getElementById('cutCapacity')?.value || 150);
+  const preds = computePredictions();
+
+  // sort by urgency, then fill cut list up to capacity
+  const needsWork = preds.filter(p => p.toProduce > 0).sort((a, b) => b.score - a.score);
+
+  let remaining = capacity;
+  const cutItems = [];
+  for (const p of needsWork) {
+    if (remaining <= 0) break;
+    const qty = Math.min(p.toProduce, remaining);
+    cutItems.push({ ...p, cutQty: qty });
+    remaining -= qty;
+  }
+
+  const totalCut = cutItems.reduce((s, x) => s + x.cutQty, 0);
+  const emgCount = cutItems.filter(x => x.daysToEmpty !== null && x.daysToEmpty < 3).length;
+
+  const sumEl = document.getElementById('cutSummary');
+  sumEl.innerHTML = `${cutItems.length} designs · <strong>${totalCut}</strong> units to produce` +
+    (emgCount ? ` · <span style="color:var(--red);font-weight:700">${emgCount} urgent (&lt;3 days stock)</span>` : '');
+
+  if (!cutItems.length) {
+    document.getElementById('cutListContainer').innerHTML =
+      '<div class="empty-state"><div class="icon">✅</div><p>Stock levels look healthy — nothing urgent to produce</p></div>';
+    document.getElementById('cutActions').style.display = 'none';
+    return;
+  }
+
+  const rows = cutItems.map((p, i) => {
+    const urgency = p.daysToEmpty !== null && p.daysToEmpty < 1 ? 'emg'
+      : p.daysToEmpty !== null && p.daysToEmpty < 3 ? 'emg'
+      : p.daysToEmpty !== null && p.daysToEmpty < 7 ? 'low'
+      : 'ok';
+    const trClass = urgency === 'emg' ? 'emg-row-tr' : urgency === 'low' ? 'low-row-tr' : '';
+    const badgeLabel = urgency === 'emg' ? '⚠ Urgent' : urgency === 'low' ? '↓ Low' : '✓ OK';
+    const stockLabel = p.stock === null ? '<span style="color:var(--muted)">—</span>'
+      : `<span class="${urgency === 'emg' ? 'warn' : urgency === 'low' ? '' : 'ok'}">${p.stock}</span>`;
+    const dteLabel = p.daysToEmpty === null ? '—'
+      : p.daysToEmpty < 1 ? '<span class="warn">&lt;1d</span>'
+      : `<span class="${p.daysToEmpty < 3 ? 'warn' : p.daysToEmpty < 7 ? '' : 'ok'}">${Math.round(p.daysToEmpty)}d</span>`;
+    const velLabel = p.vel30 > 0 ? p.vel30.toFixed(2) + '/d' : '—';
+    const trend = p.trendUp ? '<span class="trend-up">↑ trend</span>' : '<span class="trend-flat">—</span>';
+    const thumb = p.image
+      ? `<img class="cut-thumb" src="${p.image}" alt="" loading="lazy" onerror="this.style.display='none'">`
+      : `<div class="cut-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--line)">📦</div>`;
+
+    return `<tr class="${trClass}">
+      <td class="cut-rank">${i+1}</td>
+      <td>
+        <div class="cut-thumb-wrap">
+          ${thumb}
+          <div>
+            <div class="cut-title">${p.title}</div>
+            <span class="cut-badge ${urgency}">${badgeLabel}</span>
+            ${p.trendUp ? ' <span class="cut-badge low">↑ trending</span>' : ''}
+          </div>
+        </div>
+      </td>
+      <td class="cut-stat">${stockLabel}</td>
+      <td class="cut-stat">${dteLabel}</td>
+      <td class="cut-stat">${velLabel} ${trend}</td>
+      <td class="cut-stat">${p.suggested}</td>
+      <td class="cut-produce">${p.cutQty}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cutListContainer').innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="cut-table">
+      <thead><tr>
+        <th>#</th>
+        <th>Design</th>
+        <th class="cut-stat">Stock</th>
+        <th class="cut-stat">Days left</th>
+        <th class="cut-stat">Velocity</th>
+        <th class="cut-stat">Target</th>
+        <th class="cut-produce">Produce</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+
+  document.getElementById('cutActions').style.display = 'flex';
+
+  // persist cut list for production page
+  localStorage.setItem('nt_cut_list', JSON.stringify(cutItems.map(p => ({
+    handle: p.handle,
+    title: p.title,
+    image: p.image,
+    cutQty: p.cutQty,
+    stock: p.stock,
+    daysToEmpty: p.daysToEmpty,
+    vel30: p.vel30,
+  }))));
+}
+
+function sendCutListToProduction() {
+  renderCutList(); // ensure localStorage is fresh
+  window.open('nt-production-prints.html?mode=cutlist', '_blank');
 }
 
 // ── START ─────────────────────────────────────────────────────────────────────

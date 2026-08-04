@@ -309,6 +309,11 @@ let editingHandle = null;
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
 async function init() {
+  // check if opened from cut list
+  if (new URLSearchParams(location.search).get('mode') === 'cutlist') {
+    applyCutListMode();
+  }
+
   try {
     const res = await apiFetch({ action: 'load' });
     if (!res.ok) throw new Error(res.error || 'Load failed');
@@ -317,9 +322,57 @@ async function init() {
     filtered = allProducts;
     renderList(filtered);
     updateHeader();
+    if (cutListHandles.size) highlightCutList();
   } catch(e) {
     document.getElementById('listWrap').innerHTML = `<div class="loading-msg">Error: ${e.message}</div>`;
   }
+}
+
+let cutListHandles = new Map(); // handle → {cutQty, daysToEmpty, vel30}
+
+function applyCutListMode() {
+  try {
+    const raw = localStorage.getItem('nt_cut_list');
+    if (!raw) return;
+    const items = JSON.parse(raw);
+    cutListHandles = new Map(items.map(x => [x.handle, x]));
+
+    const banner = document.createElement('div');
+    banner.id = 'cutBanner';
+    banner.innerHTML = `
+      <div style="background:#fff3e0;border-bottom:2px solid var(--accent);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-weight:700;color:var(--accent);font-size:.9rem">✂ Cut List Mode</span>
+        <span style="font-size:.8rem;color:var(--ink2)">${items.length} designs · ${items.reduce((s,x)=>s+x.cutQty,0)} units to produce</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button onclick="document.getElementById('filterSel').value='all';filterList()" style="padding:5px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.78rem;cursor:pointer">Show all</button>
+          <button onclick="filterToCutList()" style="padding:5px 12px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:.78rem;cursor:pointer;font-weight:700">Show cut list only</button>
+          <a href="nt-inventory.html" style="padding:5px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.78rem;text-decoration:none">← Back to Inventory</a>
+        </div>
+      </div>`;
+    document.body.insertBefore(banner, document.body.firstChild);
+  } catch {}
+}
+
+function filterToCutList() {
+  if (!cutListHandles.size) return;
+  filtered = allProducts.filter(p => cutListHandles.has(p.handle));
+  renderList(filtered);
+  document.getElementById('countBadge').textContent = filtered.length;
+}
+
+function highlightCutList() {
+  cutListHandles.forEach((data, handle) => {
+    const row = document.getElementById(`row-${handle}`);
+    if (!row) return;
+    const badge = document.createElement('span');
+    badge.style.cssText = 'background:#d4541f;color:#fff;border-radius:8px;padding:2px 8px;font-size:.68rem;font-weight:700;margin-left:6px;display:inline-block';
+    badge.textContent = `✂ ${data.cutQty} to cut`;
+    const titleEl = row.querySelector('.row-title');
+    if (titleEl && !titleEl.querySelector('.cut-qty-badge')) {
+      badge.className = 'cut-qty-badge';
+      titleEl.appendChild(badge);
+    }
+  });
 }
 
 function updateHeader() {
