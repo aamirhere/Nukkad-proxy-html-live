@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NukkadTales · Ops</title>
+<style>
+/* ── tokens ── */
+:root {
+  --accent: #d4541f;
+  --ink:    #3a2b1d;
+  --ink2:   #6f5b46;
+  --muted:  #9c8a76;
+  --line:   #e9ddca;
+  --bg:     #fdf5ec;
+  --bg2:    #f8e8d2;
+  --green:  #2d7a4f;
+  --red:    #c0392b;
+  --ff:     'Fraunces', Georgia, serif;
+  --fb:     'Nunito', 'Helvetica Neue', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+/* ── header ── */
+.app-header {
+  background: #fff;
+  border-bottom: 2px solid var(--line);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 52px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-logo {
+  font-family: var(--ff);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  letter-spacing: -.3px;
+}
+.app-nav { display: flex; gap: 4px; flex: 1; }
+.nav-btn {
+  background: none;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-family: var(--fb);
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--ink2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.nav-btn:hover { background: var(--bg2); color: var(--ink); }
+.nav-btn.active { background: var(--accent); color: #fff; }
+.nav-badge {
+  background: var(--red);
+  color: #fff;
+  border-radius: 10px;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  min-width: 18px;
+  text-align: center;
+}
+.nav-badge.hidden { display: none; }
+.nav-sales {
+  margin-left: auto;
+  font-size: .8rem;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.nav-sales:hover { color: var(--accent); background: var(--bg2); }
+
+/* ── views ── */
+.view { display: none; max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+.view.active { display: block; }
+
+/* ── page header ── */
+.page-hd { margin-bottom: 16px; }
+.page-hd h2 { font-family: var(--ff); font-size: 1.3rem; font-weight: 700; color: var(--ink); }
+.page-hd p  { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+
+/* ── toolbar ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 160px;
+}
+.search-wrap input {
+  width: 100%;
+  padding: 7px 12px 7px 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--fb);
+  font-size: .82rem;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+}
+.search-wrap input:focus { border-color: var(--accent); }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .8rem; }
+.btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: none;
+  font-family: var(--fb);
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #b8431a; }
+.btn-ghost  { background: #fff; border: 1px solid var(--line); color: var(--ink2); }
+.btn-ghost:hover  { border-color: var(--accent); color: var(--accent); }
+
+/* ── inventory list ── */
+.inv-list { display: flex; flex-direction: column; gap: 1px; }
+.inv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: box-shadow .15s;
+}
+.inv-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.inv-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg2);
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+}
+.inv-thumb-placeholder {
+  width: 36px; height: 36px;
+  border-radius: 6px;
+  background: var(--bg2);
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--line);
+  font-size: .8rem;
+}
+.inv-title { flex: 1; font-size: .85rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
+.inv-handle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+.stock-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: border-color .15s;
+  flex-shrink: 0;
+}
+.stock-chip:hover { border-color: var(--accent); }
+.stock-chip.na { color: var(--muted); font-style: italic; }
+.stock-chip.counted { color: var(--green); font-weight: 700; }
+.stock-chip.zero    { color: var(--red);   font-weight: 700; }
+.stock-num  { font-size: .82rem; }
+.stock-edit {
+  width: 60px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--fb);
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+}
+
+/* ── orders date bar ── */
+.date-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.date-bar input[type=date] {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--fb);
+  font-size: .82rem;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+  cursor: pointer;
+}
+.date-bar input[type=date]:focus { border-color: var(--accent); }
+.total-pill {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--ink2);
+}
+
+/* ── color chips ── */
+.color-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.color-chip {
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all .15s;
+}
+.color-chip:hover  { border-color: var(--accent); color: var(--accent); }
+.color-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── design groups ── */
+.design-groups { display: flex; flex-direction: column; gap: 8px; }
+.dg-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dg-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.dg-head:hover { background: var(--bg); }
+.dg-title { font-weight: 700; font-size: .88rem; color: var(--ink); flex: 1; }
+.dg-meta  { font-size: .75rem; color: var(--ink2); }
+.dg-count { font-size: .78rem; font-weight: 700; background: var(--bg2); border-radius: 12px; padding: 2px 8px; color: var(--ink2); }
+.dg-colors-summary { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+.dg-chevron { color: var(--muted); font-size: .7rem; transition: transform .2s; }
+.dg-card.open .dg-chevron { transform: rotate(180deg); }
+.dg-body { display: none; border-top: 1px solid var(--line); }
+.dg-card.open .dg-body { display: block; }
+
+/* ── unit rows ── */
+.unit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--bg2);
+  transition: background .1s;
+}
+.unit-row:last-child { border-bottom: none; }
+.unit-row.picked    { background: #f0f9f4; opacity: .65; }
+.unit-row.emergency { background: #fff5f5; }
+.unit-num   { font-size: .72rem; color: var(--muted); width: 24px; flex-shrink: 0; }
+.unit-order { font-size: .78rem; font-weight: 700; color: var(--ink2); flex-shrink: 0; }
+.unit-color {
+  font-size: .73rem;
+  color: var(--ink2);
+  background: var(--bg2);
+  border-radius: 10px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+.unit-status { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.unit-status .emg-label {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--red);
+  background: #fff0ee;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.unit-btn {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-family: var(--fb);
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+.unit-btn.pick    { color: var(--green); border-color: var(--green); }
+.unit-btn.pick:hover { background: var(--green); color: #fff; }
+.unit-btn.picked  { background: var(--green); color: #fff; border-color: var(--green); }
+.unit-btn.nostock { color: var(--red); border-color: var(--red); }
+.unit-btn.nostock:hover { background: var(--red); color: #fff; }
+
+/* ── emergency view ── */
+.emg-date-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.emg-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink2);
+}
+.emg-tab.active { background: var(--red); color: #fff; border-color: var(--red); }
+.emg-list { display: flex; flex-direction: column; gap: 6px; }
+.emg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #f5c6c0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.emg-icon  { color: var(--red); font-size: 1rem; }
+.emg-title { flex: 1; }
+.emg-title strong { font-size: .85rem; display: block; }
+.emg-title span   { font-size: .75rem; color: var(--muted); }
+.emg-order { font-size: .78rem; font-weight: 700; color: var(--ink2); }
+
+/* ── empty / loading ── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.empty-state .icon { font-size: 2.5rem; margin-bottom: 8px; }
+.empty-state p { font-size: .85rem; }
+.loading-row { height: 52px; background: var(--bg2); border-radius: 8px; animation: pulse .9s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: .5; } to { opacity: 1; } }
+
+/* ── toast ── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: .82rem;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s;
+  z-index: 999;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; }
+
+/* ── print ── */
+@media print {
+  .app-header, .toolbar, .date-bar, .color-chips, .unit-btn, .nav-btn { display: none !important; }
+  body { background: #fff; }
+  .dg-card.open .dg-body, .dg-body { display: block !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <span class="app-logo">🪵 Nukkad Ops</span>
+  <nav class="app-nav">
+    <button class="nav-btn active" onclick="switchView('inventory')">📦 Inventory</button>
+    <button class="nav-btn" onclick="switchView('orders')">
+      📋 Orders
+      <span class="nav-badge hidden" id="ordersCountBadge"></span>
+    </button>
+    <button class="nav-btn" onclick="switchView('emergency')">
+      🚨 Emergency
+      <span class="nav-badge hidden" id="emergencyCountBadge"></span>
+    </button>
+  </nav>
+  <a class="nav-sales" href="nt-pool-stock.html">💰 Sales ↗</a>
+</header>
+
+<!-- ── INVENTORY ─────────────────────────────────────────────────────────── -->
+<div class="view active" id="view-inventory">
+  <div class="page-hd">
+    <h2>Inventory</h2>
+    <p id="invSubtitle">Loading products…</p>
+  </div>
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input id="invSearch" type="text" placeholder="Search designs…" oninput="renderInventory()">
+    </div>
+    <select id="invFilter" onchange="renderInventory()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
+      <option value="all">All</option>
+      <option value="na">Not counted</option>
+      <option value="counted">Counted</option>
+      <option value="zero">Out of stock</option>
+    </select>
+  </div>
+  <div class="inv-list" id="invList">
+    ${[...Array(8)].map(() => '<div class="loading-row"></div>').join('')}
+  </div>
+</div>
+
+<!-- ── ORDERS ─────────────────────────────────────────────────────────────── -->
+<div class="view" id="view-orders">
+  <div class="page-hd">
+    <h2>Orders</h2>
+    <p id="ordersSubtitle">Pick a date to load orders</p>
+  </div>
+  <div class="date-bar">
+    <input type="date" id="ordersDate" onchange="loadOrders()">
+    <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
+    <button class="btn btn-ghost" onclick="downloadPDF()" style="margin-left:auto">⬇ PDF</button>
+  </div>
+  <div class="color-chips" id="colorChips"></div>
+  <div class="design-groups" id="designGroups">
+    <div class="empty-state"><div class="icon">📋</div><p>Select a date above to load orders</p></div>
+  </div>
+</div>
+
+<!-- ── EMERGENCY ─────────────────────────────────────────────────────────── -->
+<div class="view" id="view-emergency">
+  <div class="page-hd">
+    <h2>Emergency Units</h2>
+    <p>Items that couldn't be fulfilled from stock</p>
+  </div>
+  <div class="emg-date-tabs" id="emgTabs"></div>
+  <div class="emg-list" id="emgList">
+    <div class="empty-state"><div class="icon">✅</div><p>No emergency units today</p></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-inventory';
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+
+let allProducts  = [];
+let currentUnits = []; // orders view
+let activeColor  = '';
+let serialCounter = 0;
+
+// picked/emergency local overlay (so UI is instant, then syncs to server)
+const localState = {}; // key → {picked, is_emergency}
+
+function stateKey(u) { return `${u.order_id}_${u.line_item_id}_${u.unit_index}`; }
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`view-${view}`).classList.add('active');
+  document.querySelector(`[onclick="switchView('${view}')"]`).classList.add('active');
+
+  if (view === 'orders' && !document.getElementById('ordersDate').value) {
+    document.getElementById('ordersDate').value = todayIST();
+    loadOrders();
+  }
+  if (view === 'emergency') {
+    loadEmergencyView();
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  try {
+    const res = await api({ action: 'load_products' });
+    allProducts = res.products || [];
+    renderInventory();
+  } catch (e) { toast('Failed to load products: ' + e.message); }
+}
+
+// ── INVENTORY ─────────────────────────────────────────────────────────────────
+
+function renderInventory() {
+  const q   = document.getElementById('invSearch').value.toLowerCase().trim();
+  const fil = document.getElementById('invFilter').value;
+
+  const visible = allProducts.filter(p => {
+    if (q && !p.title.toLowerCase().includes(q) && !p.handle.includes(q)) return false;
+    if (fil === 'na')      return p.stock === null;
+    if (fil === 'counted') return p.stock !== null && p.stock > 0;
+    if (fil === 'zero')    return p.stock === 0;
+    return true;
+  });
+
+  const na      = allProducts.filter(p => p.stock === null).length;
+  const counted = allProducts.filter(p => p.stock !== null).length;
+  document.getElementById('invSubtitle').textContent =
+    `${allProducts.length} designs · ${counted} counted · ${na} not yet counted`;
+
+  if (!visible.length) {
+    document.getElementById('invList').innerHTML =
+      '<div class="empty-state"><div class="icon">🔍</div><p>No designs match this filter</p></div>';
+    return;
+  }
+
+  document.getElementById('invList').innerHTML = visible.map(p => {
+    const isNA  = p.stock === null;
+    const isZero = p.stock === 0;
+    const chipClass = isNA ? 'na' : isZero ? 'zero' : 'counted';
+    const stockLabel = isNA ? 'N/A — tap to count' : String(p.stock);
+    return `
+    <div class="inv-row" id="inv-${p.handle}">
+      ${p.image
+        ? `<img class="inv-thumb" src="${p.image}" alt="" loading="lazy" onerror="this.style.display='none'">`
+        : `<div class="inv-thumb-placeholder">📦</div>`
+      }
+      <div class="inv-title">
+        ${p.title}
+        <div class="inv-handle">${p.handle}</div>
+      </div>
+      <div class="stock-chip ${chipClass}" onclick="editStock('${p.handle}')" id="chip-${p.handle}">
+        <span class="stock-num" id="stocklabel-${p.handle}">${stockLabel}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function editStock(handle) {
+  const chip = document.getElementById(`chip-${handle}`);
+  const label = document.getElementById(`stocklabel-${handle}`);
+  if (chip.querySelector('input')) return; // already editing
+
+  const p = allProducts.find(x => x.handle === handle);
+  const current = p?.stock ?? '';
+
+  const input = document.createElement('input');
+  input.className = 'stock-edit';
+  input.type = 'number';
+  input.min  = '0';
+  input.placeholder = '0';
+  input.value = current === null ? '' : current;
+
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = async () => {
+    const raw = input.value.trim();
+    const val = raw === '' ? null : parseInt(raw, 10);
+    chip.querySelector('input')?.replaceWith(Object.assign(document.createElement('span'), {
+      className: 'stock-num',
+      id: `stocklabel-${handle}`,
+      textContent: val === null ? 'N/A — tap to count' : String(val),
+    }));
+    chip.className = `stock-chip ${val === null ? 'na' : val === 0 ? 'zero' : 'counted'}`;
+    if (p) p.stock = val;
+    try {
+      await api({ action: 'update_stock', handle, stock_count: val });
+      toast(`Saved — ${handle}: ${val === null ? 'N/A' : val}`);
+    } catch { toast('Save failed'); }
+  };
+
+  input.addEventListener('blur',   commit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') input.blur(); });
+}
+
+// ── ORDERS ────────────────────────────────────────────────────────────────────
+
+async function loadOrders() {
+  const date = document.getElementById('ordersDate').value;
+  if (!date) return;
+
+  document.getElementById('designGroups').innerHTML =
+    [...Array(5)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px"></div>').join('');
+  document.getElementById('colorChips').innerHTML = '';
+  document.getElementById('ordersTotalPill').style.display = 'none';
+  activeColor = '';
+
+  try {
+    const res = await api({ action: 'load_orders', date });
+    // merge local state
+    currentUnits = (res.units || []).map(u => {
+      const ls = localState[stateKey(u)];
+      return ls ? { ...u, ...ls } : u;
+    });
+    renderOrders();
+  } catch (e) { toast('Failed to load orders: ' + e.message); }
+}
+
+function renderOrders() {
+  const units = activeColor
+    ? currentUnits.filter(u => u.color.toLowerCase().includes(activeColor.toLowerCase()))
+    : currentUnits;
+
+  // update total
+  const pill = document.getElementById('ordersTotalPill');
+  pill.textContent = `${units.length} unit${units.length !== 1 ? 's' : ''}`;
+  pill.style.display = '';
+
+  // update badge
+  const badge = document.getElementById('ordersCountBadge');
+  if (currentUnits.length) {
+    badge.textContent = currentUnits.length;
+    badge.classList.remove('hidden');
+  }
+
+  // color chips
+  const colors = [...new Set(currentUnits.map(u => u.color).filter(Boolean))].sort();
+  document.getElementById('colorChips').innerHTML = [
+    `<button class="color-chip${!activeColor ? ' active' : ''}" onclick="setColor('')">All</button>`,
+    ...colors.map(c => `<button class="color-chip${activeColor === c ? ' active' : ''}" onclick="setColor('${c}')">${c}</button>`),
+  ].join('');
+
+  if (!units.length) {
+    document.getElementById('designGroups').innerHTML =
+      '<div class="empty-state"><div class="icon">📭</div><p>No orders found for this date</p></div>';
+    return;
+  }
+
+  // group by design title
+  const groups = {};
+  for (const u of units) {
+    if (!groups[u.title]) groups[u.title] = { title: u.title, handle: u.handle, units: [], colorCounts: {} };
+    groups[u.title].units.push(u);
+    const c = u.color || 'Unknown';
+    groups[u.title].colorCounts[c] = (groups[u.title].colorCounts[c] || 0) + 1;
+  }
+
+  serialCounter = 0;
+  const sorted = Object.values(groups).sort((a, b) => a.title.localeCompare(b.title));
+  document.getElementById('designGroups').innerHTML = sorted.map(g => renderGroup(g)).join('');
+}
+
+function renderGroup(g) {
+  const total = g.units.length;
+  const colorSummary = Object.entries(g.colorCounts)
+    .map(([c, n]) => `${n} ${c}`).join(' · ');
+  const pickedCount = g.units.filter(u => u.picked).length;
+  const emergCount  = g.units.filter(u => u.is_emergency).length;
+  const statusNote  = emergCount ? ` · <span style="color:var(--red)">${emergCount} ⚠</span>` : '';
+
+  return `
+  <div class="dg-card" id="dg-${g.handle}">
+    <div class="dg-head" onclick="toggleGroup('${g.handle}')">
+      <div style="flex:1">
+        <div class="dg-title">${g.title}</div>
+        <div class="dg-colors-summary">${colorSummary}${statusNote}</div>
+      </div>
+      <span class="dg-count">${total} unit${total !== 1 ? 's' : ''}</span>
+      <span class="dg-chevron">▼</span>
+    </div>
+    <div class="dg-body" id="dgbody-${g.handle}">
+      ${g.units.map(u => renderUnit(u)).join('')}
+    </div>
+  </div>`;
+}
+
+function renderUnit(u) {
+  serialCounter++;
+  const k = stateKey(u);
+  const isPicked = u.picked;
+  const isEmerg  = u.is_emergency;
+  return `
+  <div class="unit-row${isPicked ? ' picked' : ''}${isEmerg ? ' emergency' : ''}" id="unit-${k}">
+    <span class="unit-num">${serialCounter}</span>
+    <span class="unit-order">${u.order_name}</span>
+    ${u.color ? `<span class="unit-color">${u.color}</span>` : ''}
+    <div class="unit-status">
+      ${isEmerg ? '<span class="emg-label">⚠ No stock</span>' : ''}
+      ${!isEmerg ? `
+        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
+          onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">
+          ${isPicked ? '✓ Picked' : 'Pick'}
+        </button>
+        <button class="unit-btn nostock"
+          onclick="markEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">
+          No Stock
+        </button>
+      ` : ''}
+    </div>
+  </div>`;
+}
+
+function toggleGroup(handle) {
+  const card = document.getElementById(`dg-${handle}`);
+  card.classList.toggle('open');
+}
+
+function setColor(c) {
+  activeColor = c;
+  renderOrders();
+}
+
+async function togglePick(u) {
+  const k = stateKey(u);
+  const cur = localState[k] || { picked: u.picked, is_emergency: u.is_emergency };
+  const newPicked = !cur.picked;
+  localState[k] = { ...cur, picked: newPicked };
+
+  // update in currentUnits
+  const idx = currentUnits.findIndex(x => stateKey(x) === k);
+  if (idx >= 0) currentUnits[idx].picked = newPicked;
+
+  renderOrders();
+  const date = document.getElementById('ordersDate').value;
+  try {
+    await api({ action: 'save_picked', ...u, date, picked: newPicked });
+  } catch { toast('Sync failed'); }
+}
+
+async function markEmergency(u) {
+  const k = stateKey(u);
+  localState[k] = { picked: false, is_emergency: true };
+  const idx = currentUnits.findIndex(x => stateKey(x) === k);
+  if (idx >= 0) { currentUnits[idx].is_emergency = true; currentUnits[idx].picked = false; }
+
+  const date = document.getElementById('ordersDate').value;
+  renderOrders();
+  updateEmergencyBadge();
+  try {
+    await api({ action: 'save_emergency', ...u, date, is_emergency: true });
+    toast('Marked as no stock — added to emergency');
+  } catch { toast('Sync failed'); }
+}
+
+// ── EMERGENCY ─────────────────────────────────────────────────────────────────
+
+let emgDate = todayIST();
+
+function buildEmgTabs() {
+  const tabs = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(Date.now() + 5.5 * 60 * 60 * 1000 - i * 86400000);
+    const iso = d.toISOString().slice(0, 10);
+    const label = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : iso;
+    tabs.push(`<button class="emg-tab${iso === emgDate ? ' active' : ''}" onclick="loadEmgDate('${iso}')">${label}</button>`);
+  }
+  document.getElementById('emgTabs').innerHTML = tabs.join('');
+}
+
+async function loadEmgDate(date) {
+  emgDate = date;
+  buildEmgTabs();
+  loadEmergencyView();
+}
+
+async function loadEmergencyView() {
+  buildEmgTabs();
+  document.getElementById('emgList').innerHTML =
+    [...Array(3)].map(() => '<div class="loading-row" style="height:52px;border-radius:8px"></div>').join('');
+
+  try {
+    const res = await api({ action: 'load_emergency', date: emgDate });
+    const units = res.units || [];
+    updateEmergencyBadge(units.length);
+
+    if (!units.length) {
+      document.getElementById('emgList').innerHTML =
+        '<div class="empty-state"><div class="icon">✅</div><p>No emergency units for this date</p></div>';
+      return;
+    }
+
+    document.getElementById('emgList').innerHTML = units.map(u => `
+      <div class="emg-row">
+        <span class="emg-icon">⚠</span>
+        <div class="emg-title">
+          <strong>${u.title}</strong>
+          <span>${u.color || '—'}</span>
+        </div>
+        <span class="emg-order">${u.order_name || u.order_id}</span>
+      </div>
+    `).join('');
+  } catch (e) { toast('Failed to load emergency: ' + e.message); }
+}
+
+function updateEmergencyBadge(count) {
+  // count from today's currentUnits if not passed
+  if (count === undefined) {
+    const today = todayIST();
+    const date  = document.getElementById('ordersDate')?.value;
+    if (date === today) {
+      count = currentUnits.filter(u => u.is_emergency).length;
+    } else { return; }
+  }
+  const badge = document.getElementById('emergencyCountBadge');
+  if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+}
+
+// ── PDF ───────────────────────────────────────────────────────────────────────
+
+function downloadPDF() {
+  // open all groups before printing
+  document.querySelectorAll('.dg-card').forEach(c => c.classList.add('open'));
+  window.print();
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+
+function todayIST() {
+  const d = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+async function api(body) {
+  const r = await fetch(API, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── START ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('ordersDate').value = todayIST();
+init();
+</script>
+</body>
+</html>
