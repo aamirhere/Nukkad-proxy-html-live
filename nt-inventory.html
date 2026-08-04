@@ -401,7 +401,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .unit-btn.nostock:hover { background: var(--red); color: #fff; }
 
 /* ── emergency view ── */
-.emg-date-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.emg-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.emg-view-tabs { display: flex; gap: 4px; }
 .emg-tab {
   padding: 5px 14px;
   border-radius: 20px;
@@ -413,6 +414,90 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   color: var(--ink2);
 }
 .emg-tab.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* grouped emergency cards */
+.emg-groups { display: flex; flex-direction: column; gap: 8px; }
+.emg-group {
+  background: #fff;
+  border: 1px solid #f5c6c0;
+  border-left: 4px solid var(--red);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.emg-group-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.emg-group-head:hover { background: #fff9f8; }
+.emg-group-icon { color: var(--red); font-size: 1.1rem; flex-shrink: 0; }
+.emg-group-info { flex: 1; min-width: 0; }
+.emg-group-title { font-weight: 700; font-size: .9rem; color: var(--ink); }
+.emg-group-meta  { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+.emg-count-pill {
+  background: var(--red);
+  color: #fff;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: .78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.emg-group-chevron { color: var(--muted); font-size: .7rem; transition: transform .2s; flex-shrink: 0; }
+.emg-group.open .emg-group-chevron { transform: rotate(180deg); }
+.emg-fulfil-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--red);
+  background: #fff;
+  color: var(--red);
+  font-family: var(--fb);
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.emg-fulfil-btn:hover { background: var(--red); color: #fff; }
+
+.emg-group-body { display: none; border-top: 1px solid #fde8e4; }
+.emg-group.open .emg-group-body { display: block; }
+.emg-unit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #fdf0ee;
+  font-size: .8rem;
+}
+.emg-unit-row:last-child { border-bottom: none; }
+.emg-unit-date  { color: var(--muted); font-size: .72rem; white-space: nowrap; flex-shrink: 0; }
+.emg-unit-order { font-weight: 700; color: var(--ink2); flex-shrink: 0; }
+.emg-unit-color { background: var(--bg2); border-radius: 10px; padding: 2px 8px; font-size: .72rem; color: var(--ink2); flex-shrink: 0; }
+.emg-unit-days  { margin-left: auto; font-size: .72rem; color: var(--red); font-weight: 700; white-space: nowrap; }
+
+/* fulfil modal */
+.fulfil-modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px;
+  width: min(380px, 90vw);
+  box-shadow: 0 12px 40px rgba(0,0,0,.2);
+}
+.fulfil-modal h3 { font-family: var(--ff); font-size: 1rem; color: var(--ink); margin-bottom: 6px; }
+.fulfil-modal p  { font-size: .8rem; color: var(--muted); margin-bottom: 16px; }
+.fulfil-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.fulfil-row label { font-size: .82rem; color: var(--ink2); flex: 1; }
+.fulfil-row input { width: 70px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+  font-family: var(--fb); font-size: .9rem; text-align: center; color: var(--ink); }
+.fulfil-row input:focus { border-color: var(--accent); outline: none; }
+
+/* date view (legacy / by-date) */
+.emg-date-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
 .emg-list { display: flex; flex-direction: column; gap: 6px; }
 .emg-row {
   display: flex;
@@ -691,11 +776,45 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 <div class="view" id="view-emergency">
   <div class="page-hd">
     <h2>Emergency Units</h2>
-    <p>Items that couldn't be fulfilled from stock</p>
+    <p id="emgSubtitle">Items that couldn't be fulfilled from stock</p>
   </div>
-  <div class="emg-date-tabs" id="emgTabs"></div>
-  <div class="emg-list" id="emgList">
-    <div class="empty-state"><div class="icon">✅</div><p>No emergency units today</p></div>
+  <div class="emg-toolbar">
+    <div class="emg-view-tabs">
+      <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
+      <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
+    </div>
+    <button class="btn btn-ghost" style="margin-left:auto" onclick="loadAllEmergencies()">↻ Refresh</button>
+  </div>
+
+  <!-- grouped by item view -->
+  <div id="emgGrouped">
+    <div class="emg-groups" id="emgGroups">
+      <div class="empty-state"><div class="icon">✅</div><p>No outstanding emergencies</p></div>
+    </div>
+  </div>
+
+  <!-- by-date view (legacy) -->
+  <div id="emgByDate" style="display:none">
+    <div class="emg-date-tabs" id="emgTabs"></div>
+    <div class="emg-list" id="emgList">
+      <div class="empty-state"><div class="icon">✅</div><p>No emergency units today</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- fulfil modal -->
+<div class="modal-backdrop" id="fulfilModal" onclick="closeFulfilModal(event)">
+  <div class="fulfil-modal">
+    <h3 id="fulfilTitle">Fulfil emergency</h3>
+    <p id="fulfilDesc"></p>
+    <div class="fulfil-row">
+      <label>Units produced / sourced:</label>
+      <input id="fulfilCount" type="number" min="1" value="1">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('fulfilModal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" id="fulfilSubmitBtn" onclick="submitFulfil()">Mark Fulfilled</button>
+    </div>
   </div>
 </div>
 
@@ -782,7 +901,15 @@ function switchView(view) {
     loadEmergencyView();
   }
   if (view === 'cutlist') {
-    renderCutList();
+    // load emergencies if not yet loaded, then render
+    if (!allEmgGroups.length) {
+      api({ action: 'load_all_emergencies' }).then(res => {
+        allEmgGroups = res.groups || [];
+        renderCutList();
+      }).catch(() => renderCutList());
+    } else {
+      renderCutList();
+    }
   }
 }
 
@@ -1447,6 +1574,19 @@ async function markEmergency(u) {
 // ── EMERGENCY ─────────────────────────────────────────────────────────────────
 
 let emgDate = todayIST();
+let emgView = 'all'; // 'all' | 'date'
+let allEmgGroups = []; // cached from last load
+let fulfilHandle = '';
+let fulfilMax    = 0;
+
+function setEmgView(v) {
+  emgView = v;
+  document.getElementById('emgTabAll').classList.toggle('active', v === 'all');
+  document.getElementById('emgTabDate').classList.toggle('active', v === 'date');
+  document.getElementById('emgGrouped').style.display = v === 'all' ? '' : 'none';
+  document.getElementById('emgByDate').style.display  = v === 'date' ? '' : 'none';
+  if (v === 'date') { buildEmgTabs(); loadEmgDateView(); }
+}
 
 function buildEmgTabs() {
   const tabs = [];
@@ -1462,25 +1602,20 @@ function buildEmgTabs() {
 async function loadEmgDate(date) {
   emgDate = date;
   buildEmgTabs();
-  loadEmergencyView();
+  loadEmgDateView();
 }
 
-async function loadEmergencyView() {
-  buildEmgTabs();
+async function loadEmgDateView() {
   document.getElementById('emgList').innerHTML =
     [...Array(3)].map(() => '<div class="loading-row" style="height:52px;border-radius:8px"></div>').join('');
-
   try {
     const res = await api({ action: 'load_emergency', date: emgDate });
     const units = res.units || [];
-    updateEmergencyBadge(units.length);
-
     if (!units.length) {
       document.getElementById('emgList').innerHTML =
         '<div class="empty-state"><div class="icon">✅</div><p>No emergency units for this date</p></div>';
       return;
     }
-
     document.getElementById('emgList').innerHTML = units.map(u => `
       <div class="emg-row">
         <span class="emg-icon">⚠</span>
@@ -1492,6 +1627,122 @@ async function loadEmergencyView() {
       </div>
     `).join('');
   } catch (e) { toast('Failed to load emergency: ' + e.message); }
+}
+
+async function loadAllEmergencies() {
+  document.getElementById('emgGroups').innerHTML =
+    [...Array(3)].map(() => '<div class="loading-row" style="height:68px;border-radius:10px"></div>').join('');
+  try {
+    const res = await api({ action: 'load_all_emergencies' });
+    allEmgGroups = res.groups || [];
+    renderEmgGroups();
+    updateEmergencyBadge(res.total || 0);
+    const subtitle = res.total
+      ? `${res.total} unit${res.total !== 1 ? 's' : ''} outstanding across ${allEmgGroups.length} design${allEmgGroups.length !== 1 ? 's' : ''}`
+      : 'All emergencies resolved';
+    document.getElementById('emgSubtitle').textContent = subtitle;
+  } catch (e) { toast('Load failed: ' + e.message); }
+}
+
+function daysSince(isoStr) {
+  if (!isoStr) return null;
+  const diff = Date.now() - new Date(isoStr).getTime();
+  return Math.floor(diff / 86400000);
+}
+
+function renderEmgGroups() {
+  if (!allEmgGroups.length) {
+    document.getElementById('emgGroups').innerHTML =
+      '<div class="empty-state"><div class="icon">✅</div><p>No outstanding emergencies — all fulfilled</p></div>';
+    return;
+  }
+  document.getElementById('emgGroups').innerHTML = allEmgGroups.map((g, gi) => {
+    const oldest = g.units[0]?.emergency_at;
+    const days = daysSince(oldest);
+    const daysLabel = days !== null ? (days === 0 ? 'today' : `${days}d ago`) : '';
+    const unitRows = g.units.map(u => {
+      const d = daysSince(u.emergency_at);
+      const dLabel = d === 0 ? 'today' : d !== null ? `${d}d ago` : '';
+      const dateStr = u.emergency_at ? new Date(u.emergency_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : u.date;
+      return `<div class="emg-unit-row">
+        <span class="emg-unit-date">${dateStr}</span>
+        <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+        ${u.color ? `<span class="emg-unit-color">${u.color}</span>` : ''}
+        <span class="emg-unit-days">${dLabel}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="emg-group" id="emg-group-${gi}">
+      <div class="emg-group-head" onclick="toggleEmgGroup(${gi})">
+        <span class="emg-group-icon">⚠</span>
+        <div class="emg-group-info">
+          <div class="emg-group-title">${g.title}</div>
+          <div class="emg-group-meta">Oldest: ${daysLabel}</div>
+        </div>
+        <span class="emg-count-pill">${g.units.length} unit${g.units.length !== 1 ? 's' : ''}</span>
+        <button class="emg-fulfil-btn" onclick="event.stopPropagation();openFulfilModal('${g.handle}','${g.title.replace(/'/g,"\\'")}',${g.units.length})">Fulfil</button>
+        <span class="emg-group-chevron">▼</span>
+      </div>
+      <div class="emg-group-body">${unitRows}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleEmgGroup(gi) {
+  const el = document.getElementById(`emg-group-${gi}`);
+  if (el) el.classList.toggle('open');
+}
+
+function openFulfilModal(handle, title, max) {
+  fulfilHandle = handle;
+  fulfilMax    = max;
+  document.getElementById('fulfilTitle').textContent = `Fulfil: ${title}`;
+  document.getElementById('fulfilDesc').textContent  = `${max} unit${max !== 1 ? 's' : ''} outstanding. Enter how many you produced or sourced stock for — the oldest orders are marked first.`;
+  document.getElementById('fulfilCount').value = max;
+  document.getElementById('fulfilCount').max   = max;
+  document.getElementById('fulfilModal').classList.add('open');
+  setTimeout(() => document.getElementById('fulfilCount').focus(), 50);
+}
+
+function closeFulfilModal(e) {
+  if (e && e.target !== document.getElementById('fulfilModal')) return;
+  document.getElementById('fulfilModal').classList.remove('open');
+}
+
+async function submitFulfil() {
+  const count = Math.min(parseInt(document.getElementById('fulfilCount').value) || 0, fulfilMax);
+  if (!count) { toast('Enter how many units were fulfilled'); return; }
+
+  const btn = document.getElementById('fulfilSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    const res = await api({ action: 'fulfil_emergency', handle: fulfilHandle, count });
+    document.getElementById('fulfilModal').classList.remove('open');
+    toast(`✓ Marked ${res.fulfilled} unit${res.fulfilled !== 1 ? 's' : ''} as fulfilled`);
+    // update local state
+    const g = allEmgGroups.find(x => x.handle === fulfilHandle);
+    if (g) {
+      g.units.splice(0, res.fulfilled);
+      if (!g.units.length) allEmgGroups = allEmgGroups.filter(x => x.handle !== fulfilHandle);
+    }
+    renderEmgGroups();
+    updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.length, 0));
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Mark Fulfilled';
+  }
+}
+
+async function loadEmergencyView() {
+  // called from switchView — default to "all open" view
+  if (emgView === 'all') {
+    await loadAllEmergencies();
+  } else {
+    buildEmgTabs();
+    loadEmgDateView();
+  }
 }
 
 function updateEmergencyBadge(count) {
@@ -1615,24 +1866,40 @@ function renderCutList() {
   const capacity = parseInt(document.getElementById('cutCapacity')?.value || 150);
   const preds = computePredictions();
 
-  // sort by urgency, then fill cut list up to capacity
-  const needsWork = preds.filter(p => p.toProduce > 0).sort((a, b) => b.score - a.score);
+  // Build emergency section from allEmgGroups (handle→count of outstanding units)
+  const emgByHandle = {};
+  for (const g of allEmgGroups) emgByHandle[g.handle] = g.units.length;
 
-  let remaining = capacity;
-  const cutItems = [];
+  // Emergency items: must produce first, before capacity counting
+  const emgItems = [];
+  for (const p of preds) {
+    const emgCount = emgByHandle[p.handle] || 0;
+    if (emgCount > 0) emgItems.push({ ...p, cutQty: emgCount, isEmgSection: true });
+  }
+  const emgTotal = emgItems.reduce((s, x) => s + x.cutQty, 0);
+
+  // Regular stock items: sort by urgency, fill remaining capacity
+  const alreadyInEmg = new Set(emgItems.map(x => x.handle));
+  const needsWork = preds
+    .filter(p => p.toProduce > 0 && !alreadyInEmg.has(p.handle))
+    .sort((a, b) => b.score - a.score);
+
+  let remaining = Math.max(0, capacity - emgTotal);
+  const stockItems = [];
   for (const p of needsWork) {
     if (remaining <= 0) break;
     const qty = Math.min(p.toProduce, remaining);
-    cutItems.push({ ...p, cutQty: qty });
+    stockItems.push({ ...p, cutQty: qty });
     remaining -= qty;
   }
 
+  const cutItems = [...emgItems, ...stockItems];
   const totalCut = cutItems.reduce((s, x) => s + x.cutQty, 0);
-  const emgCount = cutItems.filter(x => x.daysToEmpty !== null && x.daysToEmpty < 3).length;
 
   const sumEl = document.getElementById('cutSummary');
-  sumEl.innerHTML = `${cutItems.length} designs · <strong>${totalCut}</strong> units to produce` +
-    (emgCount ? ` · <span style="color:var(--red);font-weight:700">${emgCount} urgent (&lt;3 days stock)</span>` : '');
+  sumEl.innerHTML =
+    (emgItems.length ? `<span style="color:var(--red);font-weight:700">⚠ ${emgItems.length} emergency design${emgItems.length !== 1 ? 's' : ''} (${emgTotal} units)</span> · ` : '') +
+    `${stockItems.length} stock design${stockItems.length !== 1 ? 's' : ''} · <strong>${totalCut}</strong> total units`;
 
   if (!cutItems.length) {
     document.getElementById('cutListContainer').innerHTML =
@@ -1641,16 +1908,30 @@ function renderCutList() {
     return;
   }
 
-  const rows = cutItems.map((p, i) => {
-    const urgency = p.daysToEmpty !== null && p.daysToEmpty < 1 ? 'emg'
+  let rows = '';
+  let rank = 0;
+  let shownStockHeader = false;
+  for (const p of cutItems) {
+    rank++;
+    if (!p.isEmgSection && !shownStockHeader) {
+      shownStockHeader = true;
+      if (emgItems.length) {
+        rows += `<tr><td colspan="7" style="padding:10px 10px 4px;font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-top:2px solid var(--line)">Stock replenishment</td></tr>`;
+      }
+    }
+    if (p.isEmgSection && rank === 1) {
+      rows += `<tr><td colspan="7" style="padding:10px 10px 4px;font-size:.7rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em">🚨 Emergency — fulfil first</td></tr>`;
+    }
+    const urgency = p.isEmgSection ? 'emg'
       : p.daysToEmpty !== null && p.daysToEmpty < 3 ? 'emg'
       : p.daysToEmpty !== null && p.daysToEmpty < 7 ? 'low'
       : 'ok';
     const trClass = urgency === 'emg' ? 'emg-row-tr' : urgency === 'low' ? 'low-row-tr' : '';
-    const badgeLabel = urgency === 'emg' ? '⚠ Urgent' : urgency === 'low' ? '↓ Low' : '✓ OK';
+    const badgeLabel = p.isEmgSection ? '🚨 Emergency' : urgency === 'emg' ? '⚠ Urgent' : urgency === 'low' ? '↓ Low' : '✓ OK';
     const stockLabel = p.stock === null ? '<span style="color:var(--muted)">—</span>'
       : `<span class="${urgency === 'emg' ? 'warn' : urgency === 'low' ? '' : 'ok'}">${p.stock}</span>`;
-    const dteLabel = p.daysToEmpty === null ? '—'
+    const dteLabel = p.isEmgSection ? '—'
+      : p.daysToEmpty === null ? '—'
       : p.daysToEmpty < 1 ? '<span class="warn">&lt;1d</span>'
       : `<span class="${p.daysToEmpty < 3 ? 'warn' : p.daysToEmpty < 7 ? '' : 'ok'}">${Math.round(p.daysToEmpty)}d</span>`;
     const velLabel = p.vel30 > 0 ? p.vel30.toFixed(2) + '/d' : '—';
@@ -1659,25 +1940,25 @@ function renderCutList() {
       ? `<img class="cut-thumb" src="${p.image}" alt="" loading="lazy" onerror="this.style.display='none'">`
       : `<div class="cut-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--line)">📦</div>`;
 
-    return `<tr class="${trClass}">
-      <td class="cut-rank">${i+1}</td>
+    rows += `<tr class="${trClass}">
+      <td class="cut-rank">${rank}</td>
       <td>
         <div class="cut-thumb-wrap">
           ${thumb}
           <div>
             <div class="cut-title">${p.title}</div>
             <span class="cut-badge ${urgency}">${badgeLabel}</span>
-            ${p.trendUp ? ' <span class="cut-badge low">↑ trending</span>' : ''}
+            ${p.trendUp && !p.isEmgSection ? ' <span class="cut-badge low">↑ trending</span>' : ''}
           </div>
         </div>
       </td>
       <td class="cut-stat">${stockLabel}</td>
       <td class="cut-stat">${dteLabel}</td>
-      <td class="cut-stat">${velLabel} ${trend}</td>
-      <td class="cut-stat">${p.suggested}</td>
+      <td class="cut-stat">${velLabel} ${p.isEmgSection ? '' : trend}</td>
+      <td class="cut-stat">${p.isEmgSection ? '—' : p.suggested}</td>
       <td class="cut-produce">${p.cutQty}</td>
     </tr>`;
-  }).join('');
+  }
 
   document.getElementById('cutListContainer').innerHTML = `
     <div style="overflow-x:auto">
