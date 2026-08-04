@@ -1077,14 +1077,14 @@ function renderGroup(g) {
   const safeHandle = g.handle.replace(/'/g, "\\'");
   return `
   <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${g.handle}" data-handle="${g.handle}">
-    <div class="dg-head">
-      <div class="dg-info" ${!isSingle ? `onclick="toggleGroup('${safeHandle}')" style="cursor:pointer"` : ''}>
+    <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${safeHandle}')" style="cursor:pointer"` : ''}>
+      <div class="dg-info">
         <div class="dg-title">${g.title} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
-      <div class="dg-actions-row">
+      <div class="dg-actions-row" onclick="event.stopPropagation()">
         ${groupBtns}
-        ${!isSingle ? `<span class="dg-chevron" onclick="toggleGroup('${safeHandle}')">▼</span>` : ''}
+        ${!isSingle ? `<span class="dg-chevron">▼</span>` : ''}
       </div>
     </div>
     ${!isSingle ? `
