@@ -739,18 +739,43 @@ function getPeriodDates() {
   return { from: '2020-01-01', to: today };
 }
 
+function setOrderBadgesLoading() {
+  document.querySelectorAll('.inv-order-count').forEach(el => {
+    el.textContent = '…';
+    el.style.opacity = '0.5';
+  });
+}
+
+function applyOrderBadges() {
+  document.querySelectorAll('.inv-row').forEach(row => {
+    const handle = row.id.replace(/^inv-/, '');
+    const badge = row.querySelector('.inv-order-count');
+    if (!badge) return;
+    const count = orderStats[handle] || 0;
+    badge.textContent = count > 0 ? `${count} orders` : '—';
+    badge.style.opacity = '';
+  });
+  // re-sort the list without re-rendering
+  const sort = document.getElementById('invSort')?.value || 'orders_desc';
+  if (sort.startsWith('orders_')) {
+    renderInventory();
+  }
+}
+
 async function loadOrderStats() {
   const periodEl = document.getElementById('invPeriod');
-  if (periodEl) periodEl.disabled = true;
+  setOrderBadgesLoading();
   try {
     const { from, to } = getPeriodDates();
     const res = await api({ action: 'load_order_stats', from, to });
     orderStats = res.stats || {};
-    renderInventory();
+    applyOrderBadges();
+    if (res.truncated) toast('Showing approx. first 5,000 orders — use a shorter period for exact counts');
   } catch (e) {
     toast('Order stats error: ' + e.message);
-  } finally {
-    if (periodEl) periodEl.disabled = false;
+    document.querySelectorAll('.inv-order-count').forEach(el => {
+      el.textContent = '—'; el.style.opacity = '';
+    });
   }
 }
 
