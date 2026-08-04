@@ -173,6 +173,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   white-space: nowrap; flex-shrink: 0; min-width: 60px; text-align: center;
 }
 .qty-lbl { font-size: .72rem; color: var(--muted); font-weight: 400; margin-right: 2px; }
+.inv-order-count { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.inv-order-count span:first-child { font-weight: 600; }
+.cmp-delta { font-size: .65rem; font-weight: 600; line-height: 1; }
 .inv-del {
   background: none;
   border: 1px solid var(--line);
@@ -761,16 +764,21 @@ function getPeriodMonths() {
 }
 
 function sumStatsForPeriod(monthlyMap) {
-  const months = getPeriodMonths();
-  if (!monthlyMap) return 0;
-  if (months === null) return Object.values(monthlyMap).reduce((s, v) => s + v, 0);
-  return months.reduce((s, k) => s + (monthlyMap[k] || 0), 0);
+  return sumForMonths(monthlyMap, getPeriodMonths());
 }
 
 function setOrderBadgesLoading() {
   document.querySelectorAll('.inv-order-count').forEach(el => {
     el.textContent = '…';
     el.style.opacity = '0.5';
+  });
+}
+
+function shiftMonthsOneYear(months) {
+  if (!months) return null;
+  return months.map(ym => {
+    const [y, m] = ym.split('-');
+    return `${parseInt(y) - 1}-${m}`;
   });
 }
 
@@ -791,16 +799,37 @@ function updatePeriodLabel() {
 }
 
 function applyOrderBadges() {
+  const currentMonths = getPeriodMonths();
+  const prevMonths    = shiftMonthsOneYear(currentMonths);
+
   document.querySelectorAll('.inv-row').forEach(row => {
     const handle = row.id.replace(/^inv-/, '');
     const badge = row.querySelector('.inv-order-count');
     if (!badge) return;
-    const count = sumStatsForPeriod(orderStats[handle]);
-    badge.textContent = count > 0 ? `${count} orders` : '—';
+
+    const cur  = sumForMonths(orderStats[handle], currentMonths);
+    const prev = prevMonths ? sumForMonths(orderStats[handle], prevMonths) : null;
+
+    let html = `<span>${cur > 0 ? `${cur} orders` : '—'}</span>`;
+    if (prev !== null && (cur > 0 || prev > 0)) {
+      const diff = cur - prev;
+      const pct  = prev > 0 ? Math.round((diff / prev) * 100) : null;
+      const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '=';
+      const col   = diff > 0 ? 'var(--green,#2e7d32)' : diff < 0 ? 'var(--red,#c62828)' : 'var(--muted)';
+      const label = pct !== null ? `${arrow}${Math.abs(pct)}%` : `${arrow}${Math.abs(diff)}`;
+      html += `<span class="cmp-delta" style="color:${col}">${label} vs ly</span>`;
+    }
+    badge.innerHTML = html;
     badge.style.opacity = '';
   });
   const sort = document.getElementById('invSort')?.value || 'orders_desc';
   if (sort.startsWith('orders_')) renderInventory();
+}
+
+function sumForMonths(monthlyMap, months) {
+  if (!monthlyMap) return 0;
+  if (months === null) return Object.values(monthlyMap).reduce((s, v) => s + v, 0);
+  return months.reduce((s, k) => s + (monthlyMap[k] || 0), 0);
 }
 
 async function loadOrderStats() {
