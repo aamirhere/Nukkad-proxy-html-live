@@ -734,10 +734,14 @@ function onAddHandleInput() {
 }
 
 async function doShopifySearch(query) {
+  const sugg = document.getElementById('shopifySugg');
   try {
     const res = await api({ action: 'search_shopify', query });
-    const sugg = document.getElementById('shopifySugg');
-    if (!res.products?.length) { sugg.classList.remove('open'); return; }
+    if (!res.products?.length) {
+      sugg.innerHTML = `<div class="sugg-row" style="color:var(--muted);cursor:default">No products found for "${query}"</div>`;
+      sugg.classList.add('open');
+      return;
+    }
     sugg.innerHTML = res.products.map(p => `
       <div class="sugg-row" onclick="selectSuggestion(${JSON.stringify(p).replace(/"/g,'&quot;')})">
         ${p.image ? `<img class="sugg-img" src="${p.image}" alt="">` : '<div class="sugg-img"></div>'}
@@ -747,7 +751,10 @@ async function doShopifySearch(query) {
         </div>
       </div>`).join('');
     sugg.classList.add('open');
-  } catch {}
+  } catch(e) {
+    sugg.innerHTML = `<div class="sugg-row" style="color:var(--red);cursor:default">Search error: ${e.message}</div>`;
+    sugg.classList.add('open');
+  }
 }
 
 function selectSuggestion(p) {
@@ -804,7 +811,7 @@ async function deleteProduct(handle, title, event) {
     const row = document.getElementById(`inv-${handle}`);
     if (row) row.remove();
     toast(`Removed: ${title}`);
-  } catch (e) { toast('Delete failed'); }
+  } catch (e) { toast('Delete failed: ' + e.message); }
 }
 
 function downloadCSV() {
