@@ -146,6 +146,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   transition: box-shadow .15s;
 }
 .inv-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.inv-row:hover .inv-del { opacity: 1; }
 .inv-thumb {
   width: 36px;
   height: 36px;
@@ -167,6 +168,19 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 .inv-title { flex: 1; font-size: .85rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
 .inv-handle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+.inv-del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: .8rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+  flex-shrink: 0;
+}
+.inv-del:hover { color: var(--red); }
 .stock-chip {
   display: flex;
   align-items: center;
@@ -255,15 +269,21 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  cursor: pointer;
   user-select: none;
 }
-.dg-head:hover { background: var(--bg); }
 .dg-title { font-weight: 700; font-size: .88rem; color: var(--ink); flex: 1; }
-.dg-meta  { font-size: .75rem; color: var(--ink2); }
-.dg-count { font-size: .78rem; font-weight: 700; background: var(--bg2); border-radius: 12px; padding: 2px 8px; color: var(--ink2); }
-.dg-colors-summary { font-size: .72rem; color: var(--muted); margin-top: 1px; }
-.dg-chevron { color: var(--muted); font-size: .7rem; transition: transform .2s; }
+.dg-colors-summary { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+.dg-group-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+.dg-chevron {
+  color: var(--muted);
+  font-size: .7rem;
+  transition: transform .2s;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.dg-chevron:hover { background: var(--bg2); }
 .dg-card.open .dg-chevron { transform: rotate(180deg); }
 .dg-body { display: none; border-top: 1px solid var(--line); }
 .dg-card.open .dg-body { display: block; }
@@ -419,6 +439,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <option value="counted">Counted</option>
       <option value="zero">Out of stock</option>
     </select>
+    <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
   </div>
   <div class="inv-list" id="invList">
     ${[...Array(8)].map(() => '<div class="loading-row"></div>').join('')}
@@ -498,6 +519,29 @@ async function init() {
   } catch (e) { toast('Failed to load products: ' + e.message); }
 }
 
+async function refreshProducts() {
+  toast('Syncing from Shopify…');
+  try {
+    const res = await api({ action: 'refresh_products' });
+    toast(`Synced ${res.count} products`);
+    const res2 = await api({ action: 'load_products' });
+    allProducts = res2.products || [];
+    renderInventory();
+  } catch (e) { toast('Sync failed: ' + e.message); }
+}
+
+async function deleteProduct(handle, title, event) {
+  event.stopPropagation();
+  if (!confirm(`Remove "${title}" from inventory?\n\nThis hides it from the list but doesn't delete it from Shopify.`)) return;
+  try {
+    await api({ action: 'delete_product', handle });
+    allProducts = allProducts.filter(p => p.handle !== handle);
+    const row = document.getElementById(`inv-${handle}`);
+    if (row) row.remove();
+    toast(`Removed: ${title}`);
+  } catch (e) { toast('Delete failed'); }
+}
+
 // ── INVENTORY ─────────────────────────────────────────────────────────────────
 
 function renderInventory() {
@@ -541,6 +585,7 @@ function renderInventory() {
       <div class="stock-chip ${chipClass}" onclick="editStock('${p.handle}')" id="chip-${p.handle}">
         <span class="stock-num" id="stocklabel-${p.handle}">${stockLabel}</span>
       </div>
+      <button class="inv-del" onclick="deleteProduct('${p.handle}', '${p.title.replace(/'/g,"\\'")}', event)" title="Remove from inventory">✕</button>
     </div>`;
   }).join('');
 }
@@ -652,26 +697,63 @@ function renderOrders() {
 }
 
 function renderGroup(g) {
-  const total = g.units.length;
-  const colorSummary = Object.entries(g.colorCounts)
-    .map(([c, n]) => `${n} ${c}`).join(' · ');
+  const total       = g.units.length;
   const pickedCount = g.units.filter(u => u.picked).length;
   const emergCount  = g.units.filter(u => u.is_emergency).length;
-  const statusNote  = emergCount ? ` · <span style="color:var(--red)">${emergCount} ⚠</span>` : '';
+  const isSingle    = total === 1;
+  const u0          = g.units[0];
+
+  // Color breakdown: "2× Blue · 1× Pink"
+  const colorSummary = Object.entries(g.colorCounts)
+    .map(([c, n]) => `${n}× ${c}`).join(' · ');
+
+  // Status line below title
+  const statusParts = [];
+  if (emergCount)  statusParts.push(`<span style="color:var(--red);font-weight:700">${emergCount} ⚠ no stock</span>`);
+  if (pickedCount) statusParts.push(`<span style="color:var(--green)">${pickedCount}/${total} picked</span>`);
+  const statusLine = [colorSummary, ...statusParts].filter(Boolean).join(' · ');
+
+  // Action buttons at group level
+  let groupBtns;
+  if (isSingle) {
+    const isPicked = u0.picked;
+    const isEmerg  = u0.is_emergency;
+    if (isEmerg) {
+      groupBtns = `<span class="emg-label" style="font-size:.72rem;font-weight:700;color:var(--red);background:#fff0ee;border-radius:10px;padding:2px 8px">⚠ No stock</span>`;
+    } else {
+      groupBtns = `
+        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
+          onclick="togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
+          ${isPicked ? '✓ Picked' : 'Pick'}
+        </button>
+        <button class="unit-btn nostock"
+          onclick="markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
+          No Stock
+        </button>`;
+    }
+  } else {
+    const allPicked = pickedCount === total;
+    groupBtns = `
+      <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="pickAll('${g.handle}')">
+        ${allPicked ? '✓ All Picked' : 'Pick All'}
+      </button>
+      <button class="unit-btn nostock" onclick="noStockAll('${g.handle}')">No Stock All</button>`;
+  }
 
   return `
   <div class="dg-card" id="dg-${g.handle}">
-    <div class="dg-head" onclick="toggleGroup('${g.handle}')">
-      <div style="flex:1">
+    <div class="dg-head">
+      <div style="flex:1;min-width:0">
         <div class="dg-title">${g.title}</div>
-        <div class="dg-colors-summary">${colorSummary}${statusNote}</div>
+        <div class="dg-colors-summary">${statusLine}</div>
       </div>
-      <span class="dg-count">${total} unit${total !== 1 ? 's' : ''}</span>
-      <span class="dg-chevron">▼</span>
+      <div class="dg-group-actions">${groupBtns}</div>
+      ${!isSingle ? `<span class="dg-chevron" onclick="toggleGroup('${g.handle}')">▼</span>` : ''}
     </div>
+    ${!isSingle ? `
     <div class="dg-body" id="dgbody-${g.handle}">
       ${g.units.map(u => renderUnit(u)).join('')}
-    </div>
+    </div>` : ''}
   </div>`;
 }
 
@@ -690,11 +772,11 @@ function renderUnit(u) {
       ${!isEmerg ? `
         <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
           onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">
-          ${isPicked ? '✓ Picked' : 'Pick'}
+          ${isPicked ? '✓' : 'Pick'}
         </button>
         <button class="unit-btn nostock"
           onclick="markEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">
-          No Stock
+          ✕
         </button>
       ` : ''}
     </div>
@@ -704,6 +786,44 @@ function renderUnit(u) {
 function toggleGroup(handle) {
   const card = document.getElementById(`dg-${handle}`);
   card.classList.toggle('open');
+}
+
+async function pickAll(handle) {
+  const units = currentUnits.filter(u => u.handle === handle && !u.is_emergency);
+  if (!units.length) return;
+  const allPicked = units.every(u => u.picked);
+  const newPicked = !allPicked;
+  const date = document.getElementById('ordersDate').value;
+
+  for (const u of units) {
+    const k = stateKey(u);
+    localState[k] = { ...(localState[k] || {}), picked: newPicked };
+    const idx = currentUnits.findIndex(x => stateKey(x) === k);
+    if (idx >= 0) currentUnits[idx].picked = newPicked;
+  }
+  renderOrders();
+  try {
+    await Promise.all(units.map(u => api({ action: 'save_picked', ...u, date, picked: newPicked })));
+  } catch { toast('Sync failed'); }
+}
+
+async function noStockAll(handle) {
+  const date = document.getElementById('ordersDate').value;
+  const units = currentUnits.filter(u => u.handle === handle && !u.is_emergency);
+  if (!units.length) { toast('All already marked no stock'); return; }
+
+  for (const u of units) {
+    const k = stateKey(u);
+    localState[k] = { picked: false, is_emergency: true };
+    const idx = currentUnits.findIndex(x => stateKey(x) === k);
+    if (idx >= 0) { currentUnits[idx].is_emergency = true; currentUnits[idx].picked = false; }
+  }
+  renderOrders();
+  updateEmergencyBadge();
+  try {
+    await Promise.all(units.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
+    toast(`Marked ${units.length} unit${units.length !== 1 ? 's' : ''} as no stock`);
+  } catch { toast('Sync failed'); }
 }
 
 function setColor(c) {
