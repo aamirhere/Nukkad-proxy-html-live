@@ -480,21 +480,24 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   .app-header, .toolbar, .date-bar, .color-chips, .unit-btn,
   .nav-btn, .csv-bar, .dg-chevron, .dg-actions-row { display: none !important; }
   body { background: #fff; }
-  .view { padding: 10px; }
-  .page-hd { margin-bottom: 10px; }
+  .view { padding: 6px; }
+  .page-hd { margin-bottom: 6px; }
   .design-groups {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 4px;
+    align-items: start;
   }
-  .dg-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; border-radius: 6px; }
+  .dg-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; border-radius: 4px; }
   .dg-card .dg-body { display: block !important; }
-  .dg-head { padding: 6px 10px; }
-  .dg-title { font-size: .82rem; }
-  .dg-color-tag { font-size: .7rem; padding: 1px 5px; }
-  .dg-order-tag { font-size: .7rem; }
-  .unit-row { padding: 4px 10px; }
+  .dg-head { padding: 4px 8px; }
+  .dg-title { font-size: .75rem; gap: 4px; }
+  .dg-color-tag { font-size: .65rem; padding: 1px 4px; }
+  .dg-order-tag { font-size: .65rem; }
+  .dg-status-line { display: none; }
+  .unit-row { padding: 2px 8px; font-size: .72rem; }
   .unit-row.picked { opacity: 1; background: #f0f9f4; }
+  .unit-serial { min-width: 14px; font-size: .65rem; }
 }
 
 /* ── mobile ── */
@@ -658,10 +661,11 @@ const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
-let allProducts  = [];
-let currentUnits = []; // orders view
-let activeColor  = '';
+let allProducts   = [];
+let currentUnits  = []; // orders view
+let activeColor   = '';
 let serialCounter = 0;
+const openGroups  = new Set(); // tracks which multi-unit groups are expanded
 
 // picked/emergency local overlay (so UI is instant, then syncs to server)
 const localState = {}; // key → {picked, is_emergency}
@@ -960,6 +964,7 @@ function editStock(handle) {
 async function loadOrders() {
   const date = document.getElementById('ordersDate').value;
   if (!date) return;
+  openGroups.clear();
 
   document.getElementById('designGroups').innerHTML =
     [...Array(5)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px"></div>').join('');
@@ -1020,6 +1025,7 @@ function renderOrders() {
   serialCounter = 0;
   const sorted = Object.values(groups).sort((a, b) => a.title.localeCompare(b.title));
   document.getElementById('designGroups').innerHTML = sorted.map(g => renderGroup(g)).join('');
+  restoreOpenGroups();
 }
 
 function renderGroup(g) {
@@ -1061,16 +1067,17 @@ function renderGroup(g) {
       </button>`;
   }
 
+  const safeHandle = g.handle.replace(/'/g, "\\'");
   return `
-  <div class="dg-card" id="dg-${g.handle}">
+  <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${g.handle}" data-handle="${g.handle}">
     <div class="dg-head">
-      <div class="dg-info">
+      <div class="dg-info" ${!isSingle ? `onclick="toggleGroup('${safeHandle}')" style="cursor:pointer"` : ''}>
         <div class="dg-title">${g.title} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
       <div class="dg-actions-row">
         ${groupBtns}
-        ${!isSingle ? `<span class="dg-chevron" onclick="toggleGroup('${g.handle}')">▼</span>` : ''}
+        ${!isSingle ? `<span class="dg-chevron" onclick="toggleGroup('${safeHandle}')">▼</span>` : ''}
       </div>
     </div>
     ${!isSingle ? `
@@ -1107,8 +1114,17 @@ function renderUnit(u) {
 }
 
 function toggleGroup(handle) {
+  if (openGroups.has(handle)) openGroups.delete(handle);
+  else openGroups.add(handle);
   const card = document.getElementById(`dg-${handle}`);
-  card.classList.toggle('open');
+  if (card) card.classList.toggle('open', openGroups.has(handle));
+}
+
+function restoreOpenGroups() {
+  openGroups.forEach(h => {
+    const card = document.getElementById(`dg-${h}`);
+    if (card) card.classList.add('open');
+  });
 }
 
 async function pickAll(handle) {
