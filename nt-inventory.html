@@ -146,7 +146,6 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   transition: box-shadow .15s;
 }
 .inv-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-.inv-row:hover .inv-del { opacity: 1; }
 .inv-thumb {
   width: 36px;
   height: 36px;
@@ -170,17 +169,51 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .inv-handle { font-size: .72rem; color: var(--muted); font-weight: 400; }
 .inv-del {
   background: none;
-  border: none;
+  border: 1px solid var(--line);
   color: var(--muted);
-  font-size: .8rem;
+  font-size: .72rem;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity .15s, color .15s;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: border-color .15s, color .15s, background .15s;
   flex-shrink: 0;
+  white-space: nowrap;
 }
-.inv-del:hover { color: var(--red); }
+.inv-del:hover { color: var(--red); border-color: var(--red); background: #fff5f5; }
+
+/* ── add-product modal ── */
+.modal-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.35);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px;
+  width: min(420px, 92vw);
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+}
+.modal h3 { font-family: var(--ff); font-size: 1.1rem; color: var(--ink); margin-bottom: 6px; }
+.modal p  { font-size: .8rem; color: var(--muted); margin-bottom: 18px; }
+.modal-field { margin-bottom: 14px; }
+.modal-field label { display: block; font-size: .78rem; font-weight: 700; color: var(--ink2); margin-bottom: 5px; }
+.modal-field input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--fb);
+  font-size: .85rem;
+  color: var(--ink);
+  outline: none;
+}
+.modal-field input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 .stock-chip {
   display: flex;
   align-items: center;
@@ -505,6 +538,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <option value="zero">Out of stock</option>
     </select>
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
   </div>
   <div class="inv-list" id="invList">
     <div class="loading-row"></div>
@@ -549,6 +583,26 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
 <div id="toast"></div>
 
+<!-- ── ADD PRODUCT MODAL ────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="addModal" onclick="closeAddModal(event)">
+  <div class="modal">
+    <h3>Add Product</h3>
+    <p>Enter the Shopify product handle to add it to inventory. The handle is the URL slug (e.g. <em>best-bhai-ever</em>).</p>
+    <div class="modal-field">
+      <label>Product Handle</label>
+      <input id="addHandle" type="text" placeholder="e.g. best-bhai-ever" oninput="onAddHandleInput()">
+    </div>
+    <div class="modal-field">
+      <label>Display Title</label>
+      <input id="addTitle" type="text" placeholder="e.g. Best Bhai Ever">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAddProduct()" id="addSubmitBtn">Add to Inventory</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-inventory';
 
@@ -591,6 +645,55 @@ async function init() {
     allProducts = res.products || [];
     renderInventory();
   } catch (e) { toast('Failed to load products: ' + e.message); }
+}
+
+// ── ADD PRODUCT MODAL ─────────────────────────────────────────────────────────
+
+function openAddModal() {
+  document.getElementById('addHandle').value = '';
+  document.getElementById('addTitle').value  = '';
+  document.getElementById('addModal').classList.add('open');
+  setTimeout(() => document.getElementById('addHandle').focus(), 50);
+}
+
+function closeAddModal(e) {
+  if (e && e.target !== document.getElementById('addModal')) return;
+  document.getElementById('addModal').classList.remove('open');
+}
+
+function onAddHandleInput() {
+  const h = document.getElementById('addHandle').value.trim().toLowerCase();
+  const titleEl = document.getElementById('addTitle');
+  if (!titleEl.value) {
+    // auto-fill title from handle: "best-bhai-ever" → "Best Bhai Ever"
+    titleEl.value = h.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+}
+
+async function submitAddProduct() {
+  const handle = document.getElementById('addHandle').value.trim().toLowerCase();
+  const title  = document.getElementById('addTitle').value.trim();
+  if (!handle) { toast('Enter a product handle'); return; }
+
+  const btn = document.getElementById('addSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+
+  try {
+    await api({ action: 'add_product', handle, title: title || handle });
+    // add to local list
+    if (!allProducts.find(p => p.handle === handle)) {
+      allProducts.unshift({ handle, title: title || handle, image: null, stock: null, counted_at: null });
+      renderInventory();
+    }
+    toast(`Added: ${title || handle}`);
+    document.getElementById('addModal').classList.remove('open');
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add to Inventory';
+  }
 }
 
 async function refreshProducts() {
@@ -1039,6 +1142,11 @@ async function api(body) {
 }
 
 // ── START ─────────────────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('addModal').classList.remove('open');
+  if (e.key === 'Enter' && document.getElementById('addModal').classList.contains('open')) submitAddProduct();
+});
 
 init();
 </script>
