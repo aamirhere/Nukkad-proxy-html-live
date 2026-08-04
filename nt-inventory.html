@@ -1052,39 +1052,35 @@ function renderGroup(g) {
   if (pickedCount && !isSingle) statusParts.push(`<span style="color:var(--green)">${pickedCount}/${total} picked</span>`);
   const statusLine = statusParts.join(' · ');
 
-  let groupBtns;
+  let leftBtn, rightBtn;
   if (isSingle) {
     const isPicked = u0.picked;
     const isEmerg  = u0.is_emergency;
     if (isEmerg) {
-      groupBtns = `<span class="emg-label">⚠ No stock</span>`;
+      leftBtn  = `<span class="emg-label">⚠ No stock</span>`;
+      rightBtn = ``;
     } else {
-      groupBtns = `
-        <button class="unit-btn nostock" onclick="event.stopPropagation();markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>
-        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
-          ${isPicked ? '✓ Picked' : 'Pick'}
-        </button>`;
+      leftBtn  = `<button class="unit-btn nostock" onclick="event.stopPropagation();markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>`;
+      rightBtn = `<button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">${isPicked ? '✓ Picked' : 'Pick'}</button>`;
     }
   } else {
     const allPicked = pickedCount === total && total > 0;
     const safeTitle = g.title.replace(/'/g, "\\'");
-    groupBtns = `
-      <button class="unit-btn nostock" onclick="event.stopPropagation();noStockAll('${safeTitle}')">No Stock All</button>
-      <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();pickAll('${safeTitle}')">
-        ${allPicked ? '✓ All Picked' : 'Pick All'}
-      </button>`;
+    leftBtn  = `<button class="unit-btn nostock" onclick="event.stopPropagation();noStockAll('${safeTitle}')">No Stock All</button>`;
+    rightBtn = `<button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();pickAll('${safeTitle}')">${allPicked ? '✓ All Picked' : 'Pick All'}</button>`;
   }
 
   const slug = titleSlug(g.title);
   return `
   <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${slug}">
     <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${slug}')" style="cursor:pointer"` : ''}>
+      ${leftBtn}
       <div class="dg-info">
         <div class="dg-title">${g.title} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
       <div class="dg-actions-row">
-        ${groupBtns}
+        ${rightBtn}
         ${!isSingle ? `<span class="dg-chevron">▼</span>` : ''}
       </div>
     </div>
