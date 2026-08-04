@@ -507,7 +507,14 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
   </div>
   <div class="inv-list" id="invList">
-    ${[...Array(8)].map(() => '<div class="loading-row"></div>').join('')}
+    <div class="loading-row"></div>
+    <div class="loading-row"></div>
+    <div class="loading-row"></div>
+    <div class="loading-row"></div>
+    <div class="loading-row"></div>
+    <div class="loading-row"></div>
+    <div class="loading-row"></div>
+    <div class="loading-row"></div>
   </div>
 </div>
 
@@ -565,8 +572,10 @@ function switchView(view) {
   document.getElementById(`view-${view}`).classList.add('active');
   document.querySelector(`[onclick="switchView('${view}')"]`).classList.add('active');
 
-  if (view === 'orders' && !document.getElementById('ordersDate').value) {
-    document.getElementById('ordersDate').value = todayIST();
+  if (view === 'orders') {
+    if (!document.getElementById('ordersDate').value) {
+      document.getElementById('ordersDate').value = todayIST();
+    }
     loadOrders();
   }
   if (view === 'emergency') {
@@ -787,22 +796,22 @@ function renderGroup(g) {
       groupBtns = `<span class="emg-label">⚠ No stock</span>`;
     } else {
       groupBtns = `
-        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
-          onclick="togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
-          ${isPicked ? '✓ Picked' : 'Pick'}
-        </button>
         <button class="unit-btn nostock"
           onclick="markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
           No Stock
+        </button>
+        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
+          onclick="togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">
+          ${isPicked ? '✓ Picked' : 'Pick'}
         </button>`;
     }
   } else {
     const allPicked = pickedCount === total;
     groupBtns = `
+      <button class="unit-btn nostock" onclick="noStockAll('${g.handle}')">No Stock All</button>
       <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="pickAll('${g.handle}')">
         ${allPicked ? '✓ All Picked' : 'Pick All'}
-      </button>
-      <button class="unit-btn nostock" onclick="noStockAll('${g.handle}')">No Stock All</button>`;
+      </button>`;
   }
 
   return `
@@ -837,13 +846,13 @@ function renderUnit(u) {
     <div class="unit-status">
       ${isEmerg ? '<span class="emg-label">⚠ No stock</span>' : ''}
       ${!isEmerg ? `
-        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
-          onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">
-          ${isPicked ? '✓' : 'Pick'}
-        </button>
         <button class="unit-btn nostock"
           onclick="markEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">
           ✕
+        </button>
+        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
+          onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">
+          ${isPicked ? '✓' : 'Pick'}
         </button>
       ` : ''}
     </div>
@@ -1031,7 +1040,6 @@ async function api(body) {
 
 // ── START ─────────────────────────────────────────────────────────────────────
 
-document.getElementById('ordersDate').value = todayIST();
 init();
 </script>
 </body>
