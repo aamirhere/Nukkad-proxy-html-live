@@ -575,6 +575,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   <div class="page-hd">
     <h2>Inventory</h2>
     <p id="invSubtitle">Loading products…</p>
+    <p id="periodLabel" style="font-size:.75rem;color:var(--muted);margin-top:2px"></p>
   </div>
   <div class="toolbar">
     <div class="search-wrap">
@@ -594,7 +595,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <option value="stock_asc">Least stock ↑</option>
       <option value="name_asc">A–Z</option>
     </select>
-    <select id="invPeriod" onchange="applyOrderBadges()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
+    <select id="invPeriod" onchange="applyOrderBadges();updatePeriodLabel()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
       <option value="this_month">This month</option>
       <option value="last_month">Last month</option>
       <option value="this_quarter">This quarter</option>
@@ -773,6 +774,22 @@ function setOrderBadgesLoading() {
   });
 }
 
+function updatePeriodLabel() {
+  const months = getPeriodMonths();
+  const el = document.getElementById('periodLabel');
+  if (!el) return;
+  if (!months) { el.textContent = 'Order counts: all time'; return; }
+  if (months.length === 1) {
+    const [y, m] = months[0].split('-');
+    el.textContent = `Order counts: ${new Date(y, m-1).toLocaleString('default',{month:'long',year:'numeric'})}`;
+  } else {
+    const [y0, m0] = months[0].split('-');
+    const [y1, m1] = months[months.length-1].split('-');
+    const fmt = (y, m) => new Date(y, m-1).toLocaleString('default',{month:'short',year:'numeric'});
+    el.textContent = `Order counts: ${fmt(y0, m0)} – ${fmt(y1, m1)}`;
+  }
+}
+
 function applyOrderBadges() {
   document.querySelectorAll('.inv-row').forEach(row => {
     const handle = row.id.replace(/^inv-/, '');
@@ -792,6 +809,7 @@ async function loadOrderStats() {
     const res = await api({ action: 'load_order_stats' });
     orderStats = res.stats || {};
     applyOrderBadges();
+    updatePeriodLabel();
     if (res.truncated) toast('Order counts are approximate — very large order history');
   } catch (e) {
     toast('Order stats error: ' + e.message);
