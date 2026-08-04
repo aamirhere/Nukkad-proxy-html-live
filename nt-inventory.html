@@ -1067,17 +1067,18 @@ function renderGroup(g) {
     }
   } else {
     const allPicked = pickedCount === total && total > 0;
+    const safeTitle = g.title.replace(/'/g, "\\'");
     groupBtns = `
-      <button class="unit-btn nostock" onclick="event.stopPropagation();noStockAll('${g.handle}')">No Stock All</button>
-      <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();pickAll('${g.handle}')">
+      <button class="unit-btn nostock" onclick="event.stopPropagation();noStockAll('${safeTitle}')">No Stock All</button>
+      <button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();pickAll('${safeTitle}')">
         ${allPicked ? '✓ All Picked' : 'Pick All'}
       </button>`;
   }
 
-  const safeHandle = g.handle.replace(/'/g, "\\'");
+  const slug = titleSlug(g.title);
   return `
-  <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${g.handle}" data-handle="${g.handle}">
-    <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${safeHandle}')" style="cursor:pointer"` : ''}>
+  <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${slug}">
+    <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${slug}')" style="cursor:pointer"` : ''}>
       <div class="dg-info">
         <div class="dg-title">${g.title} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
@@ -1120,22 +1121,26 @@ function renderUnit(u) {
   </div>`;
 }
 
-function toggleGroup(handle) {
-  if (openGroups.has(handle)) openGroups.delete(handle);
-  else openGroups.add(handle);
-  const card = document.getElementById(`dg-${handle}`);
-  if (card) card.classList.toggle('open', openGroups.has(handle));
+function titleSlug(title) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function toggleGroup(slug) {
+  if (openGroups.has(slug)) openGroups.delete(slug);
+  else openGroups.add(slug);
+  const card = document.getElementById(`dg-${slug}`);
+  if (card) card.classList.toggle('open', openGroups.has(slug));
 }
 
 function restoreOpenGroups() {
-  openGroups.forEach(h => {
-    const card = document.getElementById(`dg-${h}`);
+  openGroups.forEach(slug => {
+    const card = document.getElementById(`dg-${slug}`);
     if (card) card.classList.add('open');
   });
 }
 
-async function pickAll(handle) {
-  const units = currentUnits.filter(u => u.handle === handle && !u.is_emergency);
+async function pickAll(title) {
+  const units = currentUnits.filter(u => u.title === title && !u.is_emergency);
   if (!units.length) return;
   const allPicked = units.every(u => u.picked);
   const newPicked = !allPicked;
@@ -1153,9 +1158,9 @@ async function pickAll(handle) {
   } catch { toast('Sync failed'); }
 }
 
-async function noStockAll(handle) {
+async function noStockAll(title) {
   const date = document.getElementById('ordersDate').value;
-  const units = currentUnits.filter(u => u.handle === handle && !u.is_emergency);
+  const units = currentUnits.filter(u => u.title === title && !u.is_emergency);
   if (!units.length) { toast('All already marked no stock'); return; }
 
   for (const u of units) {
