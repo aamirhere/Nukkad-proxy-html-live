@@ -172,6 +172,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   background: var(--bg2); border-radius: 8px; padding: 2px 8px;
   white-space: nowrap; flex-shrink: 0; min-width: 60px; text-align: center;
 }
+.qty-lbl { font-size: .72rem; color: var(--muted); font-weight: 400; margin-right: 2px; }
 .inv-del {
   background: none;
   border: 1px solid var(--line);
@@ -978,9 +979,11 @@ function renderInventory() {
     const isNA  = p.stock === null;
     const isZero = p.stock === 0;
     const chipClass = isNA ? 'na' : isZero ? 'zero' : 'counted';
-    const stockLabel = isNA ? 'N/A — tap to count' : `qty ${p.stock}`;
     const orders = orderStats[p.handle] || 0;
     const ordersLabel = orders > 0 ? `${orders} orders` : '—';
+    const chipInner = isNA
+      ? `<span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">N/A — tap to count</span>`
+      : `<span class="qty-lbl">qty</span><span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">${p.stock}</span>`;
     return `
     <div class="inv-row" id="inv-${p.handle}">
       ${p.image
@@ -992,8 +995,8 @@ function renderInventory() {
         <div class="inv-handle">${p.handle}</div>
       </div>
       <span class="inv-order-count">${ordersLabel}</span>
-      <div class="stock-chip ${chipClass}" onclick="editStock('${p.handle}')" id="chip-${p.handle}">
-        <span class="stock-num" id="stocklabel-${p.handle}">${stockLabel}</span>
+      <div class="stock-chip ${chipClass}" id="chip-${p.handle}">
+        ${chipInner}
       </div>
       <button class="inv-del" onclick="deleteProduct('${p.handle}', '${p.title.replace(/'/g,"\\'")}', event)" title="Remove from inventory">✕</button>
     </div>`;
@@ -1003,7 +1006,7 @@ function renderInventory() {
 function editStock(handle) {
   const chip = document.getElementById(`chip-${handle}`);
   const label = document.getElementById(`stocklabel-${handle}`);
-  if (chip.querySelector('input')) return; // already editing
+  if (!label || chip.querySelector('input')) return;
 
   const p = allProducts.find(x => x.handle === handle);
   const current = p?.stock ?? '';
@@ -1022,11 +1025,9 @@ function editStock(handle) {
   const commit = async () => {
     const raw = input.value.trim();
     const val = raw === '' ? null : parseInt(raw, 10);
-    chip.querySelector('input')?.replaceWith(Object.assign(document.createElement('span'), {
-      className: 'stock-num',
-      id: `stocklabel-${handle}`,
-      textContent: val === null ? 'N/A — tap to count' : `qty ${val}`,
-    }));
+    chip.innerHTML = val === null
+      ? `<span class="stock-num" id="stocklabel-${handle}" onclick="editStock('${handle}')">N/A — tap to count</span>`
+      : `<span class="qty-lbl">qty</span><span class="stock-num" id="stocklabel-${handle}" onclick="editStock('${handle}')">${val}</span>`;
     chip.className = `stock-chip ${val === null ? 'na' : val === 0 ? 'zero' : 'counted'}`;
     if (p) p.stock = val;
     try {
