@@ -166,7 +166,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   font-size: .8rem;
 }
 .inv-title { flex: 1; font-size: .85rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
-.inv-handle { font-size: .72rem; color: var(--muted); font-weight: 400; }
+.inv-handle { display: none; }
 .inv-order-count {
   font-size: .75rem; font-weight: 600; color: var(--ink2);
   background: var(--bg2); border-radius: 8px; padding: 2px 8px;
@@ -594,13 +594,6 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <option value="stock_asc">Least stock ↑</option>
       <option value="name_asc">A–Z</option>
     </select>
-    <select id="invPeriod" onchange="loadOrderStats()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
-      <option value="this_month">This month</option>
-      <option value="last_month">Last month</option>
-      <option value="this_quarter">This quarter</option>
-      <option value="this_year">This year</option>
-      <option value="all_time">All time</option>
-    </select>
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
     <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
   </div>
@@ -714,31 +707,6 @@ function switchView(view) {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
-function getPeriodDates() {
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth();
-  const pad = n => String(n).padStart(2, '0');
-  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  const today = fmt(now);
-  const period = document.getElementById('invPeriod')?.value || 'this_month';
-  if (period === 'this_month') {
-    return { from: `${y}-${pad(m+1)}-01`, to: today };
-  }
-  if (period === 'last_month') {
-    const d = new Date(y, m, 0);
-    const f = new Date(y, m-1, 1);
-    return { from: fmt(f), to: fmt(d) };
-  }
-  if (period === 'this_quarter') {
-    const q = Math.floor(m / 3);
-    return { from: `${y}-${pad(q*3+1)}-01`, to: today };
-  }
-  if (period === 'this_year') {
-    return { from: `${y}-01-01`, to: today };
-  }
-  return { from: '2020-01-01', to: today };
-}
-
 function setOrderBadgesLoading() {
   document.querySelectorAll('.inv-order-count').forEach(el => {
     el.textContent = '…';
@@ -763,14 +731,12 @@ function applyOrderBadges() {
 }
 
 async function loadOrderStats() {
-  const periodEl = document.getElementById('invPeriod');
   setOrderBadgesLoading();
   try {
-    const { from, to } = getPeriodDates();
-    const res = await api({ action: 'load_order_stats', from, to });
+    const res = await api({ action: 'load_order_stats' });
     orderStats = res.stats || {};
     applyOrderBadges();
-    if (res.truncated) toast('Showing approx. first 5,000 orders — use a shorter period for exact counts');
+    if (res.truncated) toast('Order counts are approximate — very large order history');
   } catch (e) {
     toast('Order stats error: ' + e.message);
     document.querySelectorAll('.inv-order-count').forEach(el => {
