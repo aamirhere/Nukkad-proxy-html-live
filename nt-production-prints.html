@@ -91,6 +91,19 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 .dl-menu button{display:block;width:100%;padding:9px 14px;text-align:left;background:none;border:none;font-size:.78rem;color:var(--ink2);cursor:pointer;white-space:nowrap}
 .dl-menu button:hover{background:#fdf5ec;color:var(--accent)}
 
+/* ── EMERGENCY MODE ── */
+.emg-banner{background:#fff3f0;border-bottom:2px solid #e74c3c;padding:9px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.82rem}
+.emg-banner strong{color:#c0392b}
+.emg-row-simple{background:#fff;border:1px solid #f5c6c0;border-left:4px solid #e74c3c;border-radius:8px;display:flex;align-items:center;gap:10px;padding:8px 10px;position:relative;cursor:pointer;user-select:none}
+.emg-row-simple:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.emg-row-simple.selected{outline:2px solid var(--accent);outline-offset:-1px}
+.emg-order-badge{background:#e74c3c;color:#fff;border-radius:10px;font-size:.68rem;font-weight:700;padding:2px 8px;white-space:nowrap;flex-shrink:0}
+.emg-row-thumb{width:64px;height:64px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#e8ddd0;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--line)}
+.emg-row-thumb img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
+.emg-row-info{flex:1;min-width:0}
+.emg-row-title{font-size:.88rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emg-row-orders{font-size:.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* ── INLINE EDIT ── */
 .editable{cursor:pointer;border-bottom:1px dashed var(--muted)}
 .editable:hover{border-color:var(--accent);color:var(--accent)}
@@ -185,6 +198,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
       </div>
     </div>
     <button class="hbtn" onclick="refreshProducts()">↺</button>
+    <button class="hbtn" id="emgModeBtn" onclick="toggleEmgMode()" style="position:relative">⚠ Emergency<span id="emgModeCount" style="display:none;position:absolute;top:-5px;right:-5px;background:#e74c3c;color:#fff;border-radius:10px;font-size:.6rem;font-weight:700;padding:1px 5px;min-width:16px;text-align:center"></span></button>
   </div>
 </div>
 
@@ -296,15 +310,18 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
 </div>
 
 <script>
-const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-production-prints';
+const API     = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-production-prints';
+const INV_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-inventory';
 const A4_W = 2480, A4_H = 3508, MARGIN = 118, GAP = 59;
 
 let allProducts = [];
 let links = {};
 let filtered = [];
 let selectedHandles = new Set();
-let accessErrors = new Set(); // handles where Drive thumbnail returned 403
+let accessErrors = new Set();
 let editingHandle = null;
+let emgMode = false;
+let emgGroups = [];
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
@@ -551,18 +568,22 @@ function toggleSelectAll(checked) {
 }
 
 function cancelSelect() {
+  const hadHandles = [...selectedHandles];
   selectedHandles.clear();
   document.getElementById('selAllChk').checked = false;
   filtered.forEach(p => updateRowUI(p.handle));
+  hadHandles.forEach(h => updateRowUI(h));
   updateSelBar();
 }
 
 function updateRowUI(handle) {
-  const row = document.getElementById(`row-${handle}`);
-  const chk = row?.querySelector('.row-chk');
   const sel = selectedHandles.has(handle);
-  if (row) row.classList.toggle('selected', sel);
-  if (chk) { chk.classList.toggle('checked', sel); chk.textContent = sel ? '✓' : ''; }
+  for (const id of [`row-${handle}`, `emg-row-${handle}`]) {
+    const row = document.getElementById(id);
+    const chk = row?.querySelector('.row-chk');
+    if (row) row.classList.toggle('selected', sel);
+    if (chk) { chk.classList.toggle('checked', sel); chk.textContent = sel ? '✓' : ''; }
+  }
 }
 
 function updateSelBar() {
@@ -1011,6 +1032,104 @@ function extractDriveId(url) {
   if (!url) return null;
   const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   return m ? m[1] : null;
+}
+
+// ── EMERGENCY MODE ────────────────────────────────────────────────────────────
+
+async function toggleEmgMode() {
+  if (emgMode) {
+    emgMode = false;
+    document.getElementById('emgModeBtn').classList.remove('accent');
+    document.getElementById('listWrap').style.display = '';
+    document.getElementById('emgWrap')?.remove();
+    cancelSelect();
+    filterList();
+  } else {
+    emgMode = true;
+    document.getElementById('emgModeBtn').classList.add('accent');
+    document.getElementById('listWrap').style.display = 'none';
+    cancelSelect();
+    await loadEmergencyMode();
+  }
+}
+
+async function loadEmergencyMode() {
+  let wrap = document.getElementById('emgWrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'emgWrap';
+    wrap.style.padding = '8px 10px';
+    document.getElementById('listWrap').insertAdjacentElement('afterend', wrap);
+  }
+  wrap.innerHTML = '<div class="loading-msg"><span class="spinner"></span> Loading emergencies…</div>';
+
+  try {
+    const r = await fetch(INV_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'load_all_emergencies' }) });
+    const res = await r.json();
+    emgGroups = res.groups || [];
+
+    const countEl = document.getElementById('emgModeCount');
+    if (emgGroups.length) { countEl.textContent = emgGroups.length; countEl.style.display = ''; }
+    else countEl.style.display = 'none';
+
+    if (!emgGroups.length) {
+      wrap.innerHTML = '<div class="empty-msg">No outstanding emergencies — all fulfilled ✅</div>';
+      return;
+    }
+
+    const banner = `<div class="emg-banner"><strong>⚠ ${emgGroups.reduce((s,g)=>s+g.units.length,0)} emergency units</strong> across ${emgGroups.length} designs — select and download images below</div>`;
+    const rows = emgGroups.map(g => emgRowHTML(g)).join('');
+    wrap.innerHTML = banner + '<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">' + rows + '</div>';
+  } catch(e) {
+    wrap.innerHTML = `<div class="loading-msg">Error: ${e.message}</div>`;
+  }
+}
+
+function emgRowHTML(g) {
+  const lk = links[g.handle] || {};
+  const isSelected = selectedHandles.has(g.handle);
+
+  const thumbSrc = lk.image_url
+    ? lk.image_url
+    : lk.thumbnail_link
+      ? lk.thumbnail_link.replace(/=s\d+$/, '=s300')
+      : (lk.drive_id ? `https://drive.google.com/thumbnail?id=${lk.drive_id}&sz=w300` : null);
+
+  const thumbInner = thumbSrc
+    ? `<img src="${thumbSrc}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div style=\'color:var(--muted);font-size:.65rem;text-align:center\'>No img</div>'">`
+    : `<div style="color:var(--muted);font-size:.65rem;text-align:center">No img</div>`;
+
+  const orderNums = g.units.slice(0, 5).map(u => u.order_name || u.order_id).join(', ') + (g.units.length > 5 ? '…' : '');
+
+  return `<div class="emg-row-simple${isSelected ? ' selected' : ''}" id="emg-row-${g.handle}" onclick="emgRowClick(event,'${g.handle}')">
+    <div class="row-chk${isSelected ? ' checked' : ''}">${isSelected ? '✓' : ''}</div>
+    <div class="emg-row-thumb">${thumbInner}</div>
+    <div class="emg-row-info">
+      <div class="emg-row-title">${escHtml(g.title)}</div>
+      <div class="emg-row-orders">${orderNums}</div>
+    </div>
+    <span class="emg-order-badge">${g.units.length} pending</span>
+    <div class="dl-wrap" id="dlw-${g.handle}">
+      <button class="act-btn orange" onclick="toggleDlMenu('${g.handle}',event)">⬇ PDF ▾</button>
+      <div class="dl-menu">
+        <button onclick="genPDF('${g.handle}','single')">Single A4</button>
+        <button onclick="genPDF('${g.handle}','tile2')">Tile ×2</button>
+        <button onclick="genPDF('${g.handle}','tilemax')">Tile Max</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function emgRowClick(e, handle) {
+  if (e.target.closest('button,.dl-wrap')) return;
+  toggleSelect(handle);
+  const row = document.getElementById('emg-row-' + handle);
+  if (row) {
+    const sel = selectedHandles.has(handle);
+    row.classList.toggle('selected', sel);
+    row.querySelector('.row-chk').className = 'row-chk' + (sel ? ' checked' : '');
+    row.querySelector('.row-chk').textContent = sel ? '✓' : '';
+  }
 }
 
 async function apiFetch(body) {
