@@ -492,6 +492,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-unit-order { font-weight: 700; color: var(--ink2); flex-shrink: 0; }
 .emg-unit-color { background: var(--bg2); border-radius: 10px; padding: 2px 8px; font-size: .72rem; color: var(--ink2); flex-shrink: 0; }
 .emg-unit-days  { margin-left: auto; font-size: .72rem; color: var(--red); font-weight: 700; white-space: nowrap; }
+.emg-dismiss-btn {
+  margin-left: auto; background: none; border: none; color: var(--muted);
+  font-size: .8rem; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;
+}
+.emg-dismiss-btn:hover { color: var(--red); background: #fff0ee; }
 
 /* receive stock modal */
 .recv-modal {
@@ -1708,15 +1713,17 @@ function renderEmgGroups() {
     const oldest = g.units[0]?.emergency_at;
     const days = daysSince(oldest);
     const daysLabel = days !== null ? (days === 0 ? 'today' : `${days}d ago`) : '';
-    const unitRows = g.units.map(u => {
-      const d = daysSince(u.emergency_at);
-      const dLabel = d === 0 ? 'today' : d !== null ? `${d}d ago` : '';
-      const dateStr = u.emergency_at ? new Date(u.emergency_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : u.date;
-      return `<div class="emg-unit-row">
-        <span class="emg-unit-date">${dateStr}</span>
+    const unitRows = g.units.map((u, ui) => {
+      // show order date (u.date = YYYY-MM-DD IST), not emergency_at
+      const orderDateStr = u.date
+        ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        : '—';
+      const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
+      return `<div class="emg-unit-row" id="emgunit-${gi}-${ui}">
+        <span class="emg-unit-date">${orderDateStr}</span>
         <span class="emg-unit-order">${u.order_name || u.order_id}</span>
         ${u.color ? `<span class="emg-unit-color">${u.color}</span>` : ''}
-        <span class="emg-unit-days">${dLabel}</span>
+        <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
       </div>`;
     }).join('');
 
@@ -1739,6 +1746,26 @@ function renderEmgGroups() {
 function toggleEmgGroup(gi) {
   const el = document.getElementById(`emg-group-${gi}`);
   if (el) el.classList.toggle('open');
+}
+
+async function dismissEmgUnit(gi, ui, u) {
+  const rowEl = document.getElementById(`emgunit-${gi}-${ui}`);
+  if (rowEl) { rowEl.style.opacity = '0.4'; rowEl.style.pointerEvents = 'none'; }
+  try {
+    await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    // remove from local state
+    const g = allEmgGroups[gi];
+    if (g) {
+      g.units.splice(ui, 1);
+      if (!g.units.length) allEmgGroups.splice(gi, 1);
+    }
+    renderEmgGroups();
+    syncRecvBadges();
+    updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.length, 0));
+  } catch (e) {
+    if (rowEl) { rowEl.style.opacity = ''; rowEl.style.pointerEvents = ''; }
+    toast('Dismiss failed: ' + e.message);
+  }
 }
 
 // ── STOCK RECEIVED MODAL ──────────────────────────────────────────────────────
