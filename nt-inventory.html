@@ -807,6 +807,10 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
     <button class="btn btn-ghost" onclick="downloadPDF()" style="margin-left:auto">⬇ PDF</button>
   </div>
+  <div class="emg-view-tabs" style="margin-bottom:10px">
+    <button class="emg-tab active" id="ordersTabAll" onclick="setOrdersFilter('all')">All orders</button>
+    <button class="emg-tab" id="ordersTabEmg" onclick="setOrdersFilter('emg')">Emergency only</button>
+  </div>
   <div class="color-chips" id="colorChips"></div>
   <div class="design-groups" id="designGroups">
     <div class="empty-state"><div class="icon">📋</div><p>Select a date above to load orders</p></div>
@@ -1383,6 +1387,15 @@ function editStock(handle) {
 
 // ── ORDERS ────────────────────────────────────────────────────────────────────
 
+let ordersFilter = 'all'; // 'all' | 'emg'
+
+function setOrdersFilter(f) {
+  ordersFilter = f;
+  document.getElementById('ordersTabAll').classList.toggle('active', f === 'all');
+  document.getElementById('ordersTabEmg').classList.toggle('active', f === 'emg');
+  renderOrders();
+}
+
 async function loadOrders() {
   const date = document.getElementById('ordersDate').value;
   if (!date) return;
@@ -1406,9 +1419,10 @@ async function loadOrders() {
 }
 
 function renderOrders() {
-  const units = activeColor
-    ? currentUnits.filter(u => u.color.toLowerCase().includes(activeColor.toLowerCase()))
+  let units = ordersFilter === 'emg'
+    ? currentUnits.filter(u => u.is_emergency)
     : currentUnits;
+  if (activeColor) units = units.filter(u => u.color && u.color.toLowerCase().includes(activeColor.toLowerCase()));
 
   // update total
   const pill = document.getElementById('ordersTotalPill');
@@ -1659,7 +1673,7 @@ async function loadEmgDate(date) {
 
 async function loadEmgDateView() {
   document.getElementById('emgList').innerHTML =
-    [...Array(3)].map(() => '<div class="loading-row" style="height:52px;border-radius:8px"></div>').join('');
+    [...Array(3)].map(() => '<div class="loading-row" style="height:68px;border-radius:10px"></div>').join('');
   try {
     const res = await api({ action: 'load_emergency', date: emgDate });
     const units = res.units || [];
@@ -1668,16 +1682,23 @@ async function loadEmgDateView() {
         '<div class="empty-state"><div class="icon">✅</div><p>No emergency units for this date</p></div>';
       return;
     }
-    document.getElementById('emgList').innerHTML = units.map(u => `
-      <div class="emg-row">
-        <span class="emg-icon">⚠</span>
-        <div class="emg-title">
-          <strong>${u.title}</strong>
-          <span>${u.color || '—'}</span>
+    // Group by design title
+    const groups = {};
+    for (const u of units) {
+      const k = u.title || u.handle || 'unknown';
+      if (!groups[k]) groups[k] = { title: u.title, units: [] };
+      groups[k].units.push(u);
+    }
+    document.getElementById('emgList').innerHTML = Object.values(groups).map(g => {
+      const orders = g.units.map(u => u.order_name || u.order_id).join(', ');
+      return `<div class="emg-group">
+        <div class="emg-group-head" style="cursor:default">
+          <span class="emg-count-pill">${g.units.length}</span>
+          <span style="flex:1;font-weight:700;font-size:.9rem">${g.title}</span>
+          <span style="font-size:.75rem;color:var(--muted)">${orders}</span>
         </div>
-        <span class="emg-order">${u.order_name || u.order_id}</span>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   } catch (e) { toast('Failed to load emergency: ' + e.message); }
 }
 
@@ -1722,7 +1743,6 @@ function renderEmgGroups() {
       return `<div class="emg-unit-row" id="emgunit-${gi}-${ui}">
         <span class="emg-unit-date">${orderDateStr}</span>
         <span class="emg-unit-order">${u.order_name || u.order_id}</span>
-        ${u.color ? `<span class="emg-unit-color">${u.color}</span>` : ''}
         <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
       </div>`;
     }).join('');
