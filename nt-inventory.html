@@ -650,7 +650,10 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 /* ── print ── */
 @media print {
   .app-header, .toolbar, .date-bar, .color-chips, .unit-btn,
-  .nav-btn, .csv-bar, .dg-chevron, .dg-actions-row { display: none !important; }
+  .nav-btn, .csv-bar, .dg-chevron, .dg-actions-row,
+  .emg-toolbar, .emg-dismiss-btn, .emg-fulfil-btn { display: none !important; }
+  .emg-group-body { display: block !important; }
+  .emg-group { break-inside: avoid; }
   body { background: #fff; }
   .view { padding: 6px; }
   .page-hd { margin-bottom: 6px; }
@@ -828,7 +831,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
       <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
     </div>
-    <button class="btn btn-ghost" style="margin-left:auto" onclick="loadAllEmergencies()">↻ Refresh</button>
+    <button class="btn btn-ghost" onclick="downloadEmgPDF()">⬇ PDF</button>
+    <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
   </div>
 
   <!-- grouped by item view -->
@@ -1766,6 +1770,20 @@ function renderEmgGroups() {
 function toggleEmgGroup(gi) {
   const el = document.getElementById(`emg-group-${gi}`);
   if (el) el.classList.toggle('open');
+}
+
+function downloadEmgPDF() {
+  const toClose = [];
+  document.querySelectorAll('.emg-group:not(.open)').forEach(g => {
+    g.classList.add('open');
+    toClose.push(g);
+  });
+  const handler = () => {
+    toClose.forEach(g => g.classList.remove('open'));
+    window.removeEventListener('afterprint', handler);
+  };
+  window.addEventListener('afterprint', handler);
+  window.print();
 }
 
 async function dismissEmgUnit(gi, ui, u) {
