@@ -176,6 +176,19 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .inv-order-count { display: flex; flex-direction: column; align-items: center; gap: 1px; }
 .inv-order-count span:first-child { font-weight: 600; }
 .cmp-delta { font-size: .65rem; font-weight: 600; line-height: 1; }
+.inv-recv {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .8rem;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: border-color .15s, color .15s, background .15s;
+  flex-shrink: 0;
+}
+.inv-recv:hover { border-color: var(--green); background: #f0faf4; }
+.inv-recv.has-emg { border-color: var(--red); color: var(--red); background: #fff5f5; }
 .inv-del {
   background: none;
   border: 1px solid var(--line);
@@ -480,21 +493,44 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-unit-color { background: var(--bg2); border-radius: 10px; padding: 2px 8px; font-size: .72rem; color: var(--ink2); flex-shrink: 0; }
 .emg-unit-days  { margin-left: auto; font-size: .72rem; color: var(--red); font-weight: 700; white-space: nowrap; }
 
-/* fulfil modal */
-.fulfil-modal {
+/* receive stock modal */
+.recv-modal {
   background: #fff;
   border-radius: 14px;
-  padding: 22px;
-  width: min(380px, 90vw);
+  padding: 24px;
+  width: min(400px, 92vw);
   box-shadow: 0 12px 40px rgba(0,0,0,.2);
 }
-.fulfil-modal h3 { font-family: var(--ff); font-size: 1rem; color: var(--ink); margin-bottom: 6px; }
-.fulfil-modal p  { font-size: .8rem; color: var(--muted); margin-bottom: 16px; }
-.fulfil-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.fulfil-row label { font-size: .82rem; color: var(--ink2); flex: 1; }
-.fulfil-row input { width: 70px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
-  font-family: var(--fb); font-size: .9rem; text-align: center; color: var(--ink); }
-.fulfil-row input:focus { border-color: var(--accent); outline: none; }
+.recv-modal h3 { font-family: var(--ff); font-size: 1.05rem; color: var(--ink); margin-bottom: 4px; }
+.recv-modal .recv-subtitle { font-size: .78rem; color: var(--muted); margin-bottom: 18px; }
+.recv-status-bar {
+  display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.recv-stat {
+  flex: 1; min-width: 90px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; text-align: center;
+}
+.recv-stat .rs-num { font-size: 1.3rem; font-weight: 700; color: var(--ink); display: block; }
+.recv-stat .rs-lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.recv-stat.emg-stat .rs-num { color: var(--red); }
+.recv-stat.stock-stat .rs-num { color: var(--green); }
+.recv-input-row {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+}
+.recv-input-row label { font-size: .85rem; font-weight: 700; color: var(--ink2); flex: 1; }
+.recv-input-row input {
+  width: 80px; padding: 9px 12px; border: 2px solid var(--accent); border-radius: 10px;
+  font-family: var(--fb); font-size: 1.1rem; font-weight: 700; text-align: center; color: var(--ink);
+  outline: none;
+}
+.recv-allocation {
+  background: var(--bg); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px;
+  font-size: .82rem; color: var(--ink2); line-height: 1.8;
+}
+.recv-allocation .alloc-emg  { color: var(--red); font-weight: 700; }
+.recv-allocation .alloc-stock { color: var(--green); font-weight: 700; }
+.recv-allocation .alloc-none  { color: var(--muted); font-style: italic; }
 
 /* date view (legacy / by-date) */
 .emg-date-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -802,18 +838,29 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   </div>
 </div>
 
-<!-- fulfil modal -->
-<div class="modal-backdrop" id="fulfilModal" onclick="closeFulfilModal(event)">
-  <div class="fulfil-modal">
-    <h3 id="fulfilTitle">Fulfil emergency</h3>
-    <p id="fulfilDesc"></p>
-    <div class="fulfil-row">
-      <label>Units produced / sourced:</label>
-      <input id="fulfilCount" type="number" min="1" value="1">
+<!-- stock received modal -->
+<div class="modal-backdrop" id="recvModal" onclick="closeRecvModal(event)">
+  <div class="recv-modal">
+    <h3 id="recvTitle">Stock Received</h3>
+    <p class="recv-subtitle" id="recvSubtitle"></p>
+    <div class="recv-status-bar">
+      <div class="recv-stat emg-stat">
+        <span class="rs-num" id="recvEmgCount">0</span>
+        <span class="rs-lbl">Emergency</span>
+      </div>
+      <div class="recv-stat stock-stat">
+        <span class="rs-num" id="recvCurStock">—</span>
+        <span class="rs-lbl">In stock</span>
+      </div>
     </div>
+    <div class="recv-input-row">
+      <label>Units received today:</label>
+      <input id="recvQty" type="number" min="1" value="1" oninput="updateRecvAllocation()">
+    </div>
+    <div class="recv-allocation" id="recvAllocation"></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="document.getElementById('fulfilModal').classList.remove('open')">Cancel</button>
-      <button class="btn btn-primary" id="fulfilSubmitBtn" onclick="submitFulfil()">Mark Fulfilled</button>
+      <button class="btn btn-ghost" onclick="closeRecvModal()">Cancel</button>
+      <button class="btn btn-primary" id="recvSubmitBtn" onclick="submitRecv()">Save</button>
     </div>
   </div>
 </div>
@@ -905,6 +952,7 @@ function switchView(view) {
     if (!allEmgGroups.length) {
       api({ action: 'load_all_emergencies' }).then(res => {
         allEmgGroups = res.groups || [];
+        syncRecvBadges();
         renderCutList();
       }).catch(() => renderCutList());
     } else {
@@ -1285,6 +1333,7 @@ function renderInventory() {
       <div class="stock-chip ${chipClass}" id="chip-${p.handle}">
         ${chipInner}
       </div>
+      <button class="inv-recv" id="recv-${p.handle}" onclick="openRecvModal('${p.handle}', event)" title="Stock received">📦</button>
       <button class="inv-del" onclick="deleteProduct('${p.handle}', '${p.title.replace(/'/g,"\\'")}', event)" title="Remove from inventory">✕</button>
     </div>`;
   }).join('');
@@ -1576,8 +1625,6 @@ async function markEmergency(u) {
 let emgDate = todayIST();
 let emgView = 'all'; // 'all' | 'date'
 let allEmgGroups = []; // cached from last load
-let fulfilHandle = '';
-let fulfilMax    = 0;
 
 function setEmgView(v) {
   emgView = v;
@@ -1636,6 +1683,7 @@ async function loadAllEmergencies() {
     const res = await api({ action: 'load_all_emergencies' });
     allEmgGroups = res.groups || [];
     renderEmgGroups();
+    syncRecvBadges();
     updateEmergencyBadge(res.total || 0);
     const subtitle = res.total
       ? `${res.total} unit${res.total !== 1 ? 's' : ''} outstanding across ${allEmgGroups.length} design${allEmgGroups.length !== 1 ? 's' : ''}`
@@ -1680,7 +1728,7 @@ function renderEmgGroups() {
           <div class="emg-group-meta">Oldest: ${daysLabel}</div>
         </div>
         <span class="emg-count-pill">${g.units.length} unit${g.units.length !== 1 ? 's' : ''}</span>
-        <button class="emg-fulfil-btn" onclick="event.stopPropagation();openFulfilModal('${g.handle}','${g.title.replace(/'/g,"\\'")}',${g.units.length})">Fulfil</button>
+        <button class="emg-fulfil-btn" onclick="event.stopPropagation();openRecvModal('${g.handle}')">📦 Received</button>
         <span class="emg-group-chevron">▼</span>
       </div>
       <div class="emg-group-body">${unitRows}</div>
@@ -1693,46 +1741,104 @@ function toggleEmgGroup(gi) {
   if (el) el.classList.toggle('open');
 }
 
-function openFulfilModal(handle, title, max) {
-  fulfilHandle = handle;
-  fulfilMax    = max;
-  document.getElementById('fulfilTitle').textContent = `Fulfil: ${title}`;
-  document.getElementById('fulfilDesc').textContent  = `${max} unit${max !== 1 ? 's' : ''} outstanding. Enter how many you produced or sourced stock for — the oldest orders are marked first.`;
-  document.getElementById('fulfilCount').value = max;
-  document.getElementById('fulfilCount').max   = max;
-  document.getElementById('fulfilModal').classList.add('open');
-  setTimeout(() => document.getElementById('fulfilCount').focus(), 50);
+// ── STOCK RECEIVED MODAL ──────────────────────────────────────────────────────
+
+let recvHandle = '';
+let recvEmgPending = 0; // outstanding emergency units for this handle
+let recvCurrentStock = null;
+
+function openRecvModal(handle, e) {
+  if (e) e.stopPropagation();
+  const p = allProducts.find(x => x.handle === handle);
+  if (!p) return;
+  const g = allEmgGroups.find(x => x.handle === handle);
+
+  recvHandle       = handle;
+  recvEmgPending   = g ? g.units.length : 0;
+  recvCurrentStock = p.stock;
+
+  document.getElementById('recvTitle').textContent = p.title;
+  document.getElementById('recvSubtitle').textContent =
+    recvEmgPending > 0
+      ? `${recvEmgPending} emergency order${recvEmgPending !== 1 ? 's' : ''} outstanding — received stock will fill these first.`
+      : 'No emergency orders for this design.';
+  document.getElementById('recvEmgCount').textContent = recvEmgPending;
+  document.getElementById('recvCurStock').textContent = recvCurrentStock !== null ? recvCurrentStock : '—';
+  document.getElementById('recvQty').value = recvEmgPending > 0 ? recvEmgPending : 1;
+  updateRecvAllocation();
+  document.getElementById('recvModal').classList.add('open');
+  setTimeout(() => document.getElementById('recvQty').focus(), 50);
 }
 
-function closeFulfilModal(e) {
-  if (e && e.target !== document.getElementById('fulfilModal')) return;
-  document.getElementById('fulfilModal').classList.remove('open');
+function closeRecvModal(e) {
+  if (e && e.target !== document.getElementById('recvModal')) return;
+  document.getElementById('recvModal').classList.remove('open');
 }
 
-async function submitFulfil() {
-  const count = Math.min(parseInt(document.getElementById('fulfilCount').value) || 0, fulfilMax);
-  if (!count) { toast('Enter how many units were fulfilled'); return; }
+function updateRecvAllocation() {
+  const qty = parseInt(document.getElementById('recvQty').value) || 0;
+  const toEmg = Math.min(qty, recvEmgPending);
+  const toStock = qty - toEmg;
+  const newStock = (recvCurrentStock !== null ? recvCurrentStock : 0) + toStock;
+  const el = document.getElementById('recvAllocation');
+  let html = '';
+  if (toEmg > 0)    html += `<span class="alloc-emg">⚠ ${toEmg} unit${toEmg !== 1 ? 's' : ''} → emergency orders (oldest first)</span><br>`;
+  if (toStock > 0)  html += `<span class="alloc-stock">📦 ${toStock} unit${toStock !== 1 ? 's' : ''} → stock (new total: ${newStock})</span>`;
+  if (!toEmg && !toStock) html = '<span class="alloc-none">Enter how many pieces were received</span>';
+  if (toEmg > 0 && recvEmgPending - toEmg > 0) html += `<br><span style="color:var(--muted);font-size:.75rem">${recvEmgPending - toEmg} emergency unit${recvEmgPending - toEmg !== 1 ? 's' : ''} still outstanding after this</span>`;
+  el.innerHTML = html;
+}
 
-  const btn = document.getElementById('fulfilSubmitBtn');
+async function submitRecv() {
+  const qty = parseInt(document.getElementById('recvQty').value) || 0;
+  if (qty <= 0) { toast('Enter a quantity'); return; }
+
+  const btn = document.getElementById('recvSubmitBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
-    const res = await api({ action: 'fulfil_emergency', handle: fulfilHandle, count });
-    document.getElementById('fulfilModal').classList.remove('open');
-    toast(`✓ Marked ${res.fulfilled} unit${res.fulfilled !== 1 ? 's' : ''} as fulfilled`);
-    // update local state
-    const g = allEmgGroups.find(x => x.handle === fulfilHandle);
-    if (g) {
-      g.units.splice(0, res.fulfilled);
-      if (!g.units.length) allEmgGroups = allEmgGroups.filter(x => x.handle !== fulfilHandle);
+    const res = await api({ action: 'receive_stock', handle: recvHandle, qty_received: qty });
+    document.getElementById('recvModal').classList.remove('open');
+
+    // Update local product stock
+    const p = allProducts.find(x => x.handle === recvHandle);
+    if (p) p.stock = res.new_stock;
+
+    // Update local emergency groups
+    if (res.fulfilled_emergency > 0) {
+      const g = allEmgGroups.find(x => x.handle === recvHandle);
+      if (g) {
+        g.units.splice(0, res.fulfilled_emergency);
+        if (!g.units.length) allEmgGroups = allEmgGroups.filter(x => x.handle !== recvHandle);
+      }
     }
+
+    renderInventory();
     renderEmgGroups();
+    syncRecvBadges();
     updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.length, 0));
-  } catch (e) {
-    toast('Failed: ' + e.message);
+
+    let msg = '✓ Saved.';
+    if (res.fulfilled_emergency > 0) msg += ` ${res.fulfilled_emergency} emergency fulfilled.`;
+    if (res.added_to_stock > 0)      msg += ` Stock +${res.added_to_stock} → ${res.new_stock}.`;
+    toast(msg);
+  } catch (err) {
+    toast('Failed: ' + err.message);
   } finally {
-    btn.disabled = false; btn.textContent = 'Mark Fulfilled';
+    btn.disabled = false; btn.textContent = 'Save';
   }
+}
+
+function syncRecvBadges() {
+  // highlight recv button red if there are outstanding emergencies for that handle
+  document.querySelectorAll('[id^="recv-"]').forEach(btn => {
+    const handle = btn.id.replace(/^recv-/, '');
+    const hasEmg = allEmgGroups.some(g => g.handle === handle);
+    btn.classList.toggle('has-emg', hasEmg);
+    btn.title = hasEmg
+      ? `${allEmgGroups.find(g=>g.handle===handle).units.length} emergency outstanding — tap to receive stock`
+      : 'Stock received';
+  });
 }
 
 async function loadEmergencyView() {
@@ -1998,7 +2104,10 @@ function sendCutListToProduction() {
 // ── START ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.getElementById('addModal').classList.remove('open');
+  if (e.key === 'Escape') {
+    document.getElementById('addModal').classList.remove('open');
+    document.getElementById('recvModal').classList.remove('open');
+  }
   if (e.key === 'Enter' && document.getElementById('addModal').classList.contains('open')) submitAddProduct();
 });
 
