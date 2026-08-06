@@ -296,8 +296,7 @@ function rowHTML(r) {
         <input class="awb-input${r.bdStatus?.ok ? ' verified' : r.bdStatus?.error ? ' err' : ''}"
           id="awb-${r.order_name}" type="text" placeholder="Enter AWB number"
           inputmode="numeric" maxlength="15" value="${escHtml(r.awbInput)}">
-        <button class="act-btn" onclick="verifyOne('${r.order_name}')">🔍 Verify</button>
-        <button class="act-btn push" onclick="pushRow('${r.order_name}')" ${!r.awbInput ? 'disabled' : ''}>⬆ Push</button>
+<button class="act-btn push" onclick="pushRow('${r.order_name}')" ${!r.awbInput ? 'disabled' : ''}>⬆ Push</button>
       </div>`;
 
   const addrHtml = (r.address || r.phone) ? `<div class="tr-addr">
