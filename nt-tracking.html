@@ -370,6 +370,8 @@ function bdStatusHtml(r) {
       ${locTime}
       ${journeyToggle}
     </div>
+    <div style="font-size:.65rem;color:#888;margin-top:3px">code=${escHtml(String(s.statusCode))} desc=${escHtml(String(s.statusDesc))} scans=${(s.scans||[]).length} delivered=${s.delivered}</div>
+    <details style="font-size:.6rem;color:#aaa;max-width:100%;overflow:auto"><summary>raw</summary><pre>${escHtml((s._raw||'').slice(0,400))}</pre></details>
     ${journeyBody}
   </div>`;
 }
