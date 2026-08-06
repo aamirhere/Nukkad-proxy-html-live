@@ -190,32 +190,36 @@ async function fetchAllAwbs() {
   const needAwb = rows.filter(r => !r.awbInput);
   if (needAwb.length) {
     const refNos = needAwb.map(r => r.order_name.replace(/^#/, ''));
-    setFetchStatus(`⏳ Looking up ${refNos.length} AWBs from BlueDart…`);
+    setFetchStatus(`⏳ Fetching AWBs + status for ${refNos.length} orders…`);
     try {
       const data = await apiFetch({ action: 'find_awbs_bulk', ref_nos: refNos });
       let found = 0;
       for (const res of data.results || []) {
         if (!res.awb) continue;
         const r = rows.find(x => x.order_name.replace(/^#/, '') === String(res.refNo));
-        if (r) { r.awbInput = res.awb; r.bdStatus = null; found++; }
+        if (!r) continue;
+        r.awbInput = res.awb;
+        // Tracking data comes back in the same response — no second call needed
+        r.bdStatus = { ok: true, statusCode: res.statusCode, statusDesc: res.statusDesc,
+                       statusTime: res.statusTime, dest: res.dest, delivered: res.delivered,
+                       latestScan: res.latestScan };
+        found++;
       }
-      setFetchStatus(found ? `✓ ${found} AWBs found` : '⚠ No AWBs matched — try CSV or check ref lookup');
+      setFetchStatus(found ? `✓ ${found} shipments tracked` : '⚠ No matches — BlueDart ref lookup returned nothing');
     } catch(e) {
       setFetchStatus('⚠ AWB lookup failed: ' + e.message);
     }
     renderRows();
     updatePending();
+    setTimeout(() => setFetchStatus(''), 5000);
   }
 
-  // Step 2: fetch live tracking status for all rows that now have an AWB
-  const withAwb = rows.filter(r => r.awbInput);
-  if (withAwb.length) {
-    setFetchStatus(`⏳ Fetching tracking status for ${withAwb.length} shipments…`);
-    await autofetchBluedart(withAwb);
-    setFetchStatus(`✓ Done — ${withAwb.length} shipments tracked`);
-    setTimeout(() => setFetchStatus(''), 4000);
-  } else {
-    setTimeout(() => setFetchStatus(''), 4000);
+  // For rows that already had an AWB (from Shopify) but no status yet, fetch status separately
+  const needStatus = rows.filter(r => r.awbInput && !r.bdStatus);
+  if (needStatus.length) {
+    setFetchStatus(`⏳ Fetching status for ${needStatus.length} existing AWBs…`);
+    await autofetchBluedart(needStatus);
+    setFetchStatus('');
   }
 }
 
