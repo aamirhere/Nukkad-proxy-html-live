@@ -189,21 +189,19 @@ async function fetchAllAwbs() {
 
   if (needAwb.length) {
     const refNos = needAwb.map(r => r.order_name.replace(/^#/, ''));
-    // Batch in chunks of 20 to avoid timeout
-    const CHUNK = 20;
-    for (let i = 0; i < refNos.length; i += CHUNK) {
-      const chunk = refNos.slice(i, i + CHUNK);
-      btn.textContent = `⏳ Fetching AWBs… ${Math.min(i + CHUNK, refNos.length)}/${refNos.length}`;
-      try {
-        const data = await apiFetch({ action: 'find_awbs_bulk', ref_nos: chunk });
-        for (const res of data.results || []) {
-          if (!res.awb) continue;
-          // Match by ref_no (order number without #)
-          const r = rows.find(x => x.order_name.replace(/^#/, '') === String(res.refNo));
-          if (r) { r.awbInput = res.awb; r.bdStatus = null; }
-        }
-      } catch(e) { /* continue on chunk error */ }
-    }
+    btn.textContent = `⏳ Fetching AWBs for ${refNos.length} orders…`;
+    try {
+      const data = await apiFetch({ action: 'find_awbs_bulk', ref_nos: refNos });
+      let found = 0;
+      for (const res of data.results || []) {
+        if (!res.awb) continue;
+        const r = rows.find(x => x.order_name.replace(/^#/, '') === String(res.refNo));
+        if (r) { r.awbInput = res.awb; r.bdStatus = null; found++; }
+      }
+      if (!found && data.results?.length) {
+        toast('BlueDart returned no AWB matches — ref lookup may use different param. Try CSV import.');
+      }
+    } catch(e) { toast('AWB fetch error: ' + e.message); }
     renderRows();
     updatePending();
   }
