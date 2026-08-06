@@ -88,6 +88,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 
 <div class="header">
   <h1>📦 BlueDart → Shopify</h1>
+  <button class="hbtn accent" id="fetchAwbBtn" onclick="fetchAllAwbs()" style="display:none">🔄 Fetch AWBs from BlueDart</button>
   <label class="hbtn" style="cursor:pointer">↑ CSV<input type="file" accept=".csv,text/csv" style="display:none" onchange="importCsv(this)"></label>
   <a href="nt-inventory.html" class="hbtn">← Inventory</a>
 </div>
@@ -100,7 +101,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
   <div class="filter-tabs" id="filterTabs">
     <button class="ftab active" onclick="setFilter('all')">All</button>
     <button class="ftab" onclick="setFilter('no_tracking')">No tracking</button>
-    <button class="ftab" onclick="setFilter('has_awb')">AWB entered</button>
+    <button class="ftab" onclick="setFilter('has_awb')">AWB found</button>
   </div>
 </div>
 
@@ -147,6 +148,7 @@ async function loadOrders() {
 
   document.getElementById('wrap').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Loading orders…</div>';
   document.getElementById('totalBadge').style.display = 'none';
+  document.getElementById('fetchAwbBtn').style.display = 'none';
 
   try {
     const data = await apiFetch({ action: 'load_orders', date_from: dateFrom, date_to: dateTo || dateFrom });
@@ -163,13 +165,59 @@ async function loadOrders() {
 
     renderRows();
 
-    // Auto-fetch BlueDart status for all orders that have an AWB
-    const withAwb = rows.filter(r => r.awbInput);
-    if (withAwb.length) autofetchBluedart(withAwb);
+    if (n > 0) {
+      // Auto-fetch AWBs from BlueDart by order reference, then fetch status
+      fetchAllAwbs();
+    }
 
   } catch(e) {
     document.getElementById('wrap').innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
   }
+}
+
+// Fetch AWBs from BlueDart using Shopify order numbers as reference numbers
+async function fetchAllAwbs() {
+  if (!rows.length) return;
+  const btn = document.getElementById('fetchAwbBtn');
+  btn.style.display = '';
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching AWBs…';
+
+  // Only fetch for orders that don't already have an AWB from Shopify
+  const needAwb = rows.filter(r => !r.awbInput);
+  const alreadyHave = rows.filter(r => r.awbInput);
+
+  if (needAwb.length) {
+    const refNos = needAwb.map(r => r.order_name.replace(/^#/, ''));
+    // Batch in chunks of 20 to avoid timeout
+    const CHUNK = 20;
+    for (let i = 0; i < refNos.length; i += CHUNK) {
+      const chunk = refNos.slice(i, i + CHUNK);
+      btn.textContent = `⏳ Fetching AWBs… ${Math.min(i + CHUNK, refNos.length)}/${refNos.length}`;
+      try {
+        const data = await apiFetch({ action: 'find_awbs_bulk', ref_nos: chunk });
+        for (const res of data.results || []) {
+          if (!res.awb) continue;
+          // Match by ref_no (order number without #)
+          const r = rows.find(x => x.order_name.replace(/^#/, '') === String(res.refNo));
+          if (r) { r.awbInput = res.awb; r.bdStatus = null; }
+        }
+      } catch(e) { /* continue on chunk error */ }
+    }
+    renderRows();
+    updatePending();
+  }
+
+  // Now auto-fetch BlueDart status for all rows with AWBs
+  const withAwb = rows.filter(r => r.awbInput);
+  if (withAwb.length) {
+    btn.textContent = `⏳ Fetching status for ${withAwb.length} AWBs…`;
+    await autofetchBluedart(withAwb);
+  }
+
+  const found = rows.filter(r => r.awbInput).length;
+  btn.disabled = false;
+  btn.textContent = `🔄 Refresh (${found} AWBs found)`;
 }
 
 // Batch-fetch BlueDart for all rows that have an AWB, update status inline
