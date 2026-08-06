@@ -47,11 +47,24 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 .bd-status.bd-loading{color:var(--muted)}
 .bd-status.bd-ok{background:#e8f8ef}
 .bd-status.bd-delivered{background:#d4edda}
+.bd-status.bd-pending{background:#fff8e1}
 .bd-status.bd-err{background:#fdecea}
 .bd-label{font-weight:700;color:var(--ink2)}
 .bd-desc{color:var(--ink)}
 .bd-loc{color:var(--muted);font-size:.72rem}
 .bd-time{color:var(--muted);font-size:.72rem;margin-left:auto}
+
+/* Journey */
+.journey-toggle{font-size:.72rem;color:var(--accent);cursor:pointer;text-decoration:underline;border:none;background:none;padding:0;margin-left:4px}
+.journey-list{margin-top:5px;border-left:2px solid var(--line);padding-left:10px;display:flex;flex-direction:column;gap:4px}
+.journey-step{font-size:.72rem;color:var(--ink2);display:flex;gap:6px}
+.journey-step .js-time{color:var(--muted);white-space:nowrap;flex-shrink:0}
+.journey-step .js-loc{font-weight:600}
+
+/* Address line */
+.tr-addr{font-size:.73rem;color:var(--ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tr-addr a{color:var(--accent);text-decoration:none}
+.tr-addr a:hover{text-decoration:underline}
 
 /* AWB input row */
 .tr-awb-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -287,14 +300,20 @@ function rowHTML(r) {
         <button class="act-btn push" onclick="pushRow('${r.order_name}')" ${!r.awbInput ? 'disabled' : ''}>⬆ Push</button>
       </div>`;
 
+  const addrHtml = (r.address || r.phone) ? `<div class="tr-addr">
+    ${r.address ? `<span>📍 ${escHtml(r.address)}</span>` : ''}
+    ${r.phone ? `<a href="tel:${escHtml(r.phone)}">📞 ${escHtml(r.phone)}</a>` : ''}
+  </div>` : '';
+
   return `<div class="tr-row${!r.tracking ? ' no-tracking' : ''}${pushed ? ' pushed' : ''}${errored ? ' err-row' : ''}" id="row-${r.order_name}">
     <div class="tr-top">
       <span class="tr-order">${r.order_name}</span>
       <span class="tr-customer">${escHtml(r.customer)}</span>
       <span class="tr-date">${dateStr}</span>
       <span class="tr-fstatus ${fsCls}">${fsLabel}</span>
-      ${r.tracking ? `<span style="font-size:.72rem;color:var(--muted);font-family:monospace">AWB: ${escHtml(r.tracking)}</span>` : ''}
+      ${r.awbInput ? `<span style="font-size:.72rem;color:var(--muted);font-family:monospace">AWB: ${escHtml(r.awbInput)}</span>` : ''}
     </div>
+    ${addrHtml}
     <div id="bd-${r.order_name}">${bdHtml}</div>
     ${awbSection}
     ${r.result ? `<div class="tr-result ${r.result.ok ? 'ok-msg' : 'err-msg'}">${r.result.ok ? `✓ ${(r.result.action||'').replace(/_/g,' ')} — WhatsApp triggered` : `✕ ${escHtml(r.result.error)}`}</div>` : ''}
@@ -307,22 +326,62 @@ function bdStatusHtml(r) {
   if (r.bdStatus.error) return `<div class="bd-status bd-err"><span class="bd-label">BlueDart:</span> <span style="color:var(--red)">${escHtml(r.bdStatus.error)}</span></div>`;
 
   const s = r.bdStatus;
+  const scans = s.scans || (s.latestScan ? [s.latestScan] : []);
+  const latest = scans[scans.length - 1] || null;
   const desc = s.statusDesc || s.statusCode || '';
-  const loc  = s.latestScan?.location || s.dest || '';
-  const time = s.latestScan?.time || s.statusTime || '';
 
-  // Classify status
   const isDelivered = s.delivered;
-  const isBooked    = !s.statusDesc && !s.statusCode; // AWB assigned, not yet picked up
-  const cls  = isDelivered ? 'bd-delivered' : 'bd-ok';
-  const icon = isDelivered ? '✓ Delivered' : isBooked ? '📋 AWB assigned — not dispatched' : '🚚 ' + escHtml(desc);
+  const isBooked    = !desc; // AWB assigned but no status yet — not picked up
+  const cls = isDelivered ? 'bd-delivered' : isBooked ? 'bd-pending' : 'bd-ok';
 
-  return `<div class="bd-status ${cls}">
-    <span class="bd-label">BlueDart:</span>
-    <span class="bd-desc">${isDelivered ? '✓ Delivered — ' + escHtml(desc) : icon}</span>
-    ${loc ? `<span class="bd-loc">📍 ${escHtml(loc)}</span>` : ''}
-    ${time ? `<span class="bd-time">${escHtml(time)}</span>` : ''}
+  const statusLine = isDelivered
+    ? `✓ Delivered — ${escHtml(desc)}`
+    : isBooked
+      ? `📋 AWB assigned — awaiting pickup`
+      : `🚚 ${escHtml(desc)}`;
+
+  const locTime = latest
+    ? `<span class="bd-loc">📍 ${escHtml(latest.location || '')}</span><span class="bd-time">${escHtml(latest.time || '')}</span>`
+    : s.statusTime ? `<span class="bd-time">${escHtml(s.statusTime)}</span>` : '';
+
+  const journeyId = `journey-${r.order_name}`;
+  const journeyHtml = scans.length > 0 ? `
+    <button class="journey-toggle" onclick="toggleJourney('${journeyId}')">▶ Journey (${scans.length})</button>
+    <div id="${journeyId}" class="journey-list" style="display:none">
+      ${[...scans].reverse().map(s => `<div class="journey-step">
+        <span class="js-time">${escHtml(s.time || '')}</span>
+        <span><span class="js-loc">${escHtml(s.location || '')}</span>${s.remark ? ' — ' + escHtml(s.remark) : ''}</span>
+      </div>`).join('')}
+    </div>` : '';
+
+  const journeyToggle = scans.length > 0
+    ? `<button class="journey-toggle" onclick="toggleJourney('${journeyId}')">▶ Journey (${scans.length})</button>` : '';
+  const journeyBody = scans.length > 0
+    ? `<div id="${journeyId}" class="journey-list" style="display:none">${
+        [...scans].reverse().map(sc => `<div class="journey-step">
+          <span class="js-time">${escHtml(sc.time || '')}</span>
+          <span><span class="js-loc">${escHtml(sc.location || '')}</span>${sc.remark ? ' — ' + escHtml(sc.remark) : ''}</span>
+        </div>`).join('')
+      }</div>` : '';
+
+  return `<div class="bd-status ${cls}" style="flex-direction:column;align-items:flex-start">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span class="bd-label">BlueDart:</span>
+      <span class="bd-desc">${statusLine}</span>
+      ${locTime}
+      ${journeyToggle}
+    </div>
+    ${journeyBody}
   </div>`;
+}
+
+function toggleJourney(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const btn = el.previousElementSibling;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'flex';
+  if (btn && btn.classList.contains('journey-toggle')) btn.textContent = btn.textContent.replace(open ? '▼' : '▶', open ? '▶' : '▼');
 }
 
 // Refresh just the BlueDart status div without re-rendering the whole row
