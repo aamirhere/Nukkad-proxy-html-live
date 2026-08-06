@@ -188,39 +188,38 @@ async function fetchAllAwbs() {
 
   // Step 1: fetch AWBs from BlueDart by order reference number
   const needAwb = rows.filter(r => !r.awbInput);
-  if (needAwb.length) {
-    const refNos = needAwb.map(r => r.order_name.replace(/^#/, ''));
-    setFetchStatus(`⏳ Fetching AWBs + status for ${refNos.length} orders…`);
+  // Process all orders that need AWB lookup in batches of 10, update UI after each batch
+  const allOrders = rows; // fetch for ALL orders, including those that already have AWBs
+  const total = allOrders.length;
+  let done = 0, found = 0;
+
+  const BATCH = 10;
+  for (let i = 0; i < total; i += BATCH) {
+    const batch = allOrders.slice(i, i + BATCH);
+    const refNos = batch.map(r => r.order_name.replace(/^#/, ''));
+    setFetchStatus(`⏳ ${done}/${total} orders fetched…`);
     try {
       const data = await apiFetch({ action: 'find_awbs_bulk', ref_nos: refNos });
-      let found = 0;
       for (const res of data.results || []) {
         if (!res.awb) continue;
         const r = rows.find(x => x.order_name.replace(/^#/, '') === String(res.refNo));
         if (!r) continue;
         r.awbInput = res.awb;
-        // Tracking data comes back in the same response — no second call needed
         r.bdStatus = { ok: true, statusCode: res.statusCode, statusDesc: res.statusDesc,
                        statusTime: res.statusTime, dest: res.dest, delivered: res.delivered,
                        latestScan: res.latestScan };
         found++;
+        // Update this row in the DOM immediately without full re-render
+        const rowEl = document.getElementById(`row-${r.order_name}`);
+        if (rowEl) { rowEl.outerHTML = rowHTML(r); attachInputListener(r); }
       }
-      setFetchStatus(found ? `✓ ${found} shipments tracked` : '⚠ No matches — BlueDart ref lookup returned nothing');
-    } catch(e) {
-      setFetchStatus('⚠ AWB lookup failed: ' + e.message);
-    }
-    renderRows();
-    updatePending();
-    setTimeout(() => setFetchStatus(''), 5000);
+    } catch(e) { /* continue on batch error */ }
+    done += batch.length;
   }
 
-  // For rows that already had an AWB (from Shopify) but no status yet, fetch status separately
-  const needStatus = rows.filter(r => r.awbInput && !r.bdStatus);
-  if (needStatus.length) {
-    setFetchStatus(`⏳ Fetching status for ${needStatus.length} existing AWBs…`);
-    await autofetchBluedart(needStatus);
-    setFetchStatus('');
-  }
+  setFetchStatus(found ? `✓ ${found}/${total} AWBs found from BlueDart` : '⚠ No AWBs matched — check if Shipway uses order number as RefNo');
+  updatePending();
+  setTimeout(() => setFetchStatus(''), 6000);
 }
 
 // Batch-fetch BlueDart for all rows that have an AWB, update status inline
@@ -304,19 +303,23 @@ function rowHTML(r) {
 
 function bdStatusHtml(r) {
   if (!r.awbInput) return '';
-  if (!r.bdStatus) return `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching BlueDart status…</div>`;
+  if (!r.bdStatus) return `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching…</div>`;
   if (r.bdStatus.error) return `<div class="bd-status bd-err"><span class="bd-label">BlueDart:</span> <span style="color:var(--red)">${escHtml(r.bdStatus.error)}</span></div>`;
 
   const s = r.bdStatus;
-  const cls = s.delivered ? 'bd-delivered' : 'bd-ok';
-  const icon = s.delivered ? '✓ Delivered' : '🚚 In transit';
+  const desc = s.statusDesc || s.statusCode || '';
   const loc  = s.latestScan?.location || s.dest || '';
   const time = s.latestScan?.time || s.statusTime || '';
-  const desc = s.statusDesc || s.statusCode || '';
+
+  // Classify status
+  const isDelivered = s.delivered;
+  const isBooked    = !s.statusDesc && !s.statusCode; // AWB assigned, not yet picked up
+  const cls  = isDelivered ? 'bd-delivered' : 'bd-ok';
+  const icon = isDelivered ? '✓ Delivered' : isBooked ? '📋 AWB assigned — not dispatched' : '🚚 ' + escHtml(desc);
 
   return `<div class="bd-status ${cls}">
     <span class="bd-label">BlueDart:</span>
-    <span class="bd-desc">${icon} — ${escHtml(desc)}</span>
+    <span class="bd-desc">${isDelivered ? '✓ Delivered — ' + escHtml(desc) : icon}</span>
     ${loc ? `<span class="bd-loc">📍 ${escHtml(loc)}</span>` : ''}
     ${time ? `<span class="bd-time">${escHtml(time)}</span>` : ''}
   </div>`;
