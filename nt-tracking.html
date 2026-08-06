@@ -88,8 +88,9 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 
 <div class="header">
   <h1>📦 BlueDart → Shopify</h1>
-  <button class="hbtn accent" id="fetchAwbBtn" onclick="fetchAllAwbs()" style="display:none">🔄 Fetch AWBs from BlueDart</button>
+  <span id="fetchStatus" style="font-size:.78rem;color:var(--muted);display:none"></span>
   <label class="hbtn" style="cursor:pointer">↑ CSV<input type="file" accept=".csv,text/csv" style="display:none" onchange="importCsv(this)"></label>
+  <button class="hbtn" onclick="fetchAllAwbs()">🔄 Refresh</button>
   <a href="nt-inventory.html" class="hbtn">← Inventory</a>
 </div>
 
@@ -148,7 +149,7 @@ async function loadOrders() {
 
   document.getElementById('wrap').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Loading orders…</div>';
   document.getElementById('totalBadge').style.display = 'none';
-  document.getElementById('fetchAwbBtn').style.display = 'none';
+  document.getElementById('fetchStatus').style.display = 'none';
 
   try {
     const data = await apiFetch({ action: 'load_orders', date_from: dateFrom, date_to: dateTo || dateFrom });
@@ -175,21 +176,21 @@ async function loadOrders() {
   }
 }
 
-// Fetch AWBs from BlueDart using Shopify order numbers as reference numbers
+function setFetchStatus(msg) {
+  const el = document.getElementById('fetchStatus');
+  el.textContent = msg;
+  el.style.display = msg ? '' : 'none';
+}
+
+// Fully automatic — called on load and on 🔄 Refresh button
 async function fetchAllAwbs() {
   if (!rows.length) return;
-  const btn = document.getElementById('fetchAwbBtn');
-  btn.style.display = '';
-  btn.disabled = true;
-  btn.textContent = '⏳ Fetching AWBs…';
 
-  // Only fetch for orders that don't already have an AWB from Shopify
+  // Step 1: fetch AWBs from BlueDart by order reference number
   const needAwb = rows.filter(r => !r.awbInput);
-  const alreadyHave = rows.filter(r => r.awbInput);
-
   if (needAwb.length) {
     const refNos = needAwb.map(r => r.order_name.replace(/^#/, ''));
-    btn.textContent = `⏳ Fetching AWBs for ${refNos.length} orders…`;
+    setFetchStatus(`⏳ Looking up ${refNos.length} AWBs from BlueDart…`);
     try {
       const data = await apiFetch({ action: 'find_awbs_bulk', ref_nos: refNos });
       let found = 0;
@@ -198,24 +199,24 @@ async function fetchAllAwbs() {
         const r = rows.find(x => x.order_name.replace(/^#/, '') === String(res.refNo));
         if (r) { r.awbInput = res.awb; r.bdStatus = null; found++; }
       }
-      if (!found && data.results?.length) {
-        toast('BlueDart returned no AWB matches — ref lookup may use different param. Try CSV import.');
-      }
-    } catch(e) { toast('AWB fetch error: ' + e.message); }
+      setFetchStatus(found ? `✓ ${found} AWBs found` : '⚠ No AWBs matched — try CSV or check ref lookup');
+    } catch(e) {
+      setFetchStatus('⚠ AWB lookup failed: ' + e.message);
+    }
     renderRows();
     updatePending();
   }
 
-  // Now auto-fetch BlueDart status for all rows with AWBs
+  // Step 2: fetch live tracking status for all rows that now have an AWB
   const withAwb = rows.filter(r => r.awbInput);
   if (withAwb.length) {
-    btn.textContent = `⏳ Fetching status for ${withAwb.length} AWBs…`;
+    setFetchStatus(`⏳ Fetching tracking status for ${withAwb.length} shipments…`);
     await autofetchBluedart(withAwb);
+    setFetchStatus(`✓ Done — ${withAwb.length} shipments tracked`);
+    setTimeout(() => setFetchStatus(''), 4000);
+  } else {
+    setTimeout(() => setFetchStatus(''), 4000);
   }
-
-  const found = rows.filter(r => r.awbInput).length;
-  btn.disabled = false;
-  btn.textContent = `🔄 Refresh (${found} AWBs found)`;
 }
 
 // Batch-fetch BlueDart for all rows that have an AWB, update status inline
@@ -256,12 +257,12 @@ function renderRows() {
   const visible = getVisible();
   if (!visible.length) {
     document.getElementById('wrap').innerHTML = '<div class="empty-msg">No orders found for this filter.</div>';
-    updateBulkPill();
+    updatePending();
     return;
   }
   document.getElementById('wrap').innerHTML = visible.map(r => rowHTML(r)).join('');
   for (const r of visible) attachInputListener(r);
-  updateBulkPill();
+  updatePending();
 }
 
 function rowHTML(r) {
