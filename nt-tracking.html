@@ -9,98 +9,107 @@
 :root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca;--bg:#f6f0e8;--bg2:#fdf5ec;--green:#27ae60;--red:#e74c3c}
 body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
 
-.header{background:#fff;border-bottom:3px solid var(--accent);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100}
-.header h1{font-family:Fraunces,Georgia,serif;font-size:1.05rem}
-.header-sub{font-size:.72rem;color:var(--muted);margin-left:auto}
-.hbtn{padding:7px 14px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.78rem;cursor:pointer;white-space:nowrap}
+.header{background:#fff;border-bottom:3px solid var(--accent);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100}
+.header h1{font-family:Fraunces,Georgia,serif;font-size:1.05rem;white-space:nowrap}
+.hbtn{padding:7px 13px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.78rem;cursor:pointer;white-space:nowrap}
 .hbtn:hover{border-color:var(--accent);color:var(--accent)}
 .hbtn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
 .hbtn:disabled{opacity:.45;cursor:default}
 
 .toolbar{padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.toolbar input[type=text]{padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:.84rem;color:var(--ink);background:#fff;min-width:180px;flex:1}
-.toolbar input:focus{outline:none;border-color:var(--accent)}
+.date-input{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.84rem;color:var(--ink);background:#fff;cursor:pointer}
+.date-input:focus{outline:none;border-color:var(--accent)}
+.toolbar-sep{color:var(--muted);font-size:.8rem}
 .badge{background:var(--accent);color:#fff;border-radius:10px;font-size:.7rem;padding:1px 7px;font-weight:700}
+.filter-tabs{display:flex;gap:4px}
+.ftab{padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.75rem;cursor:pointer;white-space:nowrap}
+.ftab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
 .wrap{padding:10px 14px;display:flex;flex-direction:column;gap:6px}
-.section-lbl{font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:6px 0 2px}
 
 /* ── ROW ── */
-.tr-row{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.tr-row.has-tracking{border-color:#b8e4c9;background:#f0faf4}
-.tr-row.pushed{border-color:var(--green)}
-.tr-row.error-row{border-color:#f5c6c0}
+.tr-row{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;gap:7px}
+.tr-row.no-tracking{border-left:3px solid var(--accent)}
+.tr-row.pushed{border-color:var(--green);border-left-width:3px}
+.tr-row.err-row{border-left:3px solid var(--red)}
 
-.tr-order{font-weight:700;font-size:.88rem;min-width:62px;flex-shrink:0}
-.tr-customer{font-size:.78rem;color:var(--ink2);flex:1;min-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tr-order{font-weight:700;font-size:.9rem;flex-shrink:0}
+.tr-customer{font-size:.78rem;color:var(--ink2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tr-date{font-size:.72rem;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.tr-fstatus{font-size:.7rem;border-radius:10px;padding:2px 8px;font-weight:700;flex-shrink:0}
+.fs-unfulfilled{background:#fff3e0;color:#b7650a}
+.fs-fulfilled{background:#e8f5e9;color:#2e7d32}
+.fs-partial{background:#e3f2fd;color:#1565c0}
 
-.tr-awb{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.awb-input{padding:6px 10px;border:1.5px solid var(--line);border-radius:7px;font-size:.84rem;font-family:monospace;width:148px;color:var(--ink);background:#fff}
+/* BlueDart status block */
+.bd-status{font-size:.78rem;padding:7px 10px;border-radius:7px;background:var(--bg2);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.bd-status.bd-loading{color:var(--muted)}
+.bd-status.bd-ok{background:#e8f8ef}
+.bd-status.bd-delivered{background:#d4edda}
+.bd-status.bd-err{background:#fdecea}
+.bd-label{font-weight:700;color:var(--ink2)}
+.bd-desc{color:var(--ink)}
+.bd-loc{color:var(--muted);font-size:.72rem}
+.bd-time{color:var(--muted);font-size:.72rem;margin-left:auto}
+
+/* AWB input row */
+.tr-awb-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.awb-input{padding:6px 10px;border:1.5px solid var(--line);border-radius:7px;font-size:.84rem;font-family:monospace;width:160px;color:var(--ink);background:#fff}
 .awb-input:focus{outline:none;border-color:var(--accent)}
-.awb-input.verified{border-color:var(--green);background:#f0faf4}
+.awb-input.verified{border-color:var(--green)}
 .awb-input.err{border-color:var(--red)}
-
-.tr-status{font-size:.72rem;border-radius:10px;padding:3px 9px;white-space:nowrap;flex-shrink:0;font-weight:700}
-.st-none{background:var(--bg2);color:var(--muted)}
-.st-ok{background:#e8f8ef;color:var(--green)}
-.st-dl{background:#d4edda;color:#155724}
-.st-err{background:#fdecea;color:var(--red)}
-
-.tr-actions{display:flex;gap:6px;flex-shrink:0;margin-left:auto}
 .act-btn{padding:6px 12px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.73rem;cursor:pointer;white-space:nowrap}
 .act-btn:hover{border-color:var(--accent);color:var(--accent)}
 .act-btn.push{background:var(--accent);color:#fff;border-color:var(--accent)}
 .act-btn.push:hover{background:#b8401a}
 .act-btn:disabled{opacity:.4;cursor:default}
+.pushed-label{font-size:.78rem;font-weight:700;color:var(--green)}
 
-.tr-result{width:100%;font-size:.73rem;padding:4px 8px;border-radius:6px;margin-top:2px}
+.tr-result{font-size:.73rem;padding:5px 8px;border-radius:6px}
 .tr-result.ok-msg{background:#e8f8ef;color:var(--green)}
 .tr-result.err-msg{background:#fdecea;color:var(--red)}
 
-/* ── BULK IMPORT ── */
-.csv-hint{font-size:.75rem;color:var(--muted);margin-top:4px}
-.csv-hint code{background:var(--line);border-radius:3px;padding:1px 4px;font-size:.72rem}
-
-/* ── FLOATING PILL ── */
+/* floating pill */
 #bulkPill{display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3a2b1d;color:#fff;border-radius:100px;padding:8px 8px 8px 18px;align-items:center;gap:8px;font-size:.82rem;box-shadow:0 4px 24px rgba(0,0,0,.35);z-index:200;white-space:nowrap}
 #bulkPill.show{display:flex}
 .pill-btn{padding:6px 16px;border-radius:100px;border:none;cursor:pointer;font-size:.78rem;font-weight:700}
 .pill-push{background:var(--accent);color:#fff}
 .pill-cancel{background:transparent;color:#aaa;padding:6px 8px}
 
-/* ── SPINNER ── */
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-
 .loading-msg,.empty-msg{text-align:center;padding:50px 20px;color:var(--muted);font-size:.88rem}
-
-#toast{position:fixed;bottom:80px;right:20px;background:#3a2b1d;color:#fff;padding:10px 18px;border-radius:8px;font-size:.82rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
+#toast{position:fixed;bottom:80px;right:20px;background:#3a2b1d;color:#fff;padding:10px 18px;border-radius:8px;font-size:.82rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;max-width:320px}
 #toast.show{opacity:1}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>📦 BlueDart → Shopify Tracking</h1>
-  <span class="header-sub" id="headerSub">Load orders to begin</span>
-  <button class="hbtn accent" onclick="loadOrders()">↺ Load orders needing tracking</button>
-  <label class="hbtn" style="cursor:pointer">↑ CSV import<input type="file" accept=".csv,text/csv" style="display:none" onchange="importCsv(this)"></label>
+  <h1>📦 BlueDart → Shopify</h1>
+  <label class="hbtn" style="cursor:pointer">↑ CSV<input type="file" accept=".csv,text/csv" style="display:none" onchange="importCsv(this)"></label>
   <a href="nt-inventory.html" class="hbtn">← Inventory</a>
 </div>
 
 <div class="toolbar">
-  <input type="text" id="searchInput" placeholder="Search order # or customer…" oninput="renderRows()">
+  <input class="date-input" type="date" id="dateFrom" onchange="loadOrders()">
+  <span class="toolbar-sep">to</span>
+  <input class="date-input" type="date" id="dateTo" onchange="loadOrders()">
   <span id="totalBadge" class="badge" style="display:none"></span>
-  <span style="font-size:.78rem;color:var(--muted)" id="pendingLbl"></span>
+  <div class="filter-tabs" id="filterTabs">
+    <button class="ftab active" onclick="setFilter('all')">All</button>
+    <button class="ftab" onclick="setFilter('no_tracking')">No tracking</button>
+    <button class="ftab" onclick="setFilter('has_awb')">AWB entered</button>
+  </div>
 </div>
 
 <div class="wrap" id="wrap">
-  <div class="empty-msg">Click "Load orders needing tracking" to begin.</div>
+  <div class="empty-msg">Select a date above to load orders.</div>
 </div>
 
 <div id="bulkPill">
-  <span><span id="bulkCount">0</span> ready to push</span>
+  <span><span id="bulkCount">0</span> ready</span>
   <button class="pill-btn pill-push" onclick="pushAll()">⬆ Push all to Shopify</button>
   <button class="pill-btn pill-cancel" onclick="clearPending()">✕</button>
 </div>
@@ -110,151 +119,206 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 <script>
 const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
 
-let rows = [];         // { order_id, order_name, customer, created_at, tracking, note_awb, awbInput, status, result }
-let pendingPush = {};  // order_name → awb — ready to push
+let rows = [];
+let activeFilter = 'all';
+
+function todayIST() {
+  return new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const today = todayIST();
+  document.getElementById('dateFrom').value = today;
+  document.getElementById('dateTo').value = today;
+  loadOrders();
+});
 
 async function apiFetch(body) {
   const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return r.json();
 }
 
-// ── LOAD ORDERS ───────────────────────────────────────────────────────────────
+// ── LOAD ──────────────────────────────────────────────────────────────────────
 
 async function loadOrders() {
+  const dateFrom = document.getElementById('dateFrom').value;
+  const dateTo   = document.getElementById('dateTo').value;
+  if (!dateFrom) return;
+
   document.getElementById('wrap').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Loading orders…</div>';
-  document.getElementById('headerSub').textContent = 'Loading…';
+  document.getElementById('totalBadge').style.display = 'none';
+
   try {
-    const data = await apiFetch({ action: 'load_orders' });
+    const data = await apiFetch({ action: 'load_orders', date_from: dateFrom, date_to: dateTo || dateFrom });
     rows = (Array.isArray(data) ? data : []).map(o => ({
       ...o,
-      awbInput: o.note_awb || '',
-      bdStatus: null,   // fetched from BlueDart
-      result:   null,   // push result
+      awbInput: o.known_awb || '',
+      bdStatus: null,
+      result:   null,
     }));
-    renderRows();
+
     const n = rows.length;
-    document.getElementById('headerSub').textContent = `${n} order${n !== 1 ? 's' : ''} without tracking`;
     document.getElementById('totalBadge').textContent = n;
     document.getElementById('totalBadge').style.display = n ? '' : 'none';
-    if (!n) toast('All fulfilled orders have tracking ✅');
+
+    renderRows();
+
+    // Auto-fetch BlueDart status for all orders that have an AWB
+    const withAwb = rows.filter(r => r.awbInput);
+    if (withAwb.length) autofetchBluedart(withAwb);
+
   } catch(e) {
     document.getElementById('wrap').innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
   }
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────────────
-
-function renderRows() {
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  const visible = q ? rows.filter(r => r.order_name.toLowerCase().includes(q) || r.customer.toLowerCase().includes(q)) : rows;
-
-  if (!visible.length) {
-    document.getElementById('wrap').innerHTML = '<div class="empty-msg">No orders found.</div>';
-    updateBulkPill();
-    return;
-  }
-
-  document.getElementById('wrap').innerHTML = visible.map(r => rowHTML(r)).join('');
-
-  // Restore AWB input values and attach listeners
-  for (const r of visible) {
-    const inp = document.getElementById(`awb-${r.order_name}`);
-    if (inp) {
-      inp.value = r.awbInput || '';
-      inp.addEventListener('input', () => { r.awbInput = inp.value.trim(); r.bdStatus = null; inp.className = 'awb-input'; updatePending(r); });
-      inp.addEventListener('keydown', e => { if (e.key === 'Enter') verifyRow(r.order_name); });
-    }
-  }
-  updateBulkPill();
-}
-
-function rowHTML(r) {
-  const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
-  const statusHtml = bdStatusHtml(r.bdStatus);
-  const hasPending = !!pendingPush[r.order_name];
-  const pushed = r.result?.ok;
-  const errored = r.result && !r.result.ok;
-
-  return `<div class="tr-row${pushed ? ' pushed' : ''}${errored ? ' error-row' : ''}" id="row-${r.order_name}">
-    <span class="tr-order">${r.order_name}</span>
-    <span class="tr-customer">${escHtml(r.customer)}</span>
-    <span class="tr-date">${dateStr}</span>
-    <div class="tr-awb">
-      <input class="awb-input${r.bdStatus?.ok ? ' verified' : r.bdStatus?.error ? ' err' : ''}"
-        id="awb-${r.order_name}"
-        type="text" placeholder="AWB number"
-        inputmode="numeric" maxlength="15">
-      <button class="act-btn" onclick="verifyRow('${r.order_name}')" title="Verify with BlueDart">🔍</button>
-    </div>
-    ${statusHtml}
-    <div class="tr-actions">
-      ${!pushed ? `<button class="act-btn push" onclick="pushRow('${r.order_name}')" ${!r.awbInput ? 'disabled' : ''}>⬆ Push</button>` : '<span style="color:var(--green);font-size:.8rem;font-weight:700">✓ Done</span>'}
-    </div>
-    ${r.result ? `<div class="tr-result ${r.result.ok ? 'ok-msg' : 'err-msg'}">${r.result.ok ? `✓ ${r.result.action?.replace('_', ' ')} — fulfillment updated, WhatsApp triggered` : `✕ ${escHtml(r.result.error)}`}</div>` : ''}
-  </div>`;
-}
-
-function bdStatusHtml(s) {
-  if (!s) return '<span class="tr-status st-none">—</span>';
-  if (s.error) return `<span class="tr-status st-err" title="${escHtml(s.error)}">⚠ Not found</span>`;
-  const delivered = s.delivered;
-  return `<span class="tr-status ${delivered ? 'st-dl' : 'st-ok'}" title="${escHtml(s.statusDesc || '')}">${delivered ? '✓ Delivered' : (s.statusDesc || s.statusCode || 'In transit')}</span>`;
-}
-
-// ── VERIFY ROW ────────────────────────────────────────────────────────────────
-
-async function verifyRow(orderName) {
-  const r = rows.find(x => x.order_name === orderName);
-  if (!r || !r.awbInput) { toast('Enter an AWB number first'); return; }
-
-  const inp = document.getElementById(`awb-${orderName}`);
-  if (inp) inp.disabled = true;
-
-  try {
-    const data = await apiFetch({ action: 'fetch_tracking', awbs: [r.awbInput] });
-    const result = data.results?.[0];
-    if (result) {
-      r.bdStatus = { ...result, ok: true };
-    } else {
-      r.bdStatus = { error: 'AWB not found in BlueDart', ok: false };
-    }
-  } catch(e) {
-    r.bdStatus = { error: e.message, ok: false };
-  }
-
-  if (inp) inp.disabled = false;
-  updatePending(r);
-  refreshRow(r);
-}
-
-// ── VERIFY ALL WITH AWB ───────────────────────────────────────────────────────
-
-async function verifyAll() {
-  const toVerify = rows.filter(r => r.awbInput && !r.bdStatus);
-  if (!toVerify.length) { toast('No AWB numbers to verify'); return; }
-
-  const awbs = [...new Set(toVerify.map(r => r.awbInput))];
+// Batch-fetch BlueDart for all rows that have an AWB, update status inline
+async function autofetchBluedart(rowsWithAwb) {
+  const awbs = [...new Set(rowsWithAwb.map(r => r.awbInput))];
   try {
     const data = await apiFetch({ action: 'fetch_tracking', awbs });
     const byAwb = {};
     for (const res of data.results || []) if (res.awb) byAwb[res.awb] = res;
 
-    for (const r of toVerify) {
+    for (const r of rowsWithAwb) {
       r.bdStatus = byAwb[r.awbInput]
         ? { ...byAwb[r.awbInput], ok: true }
-        : { error: 'AWB not found', ok: false };
-      updatePending(r);
+        : { error: 'Not found in BlueDart', ok: false };
+      refreshBdStatus(r);
     }
-    renderRows();
-    toast(`Verified ${Object.keys(byAwb).length} AWB numbers`);
-  } catch(e) { toast('Verify failed: ' + e.message); }
+  } catch(e) {
+    for (const r of rowsWithAwb) { r.bdStatus = { error: e.message, ok: false }; refreshBdStatus(r); }
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.ftab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.ftab').forEach(b => { if (b.textContent.toLowerCase().replace(/ /g,'_') === f || (f==='all' && b.textContent==='All') || (f==='no_tracking' && b.textContent==='No tracking') || (f==='has_awb' && b.textContent==='AWB entered')) b.classList.add('active'); });
+  renderRows();
+}
+
+function getVisible() {
+  if (activeFilter === 'no_tracking') return rows.filter(r => !r.tracking);
+  if (activeFilter === 'has_awb')     return rows.filter(r => r.awbInput);
+  return rows;
+}
+
+function renderRows() {
+  const visible = getVisible();
+  if (!visible.length) {
+    document.getElementById('wrap').innerHTML = '<div class="empty-msg">No orders found for this filter.</div>';
+    updateBulkPill();
+    return;
+  }
+  document.getElementById('wrap').innerHTML = visible.map(r => rowHTML(r)).join('');
+  for (const r of visible) attachInputListener(r);
+  updateBulkPill();
+}
+
+function rowHTML(r) {
+  const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const fsCls   = { unfulfilled: 'fs-unfulfilled', fulfilled: 'fs-fulfilled', partial: 'fs-partial' }[r.fulfillment_status] || 'fs-unfulfilled';
+  const fsLabel = { unfulfilled: 'Unfulfilled', fulfilled: 'Fulfilled', partial: 'Partial' }[r.fulfillment_status] || r.fulfillment_status;
+  const pushed  = r.result?.ok;
+  const errored = r.result && !r.result.ok;
+
+  const bdHtml = bdStatusHtml(r);
+
+  const awbSection = pushed
+    ? `<div class="tr-awb-row"><span class="pushed-label">✓ Tracking pushed · AWB ${escHtml(r.awbInput)}</span></div>`
+    : `<div class="tr-awb-row">
+        <input class="awb-input${r.bdStatus?.ok ? ' verified' : r.bdStatus?.error ? ' err' : ''}"
+          id="awb-${r.order_name}" type="text" placeholder="Enter AWB number"
+          inputmode="numeric" maxlength="15" value="${escHtml(r.awbInput)}">
+        <button class="act-btn" onclick="verifyOne('${r.order_name}')">🔍 Verify</button>
+        <button class="act-btn push" onclick="pushRow('${r.order_name}')" ${!r.awbInput ? 'disabled' : ''}>⬆ Push</button>
+      </div>`;
+
+  return `<div class="tr-row${!r.tracking ? ' no-tracking' : ''}${pushed ? ' pushed' : ''}${errored ? ' err-row' : ''}" id="row-${r.order_name}">
+    <div class="tr-top">
+      <span class="tr-order">${r.order_name}</span>
+      <span class="tr-customer">${escHtml(r.customer)}</span>
+      <span class="tr-date">${dateStr}</span>
+      <span class="tr-fstatus ${fsCls}">${fsLabel}</span>
+      ${r.tracking ? `<span style="font-size:.72rem;color:var(--muted);font-family:monospace">AWB: ${escHtml(r.tracking)}</span>` : ''}
+    </div>
+    <div id="bd-${r.order_name}">${bdHtml}</div>
+    ${awbSection}
+    ${r.result ? `<div class="tr-result ${r.result.ok ? 'ok-msg' : 'err-msg'}">${r.result.ok ? `✓ ${(r.result.action||'').replace(/_/g,' ')} — WhatsApp triggered` : `✕ ${escHtml(r.result.error)}`}</div>` : ''}
+  </div>`;
+}
+
+function bdStatusHtml(r) {
+  if (!r.awbInput) return '';
+  if (!r.bdStatus) return `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching BlueDart status…</div>`;
+  if (r.bdStatus.error) return `<div class="bd-status bd-err"><span class="bd-label">BlueDart:</span> <span style="color:var(--red)">${escHtml(r.bdStatus.error)}</span></div>`;
+
+  const s = r.bdStatus;
+  const cls = s.delivered ? 'bd-delivered' : 'bd-ok';
+  const icon = s.delivered ? '✓ Delivered' : '🚚 In transit';
+  const loc  = s.latestScan?.location || s.dest || '';
+  const time = s.latestScan?.time || s.statusTime || '';
+  const desc = s.statusDesc || s.statusCode || '';
+
+  return `<div class="bd-status ${cls}">
+    <span class="bd-label">BlueDart:</span>
+    <span class="bd-desc">${icon} — ${escHtml(desc)}</span>
+    ${loc ? `<span class="bd-loc">📍 ${escHtml(loc)}</span>` : ''}
+    ${time ? `<span class="bd-time">${escHtml(time)}</span>` : ''}
+  </div>`;
+}
+
+// Refresh just the BlueDart status div without re-rendering the whole row
+function refreshBdStatus(r) {
+  const el = document.getElementById(`bd-${r.order_name}`);
+  if (el) el.innerHTML = bdStatusHtml(r);
+  // also update input border class
+  const inp = document.getElementById(`awb-${r.order_name}`);
+  if (inp) {
+    inp.className = 'awb-input' + (r.bdStatus?.ok ? ' verified' : r.bdStatus?.error ? ' err' : '');
+  }
+}
+
+function attachInputListener(r) {
+  const inp = document.getElementById(`awb-${r.order_name}`);
+  if (!inp) return;
+  inp.addEventListener('input', () => {
+    r.awbInput = inp.value.trim();
+    r.bdStatus = null;
+    inp.className = 'awb-input';
+    updatePending();
+  });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') verifyOne(r.order_name); });
+}
+
+// ── VERIFY ────────────────────────────────────────────────────────────────────
+
+async function verifyOne(orderName) {
+  const r = rows.find(x => x.order_name === orderName);
+  if (!r?.awbInput) { toast('Enter an AWB number first'); return; }
+
+  const el = document.getElementById(`bd-${orderName}`);
+  if (el) el.innerHTML = `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching…</div>`;
+
+  try {
+    const data = await apiFetch({ action: 'fetch_tracking', awbs: [r.awbInput] });
+    const result = data.results?.[0];
+    r.bdStatus = result ? { ...result, ok: true } : { error: 'AWB not found in BlueDart', ok: false };
+  } catch(e) {
+    r.bdStatus = { error: e.message, ok: false };
+  }
+  refreshBdStatus(r);
+  updatePending();
 }
 
 // ── PUSH TO SHOPIFY ───────────────────────────────────────────────────────────
 
 async function pushRow(orderName) {
   const r = rows.find(x => x.order_name === orderName);
-  if (!r || !r.awbInput) return;
+  if (!r?.awbInput) return;
 
   const btn = document.querySelector(`#row-${orderName} .act-btn.push`);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
@@ -262,99 +326,73 @@ async function pushRow(orderName) {
   try {
     const data = await apiFetch({ action: 'push_tracking', order_name: orderName, awb: r.awbInput, notify_customer: true });
     r.result = { ok: true, ...data };
-    delete pendingPush[orderName];
-    toast(`✓ ${orderName} — tracking pushed`);
+    toast(`✓ ${orderName} — tracking pushed, WhatsApp triggered`);
   } catch(e) {
     r.result = { ok: false, error: e.message };
     toast(`✕ ${orderName}: ${e.message}`);
   }
 
-  refreshRow(r);
-  updateBulkPill();
+  const rowEl = document.getElementById(`row-${orderName}`);
+  if (rowEl) { rowEl.outerHTML = rowHTML(r); attachInputListener(r); }
+  updatePending();
 }
 
 async function pushAll() {
-  const items = Object.entries(pendingPush).map(([order_name, awb]) => ({ order_name, awb }));
-  if (!items.length) return;
+  const ready = rows.filter(r => r.awbInput && !r.result?.ok);
+  if (!ready.length) return;
 
   const btn = document.querySelector('#bulkPill .pill-push');
   btn.disabled = true; btn.textContent = '…pushing';
 
   try {
-    const data = await apiFetch({ action: 'push_tracking_bulk', items });
+    const data = await apiFetch({ action: 'push_tracking_bulk', items: ready.map(r => ({ order_name: r.order_name, awb: r.awbInput })) });
     let ok = 0, fail = 0;
     for (const res of data.results || []) {
       const r = rows.find(x => x.order_name === res.order_name);
       if (!r) continue;
       r.result = res;
-      if (res.ok) { delete pendingPush[res.order_name]; ok++; } else fail++;
+      if (res.ok) ok++; else fail++;
+      const rowEl = document.getElementById(`row-${res.order_name}`);
+      if (rowEl) { rowEl.outerHTML = rowHTML(r); attachInputListener(r); }
     }
-    renderRows();
-    toast(`Pushed ${ok} orders${fail ? `, ${fail} failed` : ''}`);
+    toast(`Pushed ${ok}${fail ? `, ${fail} failed` : ''} orders`);
   } catch(e) { toast('Bulk push failed: ' + e.message); }
 
   btn.disabled = false; btn.textContent = '⬆ Push all to Shopify';
-  updateBulkPill();
+  updatePending();
 }
 
-function updatePending(r) {
-  if (r.awbInput && !r.result?.ok) pendingPush[r.order_name] = r.awbInput;
-  else delete pendingPush[r.order_name];
-}
+function clearPending() { updatePending(); }
 
-function clearPending() {
-  pendingPush = {};
-  updateBulkPill();
-}
-
-function updateBulkPill() {
-  const n = Object.keys(pendingPush).length;
-  document.getElementById('bulkCount').textContent = n;
-  document.getElementById('bulkPill').classList.toggle('show', n > 0);
-  const done = rows.filter(r => r.result?.ok).length;
-  const pending = rows.filter(r => r.awbInput && !r.result?.ok).length;
-  document.getElementById('pendingLbl').textContent =
-    rows.length ? `${done} done · ${pending} with AWB · ${rows.length - done - pending} waiting` : '';
-}
-
-function refreshRow(r) {
-  const el = document.getElementById(`row-${r.order_name}`);
-  if (el) el.outerHTML = rowHTML(r);
-  // Re-attach listener
-  const inp = document.getElementById(`awb-${r.order_name}`);
-  if (inp) {
-    inp.value = r.awbInput || '';
-    inp.addEventListener('input', () => { r.awbInput = inp.value.trim(); r.bdStatus = null; inp.className = 'awb-input'; updatePending(r); });
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') verifyRow(r.order_name); });
-  }
-  updateBulkPill();
+function updatePending() {
+  const ready = rows.filter(r => r.awbInput && !r.result?.ok).length;
+  document.getElementById('bulkCount').textContent = ready;
+  document.getElementById('bulkPill').classList.toggle('show', ready > 0);
 }
 
 // ── CSV IMPORT ────────────────────────────────────────────────────────────────
-// Expects: order_name,awb  (header row required)
 
 function importCsv(input) {
-  const file = input.files[0];
-  if (!file) return;
+  const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     const lines = e.target.result.trim().split('\n');
-    const header = lines[0].toLowerCase().replace(/\r/g, '').split(',');
-    const orderIdx = header.indexOf('order_name') >= 0 ? header.indexOf('order_name') : header.indexOf('order');
-    const awbIdx   = header.indexOf('awb') >= 0 ? header.indexOf('awb') : header.indexOf('tracking');
-    if (orderIdx < 0 || awbIdx < 0) { toast('CSV needs order_name and awb columns'); return; }
-
+    const header = lines[0].toLowerCase().replace(/\r/g,'').split(',');
+    const oIdx = Math.max(header.indexOf('order_name'), header.indexOf('order'));
+    const aIdx = Math.max(header.indexOf('awb'), header.indexOf('tracking'));
+    if (oIdx < 0 || aIdx < 0) { toast('CSV needs order_name and awb columns'); return; }
     let matched = 0;
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].replace(/\r/g, '').split(',');
-      const name = (cols[orderIdx] || '').trim();
-      const awb  = (cols[awbIdx]   || '').trim();
+      const cols = lines[i].replace(/\r/g,'').split(',');
+      const name = (cols[oIdx] || '').trim(), awb = (cols[aIdx] || '').trim();
       if (!name || !awb) continue;
-      const r = rows.find(x => x.order_name === name || x.order_name === '#' + name || '#' + x.order_name === name);
-      if (r) { r.awbInput = awb; r.bdStatus = null; updatePending(r); matched++; }
+      const r = rows.find(x => x.order_name === name || x.order_name === '#'+name || '#'+x.order_name === name);
+      if (r) { r.awbInput = awb; r.bdStatus = null; matched++; }
     }
     renderRows();
-    toast(`CSV imported — matched ${matched} orders`);
+    const withAwb = rows.filter(r => r.awbInput && !r.bdStatus);
+    if (withAwb.length) autofetchBluedart(withAwb);
+    toast(`CSV matched ${matched} orders`);
   };
   reader.readAsText(file);
   input.value = '';
@@ -362,14 +400,14 @@ function importCsv(input) {
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
 
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 let toastTimer;
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
 }
 </script>
 </body>
