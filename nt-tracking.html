@@ -291,10 +291,56 @@ async function fetchBluedartStatus(rowsToFetch) {
     setFetchStatus(`⏳ ${Math.min(i + CHUNK, total)}/${total} done…`);
   }
 
-  // Update filter counts after all fetches
+  // After bulk fetch, try ref-based lookup for any still not found
+  const notFound = rowsToFetch.filter(r => r.bdStatus?.error === 'not_found');
+  if (notFound.length) {
+    await lookupByRefs(notFound);
+  } else {
+    renderRows();
+    setFetchStatus(`✓ Status fetched for ${total} shipments`);
+    setTimeout(() => setFetchStatus(''), 4000);
+  }
+}
+
+// ── REF FALLBACK LOOKUP ───────────────────────────────────────────────────────
+// For rows where Shipway tracking number ≠ BlueDart AWB, look up by order number
+
+async function lookupByRefs(notFoundRows) {
+  if (!notFoundRows.length) return;
+  setFetchStatus(`⏳ Looking up ${notFoundRows.length} orders by reference…`);
+
+  const CHUNK = 8;
+  for (let i = 0; i < notFoundRows.length; i += CHUNK) {
+    const chunk = notFoundRows.slice(i, i + CHUNK);
+    const items = chunk.map(r => ({
+      order_name: r.order_name,
+      ref_no: r.order_name.replace(/^#/, ''),
+    }));
+    try {
+      const data = await apiFetch({ action: 'lookup_by_refs', items });
+      for (const res of (data.results || [])) {
+        const r = rows.find(x => x.order_name === res.order_name);
+        if (!r) continue;
+        if (res.ok && res.awb) {
+          // Real BlueDart AWB found — update the row
+          r.awbInput = res.awb;
+          r.courier  = 'BlueDart';
+          r.bdStatus = { ...res, ok: true };
+        } else {
+          // Still not found — keep the not_found status (already set)
+        }
+        const el = document.getElementById(`bd-${r.order_name}`);
+        if (el) el.innerHTML = trackingHtml(r);
+        const awbEl = document.getElementById(`awb-${r.order_name}`);
+        if (awbEl) awbEl.value = r.awbInput;
+      }
+    } catch(e) { /* non-fatal, ignore */ }
+    setFetchStatus(`⏳ Ref lookup ${Math.min(i + CHUNK, notFoundRows.length)}/${notFoundRows.length}…`);
+  }
+
   renderRows();
-  setFetchStatus(`✓ Status fetched for ${total} shipments`);
-  setTimeout(() => setFetchStatus(''), 4000);
+  setFetchStatus(`✓ Done`);
+  setTimeout(() => setFetchStatus(''), 3000);
 }
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
@@ -390,16 +436,12 @@ function trackingHtml(r) {
     const awbLine = url
       ? `<a href="${escHtml(url)}" target="_blank" style="color:var(--accent);font-family:monospace">${escHtml(awb)}</a>`
       : `<span style="font-family:monospace">${escHtml(awb)}</span>`;
-    const xmlHint = r.bdStatus._xml
-      ? `<details style="margin-top:4px;font-size:.68rem"><summary style="cursor:pointer;color:var(--muted)">BlueDart API response (debug)</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size:.65rem;color:var(--ink2)">${escHtml(r.bdStatus._xml)}</pre></details>`
-      : '';
     return `<div class="bd-status bd-pending" style="flex-direction:column;align-items:flex-start;gap:3px">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span class="bd-label">${companyLabel}:</span>
         <span class="bd-desc">${awbLine}</span>
-        <span class="bd-loc">Not found in BlueDart</span>
+        <span class="bd-loc">Not found in BlueDart — checking by order ref…</span>
       </div>
-      ${xmlHint}
     </div>`;
   }
 
