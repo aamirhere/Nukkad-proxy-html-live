@@ -544,7 +544,8 @@ async function pushRow(orderName) {
   try {
     const data = await apiFetch({ action: 'push_tracking', order_name: orderName, awb: r.awbInput, notify_customer: true });
     r.result = { ok: true, ...data };
-    toast(`✓ ${orderName} — tracking pushed, WhatsApp triggered`);
+    const actionMsg = { created: 'Fulfillment created ✓', tracking_added: 'Tracking added ✓', tracking_replaced: 'Tracking updated ✓', already_set: 'Already set ✓' }[data.action] || '✓ Done';
+    toast(`${orderName} — ${actionMsg}`);
   } catch(e) {
     r.result = { ok: false, error: e.message };
     toast(`✕ ${orderName}: ${e.message}`);
