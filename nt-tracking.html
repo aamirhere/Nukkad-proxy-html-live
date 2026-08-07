@@ -225,7 +225,9 @@ async function loadOrders() {
 
   try {
     const data = await apiFetch({ action: 'load_orders', date_from: dateFrom, date_to: dateTo || dateFrom });
-    rows = (Array.isArray(data) ? data : []).map(o => ({
+    const orderList = Array.isArray(data) ? data : (data?.orders || []);
+    const shopifyTotal = data?.shopify_total ?? null;
+    rows = orderList.map(o => ({
       ...o,
       awbInput:         o.known_awb || '',
       courier:          null,
@@ -236,8 +238,11 @@ async function loadOrders() {
       result:           null,
     }));
     const n = rows.length;
-    document.getElementById('totalBadge').textContent = n;
-    document.getElementById('totalBadge').style.display = n ? '' : 'none';
+    const badge = document.getElementById('totalBadge');
+    badge.textContent = shopifyTotal !== null && shopifyTotal !== n
+      ? `${n} of ${shopifyTotal}`
+      : String(n);
+    badge.style.display = n ? '' : 'none';
     // Merge Redis-stored AWBs (fills orders not yet pushed to Shopify)
     if (rows.length) {
       const orderNames = rows.map(r => r.order_name);
