@@ -102,8 +102,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 <div class="header">
   <h1>📦 BlueDart → Shopify</h1>
   <span id="fetchStatus" style="font-size:.78rem;color:var(--muted);display:none"></span>
-  <label class="hbtn" style="cursor:pointer">↑ CSV<input type="file" accept=".csv,text/csv" style="display:none" onchange="importCsv(this)"></label>
-  <button class="hbtn" onclick="fetchAllAwbs()">🔄 Refresh</button>
+  <label class="hbtn accent" style="cursor:pointer">↑ Shipway CSV<input type="file" accept=".csv,text/csv,.xlsx" style="display:none" onchange="importCsv(this)"></label>
   <a href="nt-inventory.html" class="hbtn">← Inventory</a>
 </div>
 
@@ -153,6 +152,12 @@ async function apiFetch(body) {
   return r.json();
 }
 
+function setFetchStatus(msg) {
+  const el = document.getElementById('fetchStatus');
+  el.textContent = msg;
+  el.style.display = msg ? '' : 'none';
+}
+
 // ── LOAD ──────────────────────────────────────────────────────────────────────
 
 async function loadOrders() {
@@ -162,7 +167,7 @@ async function loadOrders() {
 
   document.getElementById('wrap').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Loading orders…</div>';
   document.getElementById('totalBadge').style.display = 'none';
-  document.getElementById('fetchStatus').style.display = 'none';
+  setFetchStatus('');
 
   try {
     const data = await apiFetch({ action: 'load_orders', date_from: dateFrom, date_to: dateTo || dateFrom });
@@ -172,86 +177,50 @@ async function loadOrders() {
       bdStatus: null,
       result:   null,
     }));
-
     const n = rows.length;
     document.getElementById('totalBadge').textContent = n;
     document.getElementById('totalBadge').style.display = n ? '' : 'none';
-
     renderRows();
-
-    if (n > 0) {
-      // Auto-fetch AWBs from BlueDart by order reference, then fetch status
-      fetchAllAwbs();
-    }
-
+    setFetchStatus(n ? `↑ Upload Shipway CSV to match AWBs` : '');
   } catch(e) {
     document.getElementById('wrap').innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
   }
 }
 
-function setFetchStatus(msg) {
-  const el = document.getElementById('fetchStatus');
-  el.textContent = msg;
-  el.style.display = msg ? '' : 'none';
-}
+// ── FETCH BLUEDART STATUS (by AWB) ────────────────────────────────────────────
 
-// Fully automatic — called on load and on 🔄 Refresh button
-async function fetchAllAwbs() {
-  if (!rows.length) return;
+async function fetchBluedartStatus(rowsToFetch) {
+  if (!rowsToFetch.length) return;
+  const total = rowsToFetch.length;
+  setFetchStatus(`⏳ Fetching BlueDart status for ${total} shipments…`);
 
-  // Step 1: fetch AWBs from BlueDart by order reference number
-  const needAwb = rows.filter(r => !r.awbInput);
-  // Process all orders that need AWB lookup in batches of 10, update UI after each batch
-  const allOrders = rows; // fetch for ALL orders, including those that already have AWBs
-  const total = allOrders.length;
-  let done = 0, found = 0;
-
-  const BATCH = 10;
-  for (let i = 0; i < total; i += BATCH) {
-    const batch = allOrders.slice(i, i + BATCH);
-    const refNos = batch.map(r => r.order_name.replace(/^#/, ''));
-    setFetchStatus(`⏳ ${done}/${total} orders fetched…`);
+  // BlueDart custawbquery supports bulk comma-separated AWBs
+  const CHUNK = 20;
+  for (let i = 0; i < rowsToFetch.length; i += CHUNK) {
+    const chunk = rowsToFetch.slice(i, i + CHUNK);
+    const awbs = chunk.map(r => r.awbInput);
     try {
-      const data = await apiFetch({ action: 'find_awbs_bulk', ref_nos: refNos });
-      for (const res of data.results || []) {
-        if (!res.awb) continue;
-        const r = rows.find(x => x.order_name.replace(/^#/, '') === String(res.refNo));
-        if (!r) continue;
-        r.awbInput = res.awb;
-        r.bdStatus = { ok: true, statusCode: res.statusCode, statusDesc: res.statusDesc,
-                       statusTime: res.statusTime, dest: res.dest, delivered: res.delivered,
-                       latestScan: res.latestScan };
-        found++;
-        // Update this row in the DOM immediately without full re-render
-        const rowEl = document.getElementById(`row-${r.order_name}`);
-        if (rowEl) { rowEl.outerHTML = rowHTML(r); attachInputListener(r); }
+      const data = await apiFetch({ action: 'fetch_tracking', awbs });
+      const byAwb = {};
+      for (const res of (data.results || [])) if (res.awb) byAwb[res.awb] = res;
+      for (const r of chunk) {
+        r.bdStatus = byAwb[r.awbInput]
+          ? { ...byAwb[r.awbInput], ok: true }
+          : { error: 'Not found in BlueDart', ok: false };
+        const el = document.getElementById(`bd-${r.order_name}`);
+        if (el) el.innerHTML = bdStatusHtml(r);
       }
-    } catch(e) { /* continue on batch error */ }
-    done += batch.length;
-  }
-
-  setFetchStatus(found ? `✓ ${found}/${total} AWBs found from BlueDart` : '⚠ No AWBs matched — check if Shipway uses order number as RefNo');
-  updatePending();
-  setTimeout(() => setFetchStatus(''), 6000);
-}
-
-// Batch-fetch BlueDart for all rows that have an AWB, update status inline
-async function autofetchBluedart(rowsWithAwb) {
-  const awbs = [...new Set(rowsWithAwb.map(r => r.awbInput))];
-  try {
-    const data = await apiFetch({ action: 'fetch_tracking', awbs });
-    const byAwb = {};
-    for (const res of data.results || []) if (res.awb) byAwb[res.awb] = res;
-
-    for (const r of rowsWithAwb) {
-      r.bdStatus = byAwb[r.awbInput]
-        ? { ...byAwb[r.awbInput], ok: true }
-        : { error: 'Not found in BlueDart', ok: false };
-      refreshBdStatus(r);
+    } catch(e) {
+      for (const r of chunk) {
+        r.bdStatus = { error: e.message, ok: false };
+        const el = document.getElementById(`bd-${r.order_name}`);
+        if (el) el.innerHTML = bdStatusHtml(r);
+      }
     }
-  } catch(e) {
-    for (const r of rowsWithAwb) { r.bdStatus = { error: e.message, ok: false }; refreshBdStatus(r); }
+    setFetchStatus(`⏳ ${Math.min(i + CHUNK, total)}/${total} done…`);
   }
+  setFetchStatus(`✓ Status fetched for ${total} shipments`);
+  setTimeout(() => setFetchStatus(''), 4000);
 }
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
@@ -259,12 +228,15 @@ async function autofetchBluedart(rowsWithAwb) {
 function setFilter(f) {
   activeFilter = f;
   document.querySelectorAll('.ftab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.ftab').forEach(b => { if (b.textContent.toLowerCase().replace(/ /g,'_') === f || (f==='all' && b.textContent==='All') || (f==='no_tracking' && b.textContent==='No tracking') || (f==='has_awb' && b.textContent==='AWB entered')) b.classList.add('active'); });
+  document.querySelectorAll('.ftab').forEach((b, _, all) => {
+    const map = { all: 'All', no_tracking: 'No tracking', has_awb: 'AWB found' };
+    if (b.textContent === map[f]) b.classList.add('active');
+  });
   renderRows();
 }
 
 function getVisible() {
-  if (activeFilter === 'no_tracking') return rows.filter(r => !r.tracking);
+  if (activeFilter === 'no_tracking') return rows.filter(r => !r.awbInput);
   if (activeFilter === 'has_awb')     return rows.filter(r => r.awbInput);
   return rows;
 }
@@ -272,7 +244,7 @@ function getVisible() {
 function renderRows() {
   const visible = getVisible();
   if (!visible.length) {
-    document.getElementById('wrap').innerHTML = '<div class="empty-msg">No orders found for this filter.</div>';
+    document.getElementById('wrap').innerHTML = '<div class="empty-msg">No orders match this filter.</div>';
     updatePending();
     return;
   }
@@ -288,23 +260,20 @@ function rowHTML(r) {
   const pushed  = r.result?.ok;
   const errored = r.result && !r.result.ok;
 
-  const bdHtml = bdStatusHtml(r);
-
-  const awbSection = pushed
-    ? `<div class="tr-awb-row"><span class="pushed-label">✓ Tracking pushed · AWB ${escHtml(r.awbInput)}</span></div>`
-    : `<div class="tr-awb-row">
-        <input class="awb-input${r.bdStatus?.ok ? ' verified' : r.bdStatus?.error ? ' err' : ''}"
-          id="awb-${r.order_name}" type="text" placeholder="Enter AWB number"
-          inputmode="numeric" maxlength="15" value="${escHtml(r.awbInput)}">
-<button class="act-btn push" onclick="pushRow('${r.order_name}')" ${!r.awbInput ? 'disabled' : ''}>⬆ Push</button>
-      </div>`;
-
   const addrHtml = (r.address || r.phone) ? `<div class="tr-addr">
     ${r.address ? `<span>📍 ${escHtml(r.address)}</span>` : ''}
     ${r.phone ? `<a href="tel:${escHtml(r.phone)}">📞 ${escHtml(r.phone)}</a>` : ''}
   </div>` : '';
 
-  return `<div class="tr-row${!r.tracking ? ' no-tracking' : ''}${pushed ? ' pushed' : ''}${errored ? ' err-row' : ''}" id="row-${r.order_name}">
+  const awbSection = pushed
+    ? `<div class="tr-awb-row"><span class="pushed-label">✓ Tracking pushed to Shopify · AWB ${escHtml(r.awbInput)}</span></div>`
+    : `<div class="tr-awb-row">
+        <input class="awb-input" id="awb-${r.order_name}" type="text"
+          placeholder="AWB — upload Shipway CSV" inputmode="numeric" maxlength="15" value="${escHtml(r.awbInput)}">
+        <button class="act-btn push" onclick="pushRow('${r.order_name}')" ${!r.awbInput ? 'disabled' : ''}>⬆ Push to Shopify</button>
+      </div>`;
+
+  return `<div class="tr-row${!r.awbInput ? ' no-tracking' : ''}${pushed ? ' pushed' : ''}${errored ? ' err-row' : ''}" id="row-${r.order_name}">
     <div class="tr-top">
       <span class="tr-order">${r.order_name}</span>
       <span class="tr-customer">${escHtml(r.customer)}</span>
@@ -313,7 +282,7 @@ function rowHTML(r) {
       ${r.awbInput ? `<span style="font-size:.72rem;color:var(--muted);font-family:monospace">AWB: ${escHtml(r.awbInput)}</span>` : ''}
     </div>
     ${addrHtml}
-    <div id="bd-${r.order_name}">${bdHtml}</div>
+    <div id="bd-${r.order_name}">${bdStatusHtml(r)}</div>
     ${awbSection}
     ${r.result ? `<div class="tr-result ${r.result.ok ? 'ok-msg' : 'err-msg'}">${r.result.ok ? `✓ ${(r.result.action||'').replace(/_/g,' ')} — WhatsApp triggered` : `✕ ${escHtml(r.result.error)}`}</div>` : ''}
   </div>`;
@@ -321,79 +290,58 @@ function rowHTML(r) {
 
 function bdStatusHtml(r) {
   if (!r.awbInput) return '';
-  if (!r.bdStatus) return `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching…</div>`;
+  if (!r.bdStatus) return `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching BlueDart status…</div>`;
   if (r.bdStatus.error) return `<div class="bd-status bd-err"><span class="bd-label">BlueDart:</span> <span style="color:var(--red)">${escHtml(r.bdStatus.error)}</span></div>`;
 
   const s = r.bdStatus;
-  const scans = s.scans || (s.latestScan ? [s.latestScan] : []);
+  const scans = Array.isArray(s.scans) ? s.scans : [];
   const latest = scans[scans.length - 1] || null;
   const desc = s.statusDesc || s.statusCode || '';
 
-  const isDelivered = s.delivered;
-  const isBooked    = !desc; // AWB assigned but no status yet — not picked up
-  const cls = isDelivered ? 'bd-delivered' : isBooked ? 'bd-pending' : 'bd-ok';
+  // Exact match delivery codes only
+  const DELIVERED_CODES = ['DL', 'DEL', 'OD'];
+  const isDelivered = DELIVERED_CODES.includes((s.statusCode || '').toUpperCase())
+    || desc.toLowerCase() === 'delivered';
+  const isBooked = !desc;
 
-  const statusLine = isDelivered
-    ? `✓ Delivered — ${escHtml(desc)}`
-    : isBooked
-      ? `📋 AWB assigned — awaiting pickup`
-      : `🚚 ${escHtml(desc)}`;
+  const cls = isDelivered ? 'bd-delivered' : isBooked ? 'bd-pending' : 'bd-ok';
+  const statusLine = isDelivered ? `✓ Delivered`
+    : isBooked ? `📋 AWB booked — awaiting pickup`
+    : `🚚 ${escHtml(desc)}`;
 
   const locTime = latest
-    ? `<span class="bd-loc">📍 ${escHtml(latest.location || '')}</span><span class="bd-time">${escHtml(latest.time || '')}</span>`
+    ? `${latest.location ? `<span class="bd-loc">📍 ${escHtml(latest.location)}</span>` : ''}${latest.time ? `<span class="bd-time">${escHtml(latest.time)}</span>` : ''}`
     : s.statusTime ? `<span class="bd-time">${escHtml(s.statusTime)}</span>` : '';
 
   const journeyId = `journey-${r.order_name}`;
-  const journeyHtml = scans.length > 0 ? `
-    <button class="journey-toggle" onclick="toggleJourney('${journeyId}')">▶ Journey (${scans.length})</button>
+  const journeyBody = scans.length ? `
     <div id="${journeyId}" class="journey-list" style="display:none">
-      ${[...scans].reverse().map(s => `<div class="journey-step">
-        <span class="js-time">${escHtml(s.time || '')}</span>
-        <span><span class="js-loc">${escHtml(s.location || '')}</span>${s.remark ? ' — ' + escHtml(s.remark) : ''}</span>
+      ${[...scans].reverse().map(sc => `<div class="journey-step">
+        <span class="js-time">${escHtml(sc.time || '')}</span>
+        <span><span class="js-loc">${escHtml(sc.location || '')}</span>${sc.remark ? ' — ' + escHtml(sc.remark) : ''}</span>
       </div>`).join('')}
     </div>` : '';
 
-  const journeyToggle = scans.length > 0
-    ? `<button class="journey-toggle" onclick="toggleJourney('${journeyId}')">▶ Journey (${scans.length})</button>` : '';
-  const journeyBody = scans.length > 0
-    ? `<div id="${journeyId}" class="journey-list" style="display:none">${
-        [...scans].reverse().map(sc => `<div class="journey-step">
-          <span class="js-time">${escHtml(sc.time || '')}</span>
-          <span><span class="js-loc">${escHtml(sc.location || '')}</span>${sc.remark ? ' — ' + escHtml(sc.remark) : ''}</span>
-        </div>`).join('')
-      }</div>` : '';
+  const journeyBtn = scans.length
+    ? `<button class="journey-toggle" onclick="toggleJourney('${journeyId}',this)">▶ Journey (${scans.length})</button>` : '';
 
-  return `<div class="bd-status ${cls}" style="flex-direction:column;align-items:flex-start">
+  return `<div class="bd-status ${cls}" style="flex-direction:column;align-items:flex-start;gap:4px">
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <span class="bd-label">BlueDart:</span>
       <span class="bd-desc">${statusLine}</span>
       ${locTime}
-      ${journeyToggle}
+      ${journeyBtn}
     </div>
-    <div style="font-size:.65rem;color:#888;margin-top:3px">code=${escHtml(String(s.statusCode))} desc=${escHtml(String(s.statusDesc))} scans=${(s.scans||[]).length} delivered=${s.delivered}</div>
-    <details style="font-size:.6rem;color:#aaa;max-width:100%;overflow:auto"><summary>raw</summary><pre>${escHtml((s._raw||'').slice(0,400))}</pre></details>
     ${journeyBody}
   </div>`;
 }
 
-function toggleJourney(id) {
+function toggleJourney(id, btn) {
   const el = document.getElementById(id);
   if (!el) return;
-  const btn = el.previousElementSibling;
   const open = el.style.display !== 'none';
   el.style.display = open ? 'none' : 'flex';
-  if (btn && btn.classList.contains('journey-toggle')) btn.textContent = btn.textContent.replace(open ? '▼' : '▶', open ? '▶' : '▼');
-}
-
-// Refresh just the BlueDart status div without re-rendering the whole row
-function refreshBdStatus(r) {
-  const el = document.getElementById(`bd-${r.order_name}`);
-  if (el) el.innerHTML = bdStatusHtml(r);
-  // also update input border class
-  const inp = document.getElementById(`awb-${r.order_name}`);
-  if (inp) {
-    inp.className = 'awb-input' + (r.bdStatus?.ok ? ' verified' : r.bdStatus?.error ? ' err' : '');
-  }
+  btn.textContent = btn.textContent.replace(open ? '▼' : '▶', open ? '▶' : '▼');
 }
 
 function attachInputListener(r) {
@@ -402,30 +350,15 @@ function attachInputListener(r) {
   inp.addEventListener('input', () => {
     r.awbInput = inp.value.trim();
     r.bdStatus = null;
-    inp.className = 'awb-input';
     updatePending();
+    const el = document.getElementById(`bd-${r.order_name}`);
+    if (el) el.innerHTML = '';
   });
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') verifyOne(r.order_name); });
 }
 
-// ── VERIFY ────────────────────────────────────────────────────────────────────
-
-async function verifyOne(orderName) {
-  const r = rows.find(x => x.order_name === orderName);
-  if (!r?.awbInput) { toast('Enter an AWB number first'); return; }
-
-  const el = document.getElementById(`bd-${orderName}`);
-  if (el) el.innerHTML = `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching…</div>`;
-
-  try {
-    const data = await apiFetch({ action: 'fetch_tracking', awbs: [r.awbInput] });
-    const result = data.results?.[0];
-    r.bdStatus = result ? { ...result, ok: true } : { error: 'AWB not found in BlueDart', ok: false };
-  } catch(e) {
-    r.bdStatus = { error: e.message, ok: false };
-  }
-  refreshBdStatus(r);
-  updatePending();
+function refreshBdStatus(r) {
+  const el = document.getElementById(`bd-${r.order_name}`);
+  if (el) el.innerHTML = bdStatusHtml(r);
 }
 
 // ── PUSH TO SHOPIFY ───────────────────────────────────────────────────────────
@@ -433,10 +366,8 @@ async function verifyOne(orderName) {
 async function pushRow(orderName) {
   const r = rows.find(x => x.order_name === orderName);
   if (!r?.awbInput) return;
-
   const btn = document.querySelector(`#row-${orderName} .act-btn.push`);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
-
   try {
     const data = await apiFetch({ action: 'push_tracking', order_name: orderName, awb: r.awbInput, notify_customer: true });
     r.result = { ok: true, ...data };
@@ -445,7 +376,6 @@ async function pushRow(orderName) {
     r.result = { ok: false, error: e.message };
     toast(`✕ ${orderName}: ${e.message}`);
   }
-
   const rowEl = document.getElementById(`row-${orderName}`);
   if (rowEl) { rowEl.outerHTML = rowHTML(r); attachInputListener(r); }
   updatePending();
@@ -454,10 +384,8 @@ async function pushRow(orderName) {
 async function pushAll() {
   const ready = rows.filter(r => r.awbInput && !r.result?.ok);
   if (!ready.length) return;
-
   const btn = document.querySelector('#bulkPill .pill-push');
   btn.disabled = true; btn.textContent = '…pushing';
-
   try {
     const data = await apiFetch({ action: 'push_tracking_bulk', items: ready.map(r => ({ order_name: r.order_name, awb: r.awbInput })) });
     let ok = 0, fail = 0;
@@ -471,7 +399,6 @@ async function pushAll() {
     }
     toast(`Pushed ${ok}${fail ? `, ${fail} failed` : ''} orders`);
   } catch(e) { toast('Bulk push failed: ' + e.message); }
-
   btn.disabled = false; btn.textContent = '⬆ Push all to Shopify';
   updatePending();
 }
@@ -484,29 +411,62 @@ function updatePending() {
   document.getElementById('bulkPill').classList.toggle('show', ready > 0);
 }
 
-// ── CSV IMPORT ────────────────────────────────────────────────────────────────
+// ── SHIPWAY CSV IMPORT ────────────────────────────────────────────────────────
+// Shipway CSV columns: "Order Id", "Courier Name", "Tracking Number", Status, ...
+
+function parseCsvLine(line) {
+  // Handle quoted fields (CSV with commas inside quotes)
+  const result = [];
+  let cur = '', inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuote = !inQuote; }
+    else if (ch === ',' && !inQuote) { result.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
 
 function importCsv(input) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const lines = e.target.result.trim().split('\n');
-    const header = lines[0].toLowerCase().replace(/\r/g,'').split(',');
-    const oIdx = Math.max(header.indexOf('order_name'), header.indexOf('order'));
-    const aIdx = Math.max(header.indexOf('awb'), header.indexOf('tracking'));
-    if (oIdx < 0 || aIdx < 0) { toast('CSV needs order_name and awb columns'); return; }
-    let matched = 0;
+    const lines = e.target.result.trim().split('\n').filter(l => l.trim());
+    const headerCols = parseCsvLine(lines[0].replace(/\r/g, ''));
+    const header = headerCols.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+    // Match Shipway column names: "Order Id" → orderid, "Tracking Number" → trackingnumber
+    const oIdx = header.findIndex(h => h === 'orderid' || h === 'orderno' || h === 'order');
+    const aIdx = header.findIndex(h => h === 'trackingnumber' || h === 'awb' || h === 'tracking' || h === 'waybill');
+
+    if (oIdx < 0 || aIdx < 0) {
+      toast(`Column not found. Headers: ${headerCols.slice(0,5).join(', ')}`);
+      return;
+    }
+
+    let matched = 0, skipped = 0;
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].replace(/\r/g,'').split(',');
-      const name = (cols[oIdx] || '').trim(), awb = (cols[aIdx] || '').trim();
-      if (!name || !awb) continue;
-      const r = rows.find(x => x.order_name === name || x.order_name === '#'+name || '#'+x.order_name === name);
+      const cols = parseCsvLine(lines[i].replace(/\r/g, ''));
+      const orderId = (cols[oIdx] || '').trim();
+      const awb     = (cols[aIdx] || '').trim();
+      if (!orderId || !awb) { skipped++; continue; }
+
+      // Match by order number with or without # prefix
+      const r = rows.find(x =>
+        x.order_name === orderId ||
+        x.order_name === '#' + orderId ||
+        x.order_name.replace(/^#/, '') === orderId
+      );
       if (r) { r.awbInput = awb; r.bdStatus = null; matched++; }
     }
+
     renderRows();
+    toast(`✓ ${matched} orders matched${skipped ? ` (${skipped} skipped)` : ''}`);
+
+    // Auto-fetch BlueDart tracking status for all matched AWBs
     const withAwb = rows.filter(r => r.awbInput && !r.bdStatus);
-    if (withAwb.length) autofetchBluedart(withAwb);
-    toast(`CSV matched ${matched} orders`);
+    if (withAwb.length) fetchBluedartStatus(withAwb);
   };
   reader.readAsText(file);
   input.value = '';
@@ -521,7 +481,7 @@ function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 4000);
 }
 </script>
 </body>
