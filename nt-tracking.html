@@ -538,7 +538,8 @@ function attachInputListener(r) {
 async function pushRow(orderName) {
   const r = rows.find(x => x.order_name === orderName);
   if (!r?.awbInput) return;
-  const btn = document.querySelector(`#row-${orderName} .act-btn.push`);
+  const rowEl0 = document.getElementById(`row-${orderName}`);
+  const btn = rowEl0?.querySelector('.act-btn.push');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
     const data = await apiFetch({ action: 'push_tracking', order_name: orderName, awb: r.awbInput, notify_customer: true });
