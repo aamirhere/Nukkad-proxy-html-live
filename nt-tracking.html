@@ -289,7 +289,7 @@ async function loadOrders() {
             })) });
           }
         }
-      } catch(e) { /* Shipway API unavailable — continue silently */ }
+      } catch(e) { setFetchStatus(`⚠ Shipway: ${e.message}`); setTimeout(() => setFetchStatus(''), 6000); }
     }
 
     renderRows();
@@ -394,7 +394,7 @@ function rowHTML(r) {
     ? `<div class="tr-awb-row"><span class="pushed-label">✓ Tracking pushed to Shopify · AWB ${escHtml(r.awbInput)}</span></div>`
     : `<div class="tr-awb-row">
         <input class="awb-input" id="awb-${r.order_name}" type="text"
-          placeholder="AWB — upload Shipway CSV" inputmode="numeric" maxlength="15" value="${escHtml(r.awbInput)}">
+          placeholder="Enter AWB" inputmode="numeric" maxlength="15" value="${escHtml(r.awbInput)}">
         ${r.awbInput ? `<button class="act-btn push" onclick="pushRow('${r.order_name}')">⬆ Push to Shopify</button>` : ''}
       </div>`;
 
