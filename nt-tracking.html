@@ -232,9 +232,22 @@ async function loadOrders() {
     const n = rows.length;
     document.getElementById('totalBadge').textContent = n;
     document.getElementById('totalBadge').style.display = n ? '' : 'none';
+    // Merge Redis-stored AWBs (fills orders not yet pushed to Shopify)
+    if (rows.length) {
+      const orderNames = rows.map(r => r.order_name);
+      const stored = await apiFetch({ action: 'get_awbs', order_names: orderNames });
+      const byName = stored.awbs || {};
+      for (const r of rows) {
+        if (!r.awbInput && byName[r.order_name]) {
+          r.awbInput = byName[r.order_name].awb;
+          r.courier  = byName[r.order_name].courier || null;
+        }
+      }
+    }
+
     renderRows();
 
-    // Auto-fetch BlueDart for orders that already have tracking from Shopify
+    // Auto-fetch BlueDart for all orders with AWBs
     const preloaded = rows.filter(r => r.awbInput);
     if (preloaded.length) {
       fetchBluedartStatus(preloaded);
@@ -567,9 +580,12 @@ function importCsv(input) {
     const skippedExisting = matched - filled;
     toast(`✓ ${filled} AWBs filled${skippedExisting ? `, ${skippedExisting} already had AWB` : ''}${skipped ? `, ${skipped} rows skipped` : ''}`);
 
-    // Fetch BlueDart for newly filled orders only
-    const toFetch = rows.filter(r => r.awbInput && !r.bdStatus);
-    if (toFetch.length) fetchBluedartStatus(toFetch);
+    // Persist newly filled AWBs to Redis so they survive page reload
+    const newlyFilled = rows.filter(r => r.awbInput && !r.bdStatus);
+    if (newlyFilled.length) {
+      apiFetch({ action: 'store_awbs', items: newlyFilled.map(r => ({ order_name: r.order_name, awb: r.awbInput, courier: r.courier })) });
+      fetchBluedartStatus(newlyFilled);
+    }
   };
   reader.readAsText(file);
   input.value = '';
