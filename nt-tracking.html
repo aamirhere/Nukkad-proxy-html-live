@@ -132,6 +132,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 <div class="header">
   <h1>📦 BlueDart → Shopify</h1>
   <span id="fetchStatus" style="font-size:.78rem;color:var(--muted);display:none"></span>
+  <button class="hbtn" onclick="refreshShipway()">↺ Shipway</button>
   <label class="hbtn accent" style="cursor:pointer">↑ Shipway CSV<input type="file" accept=".csv,text/csv,.xlsx" style="display:none" onchange="importCsv(this)"></label>
   <a href="nt-inventory.html" class="hbtn">← Inventory</a>
 </div>
@@ -257,41 +258,12 @@ async function loadOrders() {
       }
     }
 
-    // Auto-fetch Shipway API for the same date range
+    // Auto-fetch Shipway — use a wider window (±5 days) so orders booked
+    // slightly before/after the viewed range still get their AWBs filled
     if (rows.length) {
-      try {
-        const sw = await apiFetch({ action: 'fetch_shipway', date_from: dateFrom, date_to: dateTo || dateFrom });
-        if (sw?.orders?.length) {
-          // Build lookup by order_id (Shipway order_id == Shopify order name without #)
-          const byId = {};
-          for (const o of sw.orders) {
-            if (o.order_id) byId[String(o.order_id).replace(/^#/, '')] = o;
-          }
-          const toStore = [];
-          for (const r of rows) {
-            const key = String(r.order_name).replace(/^#/, '');
-            const sw  = byId[key];
-            if (!sw) continue;
-            if (!r.awbInput && sw.tracking_number) {
-              r.awbInput = sw.tracking_number;
-              r.courier  = sw.courier || null;
-            }
-            if (sw.shipment_status && sw.shipment_status !== r.shipwayStatus) {
-              r.shipwayStatus     = sw.shipment_status;
-              r.shipwayStatusDate = null;
-            }
-            if (sw.scans?.length) r.shipwayScans = sw.scans;
-            toStore.push(r);
-          }
-          if (toStore.length) {
-            renderRows();
-            apiFetch({ action: 'store_awbs', items: toStore.map(r => ({
-              order_name: r.order_name, awb: r.awbInput, courier: r.courier,
-              shipway_status: r.shipwayStatus, shipway_status_date: r.shipwayStatusDate,
-            })) });
-          }
-        }
-      } catch(e) { setFetchStatus(`⚠ Shipway: ${e.message}`); setTimeout(() => setFetchStatus(''), 6000); }
+      const swFrom = offsetDate(dateFrom, -5);
+      const swTo   = offsetDate(dateTo || dateFrom, 5);
+      mergeShipway(swFrom, swTo).catch(() => {});
     }
 
     renderRows();
@@ -345,6 +317,71 @@ async function fetchBluedartStatus(rowsToFetch) {
   setTimeout(() => setFetchStatus(''), 4000);
 }
 
+function offsetDate(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function mergeShipway(swFrom, swTo, silent = false) {
+  if (!silent) setFetchStatus(`⏳ Fetching Shipway (${swFrom} → ${swTo})…`);
+  try {
+    const sw = await apiFetch({ action: 'fetch_shipway', date_from: swFrom, date_to: swTo });
+    if (!sw?.orders?.length) {
+      if (!silent) { setFetchStatus('Shipway: no orders in range'); setTimeout(() => setFetchStatus(''), 3000); }
+      return 0;
+    }
+    const byId = {};
+    for (const o of sw.orders) {
+      if (o.order_id) byId[String(o.order_id).replace(/^#/, '')] = o;
+    }
+    const toStore = [];
+    let filled = 0;
+    for (const r of rows) {
+      const key = String(r.order_name).replace(/^#/, '');
+      const sw  = byId[key];
+      if (!sw) continue;
+      let changed = false;
+      if (!r.awbInput && sw.tracking_number) {
+        r.awbInput = sw.tracking_number;
+        r.courier  = sw.courier || null;
+        r.bdStatus = null;
+        filled++;
+        changed = true;
+      }
+      if (sw.shipment_status && sw.shipment_status !== r.shipwayStatus) {
+        r.shipwayStatus     = sw.shipment_status;
+        r.shipwayStatusDate = null;
+        if (r.bdStatus?.error === 'not_found') {
+          const el = document.getElementById(`bd-${r.order_name}`);
+          if (el) el.innerHTML = trackingHtml(r);
+        }
+        changed = true;
+      }
+      if (sw.scans?.length) { r.shipwayScans = sw.scans; changed = true; }
+      if (changed) toStore.push(r);
+    }
+    if (toStore.length) {
+      renderRows();
+      apiFetch({ action: 'store_awbs', items: toStore.map(r => ({
+        order_name: r.order_name, awb: r.awbInput, courier: r.courier,
+        shipway_status: r.shipwayStatus, shipway_status_date: r.shipwayStatusDate,
+      })) });
+    }
+    if (!silent) {
+      setFetchStatus(`✓ Shipway: ${sw.orders.length} orders, ${filled} AWBs filled`);
+      setTimeout(() => setFetchStatus(''), 4000);
+    }
+    const newlyFilled = toStore.filter(r => !r.bdStatus && r.awbInput);
+    if (newlyFilled.length) fetchBluedartStatus(newlyFilled);
+    return filled;
+  } catch(e) {
+    setFetchStatus(`⚠ Shipway: ${e.message}`);
+    setTimeout(() => setFetchStatus(''), 6000);
+    return 0;
+  }
+}
+
 async function refreshRow(orderName) {
   const r = rows.find(x => x.order_name === orderName);
   if (!r?.awbInput) return;
@@ -359,6 +396,16 @@ async function refreshRow(orderName) {
   }
   if (el) el.innerHTML = trackingHtml(r);
   setFilter(activeFilter);
+}
+
+async function refreshShipway() {
+  if (!rows.length) return;
+  const dateFrom = document.getElementById('dateFrom').value;
+  const dateTo   = document.getElementById('dateTo').value;
+  // Use a wide ±7 day window for manual refresh
+  const swFrom = offsetDate(dateFrom, -7);
+  const swTo   = offsetDate(dateTo || dateFrom, 7);
+  await mergeShipway(swFrom, swTo);
 }
 
 async function refreshAllFailed() {
