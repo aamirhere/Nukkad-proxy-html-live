@@ -273,12 +273,11 @@ async function fetchBluedartStatus(rowsToFetch) {
     const order_names = chunk.map(r => r.order_name);
     try {
       const data = await apiFetch({ action: 'fetch_tracking', awbs, order_names });
-      const byAwb = {};
-      for (const res of (data.results || [])) if (res.awb) byAwb[res.awb] = res;
-      for (const r of chunk) {
-        r.bdStatus = byAwb[r.awbInput]
-          ? { ...byAwb[r.awbInput], ok: true }
-          : { error: 'not_found', ok: false };
+      // Backend now returns one result per input AWB in the same order
+      const results = data.results || [];
+      for (let j = 0; j < chunk.length; j++) {
+        const r = chunk[j];
+        r.bdStatus = results[j] || { awb: r.awbInput, error: 'not_found', ok: false };
         const el = document.getElementById(`bd-${r.order_name}`);
         if (el) el.innerHTML = trackingHtml(r);
       }
@@ -391,12 +390,16 @@ function trackingHtml(r) {
     const awbLine = url
       ? `<a href="${escHtml(url)}" target="_blank" style="color:var(--accent);font-family:monospace">${escHtml(awb)}</a>`
       : `<span style="font-family:monospace">${escHtml(awb)}</span>`;
+    const xmlHint = r.bdStatus._xml
+      ? `<details style="margin-top:4px;font-size:.68rem"><summary style="cursor:pointer;color:var(--muted)">BlueDart API response (debug)</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size:.65rem;color:var(--ink2)">${escHtml(r.bdStatus._xml)}</pre></details>`
+      : '';
     return `<div class="bd-status bd-pending" style="flex-direction:column;align-items:flex-start;gap:3px">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span class="bd-label">${companyLabel}:</span>
         <span class="bd-desc">${awbLine}</span>
-        <span class="bd-loc">Not on BlueDart — Shipway CSV pending</span>
+        <span class="bd-loc">Not found in BlueDart</span>
       </div>
+      ${xmlHint}
     </div>`;
   }
 
