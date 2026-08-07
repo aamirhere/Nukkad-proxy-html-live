@@ -95,6 +95,36 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 .loading-msg,.empty-msg{text-align:center;padding:50px 20px;color:var(--muted);font-size:.88rem}
 #toast{position:fixed;bottom:80px;right:20px;background:#3a2b1d;color:#fff;padding:10px 18px;border-radius:8px;font-size:.82rem;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;max-width:320px}
 #toast.show{opacity:1}
+
+/* ── HISTORY MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:400;display:flex;align-items:flex-end;justify-content:center;transition:opacity .2s}
+.modal-overlay.hidden{display:none}
+.modal-box{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:620px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-head{padding:14px 16px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.modal-title{font-weight:700;font-size:.95rem;flex:1;font-family:Fraunces,Georgia,serif}
+.modal-subtitle{font-size:.75rem;color:var(--muted)}
+.modal-close{border:none;background:none;font-size:1.1rem;cursor:pointer;color:var(--muted);padding:4px 8px;border-radius:6px}
+.modal-close:hover{background:var(--bg);color:var(--ink)}
+.modal-body{overflow-y:auto;padding:14px 16px;flex:1}
+.modal-foot{padding:11px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+.modal-empty{text-align:center;padding:30px;color:var(--muted);font-size:.85rem}
+
+/* History timeline */
+.hist-list{display:flex;flex-direction:column;gap:0}
+.hist-entry{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.hist-entry:last-child{border-bottom:none}
+.hist-spine{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;padding-top:3px}
+.hist-dot{width:11px;height:11px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.hist-dot.delivered{background:var(--green)}
+.hist-dot.transit{background:var(--accent)}
+.hist-dot.new{background:#1565c0}
+.hist-line{width:2px;background:var(--line);flex:1;min-height:16px;margin-top:3px}
+.hist-info{flex:1}
+.hist-status{font-weight:700;font-size:.83rem;color:var(--ink)}
+.hist-meta{font-size:.75rem;color:var(--ink2);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap}
+.hist-ts{font-size:.72rem;color:var(--muted);margin-top:3px}
+.hist-badge{display:inline-block;font-size:.65rem;padding:1px 6px;border-radius:8px;font-weight:700;background:#e8f5e9;color:#2e7d32}
+.hist-badge.new-status{background:#e3f2fd;color:#1565c0}
 </style>
 </head>
 <body>
@@ -130,6 +160,26 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
 </div>
 
 <div id="toast"></div>
+
+<!-- History Modal -->
+<div class="modal-overlay hidden" id="histModal" onclick="closeHistModal(event)">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="histModalTitle">Status History</div>
+        <div class="modal-subtitle" id="histModalSub"></div>
+      </div>
+      <button class="modal-close" onclick="closeHistModal()">✕</button>
+    </div>
+    <div class="modal-body" id="histModalBody">
+      <div class="modal-empty"><span class="spinner"></span> Loading…</div>
+    </div>
+    <div class="modal-foot">
+      <button class="act-btn push" id="histPushBtn" style="display:none" onclick="histPushTracking()">⬆ Push tracking to Shopify</button>
+      <button class="hbtn" onclick="closeHistModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
@@ -206,9 +256,10 @@ async function fetchBluedartStatus(rowsToFetch) {
   const CHUNK = 20;
   for (let i = 0; i < rowsToFetch.length; i += CHUNK) {
     const chunk = rowsToFetch.slice(i, i + CHUNK);
-    const awbs = chunk.map(r => r.awbInput);
+    const awbs        = chunk.map(r => r.awbInput);
+    const order_names = chunk.map(r => r.order_name);
     try {
-      const data = await apiFetch({ action: 'fetch_tracking', awbs });
+      const data = await apiFetch({ action: 'fetch_tracking', awbs, order_names });
       const byAwb = {};
       for (const res of (data.results || [])) if (res.awb) byAwb[res.awb] = res;
       for (const r of chunk) {
@@ -303,6 +354,7 @@ function rowHTML(r) {
       <span class="tr-date">${dateStr}</span>
       <span class="tr-fstatus ${fsCls}">${fsLabel}</span>
       ${r.awbInput ? `<span style="font-size:.72rem;color:var(--muted);font-family:monospace">AWB: ${escHtml(r.awbInput)}${courierLabel}</span>` : ''}
+      ${r.awbInput ? `<button class="act-btn" style="padding:3px 8px;font-size:.7rem" onclick="openHistModal('${r.order_name}')">🕐 History</button>` : ''}
     </div>
     ${addrHtml}
     <div id="bd-${r.order_name}">${trackingHtml(r)}</div>
@@ -521,6 +573,101 @@ function importCsv(input) {
   };
   reader.readAsText(file);
   input.value = '';
+}
+
+// ── HISTORY MODAL ─────────────────────────────────────────────────────────────
+
+let histModalOrder = null;
+
+async function openHistModal(orderName) {
+  histModalOrder = orderName;
+  const r = rows.find(x => x.order_name === orderName);
+  document.getElementById('histModalTitle').textContent = `${orderName} — Status History`;
+  document.getElementById('histModalSub').textContent = r?.customer || '';
+  document.getElementById('histModalBody').innerHTML = '<div class="modal-empty"><span class="spinner"></span> Loading…</div>';
+  const pushBtn = document.getElementById('histPushBtn');
+  pushBtn.style.display = r?.awbInput && !r?.result?.ok ? '' : 'none';
+  document.getElementById('histModal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const data = await apiFetch({ action: 'get_history', order_names: [orderName] });
+    const hist = (data.histories || {})[orderName] || [];
+    renderHistModal(hist, r);
+  } catch(e) {
+    document.getElementById('histModalBody').innerHTML = `<div class="modal-empty" style="color:var(--red)">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderHistModal(hist, r) {
+  const DELIVERED_CODES = ['DL', 'DEL', 'OD'];
+
+  if (!hist.length) {
+    const hint = r?.awbInput
+      ? 'No history yet — status will be recorded each time the page fetches tracking.'
+      : 'No AWB set for this order yet.';
+    document.getElementById('histModalBody').innerHTML = `<div class="modal-empty">${escHtml(hint)}</div>`;
+    return;
+  }
+
+  const items = hist.map((entry, i) => {
+    const isDelivered = DELIVERED_CODES.includes((entry.statusCode || '').toUpperCase())
+      || (entry.statusDesc || '').toLowerCase() === 'delivered';
+    const isNew = i === 0;
+    const dotCls = isDelivered ? 'delivered' : isNew ? 'new' : 'transit';
+    const badge = isNew ? `<span class="hist-badge new-status">Latest</span>` : '';
+    const isLast = i === hist.length - 1;
+
+    const ts = entry.ts ? new Date(entry.ts).toLocaleString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    }) : '';
+
+    return `<div class="hist-entry">
+      <div class="hist-spine">
+        <div class="hist-dot ${dotCls}"></div>
+        ${!isLast ? '<div class="hist-line"></div>' : ''}
+      </div>
+      <div class="hist-info">
+        <div class="hist-status">${escHtml(entry.statusDesc || entry.statusCode || '—')} ${badge}</div>
+        <div class="hist-meta">
+          ${entry.location ? `<span>📍 ${escHtml(entry.location)}</span>` : ''}
+          ${entry.scanCount ? `<span>${entry.scanCount} scans</span>` : ''}
+          ${entry.awb ? `<span style="font-family:monospace;font-size:.7rem">${escHtml(entry.awb)}</span>` : ''}
+        </div>
+        <div class="hist-ts">${ts}</div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('histModalBody').innerHTML = `<div class="hist-list">${items.join('')}</div>`;
+}
+
+function closeHistModal(e) {
+  if (e && e.target !== document.getElementById('histModal')) return;
+  document.getElementById('histModal').classList.add('hidden');
+  document.body.style.overflow = '';
+  histModalOrder = null;
+}
+
+async function histPushTracking() {
+  if (!histModalOrder) return;
+  const r = rows.find(x => x.order_name === histModalOrder);
+  if (!r?.awbInput) return;
+  const btn = document.getElementById('histPushBtn');
+  btn.disabled = true; btn.textContent = '…pushing';
+  try {
+    const data = await apiFetch({ action: 'push_tracking', order_name: histModalOrder, awb: r.awbInput, notify_customer: true });
+    r.result = { ok: true, ...data };
+    toast(`✓ ${histModalOrder} — tracking pushed`);
+    btn.style.display = 'none';
+    const rowEl = document.getElementById(`row-${histModalOrder}`);
+    if (rowEl) { rowEl.outerHTML = rowHTML(r); attachInputListener(r); }
+    updatePending();
+  } catch(e) {
+    toast(`✕ Push failed: ${e.message}`);
+    btn.disabled = false; btn.textContent = '⬆ Push tracking to Shopify';
+  }
 }
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
