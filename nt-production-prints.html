@@ -188,6 +188,7 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
       <input type="file" accept="image/*" multiple style="display:none" onchange="bulkUploadImages(this)">
     </label>
     <button class="hbtn" onclick="openAddModal()">+ Add</button>
+    <button class="hbtn" onclick="openBulkAddModal()">+ Bulk Add</button>
     <button class="hbtn" onclick="openCsvModal()">↑ CSV</button>
     <div class="hbtn-wrap" id="csvDlWrap">
       <button class="hbtn" onclick="toggleCsvDlMenu(event)">↓ CSV ▾</button>
@@ -309,6 +310,33 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
   </div>
 </div>
 
+<!-- BULK ADD MODAL -->
+<div id="bulkAddModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeBulkAddModal()">
+  <div class="modal" style="max-width:500px">
+    <h2>Bulk Add Products</h2>
+    <label>One product title per line — handle auto-generated</label>
+    <textarea id="bulkAddText" style="width:100%;height:160px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:.84rem;color:var(--ink);resize:vertical;margin-top:4px;font-family:inherit" placeholder="All Will Be Okay&#10;You Are My Sunshine&#10;Dream Big Little One"></textarea>
+    <div id="bulkAddPreview" style="font-size:.72rem;color:var(--muted);margin-top:6px"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeBulkAddModal()">Cancel</button>
+      <button class="btn-save" onclick="saveBulkAdd()">Add All</button>
+    </div>
+  </div>
+</div>
+
+<!-- UNMATCHED IMAGES MODAL -->
+<div id="unmatchedModal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeUnmatchedModal()">
+  <div class="modal" style="max-width:580px;max-height:90vh;overflow-y:auto">
+    <h2>Assign Unmatched Images</h2>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px">These images couldn't be auto-matched. Select a product for each and click Upload.</p>
+    <div id="unmatchedList"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeUnmatchedModal()">Close</button>
+      <button class="btn-save" onclick="uploadUnmatched()">Upload All Assigned</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API     = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-production-prints';
 const INV_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-inventory';
@@ -326,12 +354,12 @@ let emgGroups = [];
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
 async function init() {
-  // check if opened from cut list
   if (new URLSearchParams(location.search).get('mode') === 'cutlist') {
     applyCutListMode();
   }
 
   try {
+    // Load cached list fast, then refresh from Shopify in background to pick up new products
     const res = await apiFetch({ action: 'load' });
     if (!res.ok) throw new Error(res.error || 'Load failed');
     allProducts = res.products || [];
@@ -340,6 +368,21 @@ async function init() {
     renderList(filtered);
     updateHeader();
     if (cutListHandles.size) highlightCutList();
+
+    // Background Shopify sync — merges new products silently
+    apiFetch({ action: 'refresh_products' }).then(r => {
+      if (!r?.products) return;
+      const existingHandles = new Set(allProducts.map(p => p.handle));
+      const newOnes = (r.products || []).filter(p => !existingHandles.has(p.handle));
+      if (newOnes.length) {
+        allProducts = [...newOnes, ...allProducts];
+        links = { ...(r.links || {}), ...links };
+        filtered = allProducts;
+        filterList();
+        updateHeader();
+        toast(`↑ ${newOnes.length} new product${newOnes.length > 1 ? 's' : ''} from Shopify`);
+      }
+    }).catch(() => {});
   } catch(e) {
     document.getElementById('listWrap').innerHTML = `<div class="loading-msg">Error: ${e.message}</div>`;
   }
@@ -1359,14 +1402,14 @@ async function bulkUploadImages(input) {
   if (!allProducts.length) { toast('Load products first'); return; }
 
   let done = 0, matched = 0, skipped = 0;
-  const unmatched = [];
+  const unmatchedFileObjs = [];
 
   toast(`Uploading ${files.length} images…`);
 
   for (const file of files) {
     const match = matchFileToProduct(file.name);
     if (!match) {
-      unmatched.push(file.name);
+      unmatchedFileObjs.push({ file, objectUrl: URL.createObjectURL(file) });
       skipped++;
       done++;
       toast(`(${done}/${files.length}) No match: ${file.name}`);
@@ -1403,9 +1446,9 @@ async function bulkUploadImages(input) {
   filterList();
   updateHeader();
 
-  if (unmatched.length) {
-    console.log('Unmatched/failed files:', unmatched);
-    toast(`✓ ${matched} uploaded. ${skipped} not matched — check console for list`);
+  if (unmatchedFileObjs.length) {
+    toast(`✓ ${matched} uploaded. ${unmatchedFileObjs.length} unmatched — assign them below`);
+    openUnmatchedModal(unmatchedFileObjs);
   } else {
     toast(`✓ All ${matched} images uploaded and linked!`);
   }
@@ -1421,6 +1464,97 @@ function fileToBase64(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+// ── BULK ADD ──────────────────────────────────────────────────────────────────
+
+function openBulkAddModal() {
+  document.getElementById('bulkAddText').value = '';
+  document.getElementById('bulkAddPreview').textContent = '';
+  document.getElementById('bulkAddModal').style.display = 'flex';
+  document.getElementById('bulkAddText').focus();
+}
+function closeBulkAddModal() { document.getElementById('bulkAddModal').style.display = 'none'; }
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('bulkAddText').addEventListener('input', function() {
+    const lines = this.value.split('\n').map(l => l.trim()).filter(Boolean);
+    document.getElementById('bulkAddPreview').textContent = lines.length ? `${lines.length} product${lines.length > 1 ? 's' : ''} to add` : '';
+  });
+});
+
+async function saveBulkAdd() {
+  const lines = document.getElementById('bulkAddText').value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) { toast('No titles entered'); return; }
+  const items = lines.map(title => ({
+    title,
+    handle: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+  }));
+  try {
+    toast(`Adding ${items.length} products…`, true);
+    for (const item of items) {
+      await apiFetch({ action: 'add_manual', handle: item.handle, title: item.title, size_w_mm: null, size_h_mm: null });
+      allProducts.unshift({ handle: item.handle, title: item.title, shopify_image: null, size_w_in: null, size_h_in: null, is_new: true });
+    }
+    closeBulkAddModal();
+    filterList();
+    updateHeader();
+    toast(`✓ Added ${items.length} products`);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── UNMATCHED IMAGE ASSIGNMENT ────────────────────────────────────────────────
+
+let unmatchedFiles = []; // [{file, objectUrl}]
+
+function openUnmatchedModal(files) {
+  unmatchedFiles = files;
+  const list = document.getElementById('unmatchedList');
+  list.innerHTML = files.map((f, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <img src="${f.objectUrl}" style="width:56px;height:56px;object-fit:contain;border-radius:6px;border:1px solid var(--line);background:#f5ece0;flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.75rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.file.name)}</div>
+        <input list="productList-${i}" id="unmatch-sel-${i}" placeholder="Type to search product…"
+          style="width:100%;margin-top:4px;padding:5px 8px;border:1px solid var(--line);border-radius:5px;font-size:.8rem;color:var(--ink)">
+        <datalist id="productList-${i}">
+          ${allProducts.map(p => `<option value="${escHtml(p.title)}">`).join('')}
+        </datalist>
+      </div>
+    </div>`).join('');
+  document.getElementById('unmatchedModal').style.display = 'flex';
+}
+
+function closeUnmatchedModal() {
+  unmatchedFiles.forEach(f => URL.revokeObjectURL(f.objectUrl));
+  unmatchedFiles = [];
+  document.getElementById('unmatchedModal').style.display = 'none';
+}
+
+async function uploadUnmatched() {
+  let uploaded = 0, skipped = 0;
+  for (let i = 0; i < unmatchedFiles.length; i++) {
+    const inputEl = document.getElementById(`unmatch-sel-${i}`);
+    const title = inputEl?.value.trim();
+    if (!title) { skipped++; continue; }
+    const product = allProducts.find(p => p.title.toLowerCase() === title.toLowerCase()) ||
+                    allProducts.find(p => p.title.toLowerCase().includes(title.toLowerCase()));
+    if (!product) { skipped++; continue; }
+
+    const f = unmatchedFiles[i].file;
+    toast(`Uploading ${f.name} → ${product.title}…`, true);
+    try {
+      const data = await fileToBase64(f);
+      const res = await apiFetch({ action: 'upload_image', handle: product.handle, filename: f.name, mime_type: f.type || 'image/jpeg', data });
+      if (!res.ok) throw new Error(res.error);
+      links[product.handle] = { ...links[product.handle], image_url: res.image_url || null, drive_link: res.drive_link || null, drive_id: res.drive_id || null };
+      uploaded++;
+    } catch(e) { toast(`Error uploading ${f.name}: ${e.message}`); }
+  }
+  closeUnmatchedModal();
+  filterList();
+  updateHeader();
+  toast(`✓ ${uploaded} uploaded${skipped ? `, ${skipped} skipped` : ''}`);
 }
 
 // ── SCAN DRIVE FOLDER ────────────────────────────────────────────────────────
