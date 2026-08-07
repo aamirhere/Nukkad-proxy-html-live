@@ -224,10 +224,12 @@ async function loadOrders() {
     const data = await apiFetch({ action: 'load_orders', date_from: dateFrom, date_to: dateTo || dateFrom });
     rows = (Array.isArray(data) ? data : []).map(o => ({
       ...o,
-      awbInput: o.known_awb || '',
-      courier:  null,   // set by CSV import
-      bdStatus: null,
-      result:   null,
+      awbInput:         o.known_awb || '',
+      courier:          null,
+      shipwayStatus:    null,
+      shipwayStatusDate:null,
+      bdStatus:         null,
+      result:           null,
     }));
     const n = rows.length;
     document.getElementById('totalBadge').textContent = n;
@@ -238,9 +240,16 @@ async function loadOrders() {
       const stored = await apiFetch({ action: 'get_awbs', order_names: orderNames });
       const byName = stored.awbs || {};
       for (const r of rows) {
-        if (!r.awbInput && byName[r.order_name]) {
-          r.awbInput = byName[r.order_name].awb;
-          r.courier  = byName[r.order_name].courier || null;
+        if (byName[r.order_name]) {
+          const stored = byName[r.order_name];
+          if (!r.awbInput) {
+            r.awbInput = stored.awb;
+            r.courier  = stored.courier || null;
+          }
+          if (!r.shipwayStatus && stored.shipway_status) {
+            r.shipwayStatus     = stored.shipway_status;
+            r.shipwayStatusDate = stored.shipway_status_date || null;
+          }
         }
       }
     }
@@ -291,56 +300,9 @@ async function fetchBluedartStatus(rowsToFetch) {
     setFetchStatus(`⏳ ${Math.min(i + CHUNK, total)}/${total} done…`);
   }
 
-  // After bulk fetch, try ref-based lookup for any still not found
-  const notFound = rowsToFetch.filter(r => r.bdStatus?.error === 'not_found');
-  if (notFound.length) {
-    await lookupByRefs(notFound);
-  } else {
-    renderRows();
-    setFetchStatus(`✓ Status fetched for ${total} shipments`);
-    setTimeout(() => setFetchStatus(''), 4000);
-  }
-}
-
-// ── REF FALLBACK LOOKUP ───────────────────────────────────────────────────────
-// For rows where Shipway tracking number ≠ BlueDart AWB, look up by order number
-
-async function lookupByRefs(notFoundRows) {
-  if (!notFoundRows.length) return;
-  setFetchStatus(`⏳ Looking up ${notFoundRows.length} orders by reference…`);
-
-  const CHUNK = 8;
-  for (let i = 0; i < notFoundRows.length; i += CHUNK) {
-    const chunk = notFoundRows.slice(i, i + CHUNK);
-    const items = chunk.map(r => ({
-      order_name: r.order_name,
-      ref_no: r.order_name.replace(/^#/, ''),
-    }));
-    try {
-      const data = await apiFetch({ action: 'lookup_by_refs', items });
-      for (const res of (data.results || [])) {
-        const r = rows.find(x => x.order_name === res.order_name);
-        if (!r) continue;
-        if (res.ok && res.awb) {
-          // Real BlueDart AWB found — update the row
-          r.awbInput = res.awb;
-          r.courier  = 'BlueDart';
-          r.bdStatus = { ...res, ok: true };
-        } else {
-          // Still not found — keep the not_found status (already set)
-        }
-        const el = document.getElementById(`bd-${r.order_name}`);
-        if (el) el.innerHTML = trackingHtml(r);
-        const awbEl = document.getElementById(`awb-${r.order_name}`);
-        if (awbEl) awbEl.value = r.awbInput;
-      }
-    } catch(e) { /* non-fatal, ignore */ }
-    setFetchStatus(`⏳ Ref lookup ${Math.min(i + CHUNK, notFoundRows.length)}/${notFoundRows.length}…`);
-  }
-
   renderRows();
-  setFetchStatus(`✓ Done`);
-  setTimeout(() => setFetchStatus(''), 3000);
+  setFetchStatus(`✓ Status fetched for ${total} shipments`);
+  setTimeout(() => setFetchStatus(''), 4000);
 }
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
@@ -427,7 +389,7 @@ function trackingHtml(r) {
   if (!r.awbInput) return '';
   if (!r.bdStatus) return `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching status…</div>`;
 
-  // Not found in BlueDart — show Shopify tracking as fallback if available
+  // Not found in BlueDart — show Shipway CSV status if available
   if (r.bdStatus.error === 'not_found') {
     const company = r.courier || r.tracking_company || null;
     const url     = r.tracking_url || null;
@@ -436,11 +398,14 @@ function trackingHtml(r) {
     const awbLine = url
       ? `<a href="${escHtml(url)}" target="_blank" style="color:var(--accent);font-family:monospace">${escHtml(awb)}</a>`
       : `<span style="font-family:monospace">${escHtml(awb)}</span>`;
+    const statusPart = r.shipwayStatus
+      ? `<span class="bd-desc">🚚 ${escHtml(r.shipwayStatus)}</span>${r.shipwayStatusDate ? `<span class="bd-time">${escHtml(r.shipwayStatusDate)}</span>` : ''}`
+      : `<span class="bd-loc">Not tracked via BlueDart — upload Shipway CSV for status</span>`;
     return `<div class="bd-status bd-pending" style="flex-direction:column;align-items:flex-start;gap:3px">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span class="bd-label">${companyLabel}:</span>
         <span class="bd-desc">${awbLine}</span>
-        <span class="bd-loc">Not found in BlueDart — checking by order ref…</span>
+        ${statusPart}
       </div>
     </div>`;
   }
@@ -588,9 +553,11 @@ function importCsv(input) {
     const headerCols = parseCsvLine(lines[0].replace(/\r/g, ''));
     const header = headerCols.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
 
-    const oIdx = header.findIndex(h => h === 'orderid' || h === 'orderno' || h === 'order');
-    const aIdx = header.findIndex(h => h === 'trackingnumber' || h === 'awb' || h === 'tracking' || h === 'waybill');
-    const cIdx = header.findIndex(h => h === 'couriername' || h === 'courier' || h === 'carrier');
+    const oIdx  = header.findIndex(h => h === 'orderid' || h === 'orderno' || h === 'order');
+    const aIdx  = header.findIndex(h => h === 'trackingnumber' || h === 'awb' || h === 'tracking' || h === 'waybill');
+    const cIdx  = header.findIndex(h => h === 'couriername' || h === 'courier' || h === 'carrier');
+    const sIdx  = header.findIndex(h => h === 'status');
+    const sdIdx = header.findIndex(h => h === 'statusdate' || h === 'laststatusdate' || h === 'lastupdatedate');
 
     if (oIdx < 0 || aIdx < 0) {
       toast(`Column not found. Headers: ${headerCols.slice(0,5).join(', ')}`);
@@ -598,11 +565,14 @@ function importCsv(input) {
     }
 
     let matched = 0, filled = 0, skipped = 0;
+    const toStore = [];
     for (let i = 1; i < lines.length; i++) {
-      const cols    = parseCsvLine(lines[i].replace(/\r/g, ''));
-      const orderId = (cols[oIdx] || '').trim();
-      const awb     = (cols[aIdx] || '').trim();
-      const courier = cIdx >= 0 ? (cols[cIdx] || '').trim() : null;
+      const cols       = parseCsvLine(lines[i].replace(/\r/g, ''));
+      const orderId    = (cols[oIdx] || '').trim();
+      const awb        = (cols[aIdx] || '').trim();
+      const courier    = cIdx  >= 0 ? (cols[cIdx]  || '').trim() || null : null;
+      const status     = sIdx  >= 0 ? (cols[sIdx]  || '').trim() || null : null;
+      const statusDate = sdIdx >= 0 ? (cols[sdIdx] || '').trim() || null : null;
       if (!orderId || !awb) { skipped++; continue; }
 
       const r = rows.find(x =>
@@ -612,23 +582,43 @@ function importCsv(input) {
       );
       if (!r) continue;
       matched++;
-      // Only fill if order doesn't already have an AWB
+
+      let changed = false;
       if (!r.awbInput) {
         r.awbInput = awb;
         r.courier  = courier;
         r.bdStatus = null;
         filled++;
+        changed = true;
       }
+      // Always update Shipway status from CSV — it's current data
+      if (status && status !== r.shipwayStatus) {
+        r.shipwayStatus     = status;
+        r.shipwayStatusDate = statusDate;
+        changed = true;
+        // Re-render status block if BlueDart already returned not_found
+        if (r.bdStatus?.error === 'not_found') {
+          const el = document.getElementById(`bd-${r.order_name}`);
+          if (el) el.innerHTML = trackingHtml(r);
+        }
+      }
+      if (changed) toStore.push(r);
     }
 
     renderRows();
     const skippedExisting = matched - filled;
     toast(`✓ ${filled} AWBs filled${skippedExisting ? `, ${skippedExisting} already had AWB` : ''}${skipped ? `, ${skipped} rows skipped` : ''}`);
 
-    // Persist newly filled AWBs to Redis so they survive page reload
-    const newlyFilled = rows.filter(r => r.awbInput && !r.bdStatus);
+    // Persist all changed rows to Redis
+    if (toStore.length) {
+      apiFetch({ action: 'store_awbs', items: toStore.map(r => ({
+        order_name: r.order_name, awb: r.awbInput, courier: r.courier,
+        shipway_status: r.shipwayStatus, shipway_status_date: r.shipwayStatusDate,
+      })) });
+    }
+    // Fetch BlueDart only for newly-filled AWB rows
+    const newlyFilled = toStore.filter(r => !r.bdStatus);
     if (newlyFilled.length) {
-      apiFetch({ action: 'store_awbs', items: newlyFilled.map(r => ({ order_name: r.order_name, awb: r.awbInput, courier: r.courier })) });
       fetchBluedartStatus(newlyFilled);
     }
   };
