@@ -228,6 +228,7 @@ async function loadOrders() {
       courier:          null,
       shipwayStatus:    null,
       shipwayStatusDate:null,
+      shipwayScans:     null,
       bdStatus:         null,
       result:           null,
     }));
@@ -254,6 +255,43 @@ async function loadOrders() {
       }
     }
 
+    // Auto-fetch Shipway API for the same date range
+    if (rows.length) {
+      try {
+        const sw = await apiFetch({ action: 'fetch_shipway', date_from: dateFrom, date_to: dateTo || dateFrom });
+        if (sw?.orders?.length) {
+          // Build lookup by order_id (Shipway order_id == Shopify order name without #)
+          const byId = {};
+          for (const o of sw.orders) {
+            if (o.order_id) byId[String(o.order_id).replace(/^#/, '')] = o;
+          }
+          const toStore = [];
+          for (const r of rows) {
+            const key = String(r.order_name).replace(/^#/, '');
+            const sw  = byId[key];
+            if (!sw) continue;
+            if (!r.awbInput && sw.tracking_number) {
+              r.awbInput = sw.tracking_number;
+              r.courier  = sw.courier || null;
+            }
+            if (sw.shipment_status && sw.shipment_status !== r.shipwayStatus) {
+              r.shipwayStatus     = sw.shipment_status;
+              r.shipwayStatusDate = null;
+            }
+            if (sw.scans?.length) r.shipwayScans = sw.scans;
+            toStore.push(r);
+          }
+          if (toStore.length) {
+            renderRows();
+            apiFetch({ action: 'store_awbs', items: toStore.map(r => ({
+              order_name: r.order_name, awb: r.awbInput, courier: r.courier,
+              shipway_status: r.shipwayStatus, shipway_status_date: r.shipwayStatusDate,
+            })) });
+          }
+        }
+      } catch(e) { /* Shipway API unavailable — continue silently */ }
+    }
+
     renderRows();
 
     // Auto-fetch BlueDart for all orders with AWBs
@@ -261,7 +299,7 @@ async function loadOrders() {
     if (preloaded.length) {
       fetchBluedartStatus(preloaded);
     } else {
-      setFetchStatus(n ? `↑ Upload Shipway CSV to match AWBs` : '');
+      setFetchStatus(n ? `⏳ Fetching live status from Shipway…` : '');
     }
   } catch(e) {
     document.getElementById('wrap').innerHTML = `<div class="empty-msg">Error: ${e.message}</div>`;
@@ -398,15 +436,31 @@ function trackingHtml(r) {
     const awbLine = url
       ? `<a href="${escHtml(url)}" target="_blank" style="color:var(--accent);font-family:monospace">${escHtml(awb)}</a>`
       : `<span style="font-family:monospace">${escHtml(awb)}</span>`;
-    const statusPart = r.shipwayStatus
-      ? `<span class="bd-desc">🚚 ${escHtml(r.shipwayStatus)}</span>${r.shipwayStatusDate ? `<span class="bd-time">${escHtml(r.shipwayStatusDate)}</span>` : ''}`
-      : `<span class="bd-loc">Not tracked via BlueDart — upload Shipway CSV for status</span>`;
-    return `<div class="bd-status bd-pending" style="flex-direction:column;align-items:flex-start;gap:3px">
+    const scans = Array.isArray(r.shipwayScans) ? r.shipwayScans : [];
+    const isDelivered = r.shipwayStatus && /deliver/i.test(r.shipwayStatus);
+    const cls = isDelivered ? 'bd-delivered' : r.shipwayStatus ? 'bd-ok' : 'bd-pending';
+    const statusLine = r.shipwayStatus
+      ? (isDelivered ? `✓ Delivered` : `🚚 ${escHtml(r.shipwayStatus)}`)
+      : `<span class="bd-loc">No tracking data yet</span>`;
+    const journeyId2 = `journey-sw-${r.order_name}`;
+    const journeyBody2 = scans.length ? `
+      <div id="${journeyId2}" class="journey-list" style="display:none">
+        ${[...scans].reverse().map(sc => `<div class="journey-step">
+          <span class="js-time">${escHtml(sc.datetime || '')}</span>
+          <span><span class="js-loc">${escHtml(sc.location || '')}</span>${sc.status ? ' — ' + escHtml(sc.status) : ''}</span>
+        </div>`).join('')}
+      </div>` : '';
+    const journeyBtn2 = scans.length
+      ? `<button class="journey-toggle" onclick="toggleJourney('${journeyId2}',this)">▶ Journey (${scans.length})</button>` : '';
+    return `<div class="bd-status ${cls}" style="flex-direction:column;align-items:flex-start;gap:3px">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span class="bd-label">${companyLabel}:</span>
         <span class="bd-desc">${awbLine}</span>
-        ${statusPart}
+        <span class="bd-desc">${statusLine}</span>
+        ${r.shipwayStatusDate ? `<span class="bd-time">${escHtml(r.shipwayStatusDate)}</span>` : ''}
+        ${journeyBtn2}
       </div>
+      ${journeyBody2}
     </div>`;
   }
 
