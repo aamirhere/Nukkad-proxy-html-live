@@ -146,7 +146,9 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:var(--bg);color:var
     <button class="ftab" onclick="setFilter('no_awb')">No AWB</button>
     <button class="ftab" onclick="setFilter('has_awb')">AWB found</button>
     <button class="ftab" onclick="setFilter('not_bluedart')">Not BlueDart</button>
+    <button class="ftab" onclick="setFilter('bd_failed')" id="ftab-bd-failed">BD Failed</button>
   </div>
+  <button class="hbtn" id="refreshAllBtn" style="display:none" onclick="refreshAllFailed()">↺ Refresh all failed</button>
 </div>
 
 <div class="wrap" id="wrap">
@@ -343,14 +345,44 @@ async function fetchBluedartStatus(rowsToFetch) {
   setTimeout(() => setFetchStatus(''), 4000);
 }
 
+async function refreshRow(orderName) {
+  const r = rows.find(x => x.order_name === orderName);
+  if (!r?.awbInput) return;
+  r.bdStatus = null;
+  const el = document.getElementById(`bd-${orderName}`);
+  if (el) el.innerHTML = `<div class="bd-status bd-loading"><span class="spinner"></span> Fetching…</div>`;
+  try {
+    const data = await apiFetch({ action: 'fetch_tracking', awbs: [r.awbInput], order_names: [r.order_name] });
+    r.bdStatus = (data.results || [])[0] || { awb: r.awbInput, error: 'not_found', ok: false };
+  } catch(e) {
+    r.bdStatus = { error: e.message, ok: false };
+  }
+  if (el) el.innerHTML = trackingHtml(r);
+  setFilter(activeFilter);
+}
+
+async function refreshAllFailed() {
+  const failed = rows.filter(r => isBdFailed(r));
+  if (!failed.length) return;
+  const btn = document.getElementById('refreshAllBtn');
+  btn.disabled = true; btn.textContent = '↺ Refreshing…';
+  await fetchBluedartStatus(failed);
+  btn.disabled = false; btn.textContent = '↺ Refresh all failed';
+  setFilter(activeFilter);
+}
+
 // ── RENDER ────────────────────────────────────────────────────────────────────
 
 function setFilter(f) {
   activeFilter = f;
   document.querySelectorAll('.ftab').forEach(b => {
-    const map = { all: 'All', no_awb: 'No AWB', has_awb: 'AWB found', not_bluedart: 'Not BlueDart' };
-    b.classList.toggle('active', b.textContent === map[f]);
+    const map = { all: 'All', no_awb: 'No AWB', has_awb: 'AWB found', not_bluedart: 'Not BlueDart', bd_failed: 'BD Failed' };
+    b.classList.toggle('active', b.textContent.trim().startsWith(map[f]));
   });
+  const failedCount = rows.filter(r => isBdFailed(r)).length;
+  const ftabEl = document.getElementById('ftab-bd-failed');
+  if (ftabEl) ftabEl.textContent = failedCount ? `BD Failed (${failedCount})` : 'BD Failed';
+  document.getElementById('refreshAllBtn').style.display = (f === 'bd_failed' && failedCount > 0) ? '' : 'none';
   renderRows();
 }
 
@@ -358,14 +390,23 @@ function isNotBluedart(r) {
   return r.bdStatus && !r.bdStatus.ok && r.bdStatus.error === 'not_found';
 }
 
+function isBdFailed(r) {
+  return r.bdStatus && !r.bdStatus.ok && r.bdStatus.error !== 'not_found';
+}
+
 function getVisible() {
   if (activeFilter === 'no_awb')       return rows.filter(r => !r.awbInput);
   if (activeFilter === 'has_awb')      return rows.filter(r => r.awbInput);
   if (activeFilter === 'not_bluedart') return rows.filter(r => isNotBluedart(r));
+  if (activeFilter === 'bd_failed')    return rows.filter(r => isBdFailed(r));
   return rows;
 }
 
 function renderRows() {
+  const failedCount = rows.filter(r => isBdFailed(r)).length;
+  const ftabEl = document.getElementById('ftab-bd-failed');
+  if (ftabEl) ftabEl.textContent = failedCount ? `BD Failed (${failedCount})` : 'BD Failed';
+
   const visible = getVisible();
   if (!visible.length) {
     document.getElementById('wrap').innerHTML = '<div class="empty-msg">No orders match this filter.</div>';
@@ -464,9 +505,13 @@ function trackingHtml(r) {
     </div>`;
   }
 
-  // API error
+  // API error — show error + refresh button
   if (!r.bdStatus.ok) {
-    return `<div class="bd-status bd-err"><span class="bd-label">BlueDart:</span> <span style="color:var(--red)">${escHtml(r.bdStatus.error)}</span></div>`;
+    const errMsg = r.bdStatus.error || 'fetch failed';
+    return `<div class="bd-status bd-err" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <span><span class="bd-label">BlueDart:</span> <span style="color:var(--red);font-size:.75rem">${escHtml(errMsg)}</span></span>
+      <button class="act-btn" style="padding:3px 10px;font-size:.72rem" onclick="refreshRow('${r.order_name}')">↺ Retry</button>
+    </div>`;
   }
 
   // BlueDart status found
