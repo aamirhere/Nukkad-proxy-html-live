@@ -51,6 +51,9 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .rc-top{padding:10px 13px;border-bottom:1px solid var(--line);font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .rc-vision{padding:10px 13px;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--ink2)}
 .rc-vision strong{color:var(--ink)}
+.color-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.cpill{padding:4px 10px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;cursor:pointer;font-family:var(--fb)}
+.cpill-active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .match-block{padding:11px 13px;border-bottom:1px solid var(--line)}
 .match-block.best{background:#f0faf4}
 .m-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
@@ -304,6 +307,10 @@ input[type=file]{display:none}
 .meta-save-btn{padding:4px 9px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
 .meta-dispatch-btn{padding:4px 9px;border-radius:6px;border:1.5px solid var(--blue);color:var(--blue);background:none;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
 .painter-badge{font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:20px;background:#e8eaf6;color:#3949ab;margin-left:4px;display:inline-block}
+.painter-opt-row{display:flex;align-items:center;gap:6px}
+.painter-opt-row .painter-opt{flex:1;margin-bottom:0}
+.painter-name-inp{width:90px;border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:.76rem;color:var(--ink);font-family:var(--fb);background:#f8f3ec;flex-shrink:0}
+.painter-name-inp:focus{outline:none;border-color:var(--accent)}
 
 /* ── PAINTER DROP-OFF OVERLAY ── */
 .painter-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:700;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -609,6 +616,9 @@ function getPainterNames() {
 // current painter drop-off session
 let currentPainter = null;
 
+// last AI vision result — used for color override re-matching
+let currentVision = null;
+
 // ── INIT ───────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fileInput').addEventListener('change', handleFile);
@@ -899,7 +909,13 @@ function findMatches(quote, color) {
 }
 
 function handleVisionResult(vision) {
-  const { quote, color, confidence } = vision;
+  currentVision = vision;
+  reMatchWithColor(vision.color);
+}
+
+function reMatchWithColor(color) {
+  const { quote, confidence } = currentVision;
+  currentVision.color = color;
   const matches = findMatches(quote, color);
   showResult({ type: matches.length ? 'matches' : 'no_match', quote, color, confidence, matches });
 }
@@ -913,7 +929,12 @@ function showResult({ type, quote, color, confidence, matches, message }) {
     return;
   }
 
-  const visionHtml = `<div class="rc-vision">AI read: <strong>"${esc(quote)}"</strong>${color ? ` · <strong>${esc(color)}</strong>` : ''}${confidence ? `<span style="color:var(--muted)"> (${confidence})</span>` : ''}</div>`;
+  const COLOR_PILLS = ['Pink','Blue','White','Orange','Yellow','Purple','Green','Red','Gold'];
+  const colorPillsHtml = `<div class="color-pills">${COLOR_PILLS.map(c => {
+    const active = c.toLowerCase() === (color||'').toLowerCase();
+    return `<button class="cpill${active?' cpill-active':''}" onclick="reMatchWithColor('${c}')">${c}</button>`;
+  }).join('')}</div>`;
+  const visionHtml = `<div class="rc-vision">AI read: <strong>"${esc(quote)}"</strong>${color ? ` · <strong>${esc(color)}</strong>` : ''}${confidence ? `<span style="color:var(--muted)"> (${confidence})</span>` : ''}<div style="margin-top:6px;font-size:.72rem;color:var(--muted)">Fix color:</div>${colorPillsHtml}</div>`;
 
   if (type === 'no_match') {
     logScan({ quote, color, match_type: 'no_match', confidence });
@@ -1858,18 +1879,45 @@ async function manualDispatch(orderName) {
 
 // ── PAINTER DROP-OFF MODE ──────────────────────────────────────────────────────
 function openPainterDropOff() {
+  renderPainterOpts();
+  document.getElementById('painterOverlay').style.display = 'flex';
+}
+
+function renderPainterOpts() {
   const names = getPainterNames();
   const opts = names.map((n, i) =>
-    `<button class="painter-opt" onclick="selectPainter('${n.replace(/'/g,"\\'")}')">
-      <span style="font-size:1.2rem">🎨</span>${esc(n)}
-    </button>`
+    `<div class="painter-opt-row">
+      <button class="painter-opt" onclick="selectPainterByIndex(${i})">
+        <span style="font-size:1.2rem">🎨</span><span id="pno${i}lbl">${esc(n)}</span>
+      </button>
+      <input class="painter-name-inp" id="pno${i}" value="${esc(n)}" placeholder="Painter ${i+1}"
+        oninput="document.getElementById('pno${i}lbl').textContent=this.value||'Painter ${i+1}'"
+        onblur="saveOverlayPainterName(${i})">
+    </div>`
   ).join('');
   document.getElementById('painterOptList').innerHTML = opts;
-  document.getElementById('painterOverlay').style.display = 'flex';
+}
+
+function saveOverlayPainterName(i) {
+  const names = getPainterNames();
+  const val = (document.getElementById('pno'+i).value||'').trim();
+  if (val) names[i] = val;
+  else names[i] = `Painter ${i+1}`;
+  localStorage.setItem('nt_painters', JSON.stringify(names));
+  // sync production tab inputs if they exist
+  const prodInp = document.getElementById('pn'+i);
+  if (prodInp) prodInp.value = names[i];
 }
 
 function closePainterOverlay() {
   document.getElementById('painterOverlay').style.display = 'none';
+}
+
+function selectPainterByIndex(i) {
+  // save any unsaved name edit first
+  saveOverlayPainterName(i);
+  const names = getPainterNames();
+  selectPainter(names[i]);
 }
 
 function selectPainter(name) {
