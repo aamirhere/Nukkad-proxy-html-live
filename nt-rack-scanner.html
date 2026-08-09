@@ -320,19 +320,6 @@ input[type=file]{display:none}
 .painter-name-inp{width:90px;border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:.76rem;color:var(--ink);font-family:var(--fb);background:#f8f3ec;flex-shrink:0}
 .painter-name-inp:focus{outline:none;border-color:var(--accent)}
 
-/* ── PENDING ORDERS VIEW ── */
-.po-date-block{margin-bottom:16px}
-.po-date-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:2px solid var(--accent);margin-bottom:8px}
-.po-date-hdr span:first-child{font-family:var(--ff);font-size:.95rem;font-weight:700;color:var(--ink)}
-.po-date-pill{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(212,84,31,.12);color:var(--accent);white-space:nowrap}
-.po-order{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:6px}
-.po-order-hdr{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap}
-.po-piece{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--line);font-size:.76rem}
-.po-piece:last-child{border-bottom:none}
-.po-piece-q{flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.po-piece-c{color:var(--muted);white-space:nowrap;font-size:.7rem}
-.po-piece-n{font-weight:700;white-space:nowrap;color:var(--amber)}
-
 /* ── PAINTER DROP-OFF OVERLAY ── */
 .painter-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:700;display:flex;align-items:center;justify-content:center;padding:16px}
 .painter-sheet{background:#fff;border-radius:16px;padding:22px 20px;width:100%;max-width:320px}
@@ -572,24 +559,11 @@ input[type=file]{display:none}
     <div class="painter-title">🎨 Painter Drop-off</div>
     <div class="painter-sub">Who is bringing pieces down? Tag all scanned pieces to this painter.</div>
     <div class="painter-list" id="painterOptList"></div>
-    <button class="hbtn" style="width:100%;margin-top:10px;justify-content:center;display:flex;gap:6px" onclick="openPendingOrders()">📋 Check Order Mapping</button>
+    <button class="hbtn" style="width:100%;margin-top:10px;justify-content:center;display:flex;gap:6px" onclick="closePainterOverlay();switchTab('list')">📋 Check Order Mapping</button>
     <button class="painter-cancel" onclick="closePainterOverlayCancel()">Cancel</button>
   </div>
 </div>
 
-<!-- ── PENDING ORDERS OVERLAY ── -->
-<div class="painter-overlay" id="pendingOrdersOverlay" style="display:none;z-index:800">
-  <div class="painter-sheet" style="max-width:480px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;padding:0">
-    <div style="padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0">
-      <div style="font-family:var(--ff);font-size:1rem;font-weight:700">📋 Pending Pieces by Date</div>
-      <div style="display:flex;gap:6px">
-        <button class="hbtn accent" onclick="printPendingOrders()">🖨 Print PDF</button>
-        <button class="painter-cancel" style="width:auto;margin:0;padding:7px 13px" onclick="closePendingOrders()">✕</button>
-      </div>
-    </div>
-    <div id="pendingOrdersBody" style="overflow-y:auto;flex:1;padding:12px 16px"></div>
-  </div>
-</div>
 
 <!-- ── PRINT QUEUE PANEL (laptop mode) ── -->
 <div id="printQueuePanel" style="display:none;padding:12px;flex-direction:column;gap:10px">
@@ -1312,7 +1286,16 @@ function renderList() {
     const dayN = dayOrders.reduce((s,o)=>s+o.items.reduce((s2,it)=>s2+it.needed,0),0);
     const dayF = dayOrders.reduce((s,o)=>s+o.items.reduce((s2,it)=>s2+it.found,0),0);
     if (selectedDate === 'all' && !searchQuery) {
-      html += `<div class="list-date-hdr"><span>${fmtDate(date)} — ${dayOrders.length} orders</span><span>${dayF}/${dayN} pieces</span></div>`;
+      const doneCnt    = dayOrders.filter(o => o.items.every(it=>it.found>=it.needed) || o.dispatched).length;
+      const missOrd    = dayOrders.length - doneCnt;
+      const missPcs    = dayN - dayF;
+      html += `<div class="list-date-hdr">
+        <span>${fmtDate(date)} <span style="font-weight:400;color:var(--muted);font-size:.72rem">· ${dayOrders.length} orders</span></span>
+        <span style="display:flex;gap:8px;align-items:center">
+          ${doneCnt ? `<span style="color:var(--green);font-weight:700;font-size:.78rem">✓ ${doneCnt}</span>` : ''}
+          ${missOrd ? `<span style="color:var(--amber);font-weight:700;font-size:.78rem">${missOrd} missing · ${missPcs} pcs</span>` : ''}
+        </span>
+      </div>`;
     }
     dayOrders.sort((a, b) => {
       if (a.dispatched !== b.dispatched) return a.dispatched ? 1 : -1;
@@ -2073,106 +2056,6 @@ function closePainterOverlay() {
   document.getElementById('painterOverlay').style.display = 'none';
 }
 
-function openPendingOrders() {
-  document.getElementById('pendingOrdersOverlay').style.display = 'flex';
-  renderPendingOrders();
-}
-
-function closePendingOrders() {
-  document.getElementById('pendingOrdersOverlay').style.display = 'none';
-}
-
-function renderPendingOrders() {
-  const body = document.getElementById('pendingOrdersBody');
-
-  // Group rack items by date → order
-  const byDate = {};
-  for (const it of rackItems) {
-    if (it.dispatched) continue;
-    if (it.found >= it.needed) continue;
-    const d = it.order_date || 'Unknown';
-    if (!byDate[d]) byDate[d] = {};
-    if (!byDate[d][it.order_name]) byDate[d][it.order_name] = { customer: it.customer, pieces: [] };
-    byDate[d][it.order_name].pieces.push(it);
-  }
-
-  const dates = Object.keys(byDate).sort();
-  if (!dates.length) {
-    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">🎉 All pieces found — nothing pending!</div>';
-    return;
-  }
-
-  body.innerHTML = dates.map(d => {
-    const orders = byDate[d];
-    const orderNames = Object.keys(orders);
-    const totalMissing = orderNames.reduce((s, n) => s + orders[n].pieces.reduce((ss, p) => ss + (p.needed - p.found), 0), 0);
-    return `<div class="po-date-block">
-      <div class="po-date-hdr">
-        <span>${fmtDate(d)}</span>
-        <span class="po-date-pill">${orderNames.length} order${orderNames.length>1?'s':''} · ${totalMissing} pc${totalMissing>1?'s':''} missing</span>
-      </div>
-      ${orderNames.map(name => {
-        const o = orders[name];
-        return `<div class="po-order">
-          <div class="po-order-hdr">
-            <span style="font-weight:700">${esc(name)}</span>
-            <span style="color:var(--muted);font-size:.75rem">${esc(o.customer||'')}</span>
-          </div>
-          ${o.pieces.map(p => `<div class="po-piece">
-            <span class="po-piece-q">${esc(p.quote)}</span>
-            <span class="po-piece-c">${esc(p.color)}</span>
-            <span class="po-piece-n">${p.found}/${p.needed}</span>
-          </div>`).join('')}
-        </div>`;
-      }).join('')}
-    </div>`;
-  }).join('');
-}
-
-function printPendingOrders() {
-  // Build a print-safe page in a new window
-  const byDate = {};
-  for (const it of rackItems) {
-    if (it.dispatched) continue;
-    if (it.found >= it.needed) continue;
-    const d = it.order_date || 'Unknown';
-    if (!byDate[d]) byDate[d] = {};
-    if (!byDate[d][it.order_name]) byDate[d][it.order_name] = { customer: it.customer, pieces: [] };
-    byDate[d][it.order_name].pieces.push(it);
-  }
-  const dates = Object.keys(byDate).sort();
-  const now = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-
-  const rows = dates.map(d => {
-    const orders = byDate[d];
-    return Object.keys(orders).map(name => {
-      const o = orders[name];
-      return o.pieces.map(p =>
-        `<tr><td>${fmtDate(d)}</td><td>${esc(name)}</td><td>${esc(o.customer||'')}</td><td>${esc(p.quote)}</td><td>${esc(p.color)}</td><td>${p.found}/${p.needed}</td></tr>`
-      ).join('');
-    }).join('');
-  }).join('');
-
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Pending Pieces</title>
-  <style>body{font-family:Arial,sans-serif;font-size:11px;padding:16px}
-  h2{font-size:14px;margin-bottom:4px}p{color:#666;margin-bottom:12px}
-  table{width:100%;border-collapse:collapse}
-  th{background:#f0f0f0;text-align:left;padding:5px 8px;border-bottom:2px solid #ccc;font-size:10px;text-transform:uppercase}
-  td{padding:4px 8px;border-bottom:1px solid #eee}
-  tr:nth-child(even) td{background:#fafafa}
-  </style></head><body>
-  <h2>📋 Pending Pieces — NukkadTales</h2>
-  <p>Printed: ${now}</p>
-  <table><thead><tr><th>Date</th><th>Order</th><th>Customer</th><th>Quote</th><th>Color</th><th>Found/Needed</th></tr></thead>
-  <tbody>${rows}</tbody></table>
-  </body></html>`;
-
-  const w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 400);
-}
 
 function selectPainterByIndex(i) {
   // save any unsaved name edit first
