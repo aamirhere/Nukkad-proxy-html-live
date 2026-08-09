@@ -176,6 +176,40 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty-msg{padding:24px;text-align:center;color:var(--muted);font-size:.85rem}
 input[type=file]{display:none}
+
+/* ── SLIP OVERLAY ── */
+.slip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:flex-end;justify-content:center}
+.slip-sheet{background:#fff;width:100%;max-width:420px;border-radius:16px 16px 0 0;padding:18px 16px 28px;max-height:92vh;overflow-y:auto}
+.slip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.slip-header h2{font-family:var(--ff);font-size:1rem;color:var(--ink)}
+.slip-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)}
+.slip-card{border:1.5px solid var(--line);border-radius:10px;padding:14px;font-size:.82rem}
+.slip-from{font-size:.7rem;color:var(--muted);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.slip-to-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
+.slip-to-name{font-size:1rem;font-weight:700;color:var(--ink);margin-bottom:2px}
+.slip-to-addr{font-size:.78rem;color:var(--ink2);line-height:1.55}
+.slip-to-phone{font-size:.78rem;color:var(--ink2);margin-top:3px}
+.slip-divider{border:none;border-top:1px dashed var(--line);margin:12px 0}
+.slip-awb-row{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.slip-awb-info{}
+.slip-awb-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.slip-awb-num{font-size:1.3rem;font-weight:700;color:var(--ink);letter-spacing:.04em;font-family:monospace}
+.slip-awb-courier{font-size:.72rem;color:var(--ink2);margin-top:1px}
+.slip-qr{flex-shrink:0}
+.slip-qr canvas{border:1px solid var(--line);border-radius:4px}
+.slip-order-row{margin-top:10px;display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)}
+.slip-no-awb{text-align:center;padding:14px;color:var(--amber);font-size:.84rem}
+.slip-actions{display:flex;gap:8px;margin-top:14px}
+.slip-actions button{flex:1;padding:10px;border-radius:8px;border:none;font-size:.84rem;font-weight:700;cursor:pointer}
+.slip-print-btn{background:var(--accent);color:#fff}
+.slip-cancel-btn{background:var(--bg);color:var(--ink2);border:1px solid var(--line)!important}
+
+@media print {
+  .slip-overlay{position:static!important;background:none!important;display:block!important}
+  .slip-sheet{border-radius:0;padding:8px;max-height:none;box-shadow:none}
+  .slip-header,.slip-actions{display:none!important}
+  .slip-card{border:1px solid #999;break-inside:avoid}
+}
 </style>
 </head>
 <body>
@@ -260,6 +294,21 @@ input[type=file]{display:none}
 <div id="dispatchTab" class="list-wrap" style="display:none">
   <div id="dispatchContent">
     <div class="empty-msg">Sync orders first, then switch to this tab.</div>
+  </div>
+</div>
+
+<!-- ── SLIP OVERLAY ── -->
+<div id="slipOverlay" class="slip-overlay" style="display:none" onclick="if(event.target===this)closeSlip()">
+  <div class="slip-sheet">
+    <div class="slip-header">
+      <h2>🚚 Shipping Slip</h2>
+      <button class="slip-close" onclick="closeSlip()">✕</button>
+    </div>
+    <div id="slipContent"></div>
+    <div class="slip-actions">
+      <button class="slip-cancel-btn" onclick="closeSlip()">Close</button>
+      <button class="slip-print-btn" onclick="window.print()">🖨 Print Slip</button>
+    </div>
   </div>
 </div>
 
@@ -584,7 +633,10 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         <div style="font-size:2.2rem">✅</div>
         <div style="font-weight:700;margin:8px 0;font-size:.95rem">${esc(orderName)}</div>
         <div style="font-size:.78rem;color:var(--muted)">"${esc(quote)}" · ${esc(color)}<br>${r.found}/${r.needed} found${r.found>=r.needed?' · <span style="color:var(--green)">Complete!</span>':''}</div>
-        <div style="margin-top:14px"><button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button></div>
+        <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button>
+          <button class="act-btn" onclick="openSlip('${esc(orderName)}')">🖨 Print Slip</button>
+        </div>
       </div>
     </div>`;
     renderHistory();
@@ -832,6 +884,256 @@ function renderDispatch() {
         </tr>
       </tbody>
     </table>`;
+}
+
+// ── SHIPPING SLIP ──────────────────────────────────────────────────────────────
+async function openSlip(orderName) {
+  const overlay = document.getElementById('slipOverlay');
+  const content = document.getElementById('slipContent');
+  overlay.style.display = 'flex';
+  content.innerHTML = '<div class="empty-msg"><span class="spinner" style="border-top-color:var(--accent);border-color:var(--line)"></span> Loading…</div>';
+  try {
+    const slip = await apiFetch({ action: 'get_order_slip', order_name: orderName });
+    renderSlip(slip);
+  } catch(e) {
+    content.innerHTML = `<div class="empty-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function closeSlip() {
+  document.getElementById('slipOverlay').style.display = 'none';
+}
+
+function renderSlip(slip) {
+  const addr = slip.shipping_address;
+  const addrLines = [addr?.address1, addr?.address2, addr?.city, addr?.province, addr?.zip].filter(Boolean).join(', ');
+
+  let awbHtml;
+  if (slip.awb) {
+    awbHtml = `<div class="slip-awb-row">
+      <div class="slip-awb-info">
+        <div class="slip-awb-label">AWB Number</div>
+        <div class="slip-awb-num">${esc(slip.awb)}</div>
+        ${slip.courier ? `<div class="slip-awb-courier">${esc(slip.courier)}</div>` : ''}
+      </div>
+      <div class="slip-qr"><canvas id="slipQr"></canvas></div>
+    </div>`;
+  } else {
+    awbHtml = `<div class="slip-no-awb">⚠️ No AWB assigned yet.<br><small>Fulfil the order in Shopify to get a tracking number.</small></div>`;
+  }
+
+  document.getElementById('slipContent').innerHTML = `<div class="slip-card">
+    <div class="slip-from">From: NukkadTales · nukkadtales.com · +91-XXXXXXXXXX</div>
+    <div class="slip-to-label">Ship To</div>
+    <div class="slip-to-name">${esc(slip.customer_name)}</div>
+    <div class="slip-to-addr">${esc(addrLines)}</div>
+    ${slip.phone ? `<div class="slip-to-phone">📞 ${esc(slip.phone)}</div>` : ''}
+    <hr class="slip-divider">
+    ${awbHtml}
+    <div class="slip-order-row">
+      <span>Order: <strong>${esc(slip.order_name)}</strong></span>
+      <span>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
+    </div>
+  </div>`;
+
+  if (slip.awb) {
+    const canvas = document.getElementById('slipQr');
+    drawQR(canvas, slip.awb, 120);
+  }
+}
+
+// ── MINIMAL QR CODE RENDERER ───────────────────────────────────────────────────
+// Reed-Solomon + QR matrix encoder (self-contained, no external deps)
+function drawQR(canvas, text, size) {
+  const qr = createQR(text);
+  const n = qr.length;
+  const cell = Math.floor(size / n);
+  const total = cell * n;
+  canvas.width = canvas.height = total;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, total, total);
+  ctx.fillStyle = '#000';
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (qr[r][c]) ctx.fillRect(c * cell, r * cell, cell, cell);
+    }
+  }
+}
+
+// createQR: returns boolean[][] matrix. Uses qrcode-generator algorithm (MIT).
+// Supports alphanumeric / byte mode, ECC level M, version auto 1-10.
+function createQR(text) {
+  // Encode as bytes (UTF-8 subset: ASCII)
+  const data = [];
+  for (let i = 0; i < text.length; i++) data.push(text.charCodeAt(i) & 0xff);
+
+  // QR version selection: pick smallest version that fits
+  // Byte mode capacities for ECC-M (approx)
+  const CAPS = [0,14,26,42,62,84,106,122,154,180,213];
+  let ver = 1;
+  while (ver < CAPS.length && CAPS[ver] < data.length) ver++;
+  if (ver >= CAPS.length) ver = CAPS.length - 1;
+
+  return qrMatrix(data, ver);
+}
+
+function qrMatrix(bytes, ver) {
+  const size = ver * 4 + 17;
+  const M = Array.from({length:size}, () => new Array(size).fill(null));
+
+  // Place finder patterns
+  function finder(row, col) {
+    for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) {
+      const pr = row + r, pc = col + c;
+      if (pr < 0 || pr >= size || pc < 0 || pc >= size) continue;
+      M[pr][pc] = (r >= 0 && r <= 6 && c >= 0 && c <= 6) &&
+        (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4));
+    }
+  }
+  finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
+
+  // Timing patterns
+  for (let i = 8; i < size - 8; i++) {
+    if (M[6][i] === null) M[6][i] = i % 2 === 0;
+    if (M[i][6] === null) M[i][6] = i % 2 === 0;
+  }
+
+  // Dark module
+  M[size - 8][8] = true;
+
+  // Alignment patterns (ver >= 2)
+  const AP = [null,[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50]];
+  if (ver >= 2 && AP[ver]) {
+    const pos = AP[ver];
+    for (const r of pos) for (const c of pos) {
+      if (M[r][c] !== null) continue;
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
+        M[r+dr][c+dc] = (Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0));
+      }
+    }
+  }
+
+  // Build data codewords (byte mode, ECC-M)
+  const dc = buildData(bytes, ver);
+  const bits = [];
+  for (const b of dc) for (let i = 7; i >= 0; i--) bits.push((b >> i) & 1);
+
+  // Place data bits (zigzag)
+  let bi = 0;
+  const isFn = (r,c) => M[r][c] !== null;
+  let up = true;
+  for (let col = size - 1; col >= 1; col -= 2) {
+    if (col === 6) col--;
+    for (let ri = 0; ri < size; ri++) {
+      const r = up ? size - 1 - ri : ri;
+      for (let dc2 = 0; dc2 <= 1; dc2++) {
+        const c = col - dc2;
+        if (!isFn(r, c)) {
+          M[r][c] = bi < bits.length ? bits[bi++] === 1 : false;
+        }
+      }
+    }
+    up = !up;
+  }
+
+  // Apply mask 0 (best universal mask)
+  const mask = (r,c) => (r + c) % 2 === 0;
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+    if (M[r][c] !== null) M[r][c] = M[r][c] !== mask(r, c) ? M[r][c] : !M[r][c];
+  }
+  // Re-fix function modules (mask shouldn't flip them, restore)
+  finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
+  for (let i = 8; i < size - 8; i++) {
+    M[6][i] = i % 2 === 0; M[i][6] = i % 2 === 0;
+  }
+  M[size - 8][8] = true;
+
+  // Format info (ECC-M, mask 0) = standard value 0x5412 → bits placed at fixed positions
+  const fmt = [1,0,1,0,1,1,0,0,0,0,1,0,0,1,0]; // ECC-M mask-0 format string
+  const fpos = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+  for (let i = 0; i < 15; i++) {
+    const [fr,fc] = fpos[i];
+    M[fr][fc] = fmt[i] === 1;
+    M[size-1-Math.min(i,6)-(i>6?1:0)][8] = fmt[i] === 1;
+    M[8][size-1-i] = fmt[14-i] === 1;
+  }
+
+  return M.map(row => row.map(v => v === true));
+}
+
+function buildData(bytes, ver) {
+  // Byte mode header + length + data
+  const total = [0,16,19,22,26,30,33,35,38,43,48][ver] || 26; // codewords for ECC-M
+  const ecPer = [0,10,16,26,36,48,64,72,88,110,130][ver] || 26;
+  const dataCw = total - ecPer;
+
+  const bits = [];
+  // Mode indicator: byte = 0100
+  bits.push(0,1,0,0);
+  // Char count (8 bits for ver 1-9)
+  for (let i = 7; i >= 0; i--) bits.push((bytes.length >> i) & 1);
+  // Data
+  for (const b of bytes) for (let i = 7; i >= 0; i--) bits.push((b >> i) & 1);
+  // Terminator
+  for (let i = 0; i < 4 && bits.length < dataCw * 8; i++) bits.push(0);
+  // Pad to byte boundary
+  while (bits.length % 8) bits.push(0);
+  // Pad codewords
+  const pads = [0xEC, 0x11];
+  let pi = 0;
+  while (bits.length < dataCw * 8) { for (let i = 7; i >= 0; i--) bits.push((pads[pi] >> i) & 1); pi ^= 1; }
+
+  // Convert to codewords
+  const cw = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let b = 0;
+    for (let j = 0; j < 8; j++) b = (b << 1) | (bits[i+j] || 0);
+    cw.push(b);
+  }
+
+  // Reed-Solomon ECC
+  const ec = rsEncode(cw, ecPer);
+  return [...cw, ...ec];
+}
+
+function rsEncode(data, ecCount) {
+  const gen = rsGeneratorPoly(ecCount);
+  const msg = [...data, ...new Array(ecCount).fill(0)];
+  for (let i = 0; i < data.length; i++) {
+    const coef = msg[i];
+    if (coef !== 0) {
+      for (let j = 0; j < gen.length; j++) {
+        msg[i + j] ^= rsGF.mul(gen[j], coef);
+      }
+    }
+  }
+  return msg.slice(data.length);
+}
+
+const rsGF = (() => {
+  const exp = new Uint8Array(512), log = new Uint8Array(256);
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    exp[i] = x; log[x] = i;
+    x <<= 1; if (x & 0x100) x ^= 0x11d;
+  }
+  for (let i = 255; i < 512; i++) exp[i] = exp[i - 255];
+  return {
+    mul: (a, b) => a && b ? exp[log[a] + log[b]] : 0,
+    pow: (a, b) => exp[(log[a] * b) % 255],
+  };
+})();
+
+function rsGeneratorPoly(degree) {
+  let p = [1];
+  for (let i = 0; i < degree; i++) {
+    const q = [1, rsGF.pow(2, i)];
+    const r = new Array(p.length + q.length - 1).fill(0);
+    for (let j = 0; j < p.length; j++) for (let k = 0; k < q.length; k++) r[j+k] ^= rsGF.mul(p[j], q[k]);
+    p = r;
+  }
+  return p;
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────────
