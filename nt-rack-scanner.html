@@ -121,6 +121,8 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .oi-n{font-size:.68rem;font-weight:700;color:var(--muted);white-space:nowrap}
 .tag-disp{font-size:.67rem;background:#e8f4fc;color:var(--blue);border-radius:6px;padding:1px 6px;margin-left:4px}
 .tag-emg{font-size:.67rem;background:#fdecea;color:var(--red);border-radius:6px;padding:1px 6px;margin-left:4px}
+.tag-overdue{font-size:.67rem;background:#fff3e0;color:#e65100;border-radius:6px;padding:1px 6px;margin-left:4px;font-weight:700}
+.d-chip.overdue .d-count{color:#e65100!important;font-weight:700}
 
 .print-btn-row{display:flex;gap:8px;justify-content:flex-end}
 
@@ -160,7 +162,7 @@ input[type=file]{display:none}
     <a class="hlink" href="nt-inventory.html">↗ Inventory</a>
   </div>
   <div class="hrow">
-    <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync All Orders</button>
+    <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync New Orders</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
   </div>
   <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
@@ -244,7 +246,6 @@ input[type=file]{display:none}
 
 <script>
 const API  = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
-const SYNC_FROM = '2026-07-29';
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let rackItems    = [];
@@ -256,13 +257,21 @@ let selectedDate = 'all';   // 'all' or 'YYYY-MM-DD'
 // ── INIT ───────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fileInput').addEventListener('change', handleFile);
-  loadRackStatus();
+  init();
 });
 
-function todayIST() {
-  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  return d.toISOString().slice(0, 10);
+async function init() {
+  try {
+    const meta = await apiFetch({ action: 'get_rack_meta' });
+    if (meta.last_sync) {
+      setStatus(`Last synced: ${fmtDate(meta.last_sync)} · Loading from Supabase…`);
+    } else {
+      setStatus('First time — tap Sync to fetch all orders from 29 Jul.');
+    }
+  } catch(e) { /* ignore */ }
+  await loadRackStatus();
 }
+
 function setStatus(msg) { document.getElementById('statusLine').textContent = msg; }
 
 // ── TAB SWITCHING ──────────────────────────────────────────────────────────────
@@ -283,39 +292,45 @@ async function apiFetch(payload) {
   return d;
 }
 
-// ── SYNC ALL (from Jul 29 to today) ───────────────────────────────────────────
+// ── SYNC (incremental — backend handles from/to via Redis cursor) ──────────────
 async function syncAll() {
   const btn = document.getElementById('syncBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Syncing…';
-  setStatus('Fetching all orders from 29 Jul…');
+  setStatus('Fetching new orders from Shopify…');
   try {
-    const today = todayIST();
-    const r = await apiFetch({ action: 'sync_rack', date_from: SYNC_FROM, date_to: today });
-    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} line items`);
+    const r = await apiFetch({ action: 'sync_rack' });
+    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} items (${fmtDate(r.from)} → ${fmtDate(r.to)})`);
     await loadRackStatus();
   } catch(e) {
     setStatus('Sync error: ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '⟳ Sync All Orders';
+    btn.innerHTML = '⟳ Sync New Orders';
   }
 }
 
 // ── LOAD RACK STATUS ───────────────────────────────────────────────────────────
 async function loadRackStatus() {
   try {
-    const today = todayIST();
-    rackItems = await apiFetch({ action: 'get_rack_status', date_from: SYNC_FROM, date_to: today });
+    rackItems = await apiFetch({ action: 'get_rack_status' });
     updateSummary();
     if (activeTab === 'list') { buildDateNav(); renderList(); }
-    if (rackItems.length) setStatus(`${rackItems.length} line items loaded · last refreshed ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`);
+    const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    if (rackItems.length) setStatus(`${rackItems.length} items loaded · refreshed ${t}`);
+    else setStatus('No data yet — tap Sync New Orders.');
   } catch(e) {
     setStatus('Load error: ' + e.message);
   }
 }
 
 // ── DATE NAV ───────────────────────────────────────────────────────────────────
+function isOverdue(dateStr) {
+  const cutoff = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  cutoff.setDate(cutoff.getDate() - 15);
+  return new Date(dateStr + 'T00:00:00+05:30') < cutoff;
+}
+
 function buildDateNav() {
   const nav = document.getElementById('dateNav');
   const dates = [...new Set(rackItems.map(it => it.order_date))].sort();
@@ -327,10 +342,11 @@ function buildDateNav() {
     const needed   = dayItems.reduce((s,it)=>s+it.needed,0);
     const found    = dayItems.reduce((s,it)=>s+it.found,0);
     const missing  = needed - found;
+    const overdue  = missing > 0 && isOverdue(d);
     const dt = new Date(d + 'T00:00:00+05:30');
     const label = dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-    html += `<div class="d-chip${selectedDate===d?' active':''}" onclick="selectDate('${d}')">
-      <span class="d-day">${label}</span>
+    html += `<div class="d-chip${selectedDate===d?' active':''}${overdue?' overdue':''}" onclick="selectDate('${d}')">
+      <span class="d-day">${label}${overdue?' ⚠️':''}</span>
       <span class="d-count">${missing > 0 ? missing + ' missing' : 'done ✓'}</span>
     </div>`;
   }
@@ -662,6 +678,7 @@ function renderList() {
             <span class="ord-name">${esc(o.order_name)}</span>
             ${o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
             ${o.is_emergency?'<span class="tag-emg">Emergency</span>':''}
+            ${(!o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">⚠️ Overdue</span>':''}
             <div class="ord-cust">${esc(o.customer||'')}</div>
           </div>
           <div class="ord-prog ${progCls}">${o.dispatched?'🚚':`${totalF}/${totalN}`}</div>
