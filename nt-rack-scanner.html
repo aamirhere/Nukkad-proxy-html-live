@@ -381,9 +381,9 @@ input[type=file]{display:none}
 
 <!-- ── SCAN TAB ── -->
 <div id="scanTab" class="scan-wrap">
-  <!-- scan mode toggles -->
-  <div style="display:flex;gap:8px">
-    <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()" style="flex:1;padding:10px;font-size:.84rem">🖨 Print Mode</button>
+  <!-- scan mode toggles — Print Mode only shown on desktop (it's for the laptop+printer) -->
+  <div style="display:flex;gap:8px" id="scanModeRow">
+    <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()" style="flex:1;padding:10px;font-size:.84rem;display:none">🖨 Auto-Print</button>
     <button class="hbtn" id="batchModeBtn" onclick="toggleBatchMode()" style="flex:1;padding:10px;font-size:.84rem">📦 Batch Scan</button>
   </div>
   <!-- webcam live feed (desktop) -->
@@ -577,6 +577,11 @@ window.addEventListener('DOMContentLoaded', () => {
   for (let i = 0; i < 4; i++) {
     const el = document.getElementById('pn' + i);
     if (el) el.value = names[i] || '';
+  }
+  // Auto-Print only makes sense on desktop (connected to printer)
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (!isMobile) {
+    document.getElementById('printModeBtn').style.display = '';
   }
   init();
 });
