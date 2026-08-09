@@ -245,7 +245,8 @@ input[type=file]{display:none}
 </div>
 
 <script>
-const API  = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
+const API        = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-inventory';
+const VISION_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let rackItems    = [];
@@ -285,8 +286,8 @@ function switchTab(t) {
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
-async function apiFetch(payload) {
-  const r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+async function apiFetch(payload, url = API) {
+  const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   const d = await r.json();
   if (d.error) throw new Error(d.error);
   return d;
@@ -383,7 +384,7 @@ async function processImage(dataUrl, mimeType) {
 
   try {
     const b64 = (await resizeImage(dataUrl, 700)).split(',')[1];
-    const vision = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: mimeType.split(';')[0] });
+    const vision = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: mimeType.split(';')[0] }, VISION_API);
     setCamState('idle');
     setTimeout(() => { preview.style.display = 'none'; preview.src = ''; }, 400);
     handleVisionResult(vision);
