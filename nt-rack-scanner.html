@@ -54,6 +54,14 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .color-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .cpill{padding:4px 10px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;cursor:pointer;font-family:var(--fb)}
 .cpill-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── CHANNEL PICKER ── */
+.ch-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ch-btn{padding:5px 13px;border-radius:20px;border:1.5px solid var(--chc,#ccc);background:#fff;color:var(--chc,#333);font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--fb);transition:background .15s,color .15s}
+.ch-btn.ch-selected{background:var(--chc);color:#fff}
+.ch-qty-row{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
+.qty-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink2)}
+.qty-inp{width:52px;padding:5px 6px;border:1.5px solid var(--line);border-radius:8px;font-size:.88rem;text-align:center;color:var(--ink);font-family:var(--fb)}
 .match-block{padding:11px 13px;border-bottom:1px solid var(--line)}
 .match-block.best{background:#f0faf4}
 .m-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
@@ -945,9 +953,9 @@ function showResult({ type, quote, color, confidence, matches, message }) {
     area.innerHTML = `<div class="result-card">
       <div class="rc-top">Scan Result</div>
       ${visionHtml}
-      <div class="m-no-match"><span class="m-big">❓</span>No matching order found.<br><small>This is an extra piece — set it aside.</small></div>
+      <div class="m-no-match"><span class="m-big">📦</span>No matching order found.<br><small>Tag this piece for a channel below.</small></div>
       <div style="padding:9px 13px;border-top:1px solid var(--line)">
-        <button class="act-btn" onclick="markExtra('${esc(quote)}','${esc(color||'')}')">🗂 Mark as Extra</button>
+        ${channelPickerHtml(quote, color||'')}
       </div>
     </div>`;
     return;
@@ -984,7 +992,7 @@ function showResult({ type, quote, color, confidence, matches, message }) {
       }).join('')}</div>
       <div class="m-actions">
         <button class="m-btn confirm" onclick="confirmMatch('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}','${esc(it.order_date||'')}','${esc(quote)}','${esc(color||'')}','${esc(confidence||'')}')">✓ This is it</button>
-        <button class="m-btn extra-btn" onclick="markExtra('${esc(quote)}','${esc(color||'')}')">Not in list</button>
+        <button class="m-btn extra-btn" onclick="showChannelPicker('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}')">📦 Tag as stock</button>
       </div>
     </div>`;
   });
@@ -1077,17 +1085,77 @@ async function queueForPrint(orderName, btn) {
   }
 }
 
-function markExtra(quote, color) {
-  logScan({ quote, color, match_type: 'extra', confidence: '' });
-  document.getElementById('resultArea').innerHTML = `<div class="result-card">
-    <div style="padding:18px;text-align:center">
-      <div style="font-size:2rem">🗂️</div>
-      <div style="font-weight:700;margin:8px 0">Extra Piece</div>
-      <div style="font-size:.78rem;color:var(--muted)">Set it aside in the extras pile.</div>
-      <div style="margin-top:14px"><button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button></div>
+const CHANNELS = [
+  { id: 'prime',  label: '🔵 Prime',  color: '#1565c0' },
+  { id: 'zepto',  label: '⚡ Zepto',  color: '#6a0dad' },
+  { id: 'blinkit',label: '🟡 Blinkit',color: '#f9a825' },
+  { id: 'bulk',   label: '📦 Bulk',   color: '#2e7d32' },
+  { id: 'extra',  label: '🗂 Extra',  color: '#6d6d6d' },
+];
+
+function channelPickerHtml(quote, color) {
+  const qe = esc(quote), ce = esc(color);
+  return `<div class="ch-picker" id="chPicker_${qe.replace(/\W/g,'_')}">
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:7px;text-transform:uppercase;letter-spacing:.05em">Tag for channel</div>
+    <div class="ch-btns">
+      ${CHANNELS.map(ch => `<button class="ch-btn" style="--chc:${ch.color}" onclick="selectChannel(this,'${qe}','${ce}','${ch.id}')">${ch.label}</button>`).join('')}
+    </div>
+    <div class="ch-qty-row" id="chQty_${qe.replace(/\W/g,'_')}" style="display:none">
+      <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
+      <button class="qty-btn" onclick="adjQty(this,-1)">−</button>
+      <input class="qty-inp" id="qtyVal_${qe.replace(/\W/g,'_')}" value="1" type="number" min="1" max="999">
+      <button class="qty-btn" onclick="adjQty(this,1)">+</button>
+      <button class="act-btn go" style="margin-left:4px;padding:5px 14px;font-size:.76rem" onclick="confirmChannel(this,'${qe}','${ce}')">✓ Save</button>
     </div>
   </div>`;
-  renderHistory();
+}
+
+function selectChannel(btn, quote, color, channelId) {
+  const row = btn.closest('.ch-picker');
+  row.querySelectorAll('.ch-btn').forEach(b => b.classList.remove('ch-selected'));
+  btn.classList.add('ch-selected');
+  row.dataset.channel = channelId;
+  const suffix = quote.replace(/\W/g,'_');
+  const qtyRow = document.getElementById('chQty_' + suffix);
+  if (qtyRow) qtyRow.style.display = 'flex';
+}
+
+function adjQty(btn, delta) {
+  const inp = btn.parentElement.querySelector('.qty-inp');
+  inp.value = Math.max(1, (parseInt(inp.value)||1) + delta);
+}
+
+async function confirmChannel(btn, quote, color) {
+  const picker = btn.closest('.ch-picker');
+  const channel = picker.dataset.channel;
+  if (!channel) return;
+  const suffix = quote.replace(/\W/g,'_');
+  const qty = parseInt(document.getElementById('qtyVal_' + suffix)?.value) || 1;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await apiFetch({ action: 'add_stock_item', quote, color, channel, qty, painter: currentPainter || null });
+    logScan({ quote, color, match_type: 'stock_' + channel, confidence: '' });
+    document.getElementById('resultArea').innerHTML = `<div class="result-card">
+      <div style="padding:16px;text-align:center">
+        <div style="font-size:2rem">${CHANNELS.find(c=>c.id===channel)?.label||'📦'}</div>
+        <div style="font-weight:700;margin:8px 0;font-size:.95rem">${qty > 1 ? qty + ' pcs' : 'Piece'} tagged for ${channel.charAt(0).toUpperCase()+channel.slice(1)}</div>
+        <div style="font-size:.76rem;color:var(--muted);margin-bottom:14px">${esc(quote)}${color ? ' · ' + esc(color) : ''}</div>
+        <button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button>
+      </div>
+    </div>`;
+    renderHistory();
+  } catch(e) { btn.disabled=false; btn.textContent='✓ Save'; alert('Error: '+e.message); }
+}
+
+function showChannelPicker(orderName, quote, color) {
+  document.getElementById('resultArea').innerHTML = `<div class="result-card">
+    <div style="padding:12px 13px;border-bottom:1px solid var(--line)">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted)">Tag as stock — ${esc(orderName)}</div>
+      <div style="font-size:.84rem;color:var(--ink);margin-top:3px">${esc(quote)}${color?' · '+esc(color):''}</div>
+    </div>
+    <div style="padding:12px 13px">${channelPickerHtml(quote, color)}</div>
+    <div style="padding:0 13px 12px"><button class="act-btn" onclick="triggerCamera()">← Back</button></div>
+  </div>`;
 }
 
 // ── SCAN LOG ───────────────────────────────────────────────────────────────────
