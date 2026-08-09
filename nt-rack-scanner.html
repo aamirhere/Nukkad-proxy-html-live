@@ -487,10 +487,10 @@ input[type=file]{display:none}
     </div>
   </div>
   <div class="prod-date-filter">
-    <div class="pdf-chip active" onclick="setProdFilter('today')">Today</div>
-    <div class="pdf-chip" onclick="setProdFilter('week')">This Week</div>
-    <div class="pdf-chip" onclick="setProdFilter('month')">This Month</div>
-    <div class="pdf-chip" onclick="setProdFilter('all')">All Time</div>
+    <div class="pdf-chip active" onclick="setProdFilter('today',this)">Today</div>
+    <div class="pdf-chip" onclick="setProdFilter('week',this)">This Week</div>
+    <div class="pdf-chip" onclick="setProdFilter('month',this)">This Month</div>
+    <div class="pdf-chip" onclick="setProdFilter('all',this)">All Time</div>
   </div>
   <div id="prodSummary" class="prod-summary-row"></div>
   <div id="prodContent"><div class="prod-empty">Loading painter stats…</div></div>
@@ -563,7 +563,6 @@ function getPainterNames() {
 
 // current painter drop-off session
 let currentPainter = null;
-let prodFilter = 'today';
 
 // ── INIT ───────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -1830,10 +1829,10 @@ function savePainterNames() {
 }
 
 // ── PRODUCTION TAB ──────────────────────────────────────────────────────────────
-function setProdFilter(f) {
+function setProdFilter(f, el) {
   prodFilter = f;
-  document.querySelectorAll('.pdf-chip').forEach(el => el.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('.pdf-chip').forEach(e => e.classList.remove('active'));
+  if (el) el.classList.add('active');
   renderProduction();
 }
 
