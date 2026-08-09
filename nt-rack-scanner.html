@@ -336,15 +336,15 @@ input[type=file]{display:none}
 <div class="header">
   <div class="htop">
     <h1>📦 Rack Scanner</h1>
-    <a class="hlink" href="nt-inventory.html">↗ Inventory</a>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="hbtn" onclick="openPainterDropOff()">🎨 Drop-off</button>
+      <a class="hlink" href="nt-inventory.html">↗ Inventory</a>
+    </div>
   </div>
   <div class="hrow">
-    <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync New Orders</button>
+    <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
-    <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()">🖨 Print Mode</button>
-    <button class="hbtn" onclick="openPainterDropOff()">🎨 Painter Drop-off</button>
     <button class="hbtn" onclick="toggleLegacyPanel()">📥 Legacy Orders</button>
-    <button class="hbtn" id="batchModeBtn" onclick="toggleBatchMode()">📦 Batch</button>
   </div>
   <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
   <!-- legacy orders panel -->
@@ -381,6 +381,11 @@ input[type=file]{display:none}
 
 <!-- ── SCAN TAB ── -->
 <div id="scanTab" class="scan-wrap">
+  <!-- scan mode toggles -->
+  <div style="display:flex;gap:8px">
+    <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()" style="flex:1;padding:10px;font-size:.84rem">🖨 Print Mode</button>
+    <button class="hbtn" id="batchModeBtn" onclick="toggleBatchMode()" style="flex:1;padding:10px;font-size:.84rem">📦 Batch Scan</button>
+  </div>
   <!-- webcam live feed (desktop) -->
   <div id="webcamContainer" style="display:none;position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;background:#111">
     <video id="webcamVideo" autoplay playsinline muted style="width:100%;max-height:340px;object-fit:cover;display:block"></video>
