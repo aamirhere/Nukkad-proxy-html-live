@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NT Rack Scanner</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;
+  --line:#e9ddca;--bg:#f6f0e8;--bg2:#fdf5ec;
+  --green:#27ae60;--red:#e74c3c;--blue:#2980b9;--amber:#f39c12;
+  --ff:Fraunces,Georgia,serif;--fb:Nunito,Helvetica Neue,sans-serif;
+}
+body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100vh;padding-bottom:80px}
+
+/* ── HEADER ── */
+.header{background:#fff;border-bottom:3px solid var(--accent);padding:10px 14px;position:sticky;top:0;z-index:100}
+.header h1{font-family:var(--ff);font-size:1rem;display:flex;align-items:center;gap:6px}
+.hrow{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.date-input{padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:.8rem;color:var(--ink);background:#fff}
+.hbtn{padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.8rem;cursor:pointer;white-space:nowrap}
+.hbtn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.hbtn:disabled{opacity:.4;cursor:default}
+.status-line{font-size:.75rem;color:var(--muted);margin-top:6px;min-height:16px}
+
+/* ── SCANNER ── */
+.scanner-wrap{padding:14px;display:flex;flex-direction:column;gap:12px}
+
+.scan-card{background:#fff;border-radius:14px;border:1px solid var(--line);overflow:hidden}
+.scan-top{background:var(--ink);color:#fff;padding:20px;text-align:center;cursor:pointer;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;transition:background .2s}
+.scan-top:hover{background:#2a1e10}
+.scan-top.analyzing{background:#1a3a5c}
+.scan-icon{font-size:2.5rem}
+.scan-text{font-size:1rem;font-weight:700;letter-spacing:.02em}
+.scan-sub{font-size:.78rem;opacity:.7}
+.scan-preview{width:100%;max-height:220px;object-fit:contain;display:block}
+
+.file-input{display:none}
+
+.manual-row{padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--line);align-items:center;flex-wrap:wrap}
+.manual-input{flex:1;min-width:120px;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.84rem;color:var(--ink)}
+.manual-input:focus{outline:none;border-color:var(--accent)}
+.act-btn{padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.78rem;cursor:pointer;white-space:nowrap}
+.act-btn:hover{border-color:var(--accent);color:var(--accent)}
+.act-btn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── RESULT CARD ── */
+.result-card{background:#fff;border-radius:14px;border:1px solid var(--line);overflow:hidden}
+.rc-header{padding:12px 14px;font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)}
+.rc-match{padding:12px 14px;border-bottom:1px solid var(--line)}
+.rc-match:last-child{border-bottom:none}
+.rc-match.best{background:#f0faf4}
+.rc-match.extra{background:#fff8e1}
+
+.rc-order{font-weight:700;font-size:.95rem}
+.rc-date{font-size:.72rem;color:var(--muted);margin-top:1px}
+.rc-customer{font-size:.8rem;color:var(--ink2);margin-top:2px}
+.rc-items{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.rc-item{font-size:.78rem;padding:5px 9px;border-radius:6px;background:var(--bg);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rc-item-q{flex:1;color:var(--ink)}
+.rc-item-c{font-size:.7rem;color:var(--muted);white-space:nowrap}
+.rc-item-prog{font-size:.72rem;font-weight:700;white-space:nowrap}
+.rc-item-prog.done{color:var(--green)}
+.rc-item-prog.partial{color:var(--amber)}
+.rc-item-prog.waiting{color:var(--muted)}
+
+.rc-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.rc-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.75rem;cursor:pointer}
+.rc-btn.confirm{background:var(--green);color:#fff;border-color:var(--green)}
+.rc-btn.skip{border-color:var(--red);color:var(--red)}
+
+.rc-read{padding:12px 14px;font-size:.78rem;color:var(--ink2);border-bottom:1px solid var(--line)}
+.rc-read strong{color:var(--ink)}
+.rc-no-match{padding:16px;text-align:center;color:var(--muted);font-size:.84rem}
+.rc-no-match .big{font-size:1.5rem;display:block;margin-bottom:6px}
+
+/* ── HISTORY ── */
+.section-header{padding:10px 14px 4px;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center}
+.hist-list{padding:0 14px;display:flex;flex-direction:column;gap:6px}
+.hist-item{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start}
+.hist-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.hist-dot.matched{background:var(--green)}
+.hist-dot.extra{background:var(--amber)}
+.hist-dot.no-match{background:var(--red)}
+.hist-info{flex:1;min-width:0}
+.hist-quote{font-size:.8rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-sub{font-size:.72rem;color:var(--muted);margin-top:2px}
+.hist-time{font-size:.68rem;color:var(--muted);white-space:nowrap;flex-shrink:0}
+
+/* ── ORDERS PANEL ── */
+.orders-toggle{padding:12px 14px;background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:.84rem;font-weight:700;cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+.orders-panel{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+
+.ord-day{margin-bottom:4px}
+.ord-day-header{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 0 4px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.ord-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.ord-card.complete{border-left:3px solid var(--green)}
+.ord-card.partial{border-left:3px solid var(--amber)}
+.ord-card.empty{border-left:3px solid var(--muted)}
+
+.ord-top{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.ord-name{font-weight:700;font-size:.88rem}
+.ord-customer{font-size:.75rem;color:var(--ink2)}
+.ord-progress{font-size:.72rem;font-weight:700;white-space:nowrap}
+.ord-progress.done{color:var(--green)}
+.ord-progress.partial{color:var(--amber)}
+.ord-progress.none{color:var(--muted)}
+
+.ord-items{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.ord-item-line{font-size:.75rem;display:flex;align-items:center;gap:6px;padding:3px 0}
+.ord-item-check{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;flex-shrink:0}
+.ord-item-check.found{background:var(--green);border-color:var(--green);color:#fff}
+.ord-item-check.partial{background:var(--amber);border-color:var(--amber);color:#fff}
+.ord-item-text{flex:1;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ord-item-color{font-size:.68rem;color:var(--muted);white-space:nowrap}
+.ord-item-count{font-size:.68rem;font-weight:700;color:var(--muted);white-space:nowrap}
+
+/* ── SUMMARY BAR ── */
+.summary-bar{position:fixed;bottom:0;left:0;right:0;background:var(--ink);color:#fff;padding:10px 16px;display:flex;gap:16px;align-items:center;z-index:200;font-size:.8rem}
+.sum-stat{display:flex;flex-direction:column;align-items:center}
+.sum-num{font-size:1.1rem;font-weight:700;line-height:1}
+.sum-label{font-size:.65rem;opacity:.6;text-transform:uppercase;letter-spacing:.04em}
+.sum-divider{width:1px;background:rgba(255,255,255,.2);height:30px}
+.sum-spacer{flex:1}
+
+/* ── LOADING ── */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-msg{padding:30px;text-align:center;color:var(--muted);font-size:.9rem}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📦 Rack Scanner</h1>
+  <div class="hrow">
+    <input type="date" class="date-input" id="dateFrom">
+    <span style="font-size:.8rem;color:var(--muted)">to</span>
+    <input type="date" class="date-input" id="dateTo">
+    <button class="hbtn accent" onclick="loadOrders()">Load Orders</button>
+    <button class="hbtn" onclick="resetScan()" id="resetBtn" style="display:none">Reset Scan</button>
+  </div>
+  <div class="status-line" id="statusLine">Load orders first to start scanning.</div>
+</div>
+
+<input type="file" class="file-input" id="fileInput" accept="image/*" capture="environment">
+
+<div class="scanner-wrap">
+  <!-- CAMERA -->
+  <div class="scan-card">
+    <div class="scan-top" id="scanTop" onclick="triggerCamera()">
+      <div class="scan-icon" id="scanIcon">📷</div>
+      <div class="scan-text" id="scanText">Tap to Scan a Piece</div>
+      <div class="scan-sub" id="scanSub">Point camera at the wooden piece</div>
+    </div>
+    <img id="previewImg" class="scan-preview" style="display:none">
+    <div class="manual-row">
+      <input type="text" class="manual-input" id="manualQuote" placeholder="Or type quote text manually…" onkeydown="if(event.key==='Enter')manualMatch()">
+      <select class="manual-input" id="manualColor" style="max-width:130px">
+        <option value="">Any color</option>
+        <option>Black</option><option>White</option><option>Natural</option>
+        <option>Walnut Brown</option><option>Mango Wood</option>
+      </select>
+      <button class="act-btn accent" onclick="manualMatch()">Match</button>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div id="resultArea"></div>
+
+  <!-- HISTORY -->
+  <div class="section-header">
+    <span>Scan History</span>
+    <button class="act-btn" onclick="clearHistory()" style="padding:3px 10px;font-size:.7rem">Clear</button>
+  </div>
+  <div class="hist-list" id="histList">
+    <div style="color:var(--muted);font-size:.8rem;padding:8px 0">No scans yet.</div>
+  </div>
+
+  <!-- ORDERS PANEL -->
+  <div class="orders-toggle" onclick="toggleOrders()">
+    <span>Orders Progress <span id="ordersBadge" style="background:var(--accent);color:#fff;border-radius:10px;padding:1px 8px;font-size:.72rem;margin-left:6px"></span></span>
+    <span id="ordersChevron">▼</span>
+  </div>
+  <div id="ordersPanel" class="orders-panel" style="display:none">
+    <div style="color:var(--muted);font-size:.8rem;padding:8px 0">Load orders first.</div>
+  </div>
+</div>
+
+<!-- SUMMARY BAR -->
+<div class="summary-bar">
+  <div class="sum-stat"><span class="sum-num" id="sumTotal">0</span><span class="sum-label">Orders</span></div>
+  <div class="sum-divider"></div>
+  <div class="sum-stat"><span class="sum-num" id="sumScanned">0</span><span class="sum-label">Scanned</span></div>
+  <div class="sum-divider"></div>
+  <div class="sum-stat"><span class="sum-num" id="sumComplete" style="color:#6fcf97">0</span><span class="sum-label">Complete</span></div>
+  <div class="sum-divider"></div>
+  <div class="sum-stat"><span class="sum-num" id="sumExtra" style="color:var(--amber)">0</span><span class="sum-label">Extra</span></div>
+  <div class="sum-spacer"></div>
+  <div style="font-size:.72rem;opacity:.5" id="sumPct"></div>
+</div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+
+let orders    = [];   // [{order_id, order_name, date, customer, status, items:[{quote,color,needed,found}]}]
+let scanLog   = [];   // [{quote, color, matchType, orderId, itemIdx, time}]
+let ordersOpen = false;
+
+// ── INIT ───────────────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+  const today = todayIST();
+  // Default: July 29 to today
+  document.getElementById('dateFrom').value = '2026-07-29';
+  document.getElementById('dateTo').value   = today;
+
+  document.getElementById('fileInput').addEventListener('change', handleFileInput);
+});
+
+function todayIST() {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  return d.toISOString().slice(0, 10);
+}
+
+function setStatus(msg) {
+  document.getElementById('statusLine').textContent = msg;
+}
+
+// ── LOAD ORDERS ────────────────────────────────────────────────────────────────
+
+async function loadOrders() {
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  if (!from) return;
+
+  setStatus('Loading orders…');
+  document.getElementById('ordersPanel').innerHTML = '<div class="loading-msg"><span class="spinner"></span> Fetching…</div>';
+
+  try {
+    const data = await apiFetch({ action: 'load_items', date_from: from, date_to: to || from });
+    orders = (Array.isArray(data) ? data : []).map(o => ({
+      ...o,
+      items: (o.items || []).map(it => ({ ...it, found: 0 })),
+    }));
+
+    const totalItems = orders.reduce((s, o) => s + o.items.reduce((s2, it) => s2 + it.needed, 0), 0);
+    setStatus(`${orders.length} orders loaded · ${totalItems} pieces to sort`);
+    document.getElementById('resetBtn').style.display = orders.length ? '' : 'none';
+    updateSummary();
+    renderOrdersPanel();
+    renderScanIcon();
+  } catch (e) {
+    setStatus('Error: ' + e.message);
+  }
+}
+
+async function apiFetch(payload) {
+  const r = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── CAMERA ─────────────────────────────────────────────────────────────────────
+
+function triggerCamera() {
+  if (!orders.length) { alert('Load orders first.'); return; }
+  document.getElementById('fileInput').click();
+}
+
+function handleFileInput(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => processImage(ev.target.result, file.type || 'image/jpeg');
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+async function processImage(dataUrl, mimeType) {
+  setScanState('analyzing');
+  const preview = document.getElementById('previewImg');
+  preview.src = dataUrl;
+  preview.style.display = 'block';
+
+  try {
+    const base64 = dataUrl.split(',')[1];
+    const resized = await resizeImage(dataUrl, 900);
+    const b64 = resized.split(',')[1];
+    const result = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: mimeType.split(';')[0] });
+
+    setScanState('idle');
+    handleAnalysisResult(result);
+  } catch (e) {
+    setScanState('idle');
+    showResult({ type: 'error', message: e.message });
+  }
+}
+
+// Resize image client-side before sending (keeps under 1MB limit)
+function resizeImage(dataUrl, maxPx) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', 0.75));
+    };
+    img.src = dataUrl;
+  });
+}
+
+function setScanState(state) {
+  const top  = document.getElementById('scanTop');
+  const icon = document.getElementById('scanIcon');
+  const text = document.getElementById('scanText');
+  const sub  = document.getElementById('scanSub');
+  top.className  = 'scan-top' + (state === 'analyzing' ? ' analyzing' : '');
+  if (state === 'analyzing') {
+    icon.textContent = '⏳'; text.textContent = 'Analyzing piece…'; sub.textContent = 'Reading quote and color';
+  } else {
+    renderScanIcon();
+  }
+}
+
+function renderScanIcon() {
+  const icon = document.getElementById('scanIcon');
+  const text = document.getElementById('scanText');
+  const sub  = document.getElementById('scanSub');
+  icon.textContent = '📷';
+  text.textContent = orders.length ? 'Tap to Scan a Piece' : 'Load orders first';
+  sub.textContent  = orders.length ? 'Point camera at the wooden piece' : '';
+}
+
+// ── MANUAL MATCH ───────────────────────────────────────────────────────────────
+
+function manualMatch() {
+  const quote = document.getElementById('manualQuote').value.trim();
+  const color = document.getElementById('manualColor').value;
+  if (!quote) return;
+  handleAnalysisResult({ quote, color: color || '', confidence: 'manual' });
+  document.getElementById('manualQuote').value = '';
+}
+
+// ── MATCHING ───────────────────────────────────────────────────────────────────
+
+function normalizeText(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function wordSimilarity(a, b) {
+  const wa = new Set(normalizeText(a).split(' ').filter(Boolean));
+  const wb = new Set(normalizeText(b).split(' ').filter(Boolean));
+  if (!wa.size && !wb.size) return 1;
+  if (!wa.size || !wb.size) return 0;
+  const inter = [...wa].filter(w => wb.has(w)).length;
+  const union = new Set([...wa, ...wb]).size;
+  // Also check containment (shorter fully in longer)
+  const shorter = wa.size <= wb.size ? wa : wb;
+  const longer  = wa.size <= wb.size ? wb : wa;
+  const contain = [...shorter].filter(w => longer.has(w)).length / shorter.size;
+  return Math.max(inter / union, contain * 0.85);
+}
+
+function findMatches(quote, color) {
+  const results = [];
+  for (const order of orders) {
+    for (let i = 0; i < order.items.length; i++) {
+      const item = order.items[i];
+      if (item.found >= item.needed) continue;
+      const qScore = wordSimilarity(quote, item.quote);
+      const cScore = color ? wordSimilarity(color, item.color) : 0.5;
+      const score  = qScore * 0.75 + cScore * 0.25;
+      if (qScore >= 0.35) {
+        results.push({ order, itemIdx: i, qScore, cScore, score });
+      }
+    }
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, 4);
+}
+
+function handleAnalysisResult(vision) {
+  const { quote, color, confidence } = vision;
+  const matches = findMatches(quote, color);
+  showResult({ type: matches.length ? 'matches' : 'no_match', quote, color, confidence, matches });
+}
+
+// ── RESULT DISPLAY ─────────────────────────────────────────────────────────────
+
+function showResult({ type, quote, color, confidence, matches, message }) {
+  const area = document.getElementById('resultArea');
+
+  if (type === 'error') {
+    area.innerHTML = `<div class="result-card"><div class="rc-header">Error</div><div class="rc-no-match">${message}</div></div>`;
+    return;
+  }
+
+  if (type === 'no_match') {
+    addToHistory({ quote, color, matchType: 'no-match' });
+    area.innerHTML = `
+      <div class="result-card">
+        <div class="rc-header">Scan Result</div>
+        <div class="rc-read">
+          Read: <strong>"${esc(quote)}"</strong>${color ? ` · <strong>${esc(color)}</strong>` : ''}
+          ${confidence ? `<span style="color:var(--muted)"> (${confidence})</span>` : ''}
+        </div>
+        <div class="rc-no-match">
+          <span class="big">❓</span>
+          No matching order found.<br>
+          <small style="color:var(--muted)">This might be an extra piece — set it aside.</small>
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid var(--line)">
+          <button class="act-btn" onclick="markExtra('${esc(quote)}', '${esc(color || '')}')">Mark as Extra Piece</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // Matches found
+  let html = `
+    <div class="result-card">
+      <div class="rc-header">Scan Result — ${matches.length} match${matches.length > 1 ? 'es' : ''} found</div>
+      <div class="rc-read">
+        Read: <strong>"${esc(quote)}"</strong>${color ? ` · <strong>${esc(color)}</strong>` : ''}
+        ${confidence ? `<span style="color:var(--muted)"> (${confidence})</span>` : ''}
+      </div>`;
+
+  matches.forEach((m, idx) => {
+    const { order, itemIdx } = m;
+    const item = order.items[itemIdx];
+    const totalNeeded = order.items.reduce((s, it) => s + it.needed, 0);
+    const totalFound  = order.items.reduce((s, it) => s + it.found, 0);
+    const isFirst = idx === 0;
+    const scoreLabel = Math.round(m.score * 100);
+
+    html += `
+      <div class="rc-match${isFirst ? ' best' : ''}">
+        <div class="ord-top">
+          <div>
+            <div class="rc-order">${esc(order.order_name)} · ${esc(order.customer)}</div>
+            <div class="rc-date">${fmtDate(order.date)} · ${totalFound}/${totalNeeded} pieces found · match ${scoreLabel}%</div>
+          </div>
+          ${isFirst ? '<span style="background:var(--green);color:#fff;font-size:.68rem;padding:2px 8px;border-radius:10px;font-weight:700">BEST</span>' : `<span style="color:var(--muted);font-size:.72rem">#${idx+1}</span>`}
+        </div>
+        <div class="rc-items">
+          ${order.items.map((it, ii) => {
+            const isThisItem = ii === itemIdx;
+            const prog = it.found >= it.needed ? 'done' : it.found > 0 ? 'partial' : 'waiting';
+            const progLabel = `${it.found}/${it.needed}`;
+            return `<div class="rc-item${isThisItem ? '" style="border:1.5px solid var(--accent);background:rgba(212,84,31,.08)' : ''}">
+              <span class="rc-item-q">${esc(it.quote)}</span>
+              <span class="rc-item-c">${esc(it.color)}</span>
+              <span class="rc-item-prog ${prog}">${progLabel}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="rc-actions">
+          <button class="rc-btn confirm" onclick="confirmMatch(${orders.indexOf(order)}, ${itemIdx})">✓ This is it</button>
+          ${!isFirst ? `<button class="rc-btn skip" onclick="skipMatch()">Skip</button>` : ''}
+        </div>
+      </div>`;
+  });
+
+  html += `
+      <div style="padding:8px 14px;border-top:1px solid var(--line)">
+        <button class="act-btn" onclick="markExtra('${esc(quote)}', '${esc(color || '')}')">Not in list — Extra piece</button>
+      </div>
+    </div>`;
+
+  area.innerHTML = html;
+}
+
+// ── ACTIONS ────────────────────────────────────────────────────────────────────
+
+function confirmMatch(orderIdx, itemIdx) {
+  const order = orders[orderIdx];
+  if (!order) return;
+  const item = order.items[itemIdx];
+  if (item.found < item.needed) item.found++;
+
+  addToHistory({ quote: item.quote, color: item.color, matchType: 'matched', orderId: order.order_name, date: order.date });
+
+  document.getElementById('resultArea').innerHTML = `
+    <div class="result-card">
+      <div style="padding:18px;text-align:center">
+        <div style="font-size:2rem">✅</div>
+        <div style="font-weight:700;margin:8px 0">${esc(order.order_name)} — ${esc(item.quote)}</div>
+        <div style="font-size:.8rem;color:var(--muted)">
+          ${item.found}/${item.needed} of this piece found
+          ${item.found >= item.needed ? '· <span style="color:var(--green)">Complete!</span>' : ''}
+        </div>
+        <div style="margin-top:12px">
+          <button class="act-btn accent" onclick="triggerCamera()">📷 Scan Next</button>
+        </div>
+      </div>
+    </div>`;
+
+  updateSummary();
+  renderOrdersPanel();
+}
+
+function markExtra(quote, color) {
+  addToHistory({ quote, color, matchType: 'extra' });
+  document.getElementById('resultArea').innerHTML = `
+    <div class="result-card">
+      <div style="padding:18px;text-align:center">
+        <div style="font-size:2rem">🗂️</div>
+        <div style="font-weight:700;margin:8px 0">Marked as Extra</div>
+        <div style="font-size:.8rem;color:var(--muted)">Set this piece aside in the extras pile.</div>
+        <div style="margin-top:12px"><button class="act-btn accent" onclick="triggerCamera()">📷 Scan Next</button></div>
+      </div>
+    </div>`;
+  updateSummary();
+}
+
+function skipMatch() {
+  document.getElementById('resultArea').innerHTML = '';
+}
+
+function resetScan() {
+  if (!confirm('Reset all scan progress?')) return;
+  orders.forEach(o => o.items.forEach(it => { it.found = 0; }));
+  scanLog = [];
+  document.getElementById('resultArea').innerHTML = '';
+  document.getElementById('previewImg').style.display = 'none';
+  renderHistory();
+  renderOrdersPanel();
+  updateSummary();
+}
+
+// ── HISTORY ────────────────────────────────────────────────────────────────────
+
+function addToHistory(entry) {
+  scanLog.unshift({ ...entry, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) });
+  if (scanLog.length > 50) scanLog.pop();
+  renderHistory();
+}
+
+function clearHistory() { scanLog = []; renderHistory(); }
+
+function renderHistory() {
+  const list = document.getElementById('histList');
+  if (!scanLog.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:8px 0">No scans yet.</div>';
+    return;
+  }
+  list.innerHTML = scanLog.slice(0, 15).map(s => {
+    const dotClass = s.matchType === 'matched' ? 'matched' : s.matchType === 'extra' ? 'extra' : 'no-match';
+    const label = s.matchType === 'matched' ? `→ ${s.orderId} (${fmtDate(s.date)})` :
+                  s.matchType === 'extra'   ? 'Extra piece — set aside' : 'No match found';
+    return `<div class="hist-item">
+      <div class="hist-dot ${dotClass}"></div>
+      <div class="hist-info">
+        <div class="hist-quote">"${esc(s.quote)}"${s.color ? ` · ${esc(s.color)}` : ''}</div>
+        <div class="hist-sub">${label}</div>
+      </div>
+      <div class="hist-time">${s.time}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── ORDERS PANEL ───────────────────────────────────────────────────────────────
+
+function toggleOrders() {
+  ordersOpen = !ordersOpen;
+  document.getElementById('ordersPanel').style.display = ordersOpen ? '' : 'none';
+  document.getElementById('ordersChevron').textContent = ordersOpen ? '▲' : '▼';
+  if (ordersOpen) renderOrdersPanel();
+}
+
+function renderOrdersPanel() {
+  if (!ordersOpen) return;
+  const panel = document.getElementById('ordersPanel');
+  if (!orders.length) {
+    panel.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:8px 0">Load orders first.</div>';
+    return;
+  }
+
+  // Group by date
+  const byDate = {};
+  for (const o of orders) {
+    if (!byDate[o.date]) byDate[o.date] = [];
+    byDate[o.date].push(o);
+  }
+
+  const dates = Object.keys(byDate).sort();
+  let html = '';
+  for (const date of dates) {
+    const dayOrders = byDate[date];
+    html += `<div class="ord-day"><div class="ord-day-header">${fmtDate(date)} — ${dayOrders.length} orders</div>`;
+    for (const o of dayOrders) {
+      const totalNeeded = o.items.reduce((s, it) => s + it.needed, 0);
+      const totalFound  = o.items.reduce((s, it) => s + it.found, 0);
+      const complete    = totalFound >= totalNeeded;
+      const partial     = totalFound > 0 && !complete;
+      const cls = complete ? 'complete' : partial ? 'partial' : 'empty';
+      const prgCls = complete ? 'done' : partial ? 'partial' : 'none';
+
+      html += `<div class="ord-card ${cls}">
+        <div class="ord-top">
+          <div>
+            <div class="ord-name">${esc(o.order_name)}</div>
+            <div class="ord-customer">${esc(o.customer)}</div>
+          </div>
+          <div class="ord-progress ${prgCls}">${totalFound}/${totalNeeded}</div>
+        </div>
+        <div class="ord-items">
+          ${o.items.map(it => {
+            const chkCls = it.found >= it.needed ? 'found' : it.found > 0 ? 'partial' : '';
+            const chkContent = it.found >= it.needed ? '✓' : it.found > 0 ? it.found : '';
+            return `<div class="ord-item-line">
+              <div class="ord-item-check ${chkCls}">${chkContent}</div>
+              <div class="ord-item-text" title="${esc(it.quote)}">${esc(it.quote)}</div>
+              <div class="ord-item-color">${esc(it.color)}</div>
+              <div class="ord-item-count">${it.found}/${it.needed}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  panel.innerHTML = html;
+
+  // Update badge
+  const complete = orders.filter(o => {
+    const n = o.items.reduce((s, it) => s + it.needed, 0);
+    const f = o.items.reduce((s, it) => s + it.found, 0);
+    return f >= n;
+  }).length;
+  document.getElementById('ordersBadge').textContent = `${complete}/${orders.length} done`;
+}
+
+// ── SUMMARY BAR ────────────────────────────────────────────────────────────────
+
+function updateSummary() {
+  const total     = orders.length;
+  const scanned   = scanLog.filter(s => s.matchType === 'matched').length;
+  const complete  = orders.filter(o => o.items.reduce((s,it)=>s+it.found,0) >= o.items.reduce((s,it)=>s+it.needed,0)).length;
+  const extra     = scanLog.filter(s => s.matchType === 'extra').length;
+  const totalPcs  = orders.reduce((s,o)=>s+o.items.reduce((s2,it)=>s2+it.needed,0),0);
+  const foundPcs  = orders.reduce((s,o)=>s+o.items.reduce((s2,it)=>s2+it.found,0),0);
+  const pct       = totalPcs ? Math.round(foundPcs / totalPcs * 100) : 0;
+
+  document.getElementById('sumTotal').textContent   = total;
+  document.getElementById('sumScanned').textContent = scanned;
+  document.getElementById('sumComplete').textContent = complete;
+  document.getElementById('sumExtra').textContent   = extra;
+  document.getElementById('sumPct').textContent     = totalPcs ? `${foundPcs}/${totalPcs} pieces (${pct}%)` : '';
+
+  const badge = document.getElementById('ordersBadge');
+  badge.textContent = `${complete}/${total} done`;
+}
+
+// ── UTILS ──────────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00+05:30');
+  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+</script>
+</body>
+</html>
