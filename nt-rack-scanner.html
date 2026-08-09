@@ -90,7 +90,8 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .date-nav::-webkit-scrollbar{height:0}
 .d-chip{flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.75rem;cursor:pointer;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:1px}
 .d-chip .d-day{font-weight:700;font-size:.82rem}
-.d-chip .d-count{font-size:.63rem;color:var(--muted)}
+.d-chip .d-count{font-size:.62rem;color:var(--muted)}
+.d-orders{font-size:.6rem;color:var(--muted);opacity:.75}
 .d-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .d-chip.active .d-count{color:rgba(255,255,255,.7)}
 .d-chip.all-chip{padding:6px 14px}
@@ -232,17 +233,31 @@ input[type=file]{display:none}
   <div class="tab" id="tabDispatch" onclick="switchTab('dispatch')">📊 Dispatch</div>
 </div>
 
-<input type="file" id="fileInput" accept="image/*" capture="environment">
+<input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none">
 
 <!-- ── SCAN TAB ── -->
 <div id="scanTab" class="scan-wrap">
-  <div class="cam-card" onclick="triggerCamera()">
+  <!-- webcam live feed (desktop) -->
+  <div id="webcamContainer" style="display:none;position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;background:#111">
+    <video id="webcamVideo" autoplay playsinline muted style="width:100%;max-height:340px;object-fit:cover;display:block"></video>
+    <canvas id="webcamCanvas" style="display:none"></canvas>
+    <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:8px;padding:10px;background:linear-gradient(transparent,rgba(0,0,0,.6))">
+      <button class="act-btn go" style="flex:1;font-size:.9rem" onclick="captureWebcam()">📸 Capture</button>
+      <button class="act-btn" style="font-size:.9rem" onclick="stopWebcam()">✕ Close</button>
+    </div>
+  </div>
+  <div class="cam-card" id="camCard" onclick="triggerCamera()">
     <div class="cam-face" id="camFace">
       <div class="cam-icon" id="camIcon">📷</div>
       <div class="cam-label" id="camLabel">Tap to Scan a Piece</div>
       <div class="cam-sub" id="camSub">Point camera at the wooden piece</div>
     </div>
     <img id="previewImg" class="cam-preview" style="display:none">
+  </div>
+  <!-- webcam / file choice buttons (shown when cam card tapped on desktop) -->
+  <div id="camChoice" style="display:none;gap:8px;margin-bottom:8px">
+    <button class="act-btn go" style="flex:1" onclick="startWebcam()">📹 Use Webcam</button>
+    <button class="act-btn" style="flex:1" onclick="document.getElementById('fileInput').click()">🖼 Choose File</button>
   </div>
   <div class="manual-row">
     <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" onkeydown="if(event.key==='Enter')manualMatch()">
@@ -425,6 +440,7 @@ function buildDateNav() {
 
   for (const d of dates) {
     const dayItems = rackItems.filter(it => it.order_date === d && !it.dispatched);
+    const orders   = new Set(dayItems.map(it => it.order_name)).size;
     const needed   = dayItems.reduce((s,it)=>s+it.needed,0);
     const found    = dayItems.reduce((s,it)=>s+it.found,0);
     const missing  = needed - found;
@@ -434,8 +450,15 @@ function buildDateNav() {
     html += `<div class="d-chip${selectedDate===d?' active':''}${overdue?' overdue':''}" onclick="selectDate('${d}')">
       <span class="d-day">${label}${overdue?' ⚠️':''}</span>
       <span class="d-count">${missing > 0 ? missing + ' missing' : 'done ✓'}</span>
+      <span class="d-orders">${orders} orders</span>
     </div>`;
   }
+
+  // Custom date picker chip
+  html += `<div class="d-chip date-pick-chip" onclick="document.getElementById('customDateInput').showPicker?document.getElementById('customDateInput').showPicker():document.getElementById('customDateInput').click()">
+    📅 Pick date
+    <input type="date" id="customDateInput" style="position:absolute;opacity:0;width:0;height:0" onchange="selectDate(this.value)">
+  </div>`;
 
   nav.innerHTML = html;
 }
@@ -447,9 +470,53 @@ function selectDate(d) {
 }
 
 // ── CAMERA ────────────────────────────────────────────────────────────────────
+let webcamStream = null;
+
 function triggerCamera() {
   if (!rackItems.length) { alert('Sync orders first.'); return; }
-  document.getElementById('fileInput').click();
+  // On mobile: go straight to file input (camera)
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (isMobile) {
+    document.getElementById('fileInput').click();
+    return;
+  }
+  // On desktop: show webcam/file choice
+  const choice = document.getElementById('camChoice');
+  if (choice.style.display === 'none' || choice.style.display === '') {
+    choice.style.display = 'flex';
+  } else {
+    choice.style.display = 'none';
+  }
+}
+
+async function startWebcam() {
+  document.getElementById('camChoice').style.display = 'none';
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+    const video = document.getElementById('webcamVideo');
+    video.srcObject = webcamStream;
+    document.getElementById('webcamContainer').style.display = 'block';
+    document.getElementById('camCard').style.display = 'none';
+  } catch(e) {
+    alert('Cannot access webcam: ' + e.message);
+  }
+}
+
+function stopWebcam() {
+  if (webcamStream) { webcamStream.getTracks().forEach(t => t.stop()); webcamStream = null; }
+  document.getElementById('webcamContainer').style.display = 'none';
+  document.getElementById('camCard').style.display = '';
+}
+
+function captureWebcam() {
+  const video = document.getElementById('webcamVideo');
+  const canvas = document.getElementById('webcamCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  setCamState('analyzing');
+  processImage(dataUrl, 'image/jpeg');
 }
 
 function handleFile(e) {
@@ -635,10 +702,12 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         <div style="font-size:.78rem;color:var(--muted)">"${esc(quote)}" · ${esc(color)}<br>${r.found}/${r.needed} found${r.found>=r.needed?' · <span style="color:var(--green)">Complete!</span>':''}</div>
         <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
           <button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button>
-          <button class="act-btn" onclick="openSlip('${esc(orderName)}')">🖨 Print Slip</button>
+          <button class="act-btn" style="background:var(--accent);color:#fff" onclick="openSlip('${esc(orderName)}')">🖨 Print Slip</button>
         </div>
       </div>
     </div>`;
+    // Auto-open the slip overlay so the user can immediately print
+    openSlip(orderName);
     renderHistory();
   } catch(e) { alert('Error: ' + e.message); }
 }
