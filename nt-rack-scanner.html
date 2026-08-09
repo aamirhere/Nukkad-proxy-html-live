@@ -147,6 +147,30 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 }
 .print-title,.print-date{display:none}
 
+/* ── DISPATCH TAB TABLE ── */
+.dt-table{width:100%;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.dt-table thead{background:var(--ink);color:#fff}
+.dt-table th{padding:9px 10px;text-align:left;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;font-weight:700}
+.dt-table th:not(:first-child){text-align:center}
+.dt-table td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink);vertical-align:middle}
+.dt-table td:not(:first-child){text-align:center}
+.dt-table tr:last-child td{border-bottom:none}
+.dt-table tr.done-row{opacity:.45}
+.dt-table tr.overdue-row td:first-child{color:#e65100;font-weight:700}
+.dt-date-cell{font-weight:700;font-size:.85rem}
+.dt-date-sub{font-size:.67rem;color:var(--muted);font-weight:400}
+.dt-bar{height:5px;border-radius:3px;background:var(--line);margin-top:4px;overflow:hidden}
+.dt-bar-fill{height:100%;border-radius:3px;background:var(--green);transition:width .3s}
+.dt-bar-fill.amber{background:var(--amber)}
+.dt-bar-fill.red{background:var(--red)}
+.dt-badge{display:inline-block;padding:2px 7px;border-radius:8px;font-size:.67rem;font-weight:700}
+.dt-badge.all-done{background:#e8f8ef;color:var(--green)}
+.dt-badge.partial{background:#fff3e0;color:var(--amber)}
+.dt-badge.none{background:#fdecea;color:var(--red)}
+.dt-badge.overdue{background:#fff3e0;color:#e65100}
+.dt-total-row td{font-weight:700;background:var(--bg);border-top:2px solid var(--line)!important}
+.dt-grand-label{font-size:.75rem;font-weight:700;color:var(--muted);padding:10px 0 6px;text-transform:uppercase;letter-spacing:.05em}
+
 /* ── MISC ── */
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -171,6 +195,7 @@ input[type=file]{display:none}
 <div class="tabs">
   <div class="tab active" id="tabScan" onclick="switchTab('scan')">📷 Scan</div>
   <div class="tab" id="tabList" onclick="switchTab('list')">📋 List / Print</div>
+  <div class="tab" id="tabDispatch" onclick="switchTab('dispatch')">📊 Dispatch</div>
 </div>
 
 <input type="file" id="fileInput" accept="image/*" capture="environment">
@@ -231,6 +256,13 @@ input[type=file]{display:none}
   </div>
 </div>
 
+<!-- ── DISPATCH TAB ── -->
+<div id="dispatchTab" class="list-wrap" style="display:none">
+  <div id="dispatchContent">
+    <div class="empty-msg">Sync orders first, then switch to this tab.</div>
+  </div>
+</div>
+
 <!-- ── SUMMARY BAR ── -->
 <div class="sum-bar">
   <div class="s-stat"><span class="s-num" id="sOrders">0</span><span class="s-lbl">Orders</span></div>
@@ -278,11 +310,14 @@ function setStatus(msg) { document.getElementById('statusLine').textContent = ms
 // ── TAB SWITCHING ──────────────────────────────────────────────────────────────
 function switchTab(t) {
   activeTab = t;
-  document.getElementById('scanTab').style.display = t === 'scan' ? '' : 'none';
-  document.getElementById('listTab').style.display = t === 'list' ? '' : 'none';
-  document.getElementById('tabScan').classList.toggle('active', t === 'scan');
-  document.getElementById('tabList').classList.toggle('active', t === 'list');
-  if (t === 'list') { buildDateNav(); renderList(); }
+  document.getElementById('scanTab').style.display     = t === 'scan'     ? '' : 'none';
+  document.getElementById('listTab').style.display     = t === 'list'     ? '' : 'none';
+  document.getElementById('dispatchTab').style.display = t === 'dispatch' ? '' : 'none';
+  document.getElementById('tabScan').classList.toggle('active',     t === 'scan');
+  document.getElementById('tabList').classList.toggle('active',     t === 'list');
+  document.getElementById('tabDispatch').classList.toggle('active', t === 'dispatch');
+  if (t === 'list')     { buildDateNav(); renderList(); }
+  if (t === 'dispatch') { renderDispatch(); }
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -316,7 +351,8 @@ async function loadRackStatus() {
   try {
     rackItems = await apiFetch({ action: 'get_rack_status' });
     updateSummary();
-    if (activeTab === 'list') { buildDateNav(); renderList(); }
+    if (activeTab === 'list')     { buildDateNav(); renderList(); }
+    if (activeTab === 'dispatch') { renderDispatch(); }
     const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
     if (rackItems.length) setStatus(`${rackItems.length} items loaded · refreshed ${t}`);
     else setStatus('No data yet — tap Sync New Orders.');
@@ -717,6 +753,85 @@ function updateSummary() {
   document.getElementById('sFound').textContent   = totalF;
   document.getElementById('sMissing').textContent = missing;
   document.getElementById('sPct').textContent     = totalN ? `${pct}% sorted` : '';
+}
+
+// ── DISPATCH SUMMARY VIEW ──────────────────────────────────────────────────────
+function renderDispatch() {
+  const el = document.getElementById('dispatchContent');
+  if (!rackItems.length) {
+    el.innerHTML = '<div class="empty-msg">Sync orders first.</div>';
+    return;
+  }
+
+  const dates = [...new Set(rackItems.map(it => it.order_date))].sort();
+
+  let grandOrders = 0, grandPieces = 0, grandFound = 0;
+
+  const rows = dates.map(d => {
+    const dayItems = rackItems.filter(it => it.order_date === d);
+    const orderSet = new Set(dayItems.map(it => it.order_name));
+    const dispOrders = new Set(dayItems.filter(it => it.dispatched).map(it => it.order_name));
+
+    const active = dayItems.filter(it => !it.dispatched);
+    const activeOrders = new Set(active.map(it => it.order_name));
+    const needed = active.reduce((s,it)=>s+it.needed,0);
+    const found  = active.reduce((s,it)=>s+it.found,0);
+    const missing = needed - found;
+    const pct = needed ? Math.round(found/needed*100) : 100;
+    const remaining = activeOrders.size; // orders still not fully dispatched
+    const overdue = isOverdue(d) && missing > 0;
+    const allDone = missing === 0 && remaining === 0;
+
+    grandOrders += remaining;
+    grandPieces += needed;
+    grandFound  += found;
+
+    const barFill = pct >= 100 ? 'all-done' : pct >= 50 ? 'amber' : 'red';
+    const badge   = allDone ? '<span class="dt-badge all-done">Done ✓</span>'
+                  : overdue ? `<span class="dt-badge overdue">⚠️ ${remaining} left</span>`
+                  : `<span class="dt-badge partial">${remaining} left</span>`;
+
+    const dt = new Date(d + 'T00:00:00+05:30');
+    const dayLabel = dt.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+
+    return `<tr class="${allDone?'done-row':''}${overdue?' overdue-row':''}">
+      <td>
+        <div class="dt-date-cell">${dayLabel}${overdue?' ⚠️':''}</div>
+        <div class="dt-bar"><div class="dt-bar-fill ${barFill}" style="width:${pct}%"></div></div>
+      </td>
+      <td>${orderSet.size}<br><span style="font-size:.65rem;color:var(--muted)">${dispOrders.size} dispatched</span></td>
+      <td style="font-weight:700;color:${missing?'var(--red)':'var(--green)'}">${remaining}</td>
+      <td>${missing > 0 ? `<span style="color:var(--red);font-weight:700">${missing}</span>` : '<span style="color:var(--green)">0</span>'}</td>
+      <td>${badge}</td>
+    </tr>`;
+  });
+
+  const grandMissing = grandPieces - grandFound;
+  const grandPct     = grandPieces ? Math.round(grandFound/grandPieces*100) : 100;
+
+  el.innerHTML = `
+    <div class="dt-grand-label">Dispatch Overview</div>
+    <table class="dt-table">
+      <thead>
+        <tr>
+          <th>Order Date</th>
+          <th>Total Orders</th>
+          <th>Left to Dispatch</th>
+          <th>Pieces Missing</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.join('')}
+        <tr class="dt-total-row">
+          <td>Grand Total</td>
+          <td>${[...new Set(rackItems.map(it=>it.order_name))].length}</td>
+          <td style="color:${grandOrders?'var(--red)':'var(--green)'};font-weight:700">${grandOrders}</td>
+          <td style="color:${grandMissing?'var(--red)':'var(--green)'};font-weight:700">${grandMissing}</td>
+          <td style="font-size:.78rem;color:var(--muted)">${grandPct}% sorted</td>
+        </tr>
+      </tbody>
+    </table>`;
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────────
