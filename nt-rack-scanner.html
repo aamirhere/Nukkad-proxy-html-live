@@ -12,16 +12,17 @@
   --green:#27ae60;--red:#e74c3c;--amber:#e67e22;--blue:#2980b9;
   --ff:Fraunces,Georgia,serif;--fb:Nunito,Helvetica Neue,sans-serif;
 }
-body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100vh;padding-bottom:60px}
+body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100vh;padding-bottom:70px}
 
 /* ── HEADER ── */
 .header{background:#fff;border-bottom:3px solid var(--accent);padding:10px 14px;position:sticky;top:0;z-index:100}
+.htop{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .header h1{font-family:var(--ff);font-size:1rem}
 .hrow{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
-.date-input{padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:.8rem;color:var(--ink);background:#fff}
 .hbtn{padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.78rem;cursor:pointer;white-space:nowrap}
 .hbtn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
 .hbtn:disabled{opacity:.4;cursor:default}
+.hlink{font-size:.72rem;color:var(--accent);text-decoration:none;white-space:nowrap}
 .status-line{font-size:.73rem;color:var(--muted);margin-top:5px;min-height:15px}
 
 /* ── TABS ── */
@@ -52,7 +53,6 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .rc-vision strong{color:var(--ink)}
 .match-block{padding:11px 13px;border-bottom:1px solid var(--line)}
 .match-block.best{background:#f0faf4}
-.match-block.extra-msg{background:#fff8e1;padding:16px;text-align:center}
 .m-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .m-order{font-weight:700;font-size:.9rem}
 .m-meta{font-size:.72rem;color:var(--muted);margin-top:2px}
@@ -84,9 +84,21 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 
 /* ── LIST TAB ── */
 .list-wrap{padding:12px;display:flex;flex-direction:column;gap:10px}
+
+/* date picker row */
+.date-nav{display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.date-nav::-webkit-scrollbar{height:0}
+.d-chip{flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.75rem;cursor:pointer;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:1px}
+.d-chip .d-day{font-weight:700;font-size:.82rem}
+.d-chip .d-count{font-size:.63rem;color:var(--muted)}
+.d-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.d-chip.active .d-count{color:rgba(255,255,255,.7)}
+.d-chip.all-chip{padding:6px 14px}
+
 .filter-row{display:flex;gap:5px;flex-wrap:wrap}
 .ftab{padding:6px 13px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.75rem;cursor:pointer;white-space:nowrap}
 .ftab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
 .list-date-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 0 4px;border-bottom:1px solid var(--line);margin-bottom:5px;display:flex;justify-content:space-between}
 .ord-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:5px}
 .ord-card.complete{border-left:3px solid var(--green)}
@@ -129,7 +141,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
   .ord-card.dispatched{display:none}
   .print-title{display:block!important;font-size:14pt;font-weight:700;margin-bottom:8px;font-family:serif}
   .print-date{display:block!important;font-size:10pt;color:#666;margin-bottom:12px}
-  .filter-row,.print-btn-row{display:none!important}
+  .date-nav,.filter-row,.print-btn-row{display:none!important}
 }
 .print-title,.print-date{display:none}
 
@@ -143,15 +155,15 @@ input[type=file]{display:none}
 <body>
 
 <div class="header">
-  <h1>📦 Rack Scanner</h1>
+  <div class="htop">
+    <h1>📦 Rack Scanner</h1>
+    <a class="hlink" href="nt-inventory.html">↗ Inventory</a>
+  </div>
   <div class="hrow">
-    <input class="date-input" type="date" id="dateFrom">
-    <span style="font-size:.78rem;color:var(--muted)">to</span>
-    <input class="date-input" type="date" id="dateTo">
-    <button class="hbtn accent" onclick="syncOrders()">Sync Orders</button>
+    <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync All Orders</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
   </div>
-  <div class="status-line" id="statusLine">Set date range and click Sync Orders.</div>
+  <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
 </div>
 
 <div class="tabs">
@@ -197,6 +209,9 @@ input[type=file]{display:none}
   <div class="print-title" id="printTitle"></div>
   <div class="print-date" id="printDate"></div>
 
+  <!-- date chips — built from available dates in rackItems -->
+  <div class="date-nav no-print" id="dateNav"></div>
+
   <div class="filter-row no-print">
     <div class="ftab active" onclick="setFilter('all')" data-f="all">All</div>
     <div class="ftab" onclick="setFilter('missing')" data-f="missing">Missing</div>
@@ -229,18 +244,17 @@ input[type=file]{display:none}
 
 <script>
 const API  = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
+const SYNC_FROM = '2026-07-29';
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
-let rackItems  = [];   // rows from Supabase nt_rack_items
-let scanLog    = [];   // local session scan log (for display)
+let rackItems    = [];
+let scanLog      = [];
 let activeFilter = 'all';
 let activeTab    = 'scan';
+let selectedDate = 'all';   // 'all' or 'YYYY-MM-DD'
 
 // ── INIT ───────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  const today = todayIST();
-  document.getElementById('dateFrom').value = '2026-07-29';
-  document.getElementById('dateTo').value   = today;
   document.getElementById('fileInput').addEventListener('change', handleFile);
   loadRackStatus();
 });
@@ -254,11 +268,11 @@ function setStatus(msg) { document.getElementById('statusLine').textContent = ms
 // ── TAB SWITCHING ──────────────────────────────────────────────────────────────
 function switchTab(t) {
   activeTab = t;
-  document.getElementById('scanTab').style.display  = t === 'scan' ? '' : 'none';
-  document.getElementById('listTab').style.display  = t === 'list' ? '' : 'none';
+  document.getElementById('scanTab').style.display = t === 'scan' ? '' : 'none';
+  document.getElementById('listTab').style.display = t === 'list' ? '' : 'none';
   document.getElementById('tabScan').classList.toggle('active', t === 'scan');
   document.getElementById('tabList').classList.toggle('active', t === 'list');
-  if (t === 'list') renderList();
+  if (t === 'list') { buildDateNav(); renderList(); }
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -269,28 +283,65 @@ async function apiFetch(payload) {
   return d;
 }
 
-// ── SYNC & LOAD ────────────────────────────────────────────────────────────────
-async function syncOrders() {
-  const from = document.getElementById('dateFrom').value;
-  const to   = document.getElementById('dateTo').value;
-  if (!from) return;
-  setStatus('Syncing orders from Shopify…');
+// ── SYNC ALL (from Jul 29 to today) ───────────────────────────────────────────
+async function syncAll() {
+  const btn = document.getElementById('syncBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Syncing…';
+  setStatus('Fetching all orders from 29 Jul…');
   try {
-    const r = await apiFetch({ action: 'sync_rack', date_from: from, date_to: to || from });
-    setStatus(`Synced ${r.orders} orders · ${r.synced} line items → Supabase`);
+    const today = todayIST();
+    const r = await apiFetch({ action: 'sync_rack', date_from: SYNC_FROM, date_to: today });
+    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} line items`);
     await loadRackStatus();
-  } catch(e) { setStatus('Sync error: ' + e.message); }
+  } catch(e) {
+    setStatus('Sync error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⟳ Sync All Orders';
+  }
 }
 
+// ── LOAD RACK STATUS ───────────────────────────────────────────────────────────
 async function loadRackStatus() {
-  const from = document.getElementById('dateFrom').value;
-  const to   = document.getElementById('dateTo').value;
-  if (!from) return;
   try {
-    rackItems = await apiFetch({ action: 'get_rack_status', date_from: from, date_to: to || from });
+    const today = todayIST();
+    rackItems = await apiFetch({ action: 'get_rack_status', date_from: SYNC_FROM, date_to: today });
     updateSummary();
-    if (activeTab === 'list') renderList();
-  } catch(e) { setStatus('Load error: ' + e.message); }
+    if (activeTab === 'list') { buildDateNav(); renderList(); }
+    if (rackItems.length) setStatus(`${rackItems.length} line items loaded · last refreshed ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`);
+  } catch(e) {
+    setStatus('Load error: ' + e.message);
+  }
+}
+
+// ── DATE NAV ───────────────────────────────────────────────────────────────────
+function buildDateNav() {
+  const nav = document.getElementById('dateNav');
+  const dates = [...new Set(rackItems.map(it => it.order_date))].sort();
+
+  let html = `<div class="d-chip all-chip${selectedDate==='all'?' active':''}" onclick="selectDate('all')">All dates</div>`;
+
+  for (const d of dates) {
+    const dayItems = rackItems.filter(it => it.order_date === d && !it.dispatched);
+    const needed   = dayItems.reduce((s,it)=>s+it.needed,0);
+    const found    = dayItems.reduce((s,it)=>s+it.found,0);
+    const missing  = needed - found;
+    const dt = new Date(d + 'T00:00:00+05:30');
+    const label = dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    html += `<div class="d-chip${selectedDate===d?' active':''}" onclick="selectDate('${d}')">
+      <span class="d-day">${label}</span>
+      <span class="d-count">${missing > 0 ? missing + ' missing' : 'done ✓'}</span>
+    </div>`;
+  }
+
+  nav.innerHTML = html;
+}
+
+function selectDate(d) {
+  selectedDate = d;
+  buildDateNav();
+  renderList();
 }
 
 // ── CAMERA ────────────────────────────────────────────────────────────────────
@@ -315,11 +366,9 @@ async function processImage(dataUrl, mimeType) {
   preview.style.display = 'block';
 
   try {
-    // Resize to 700px for speed — good enough for text recognition
     const b64 = (await resizeImage(dataUrl, 700)).split(',')[1];
     const vision = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: mimeType.split(';')[0] });
     setCamState('idle');
-    // Clear preview immediately after analysis (don't keep image in memory)
     setTimeout(() => { preview.style.display = 'none'; preview.src = ''; }, 400);
     handleVisionResult(vision);
   } catch(e) {
@@ -387,24 +436,14 @@ function wordSim(a, b) {
 }
 
 function findMatches(quote, color) {
-  // Group rack items by order, only non-dispatched with remaining needed
-  const byOrder = {};
+  const results = [];
   for (const it of rackItems) {
     if (it.dispatched) continue;
     if (it.found >= it.needed) continue;
-    if (!byOrder[it.order_name]) byOrder[it.order_name] = { ...it, items: [] };
-    byOrder[it.order_name].items.push(it);
-  }
-
-  // Score each order's items
-  const results = [];
-  for (const order of Object.values(byOrder)) {
-    for (const it of order.items) {
-      const qScore = wordSim(quote, it.quote);
-      const cScore = color ? wordSim(color, it.color) : 0.5;
-      const score  = qScore * 0.75 + cScore * 0.25;
-      if (qScore >= 0.35) results.push({ it, qScore, cScore, score });
-    }
+    const qScore = wordSim(quote, it.quote);
+    const cScore = color ? wordSim(color, it.color) : 0.5;
+    const score  = qScore * 0.75 + cScore * 0.25;
+    if (qScore >= 0.35) results.push({ it, qScore, cScore, score });
   }
   results.sort((a, b) => b.score - a.score);
   return results.slice(0, 4);
@@ -444,7 +483,6 @@ function showResult({ type, quote, color, confidence, matches, message }) {
 
   matches.forEach((m, idx) => {
     const { it } = m;
-    // Get all items for this order to show progress
     const orderItems = rackItems.filter(r => r.order_name === it.order_name && !r.dispatched);
     const totalN = orderItems.reduce((s,r)=>s+r.needed,0);
     const totalF = orderItems.reduce((s,r)=>s+r.found,0);
@@ -482,7 +520,6 @@ function showResult({ type, quote, color, confidence, matches, message }) {
 async function confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence) {
   try {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1 });
-    // Update local state
     const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
     if (row) row.found = r.found;
 
@@ -494,7 +531,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         <div style="font-size:2.2rem">✅</div>
         <div style="font-weight:700;margin:8px 0;font-size:.95rem">${esc(orderName)}</div>
         <div style="font-size:.78rem;color:var(--muted)">"${esc(quote)}" · ${esc(color)}<br>${r.found}/${r.needed} found${r.found>=r.needed?' · <span style="color:var(--green)">Complete!</span>':''}</div>
-        <div style="margin-top:14px"><button class="act-btn go" onclick="document.getElementById('camFace').click();triggerCamera()">📷 Scan Next</button></div>
+        <div style="margin-top:14px"><button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button></div>
       </div>
     </div>`;
     renderHistory();
@@ -520,7 +557,6 @@ function logScan(entry) {
   scanLog.unshift({ ...entry, time });
   if (scanLog.length > 60) scanLog.pop();
   renderHistory();
-  // Fire-and-forget persist to Supabase
   apiFetch({ action: 'log_rack_scan', ...entry }).catch(()=>{});
 }
 
@@ -550,31 +586,34 @@ function setFilter(f) {
 }
 
 function renderList() {
-  const from = document.getElementById('dateFrom').value;
-  const to   = document.getElementById('dateTo').value;
+  // Determine items to show based on selectedDate
+  const items = selectedDate === 'all'
+    ? rackItems
+    : rackItems.filter(it => it.order_date === selectedDate);
 
-  // Update print header
-  document.getElementById('printTitle').textContent = `NukkadTales Rack Status`;
-  document.getElementById('printDate').textContent  = `${fmtDate(from)} to ${fmtDate(to)} · printed ${new Date().toLocaleString('en-IN')}`;
+  const dateLabel = selectedDate === 'all' ? 'All Dates' : fmtDate(selectedDate);
+  document.getElementById('printTitle').textContent = `NukkadTales Rack Status — ${dateLabel}`;
+  document.getElementById('printDate').textContent  = `Printed ${new Date().toLocaleString('en-IN')}`;
 
-  if (!rackItems.length) {
+  if (!items.length) {
     document.getElementById('listContent').innerHTML = '<div class="empty-msg">No data. Sync orders first.</div>';
     return;
   }
 
-  // Group by order, then by date
+  // Group by order
   const byOrder = {};
-  for (const it of rackItems) {
-    if (!byOrder[it.order_name]) byOrder[it.order_name] = { order_name: it.order_name, order_date: it.order_date, customer: it.customer, dispatched: it.dispatched, is_emergency: it.is_emergency, items: [] };
+  for (const it of items) {
+    if (!byOrder[it.order_name]) byOrder[it.order_name] = {
+      order_name: it.order_name, order_date: it.order_date,
+      customer: it.customer, dispatched: it.dispatched,
+      is_emergency: it.is_emergency, items: []
+    };
     byOrder[it.order_name].items.push(it);
-    if (it.dispatched) byOrder[it.order_name].dispatched = true;
-    if (it.is_emergency) byOrder[it.order_name].is_emergency = true;
+    if (it.dispatched)   byOrder[it.order_name].dispatched    = true;
+    if (it.is_emergency) byOrder[it.order_name].is_emergency  = true;
   }
 
-  const orders = Object.values(byOrder);
-
-  // Apply filter
-  const filtered = orders.filter(o => {
+  const orders = Object.values(byOrder).filter(o => {
     const totalN = o.items.reduce((s,it)=>s+it.needed,0);
     const totalF = o.items.reduce((s,it)=>s+it.found,0);
     const complete = totalF >= totalN;
@@ -587,34 +626,35 @@ function renderList() {
     return true;
   });
 
-  // Group by date
+  if (!orders.length) {
+    document.getElementById('listContent').innerHTML = '<div class="empty-msg">No orders match this filter.</div>';
+    return;
+  }
+
+  // Group by date (for 'all' view show date headers; for single date just list)
   const byDate = {};
-  for (const o of filtered) {
+  for (const o of orders) {
     const d = o.order_date;
     if (!byDate[d]) byDate[d] = [];
     byDate[d].push(o);
   }
 
   const dates = Object.keys(byDate).sort();
-  if (!dates.length) {
-    document.getElementById('listContent').innerHTML = '<div class="empty-msg">No orders match this filter.</div>';
-    return;
-  }
-
   let html = '';
   for (const date of dates) {
     const dayOrders = byDate[date];
     const dayN = dayOrders.reduce((s,o)=>s+o.items.reduce((s2,it)=>s2+it.needed,0),0);
     const dayF = dayOrders.reduce((s,o)=>s+o.items.reduce((s2,it)=>s2+it.found,0),0);
-    html += `<div class="list-date-hdr"><span>${fmtDate(date)} — ${dayOrders.length} orders</span><span>${dayF}/${dayN} pieces</span></div>`;
-
+    if (selectedDate === 'all') {
+      html += `<div class="list-date-hdr"><span>${fmtDate(date)} — ${dayOrders.length} orders</span><span>${dayF}/${dayN} pieces</span></div>`;
+    }
     for (const o of dayOrders) {
       const totalN = o.items.reduce((s,it)=>s+it.needed,0);
       const totalF = o.items.reduce((s,it)=>s+it.found,0);
       const complete = totalF >= totalN;
       const partial  = totalF > 0 && !complete;
-      const cardCls = o.is_emergency ? 'emergency' : o.dispatched ? 'dispatched' : complete ? 'complete' : partial ? 'partial' : 'missing';
-      const progCls = complete||o.dispatched ? 'prog-done' : partial ? 'prog-partial' : 'prog-none';
+      const cardCls  = o.is_emergency ? 'emergency' : o.dispatched ? 'dispatched' : complete ? 'complete' : partial ? 'partial' : 'missing';
+      const progCls  = complete||o.dispatched ? 'prog-done' : partial ? 'prog-partial' : 'prog-none';
 
       html += `<div class="ord-card ${cardCls}">
         <div class="ord-top">
@@ -647,10 +687,10 @@ function renderList() {
 
 // ── SUMMARY BAR ────────────────────────────────────────────────────────────────
 function updateSummary() {
-  // unique order count
-  const orderNames = [...new Set(rackItems.filter(it=>!it.dispatched).map(it=>it.order_name))];
-  const totalN  = rackItems.filter(it=>!it.dispatched).reduce((s,it)=>s+it.needed,0);
-  const totalF  = rackItems.filter(it=>!it.dispatched).reduce((s,it)=>s+it.found,0);
+  const active = rackItems.filter(it=>!it.dispatched);
+  const orderNames = [...new Set(active.map(it=>it.order_name))];
+  const totalN  = active.reduce((s,it)=>s+it.needed,0);
+  const totalF  = active.reduce((s,it)=>s+it.found,0);
   const missing = totalN - totalF;
   const pct     = totalN ? Math.round(totalF/totalN*100) : 0;
 
