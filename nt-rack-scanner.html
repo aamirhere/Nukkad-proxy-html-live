@@ -92,6 +92,15 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .d-chip .d-day{font-weight:700;font-size:.82rem}
 .d-chip .d-count{font-size:.62rem;color:var(--muted)}
 .d-orders{font-size:.6rem;color:var(--muted);opacity:.75}
+.date-jump{display:flex;align-items:center;gap:8px;padding:10px 14px 4px;background:var(--bg)}
+.dj-label{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.dj-input{flex:1;border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.84rem;background:#fff;color:var(--ink);font-family:var(--fb);outline:none}
+.dj-input:focus{border-color:var(--accent)}
+.dj-clear{padding:6px 12px;border-radius:8px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.78rem;cursor:pointer;white-space:nowrap}
+#printModeBtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.print-mode-banner{position:fixed;top:0;left:0;right:0;z-index:300;background:var(--accent);color:#fff;text-align:center;padding:8px 16px;font-size:.84rem;font-weight:700;display:none}
+.pm-pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:6px;animation:pmPulse 1.2s infinite}
+@keyframes pmPulse{0%,100%{opacity:1}50%{opacity:.3}}
 .d-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .d-chip.active .d-count{color:rgba(255,255,255,.7)}
 .d-chip.all-chip{padding:6px 14px}
@@ -223,6 +232,7 @@ input[type=file]{display:none}
   <div class="hrow">
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync New Orders</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
+    <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()">🖨 Print Mode</button>
   </div>
   <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
 </div>
@@ -285,6 +295,12 @@ input[type=file]{display:none}
   <div class="print-title" id="printTitle"></div>
   <div class="print-date" id="printDate"></div>
 
+  <!-- custom date jump -->
+  <div class="date-jump no-print">
+    <label class="dj-label">Jump to date:</label>
+    <input type="date" id="dateJumpInput" class="dj-input" onchange="if(this.value) selectDate(this.value)">
+    <button class="dj-clear" onclick="document.getElementById('dateJumpInput').value=''; selectDate('all')">All</button>
+  </div>
   <!-- date chips — built from available dates in rackItems -->
   <div class="date-nav no-print" id="dateNav"></div>
 
@@ -310,6 +326,11 @@ input[type=file]{display:none}
   <div id="dispatchContent">
     <div class="empty-msg">Sync orders first, then switch to this tab.</div>
   </div>
+</div>
+
+<!-- ── PRINT MODE BANNER ── -->
+<div class="print-mode-banner" id="printModeBanner">
+  <span class="pm-pulse"></span>Print Mode active — waiting for scans from mobile…
 </div>
 
 <!-- ── SLIP OVERLAY ── -->
@@ -706,7 +727,8 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         </div>
       </div>
     </div>`;
-    // Auto-open the slip overlay so the user can immediately print
+    // Queue for laptop print mode, and auto-open slip on this device
+    apiFetch({ action: 'queue_slip', order_name: orderName }).catch(() => {});
     openSlip(orderName);
     renderHistory();
   } catch(e) { alert('Error: ' + e.message); }
@@ -1009,6 +1031,40 @@ function renderSlip(slip) {
     const canvas = document.getElementById('slipQr');
     drawQR(canvas, slip.awb, 120);
   }
+}
+
+// ── PRINT MODE (laptop auto-print) ───────────────────────────────────────────
+let printModeActive = false;
+let printModeTimer  = null;
+
+function togglePrintMode() {
+  printModeActive = !printModeActive;
+  const btn    = document.getElementById('printModeBtn');
+  const banner = document.getElementById('printModeBanner');
+  if (printModeActive) {
+    btn.classList.add('active');
+    btn.textContent = '⏹ Stop Print Mode';
+    banner.style.display = 'block';
+    pollPrintQueue();
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '🖨 Print Mode';
+    banner.style.display = 'none';
+    clearTimeout(printModeTimer);
+  }
+}
+
+async function pollPrintQueue() {
+  if (!printModeActive) return;
+  try {
+    const r = await apiFetch({ action: 'pop_slip' });
+    if (r.order_name && r.slip) {
+      renderSlip(r.slip);
+      document.getElementById('slipOverlay').style.display = 'flex';
+      setTimeout(() => window.print(), 600);
+    }
+  } catch {}
+  printModeTimer = setTimeout(pollPrintQueue, 2500);
 }
 
 // ── MINIMAL QR CODE RENDERER ───────────────────────────────────────────────────
