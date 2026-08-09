@@ -97,6 +97,18 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .dj-input{flex:1;border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.84rem;background:#fff;color:var(--ink);font-family:var(--fb);outline:none}
 .dj-input:focus{border-color:var(--accent)}
 .dj-clear{padding:6px 12px;border-radius:8px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.78rem;cursor:pointer;white-space:nowrap}
+/* Legacy orders panel */
+.legacy-panel{padding:10px 14px;border-top:1px solid var(--line);display:none}
+.legacy-panel.open{display:block}
+.legacy-panel h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px}
+.legacy-ta{width:100%;min-height:72px;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:.8rem;font-family:var(--fb);color:var(--ink);resize:vertical;box-sizing:border-box;background:#fff}
+.legacy-ta:focus{outline:none;border-color:var(--accent)}
+.legacy-row{display:flex;gap:8px;margin-top:7px;align-items:center}
+.legacy-fetch-btn{padding:7px 16px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.legacy-status{font-size:.75rem;color:var(--muted);flex:1}
+.legacy-result{margin-top:7px;font-size:.72rem;line-height:1.7;color:var(--ink2)}
+.legacy-result .ok{color:#388e3c}
+.legacy-result .fail{color:#c62828}
 #printModeBtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .print-mode-banner{position:fixed;top:0;left:0;right:0;z-index:300;background:var(--accent);color:#fff;text-align:center;padding:8px 16px;font-size:.84rem;font-weight:700;display:none}
 .pm-pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:6px;animation:pmPulse 1.2s infinite}
@@ -276,9 +288,20 @@ input[type=file]{display:none}
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync New Orders</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
     <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()">🖨 Print Mode</button>
+    <button class="hbtn" onclick="toggleLegacyPanel()">📥 Legacy Orders</button>
     <button class="hbtn" id="batchModeBtn" onclick="toggleBatchMode()">📦 Batch</button>
   </div>
   <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
+  <!-- legacy orders panel -->
+  <div class="legacy-panel" id="legacyPanel">
+    <h4>Add orders placed before 29 Jul</h4>
+    <textarea class="legacy-ta" id="legacyInput" placeholder="Paste order numbers, one per line or comma-separated&#10;e.g. #83201, #83202, 83210"></textarea>
+    <div class="legacy-row">
+      <button class="legacy-fetch-btn" onclick="fetchLegacyOrders()">Fetch & Add to Rack</button>
+      <span class="legacy-status" id="legacyStatus"></span>
+    </div>
+    <div class="legacy-result" id="legacyResult"></div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -1535,6 +1558,35 @@ async function submitBatch() {
   setStatus(`✓ Batch: ${done} piece${done !== 1 ? 's' : ''} marked found`);
   btn.textContent = '✓ Submit';
   btn.disabled = false;
+}
+
+function toggleLegacyPanel() {
+  const p = document.getElementById('legacyPanel');
+  p.classList.toggle('open');
+}
+
+async function fetchLegacyOrders() {
+  const raw = document.getElementById('legacyInput').value;
+  const names = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  if (!names.length) return;
+
+  const statusEl = document.getElementById('legacyStatus');
+  const resultEl = document.getElementById('legacyResult');
+  statusEl.textContent = `Fetching ${names.length} orders…`;
+  resultEl.innerHTML = '';
+
+  try {
+    const r = await apiFetch({ action: 'fetch_legacy_orders', order_names: names });
+    statusEl.textContent = '';
+    resultEl.innerHTML = r.results.map(res =>
+      res.error
+        ? `<div class="fail">✗ ${esc(res.name)} — ${esc(res.error)}</div>`
+        : `<div class="ok">✓ ${esc(res.name)} · ${esc(res.date)} · ${res.items} item${res.items !== 1 ? 's' : ''} added</div>`
+    ).join('');
+    await loadRackStatus();
+  } catch(e) {
+    statusEl.textContent = 'Error: ' + e.message;
+  }
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────────
