@@ -187,6 +187,49 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .empty-msg{padding:24px;text-align:center;color:var(--muted);font-size:.85rem}
 input[type=file]{display:none}
 
+/* Batch mode */
+#batchModeBtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.batch-bar{display:none;align-items:center;gap:10px;padding:8px 14px;background:var(--line);border-radius:10px;margin:8px 0}
+.batch-bar.visible{display:flex}
+.bb-count{font-size:.84rem;font-weight:700;color:var(--ink);flex:1}
+.bb-process{padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:.84rem;font-weight:700;cursor:pointer}
+.bb-clear{padding:8px 12px;border-radius:8px;background:none;border:1.5px solid var(--line);color:var(--ink2);font-size:.78rem;cursor:pointer}
+
+/* Batch review overlay */
+.br-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:600;display:flex;align-items:flex-end;justify-content:center}
+.br-sheet{background:var(--bg);width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column}
+.br-header{padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:1}
+.br-title{font-family:var(--ff);font-size:1rem;font-weight:700;color:var(--ink)}
+.br-submit{padding:8px 18px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:.84rem;font-weight:700;cursor:pointer}
+.br-list{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.br-item{border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.br-item.confirmed{border-color:#4caf50}
+.br-item.rejected{opacity:.45;border-color:var(--line)}
+.br-top{display:flex;gap:10px;padding:10px}
+.br-thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--line)}
+.br-thumb-spin{width:64px;height:64px;border-radius:8px;flex-shrink:0;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:1.4rem}
+.br-info{flex:1;min-width:0}
+.br-badge{display:inline-block;font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:20px;margin-bottom:4px;text-transform:uppercase}
+.br-badge.high{background:#e8f5e9;color:#388e3c}
+.br-badge.medium{background:#fff3e0;color:#e65100}
+.br-badge.low,.br-badge.none{background:#fce4ec;color:#c62828}
+.br-quote{font-size:.82rem;font-weight:700;color:var(--ink);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.br-color{font-size:.72rem;color:var(--ink2)}
+.br-order{font-size:.72rem;color:var(--accent);font-weight:700;margin-top:4px}
+.br-nomatch{font-size:.78rem;color:#c62828;margin-top:4px}
+.br-actions{display:flex;border-top:1px solid var(--line)}
+.br-actions button{flex:1;padding:9px;border:none;background:none;font-size:.82rem;font-weight:700;cursor:pointer}
+.br-confirm-btn{color:#388e3c;border-right:1px solid var(--line)!important}
+.br-reject-btn{color:#c62828}
+.br-item.confirmed .br-confirm-btn{background:#e8f5e9}
+.br-item.rejected .br-reject-btn{background:#fce4ec}
+
+/* Transit status tags */
+.status-tag{font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:20px;vertical-align:middle;margin-left:6px}
+.status-tag.dispatched{background:#e8f5e9;color:#388e3c}
+.status-tag.fulfilled{background:#fff8e1;color:#f57f17}
+.status-tag.unfulfilled{background:#fce4ec;color:#c62828}
+
 /* ── SLIP OVERLAY ── */
 .slip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:flex-end;justify-content:center}
 .slip-sheet{background:#fff;width:100%;max-width:420px;border-radius:16px 16px 0 0;padding:18px 16px 28px;max-height:92vh;overflow-y:auto}
@@ -233,6 +276,7 @@ input[type=file]{display:none}
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync New Orders</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
     <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()">🖨 Print Mode</button>
+    <button class="hbtn" id="batchModeBtn" onclick="toggleBatchMode()">📦 Batch</button>
   </div>
   <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
 </div>
@@ -244,6 +288,17 @@ input[type=file]{display:none}
 </div>
 
 <input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none">
+
+<!-- ── BATCH REVIEW OVERLAY ── -->
+<div class="br-overlay" id="brOverlay" style="display:none">
+  <div class="br-sheet">
+    <div class="br-header">
+      <div class="br-title">Review Batch — <span id="brConfirmCount">0</span> confirmed</div>
+      <button class="br-submit" onclick="submitBatch()">✓ Submit</button>
+    </div>
+    <div class="br-list" id="brList"></div>
+  </div>
+</div>
 
 <!-- ── SCAN TAB ── -->
 <div id="scanTab" class="scan-wrap">
@@ -268,6 +323,12 @@ input[type=file]{display:none}
   <div id="camChoice" style="display:none;gap:8px;margin-bottom:8px">
     <button class="act-btn go" style="flex:1" onclick="startWebcam()">📹 Use Webcam</button>
     <button class="act-btn" style="flex:1" onclick="document.getElementById('fileInput').click()">🖼 Choose File</button>
+  </div>
+  <!-- batch mode bar -->
+  <div class="batch-bar" id="batchBar">
+    <span class="bb-count" id="batchCount">0 photos queued</span>
+    <button class="bb-clear" onclick="clearBatch()">✕ Clear</button>
+    <button class="bb-process" onclick="processBatch()">▶ Process</button>
   </div>
   <div class="manual-row">
     <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" onkeydown="if(event.key==='Enter')manualMatch()">
@@ -543,6 +604,16 @@ function captureWebcam() {
 function handleFile(e) {
   const file = e.target.files[0];
   if (!file) return;
+  if (batchMode) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      batchQueue.push({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', status: 'pending', vision: null, match: null, confirmed: false });
+      updateBatchBar();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+    return;
+  }
   setCamState('analyzing');
   const reader = new FileReader();
   reader.onload = ev => processImage(ev.target.result, file.type || 'image/jpeg');
@@ -802,10 +873,11 @@ function renderList() {
     if (!byOrder[it.order_name]) byOrder[it.order_name] = {
       order_name: it.order_name, order_date: it.order_date,
       customer: it.customer, dispatched: it.dispatched,
-      is_emergency: it.is_emergency, items: []
+      fulfilled: it.fulfilled, is_emergency: it.is_emergency, items: []
     };
     byOrder[it.order_name].items.push(it);
     if (it.dispatched)   byOrder[it.order_name].dispatched    = true;
+    if (it.fulfilled)    byOrder[it.order_name].fulfilled     = true;
     if (it.is_emergency) byOrder[it.order_name].is_emergency  = true;
   }
 
@@ -844,6 +916,11 @@ function renderList() {
     if (selectedDate === 'all') {
       html += `<div class="list-date-hdr"><span>${fmtDate(date)} — ${dayOrders.length} orders</span><span>${dayF}/${dayN} pieces</span></div>`;
     }
+    // Sort: unfulfilled first, fulfilled middle, dispatched last
+    dayOrders.sort((a, b) => {
+      const rank = g => g.dispatched ? 2 : g.fulfilled ? 1 : 0;
+      return rank(a) - rank(b);
+    });
     for (const o of dayOrders) {
       const totalN = o.items.reduce((s,it)=>s+it.needed,0);
       const totalF = o.items.reduce((s,it)=>s+it.found,0);
@@ -859,6 +936,7 @@ function renderList() {
             ${o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
             ${o.is_emergency?'<span class="tag-emg">Emergency</span>':''}
             ${(!o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">⚠️ Overdue</span>':''}
+            ${o.dispatched?'<span class="status-tag dispatched">✅ Dispatched</span>':o.fulfilled?'<span class="status-tag fulfilled">🟡 Fulfilled</span>':'<span class="status-tag unfulfilled">🔴 Unfulfilled</span>'}
             <div class="ord-cust">${esc(o.customer||'')}</div>
           </div>
           <div class="ord-prog ${progCls}">${o.dispatched?'🚚':`${totalF}/${totalN}`}</div>
@@ -1259,6 +1337,163 @@ function rsGeneratorPoly(degree) {
     p = r;
   }
   return p;
+}
+
+// ── BATCH SCAN MODE ──────────────────────────────────────────────────────────────
+let batchMode = false;
+let batchQueue = []; // { dataUrl, mimeType, status, vision, match, confirmed }
+
+function toggleBatchMode() {
+  batchMode = !batchMode;
+  const btn = document.getElementById('batchModeBtn');
+  if (batchMode) {
+    btn.classList.add('active');
+    btn.textContent = '📦 Batch ON';
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '📦 Batch';
+    clearBatch();
+  }
+}
+
+function clearBatch() {
+  batchQueue = [];
+  updateBatchBar();
+}
+
+function updateBatchBar() {
+  const bar = document.getElementById('batchBar');
+  const cnt = document.getElementById('batchCount');
+  if (batchQueue.length === 0) {
+    bar.classList.remove('visible');
+  } else {
+    bar.classList.add('visible');
+    cnt.textContent = batchQueue.length + ' photo' + (batchQueue.length > 1 ? 's' : '') + ' queued';
+  }
+}
+
+async function processBatch() {
+  if (!batchQueue.length) return;
+  const processBtn = document.getElementById('batchBar').querySelector('.bb-process');
+  processBtn.textContent = 'Processing…';
+  processBtn.disabled = true;
+
+  await Promise.all(batchQueue.map(async (item) => {
+    if (item.status === 'done') return;
+    item.status = 'processing';
+    try {
+      const b64 = (await resizeImage(item.dataUrl, 700)).split(',')[1];
+      const vision = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: item.mimeType.split(';')[0] }, VISION_API);
+      item.vision = vision;
+      if (vision.quote) {
+        const q = vision.quote.trim().toUpperCase();
+        const c = (vision.color || '').trim().toUpperCase();
+        const matches = rackItems.filter(it => {
+          const iq = it.quote.toUpperCase();
+          const ic = it.color.toUpperCase();
+          const quoteOk = iq === q || iq.includes(q) || q.includes(iq);
+          const colorOk = !c || c === 'UNKNOWN' || ic === c || ic.includes(c) || c.includes(ic);
+          return quoteOk && colorOk && it.found < it.needed;
+        });
+        item.match = matches.length ? matches[0] : null;
+      }
+      item.status = 'done';
+    } catch(e) {
+      item.status = 'error';
+      item.vision = { quote: '', color: '', confidence: 'none' };
+    }
+  }));
+
+  renderBatchReview();
+}
+
+function renderBatchReview() {
+  const overlay = document.getElementById('brOverlay');
+  const list    = document.getElementById('brList');
+
+  list.innerHTML = batchQueue.map((item, i) => {
+    const conf  = item.vision?.confidence || 'none';
+    const quote = item.vision?.quote || '';
+    const color = item.vision?.color || '';
+    const m = item.match;
+    const matchHtml = m
+      ? `<div class="br-order">→ ${esc(m.order_name)} · ${esc(m.customer || '')}</div>`
+      : `<div class="br-nomatch">No match found in pending orders</div>`;
+    return `<div class="br-item${item.confirmed?' confirmed':''}" id="brItem${i}">
+      <div class="br-top">
+        <img class="br-thumb" src="${item.dataUrl}" loading="lazy">
+        <div class="br-info">
+          <span class="br-badge ${conf}">${conf} confidence</span>
+          <div class="br-quote">${esc(quote || '—')}</div>
+          <div class="br-color">${esc(color || '—')}</div>
+          ${matchHtml}
+        </div>
+      </div>
+      <div class="br-actions">
+        <button class="br-confirm-btn" onclick="toggleBrConfirm(${i})" ${!m?'disabled style="opacity:.35;cursor:not-allowed"':''}>✓ Confirm</button>
+        <button class="br-reject-btn" onclick="toggleBrReject(${i})">✗ Reject</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  updateBrCount();
+  overlay.style.display = 'flex';
+  const processBtn = document.getElementById('batchBar').querySelector('.bb-process');
+  processBtn.textContent = '▶ Process';
+  processBtn.disabled = false;
+}
+
+function toggleBrConfirm(i) {
+  const item = batchQueue[i];
+  item.confirmed = !item.confirmed;
+  const el = document.getElementById('brItem' + i);
+  el.classList.toggle('confirmed', item.confirmed);
+  el.classList.remove('rejected');
+  updateBrCount();
+}
+
+function toggleBrReject(i) {
+  const item = batchQueue[i];
+  item.confirmed = false;
+  const el = document.getElementById('brItem' + i);
+  el.classList.add('rejected');
+  el.classList.remove('confirmed');
+  updateBrCount();
+}
+
+function updateBrCount() {
+  const n = batchQueue.filter(it => it.confirmed).length;
+  document.getElementById('brConfirmCount').textContent = n;
+}
+
+async function submitBatch() {
+  const confirmed = batchQueue.filter(it => it.confirmed && it.match);
+  if (!confirmed.length) { alert('No items confirmed.'); return; }
+
+  const btn = document.querySelector('.br-submit');
+  btn.textContent = 'Submitting…';
+  btn.disabled = true;
+
+  let done = 0;
+  for (const item of confirmed) {
+    try {
+      const r = await apiFetch({ action: 'update_rack_found', order_name: item.match.order_name, quote: item.match.quote, color: item.match.color, delta: 1 });
+      const row = rackItems.find(it => it.order_name === item.match.order_name && it.quote === item.match.quote && it.color === item.match.color);
+      if (row) row.found = r.found;
+      logScan({ order_name: item.match.order_name, order_date: item.match.order_date, quote: item.vision.quote, color: item.vision.color, match_type: 'batch', confidence: item.vision.confidence });
+      done++;
+    } catch {}
+  }
+
+  updateSummary();
+  document.getElementById('brOverlay').style.display = 'none';
+  clearBatch();
+  batchMode = false;
+  document.getElementById('batchModeBtn').classList.remove('active');
+  document.getElementById('batchModeBtn').textContent = '📦 Batch';
+  setStatus(`✓ Batch: ${done} piece${done !== 1 ? 's' : ''} marked found`);
+  btn.textContent = '✓ Submit';
+  btn.disabled = false;
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────────
