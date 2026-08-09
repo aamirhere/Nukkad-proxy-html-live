@@ -1353,6 +1353,8 @@ function togglePrintMode() {
   const btn    = document.getElementById('printModeBtn');
   const banner = document.getElementById('printModeBanner');
   if (printModeActive) {
+    // turn off batch if it was on
+    if (batchMode) toggleBatchMode();
     btn.classList.add('active');
     btn.textContent = '⏹ Stop Print Mode';
     banner.style.display = 'block';
@@ -1580,11 +1582,13 @@ function toggleBatchMode() {
   batchMode = !batchMode;
   const btn = document.getElementById('batchModeBtn');
   if (batchMode) {
+    // turn off print mode if it was on
+    if (printModeActive) togglePrintMode();
     btn.classList.add('active');
     btn.textContent = '📦 Batch ON';
   } else {
     btn.classList.remove('active');
-    btn.textContent = '📦 Batch';
+    btn.textContent = '📦 Batch Scan';
     clearBatch();
   }
 }
