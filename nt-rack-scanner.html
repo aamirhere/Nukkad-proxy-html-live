@@ -276,6 +276,20 @@ input[type=file]{display:none}
   .slip-card{border:1px solid #999;break-inside:avoid}
 }
 
+/* ── MODE PICKER ── */
+.mode-picker{display:flex;flex-direction:column;gap:7px}
+.mode-btn{width:100%;border-radius:12px;border:2px solid var(--line);background:#fff;cursor:pointer;padding:11px 14px;text-align:left;display:flex;align-items:center;gap:12px;transition:border-color .15s,background .15s}
+.mode-btn:active{opacity:.85}
+.mode-btn.active{border-color:var(--accent);background:rgba(212,84,31,.06)}
+.mode-btn .mb-icon{font-size:1.5rem;line-height:1;flex-shrink:0}
+.mode-btn .mb-body{flex:1;min-width:0}
+.mode-btn .mb-title{font-weight:700;font-size:.88rem;color:var(--ink)}
+.mode-btn .mb-sub{font-size:.7rem;color:var(--muted);margin-top:1px}
+.mode-btn .mb-pill{font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--line);color:var(--ink2);white-space:nowrap;flex-shrink:0}
+.mode-btn.active .mb-pill{background:var(--accent);color:#fff}
+.mode-row{display:flex;gap:7px}
+.mode-row .mode-btn{flex:1}
+
 /* ── SEARCH ── */
 .search-wrap{padding:8px 12px 0;position:relative}
 .search-inp{width:100%;padding:9px 12px 9px 34px;border:1.5px solid var(--line);border-radius:10px;font-size:.84rem;font-family:var(--fb);color:var(--ink);background:#fff;outline:none}
@@ -381,10 +395,36 @@ input[type=file]{display:none}
 
 <!-- ── SCAN TAB ── -->
 <div id="scanTab" class="scan-wrap">
-  <!-- scan mode toggles — Print Mode only shown on desktop (it's for the laptop+printer) -->
-  <div style="display:flex;gap:8px" id="scanModeRow">
-    <button class="hbtn" id="printModeBtn" onclick="togglePrintMode()" style="flex:1;padding:10px;font-size:.84rem;display:none">🖨 Auto-Print</button>
-    <button class="hbtn" id="batchModeBtn" onclick="toggleBatchMode()" style="flex:1;padding:10px;font-size:.84rem">📦 Batch Scan</button>
+  <!-- mode picker -->
+  <div class="mode-picker" id="modePicker">
+    <!-- laptop row — hidden on mobile -->
+    <button class="mode-btn" id="modeLaptop" onclick="setMode('laptop')" style="display:none">
+      <span class="mb-icon">🖨</span>
+      <span class="mb-body">
+        <div class="mb-title">Laptop · Auto-Print</div>
+        <div class="mb-sub">Polls for scans from mobile and prints slips automatically</div>
+      </span>
+      <span class="mb-pill">Off</span>
+    </button>
+    <!-- mobile row -->
+    <div class="mode-row">
+      <button class="mode-btn active" id="modeSortCheck" onclick="setMode('sort')">
+        <span class="mb-icon">📋</span>
+        <span class="mb-body">
+          <div class="mb-title">Sort & Check</div>
+          <div class="mb-sub">Scan pieces, see slip on screen</div>
+        </span>
+        <span class="mb-pill">Active</span>
+      </button>
+      <button class="mode-btn" id="modePainter" onclick="setMode('painter')">
+        <span class="mb-icon">🎨</span>
+        <span class="mb-body">
+          <div class="mb-title">Painter Drop-off</div>
+          <div class="mb-sub">Batch scan, tag painter</div>
+        </span>
+        <span class="mb-pill">Off</span>
+      </button>
+    </div>
   </div>
   <!-- webcam live feed (desktop) -->
   <div id="webcamContainer" style="display:none;position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;background:#111">
@@ -507,7 +547,7 @@ input[type=file]{display:none}
     <div class="painter-title">🎨 Painter Drop-off</div>
     <div class="painter-sub">Who is bringing pieces down? Tag all scanned pieces to this painter.</div>
     <div class="painter-list" id="painterOptList"></div>
-    <button class="painter-cancel" onclick="closePainterOverlay()">Cancel</button>
+    <button class="painter-cancel" onclick="closePainterOverlayCancel()">Cancel</button>
   </div>
 </div>
 
@@ -578,11 +618,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById('pn' + i);
     if (el) el.value = names[i] || '';
   }
-  // Auto-Print only makes sense on desktop (connected to printer)
+  // Show laptop button only on desktop
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  if (!isMobile) {
-    document.getElementById('printModeBtn').style.display = '';
-  }
+  if (!isMobile) document.getElementById('modeLaptop').style.display = '';
   init();
 });
 
@@ -1349,27 +1387,50 @@ function renderSlip(slip) {
   }
 }
 
-// ── PRINT MODE (laptop auto-print) ───────────────────────────────────────────
+// ── MODE SWITCHER ─────────────────────────────────────────────────────────────
+// activeMode: 'sort' | 'painter' | 'laptop'
+let activeMode = 'sort';
 let printModeActive = false;
 let printModeTimer  = null;
 
-function togglePrintMode() {
-  printModeActive = !printModeActive;
-  const btn    = document.getElementById('printModeBtn');
-  const banner = document.getElementById('printModeBanner');
+function setMode(mode) {
+  // stop whatever was running
   if (printModeActive) {
-    // turn off batch if it was on
-    if (batchMode) toggleBatchMode();
-    btn.classList.add('active');
-    btn.textContent = '⏹ Stop Print Mode';
-    banner.style.display = 'block';
-    pollPrintQueue();
-  } else {
-    btn.classList.remove('active');
-    btn.textContent = '🖨 Print Mode';
-    banner.style.display = 'none';
+    printModeActive = false;
+    document.getElementById('printModeBanner').style.display = 'none';
     clearTimeout(printModeTimer);
   }
+  if (batchMode) {
+    batchMode = false;
+    clearBatch();
+    currentPainter = null;
+  }
+
+  activeMode = mode;
+
+  // Update pill labels + active state
+  const modes = { laptop: 'modeLaptop', sort: 'modeSortCheck', painter: 'modePainter' };
+  for (const [m, id] of Object.entries(modes)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const pill = el.querySelector('.mb-pill');
+    if (m === mode) {
+      el.classList.add('active');
+      if (pill) pill.textContent = 'Active';
+    } else {
+      el.classList.remove('active');
+      if (pill) pill.textContent = 'Off';
+    }
+  }
+
+  if (mode === 'laptop') {
+    printModeActive = true;
+    document.getElementById('printModeBanner').style.display = 'block';
+    pollPrintQueue();
+  } else if (mode === 'painter') {
+    openPainterDropOff();
+  }
+  // 'sort' = default, nothing extra needed
 }
 
 async function pollPrintQueue() {
@@ -1583,20 +1644,6 @@ function rsGeneratorPoly(degree) {
 let batchMode = false;
 let batchQueue = []; // { dataUrl, mimeType, status, vision, match, confirmed }
 
-function toggleBatchMode() {
-  batchMode = !batchMode;
-  const btn = document.getElementById('batchModeBtn');
-  if (batchMode) {
-    // turn off print mode if it was on
-    if (printModeActive) togglePrintMode();
-    btn.classList.add('active');
-    btn.textContent = '📦 Batch ON';
-  } else {
-    btn.classList.remove('active');
-    btn.textContent = '📦 Batch Scan';
-    clearBatch();
-  }
-}
 
 function clearBatch() {
   batchQueue = [];
@@ -1738,8 +1785,7 @@ async function submitBatch() {
   clearBatch();
   batchMode = false;
   currentPainter = null;
-  document.getElementById('batchModeBtn').classList.remove('active');
-  document.getElementById('batchModeBtn').textContent = '📦 Batch';
+  setMode('sort');
   setStatus(`✓ Batch: ${done} piece${done !== 1 ? 's' : ''} marked found`);
   btn.textContent = '✓ Submit';
   btn.disabled = false;
@@ -1829,10 +1875,15 @@ function closePainterOverlay() {
 function selectPainter(name) {
   currentPainter = name;
   closePainterOverlay();
-  // Auto-enable batch mode for drop-off scanning
-  if (!batchMode) toggleBatchMode();
+  batchMode = true;
   switchTab('scan');
-  setStatus(`🎨 Painter Drop-off mode: ${name} — scan pieces in batch`);
+  setStatus(`🎨 Painter Drop-off: ${name} — snap all pieces then tap Process`);
+}
+
+function closePainterOverlayCancel() {
+  // User cancelled painter selection — revert mode to sort
+  closePainterOverlay();
+  setMode('sort');
 }
 
 // ── PAINTER SETTINGS ───────────────────────────────────────────────────────────
