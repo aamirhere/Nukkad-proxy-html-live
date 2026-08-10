@@ -659,12 +659,21 @@ input[type=file]{display:none}
 
 <!-- ── PRINT QUEUE PANEL (laptop mode) ── -->
 <div id="printQueuePanel" style="display:none;padding:12px;flex-direction:column;gap:10px">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-    <div style="font-weight:700;font-size:.9rem;color:var(--ink)">Print Queue</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div style="font-weight:700;font-size:.9rem;color:var(--ink)">Print Queue <span id="pqCount" style="font-size:.75rem;font-weight:400;color:var(--muted)"></span></div>
     <div style="display:flex;gap:6px">
       <button class="act-btn go" onclick="loadPrintQueue()">↺ Refresh</button>
       <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="printAllQueued()">Print All</button>
     </div>
+  </div>
+  <!-- filter tabs -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <div style="display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:.72rem;font-weight:700">
+      <button id="pqTabPending" onclick="setPqFilter('pending')" style="padding:4px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">To Print</button>
+      <button id="pqTabPrinted" onclick="setPqFilter('printed')" style="padding:4px 10px;border:none;background:#fff;color:var(--ink2);cursor:pointer">Printed</button>
+      <button id="pqTabAll"     onclick="setPqFilter('all')"     style="padding:4px 10px;border:none;background:#fff;color:var(--ink2);cursor:pointer">All</button>
+    </div>
+    <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;min-width:120px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
   </div>
   <div id="printQueueList"><div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div></div>
 </div>
@@ -2621,38 +2630,65 @@ function setMode(mode) {
   // 'sort' = default, nothing extra needed
 }
 
+let _pqOrders = [];
+let _pqFilter = 'pending'; // 'pending' | 'printed' | 'all'
+
+function setPqFilter(f) {
+  _pqFilter = f;
+  ['pending','printed','all'].forEach(k => {
+    const b = document.getElementById('pqTab' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (b) { b.style.background = k === f ? 'var(--accent)' : '#fff'; b.style.color = k === f ? '#fff' : 'var(--ink2)'; }
+  });
+  renderPqList();
+}
+
+function renderPqList() {
+  const list = document.getElementById('printQueueList');
+  if (!list) return;
+  const q = (document.getElementById('pqSearch')?.value || '').toLowerCase().trim();
+  let orders = _pqOrders;
+  if (_pqFilter === 'pending') orders = orders.filter(o => !o.printed);
+  if (_pqFilter === 'printed') orders = orders.filter(o => o.printed);
+  if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
+  const cnt = document.getElementById('pqCount');
+  if (cnt) cnt.textContent = `(${orders.length})`;
+  if (!orders.length) {
+    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${_pqFilter==='pending'?'Nothing left to print — all done!':'No orders match.'}</div>`;
+    return;
+  }
+  list.innerHTML = orders.map(o => {
+    const printedBadge = o.printed ? `<span style="background:#e8f5e9;color:#388e3c;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.66rem;margin-left:6px">✓ Printed</span>` : '';
+    return `<div class="result-card" style="margin-bottom:0;${o.printed?'opacity:.75':''}" data-order="${esc(o.order_name)}">
+      <div style="padding:11px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.9rem">${esc(o.order_name)} · ${esc(o.customer||'')}${printedBadge}</div>
+          <div style="margin-top:3px"><span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">${fmtDate(o.order_date)}</span></div>
+          <div style="margin-top:6px;display:flex;flex-direction:column;gap:2px">
+            ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
+              <span style="color:${it.found>=it.needed?'#4caf50':'var(--amber)'}">●</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.quote)}</span>
+              <span style="color:var(--muted);white-space:nowrap">${esc(it.color)}</span>
+              <span style="font-weight:700;color:${it.found>=it.needed?'#4caf50':'var(--amber)'};white-space:nowrap">${it.found}/${it.needed}</span>
+            </div>`).join('')}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
+          <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printSlip('${esc(o.order_name)}',this)">↻ Print Slip</button>
+          <button class="act-btn" style="background:#1565c0;color:#fff;border:none;font-size:.72rem" onclick="dispatchFromQueue('${esc(o.order_name)}',this)">✓ Dispatched</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 async function loadPrintQueue() {
   const list = document.getElementById('printQueueList');
   if (!list) return;
   list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div>';
   try {
-    const { orders } = await apiFetch({ action: 'get_print_queue' });
-    if (!orders || !orders.length) {
-      list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Queue is empty — scan pieces on mobile then tap "Queue Print".</div>';
-      return;
-    }
-    list.innerHTML = orders.map(o => {
-      return `<div class="result-card" style="margin-bottom:0" data-order="${esc(o.order_name)}">
-        <div style="padding:11px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:.9rem">${esc(o.order_name)} · ${esc(o.customer||'')}</div>
-            <div style="margin-top:3px"><span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">${fmtDate(o.order_date)}</span></div>
-            <div style="margin-top:6px;display:flex;flex-direction:column;gap:2px">
-              ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
-                <span style="color:${it.found>=it.needed?'#4caf50':'var(--amber)'}">●</span>
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.quote)}</span>
-                <span style="color:var(--muted);white-space:nowrap">${esc(it.color)}</span>
-                <span style="font-weight:700;color:${it.found>=it.needed?'#4caf50':'var(--amber)'};white-space:nowrap">${it.found}/${it.needed}</span>
-              </div>`).join('')}
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printSlip('${esc(o.order_name)}',this)">↻ Print Slip</button>
-            <button class="act-btn" style="background:#1565c0;color:#fff;border:none;font-size:.72rem" onclick="dispatchFromQueue('${esc(o.order_name)}',this)">✓ Dispatched</button>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
+    const { orders } = await apiFetch({ action: 'get_print_queue', days: 2 });
+    _pqOrders = orders || [];
+    renderPqList();
   } catch(e) {
     list.innerHTML = `<div style="text-align:center;color:var(--red);padding:18px;font-size:.82rem">Error: ${esc(e.message)}</div>`;
   }
@@ -2662,16 +2698,19 @@ async function printSlip(orderName, btn) {
   btn.disabled = true;
   await openSlip(orderName);
   btn.disabled = false;
-  // queue stays — tap Dispatched to remove
+  // mark as printed in local state and DB
+  _pqOrders = _pqOrders.map(o => o.order_name === orderName ? { ...o, printed: true } : o);
+  apiFetch({ action: 'mark_print_done', order_names: [orderName] }).catch(() => {});
+  renderPqList();
 }
 
 async function dispatchFromQueue(orderName, btn) {
   btn.disabled = true; btn.textContent = '…';
   try {
     await apiFetch({ action: 'mark_dispatched', order_name: orderName });
-    await apiFetch({ action: 'clear_print_queued', order_name: orderName }).catch(() => {});
     rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, dispatched: true } : it);
-    loadPrintQueue();
+    _pqOrders = _pqOrders.filter(o => o.order_name !== orderName);
+    renderPqList();
   } catch(e) {
     btn.disabled = false; btn.textContent = '✓ Dispatched';
     alert('Error: ' + e.message);
@@ -2679,9 +2718,10 @@ async function dispatchFromQueue(orderName, btn) {
 }
 
 async function printAllQueued() {
+  // print only what's currently visible (respects filter — default is "To Print" = not yet printed)
   const cards = [...document.querySelectorAll('#printQueueList [data-order]')];
   const orderNames = cards.map(c => c.dataset.order).filter(Boolean);
-  if (!orderNames.length) return alert('No orders in queue.');
+  if (!orderNames.length) return alert('Nothing to print — switch to "All" tab if you want to reprint.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
   if (btn) { btn.disabled = true; btn.textContent = `Fetching ${orderNames.length} slips…`; }
   let slips = [];
@@ -2719,8 +2759,10 @@ async function printAllQueued() {
     ov.style.display = 'none';
     sc.innerHTML = '';
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
-    // queue stays — tap Dispatched on each card to remove after handing over
-    setTimeout(() => loadPrintQueue(), 800);
+    // mark all printed in local state + DB
+    _pqOrders = _pqOrders.map(o => orderNames.includes(o.order_name) ? { ...o, printed: true } : o);
+    apiFetch({ action: 'mark_print_done', order_names: orderNames }).catch(() => {});
+    renderPqList();
   }, 1500);
 }
 
