@@ -2656,12 +2656,83 @@ async function clearPrinted(orderName, btn) {
 }
 
 async function printAllQueued() {
-  const btns = [...document.querySelectorAll('#printQueueList button')].filter(b => b.textContent.includes('Print Slip'));
-  for (const b of btns) {
-    if (b.disabled) continue;
-    b.click();
-    await new Promise(r => setTimeout(r, 2000));
+  // Collect order names from queue list
+  const cards = [...document.querySelectorAll('#printQueueList .result-card')];
+  const orderNames = cards.map(c => {
+    const hd = c.querySelector('[style*="font-weight:700"]');
+    return hd ? hd.textContent.split('·')[0].trim() : null;
+  }).filter(Boolean);
+
+  if (!orderNames.length) return alert('No orders in queue.');
+
+  const btn = document.querySelector('[onclick="printAllQueued()"]');
+  if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length}…`; }
+
+  // Fetch all slips in parallel batches of 5
+  const slips = [];
+  for (let i = 0; i < orderNames.length; i += 5) {
+    const batch = orderNames.slice(i, i + 5);
+    const results = await Promise.allSettled(
+      batch.map(name => apiFetch({ action: 'get_order_slip', order_name: name }))
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') slips.push(r.value);
+    }
+    if (btn) btn.textContent = `Fetching ${slips.length}/${orderNames.length}…`;
   }
+
+  if (!slips.length) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
+    return alert('Could not load any slips.');
+  }
+
+  // Build all slip HTMLs
+  if (btn) btn.textContent = 'Preparing…';
+  const slipHtmls = await Promise.all(slips.map(s => buildSlipHtml(s)));
+
+  // Render into slipOverlay as multi-page doc
+  const overlay = document.getElementById('slipOverlay');
+  const content = document.getElementById('slipContent');
+  // Hide header/actions during bulk print
+  const header = overlay.querySelector('.slip-header');
+  const actions = overlay.querySelector('.slip-actions');
+  if (header) header.style.display = 'none';
+  if (actions) actions.style.display = 'none';
+
+  content.innerHTML = slipHtmls.map((h, i) =>
+    `<div style="${i < slipHtmls.length - 1 ? 'page-break-after:always' : ''}">${h}</div>`
+  ).join('');
+  overlay.style.display = 'flex';
+
+  // Draw barcodes and convert to img immediately
+  slips.forEach((slip, i) => {
+    if (!slip.awb) return;
+    const containers = content.querySelectorAll('.inv');
+    const bc = containers[i] ? containers[i].querySelector('#slipBarcode') : null;
+    if (bc) {
+      drawCode128(bc, slip.awb, 40);
+      const img = document.createElement('img');
+      img.src = bc.toDataURL('image/png');
+      img.style.cssText = 'display:block;width:100%;max-width:100%';
+      bc.parentNode.replaceChild(img, bc);
+    }
+  });
+
+  if (btn) btn.textContent = 'Printing…';
+  await new Promise(r => setTimeout(r, 300)); // let barcodes paint
+  window.print();
+
+  // Restore UI
+  if (header) header.style.display = '';
+  if (actions) actions.style.display = '';
+  overlay.style.display = 'none';
+  if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
+
+  // Mark all as done
+  await Promise.allSettled(
+    orderNames.map(name => apiFetch({ action: 'clear_print_queued', order_name: name }))
+  );
+  loadPrintQueue();
 }
 
 // ── MINIMAL QR CODE RENDERER ───────────────────────────────────────────────────
