@@ -400,6 +400,7 @@ input[type=file]{display:none}
     <h1>📦 Rack Scanner</h1>
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn" style="padding:6px 14px">⟳ Sync</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn" style="padding:6px 10px">↺</button>
+    <button class="hbtn" onclick="openBlankSlip()" style="padding:6px 10px;font-size:.72rem">🖨 Slip</button>
     <div class="hmenu-wrap">
       <button class="hmenu-btn" onclick="toggleHMenu()" id="hmenuBtn">⋮</button>
       <div class="hmenu-drop" id="hmenuDrop">
@@ -660,11 +661,16 @@ input[type=file]{display:none}
 <div id="slipOverlay" class="slip-overlay" style="display:none" onclick="if(event.target===this)closeSlip()">
   <div class="slip-sheet">
     <div class="slip-header">
-      <h2>🚚 Shipping Slip</h2>
+      <h2>🖨 Print Slip</h2>
       <div style="display:flex;gap:6px;align-items:center">
         <button id="slipEditBtn" class="hbtn" onclick="toggleSlipEdit()" style="font-size:.72rem;padding:5px 10px">✏️ Edit</button>
         <button class="slip-close" onclick="closeSlip()">✕</button>
       </div>
+    </div>
+    <!-- order lookup bar -->
+    <div id="slipLookupBar" style="display:flex;gap:6px;margin-bottom:10px">
+      <input id="slipOrderInput" class="m-input" placeholder="#Order number e.g. #84442" style="flex:1;font-size:.8rem" onkeydown="if(event.key==='Enter')loadSlipByInput()">
+      <button class="hbtn accent" onclick="loadSlipByInput()" style="padding:6px 12px;font-size:.78rem">Load</button>
     </div>
     <div id="slipContent"></div>
     <div class="slip-actions">
@@ -1955,6 +1961,24 @@ function closeSlip() {
   if (slipEditMode) { slipEditMode = false; document.getElementById('slipEditBtn').textContent = '✏️ Edit'; }
 }
 
+function openBlankSlip() {
+  const overlay = document.getElementById('slipOverlay');
+  overlay.style.display = 'flex';
+  document.getElementById('slipContent').innerHTML = '<div class="empty-msg" style="color:var(--muted);font-size:.82rem;padding:18px 0;text-align:center">Type an order number above and tap Load,<br>or use ✏️ Edit to fill in manually.</div>';
+  document.getElementById('slipOrderInput').value = '';
+  document.getElementById('slipOrderInput').focus();
+  // auto-enable edit mode so all fields are immediately editable
+  slipEditMode = false;
+}
+
+async function loadSlipByInput() {
+  const raw = document.getElementById('slipOrderInput').value.trim();
+  if (!raw) return;
+  const orderName = raw.startsWith('#') ? raw : '#' + raw;
+  await openSlip(orderName);
+  document.getElementById('slipOrderInput').value = orderName;
+}
+
 function amountInWords(n) {
   const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
   const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
@@ -2027,7 +2051,7 @@ function renderSlip(slip) {
   </div>` : '';
 
   const awbBlock = slip.awb
-    ? `<div class="awb-num">${esc(slip.awb)}</div><canvas id="slipBarcode" style="display:block;margin-top:3px;max-width:100%"></canvas><div style="font-size:6.5px;color:#555;margin-top:1px">${esc(slip.courier||'Courier')}</div>`
+    ? `<div class="awb-num" data-editable="1" style="cursor:text">${esc(slip.awb)}</div><canvas id="slipBarcode" style="display:block;margin-top:3px;max-width:100%"></canvas><div style="font-size:6.5px;color:#555;margin-top:1px" data-editable="1">${esc(slip.courier||'Courier')}</div>`
     : `<div class="no-awb">AWB pending — fulfil in Shopify</div>`;
 
   const pieceCount = items.reduce((s,li) => s + li.quantity, 0);
@@ -2438,8 +2462,15 @@ function toggleSlipEdit() {
     el.contentEditable = slipEditMode ? 'true' : 'false';
     el.style.outline = slipEditMode ? '1.5px dashed #d4541f' : 'none';
     el.style.borderRadius = slipEditMode ? '2px' : '';
+    el.style.minWidth = slipEditMode ? '30px' : '';
   });
   document.getElementById('slipEditBtn').textContent = slipEditMode ? '✅ Done' : '✏️ Edit';
+  // When finishing edit, redraw barcode if AWB field was changed
+  if (!slipEditMode) {
+    const awbEl = document.querySelector('#slipContent .awb-num[data-editable]');
+    const bc = document.getElementById('slipBarcode');
+    if (awbEl && bc) drawCode128(bc, awbEl.textContent.trim(), 40);
+  }
 }
 
 function toggleLegacyPanel() {
