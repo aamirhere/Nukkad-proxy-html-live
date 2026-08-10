@@ -2667,19 +2667,16 @@ async function printAllQueued() {
   if (!orderNames.length) return alert('No orders in queue.');
 
   const btn = document.querySelector('[onclick="printAllQueued()"]');
-  if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length}…`; }
+  if (btn) { btn.disabled = true; btn.textContent = `Fetching ${orderNames.length} slips…`; }
 
-  // Fetch all slips in parallel batches of 5
-  const slips = [];
-  for (let i = 0; i < orderNames.length; i += 5) {
-    const batch = orderNames.slice(i, i + 5);
-    const results = await Promise.allSettled(
-      batch.map(name => apiFetch({ action: 'get_order_slip', order_name: name }))
-    );
-    for (const r of results) {
-      if (r.status === 'fulfilled') slips.push(r.value);
-    }
-    if (btn) btn.textContent = `Fetching ${slips.length}/${orderNames.length}…`;
+  // Single server-side batch call — all Shopify fetches run in parallel on the server
+  let slips = [];
+  try {
+    const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: orderNames }, API, 60000);
+    slips = (fetched || []).filter(s => !s.error);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
+    return alert('Failed to fetch slips: ' + e.message);
   }
 
   if (!slips.length) {
