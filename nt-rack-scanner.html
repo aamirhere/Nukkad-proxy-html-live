@@ -524,47 +524,57 @@ input[type=file]{display:none}
     <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">Bulk</button>
   </div>
 
+  <!-- search first: large input + inline camera button -->
+  <div style="position:relative;margin-bottom:6px">
+    <div style="display:flex;gap:6px;align-items:center">
+      <div style="flex:1;position:relative">
+        <input class="m-input" type="text" id="manualQ"
+          placeholder="Type design name to search…"
+          autocomplete="off" onclick="this.select()"
+          style="width:100%;padding:11px 12px;font-size:.92rem;border-radius:10px;box-sizing:border-box"
+          oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
+          onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()"
+          onblur="setTimeout(hideSuggestions,200)">
+      </div>
+      <select class="m-input" id="manualC" style="max-width:110px;padding:11px 8px;border-radius:10px;font-size:.82rem">
+        <option value="">Any color</option>
+        <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
+        <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
+      </select>
+      <button class="act-btn go" style="white-space:nowrap;padding:10px 14px" onclick="hideSuggestions();manualMatch()">Match</button>
+    </div>
+    <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
+  </div>
+
+  <!-- compact camera strip -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <div id="camCard" onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:10px;display:flex;align-items:center;gap:8px;padding:7px 12px;flex-shrink:0">
+      <span id="camIcon" style="font-size:1.1rem;line-height:1">📷</span>
+      <span id="camLabel" style="color:#fff;font-size:.75rem;font-weight:700;white-space:nowrap">Scan</span>
+    </div>
+    <img id="previewImg" style="display:none;height:40px;border-radius:6px;object-fit:contain;background:#000">
+    <span id="camSub" style="font-size:.7rem;color:var(--muted);display:none"></span>
+    <!-- batch mode bar inline -->
+    <div class="batch-bar" id="batchBar" style="margin:0;flex:1">
+      <span class="bb-count" id="batchCount">0 photos queued</span>
+      <button class="bb-clear" onclick="clearBatch()">✕ Clear</button>
+      <button class="bb-process" onclick="processBatch()">▶ Process</button>
+    </div>
+  </div>
+
+  <!-- webcam -->
   <div id="webcamContainer" style="display:none;position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;background:#111">
-    <video id="webcamVideo" autoplay playsinline muted style="width:100%;max-height:340px;object-fit:cover;display:block"></video>
+    <video id="webcamVideo" autoplay playsinline muted style="width:100%;max-height:280px;object-fit:cover;display:block"></video>
     <canvas id="webcamCanvas" style="display:none"></canvas>
     <div style="position:absolute;bottom:0;left:0;right:0;display:flex;gap:8px;padding:10px;background:linear-gradient(transparent,rgba(0,0,0,.6))">
       <button class="act-btn go" style="flex:1;font-size:.9rem" onclick="captureWebcam()">📸 Capture</button>
       <button class="act-btn" style="font-size:.9rem" onclick="stopWebcam()">✕ Close</button>
     </div>
   </div>
-  <div class="cam-card" id="camCard" onclick="triggerCamera()">
-    <div class="cam-face" id="camFace">
-      <div class="cam-icon" id="camIcon">[ ]</div>
-      <div class="cam-label" id="camLabel">Tap to Scan a Piece</div>
-      <div class="cam-sub" id="camSub">Point camera at the wooden piece</div>
-    </div>
-    <img id="previewImg" class="cam-preview" style="display:none">
-  </div>
-  <!-- webcam / file choice buttons (shown when cam card tapped on desktop) -->
+  <!-- webcam / file choice buttons -->
   <div id="camChoice" style="display:none;gap:8px;margin-bottom:8px">
     <button class="act-btn go" style="flex:1" onclick="startWebcam()">📹 Use Webcam</button>
     <button class="act-btn" style="flex:1" onclick="document.getElementById('fileInput').click()">🖼 Choose File</button>
-  </div>
-  <!-- batch mode bar -->
-  <div class="batch-bar" id="batchBar">
-    <span class="bb-count" id="batchCount">0 photos queued</span>
-    <button class="bb-clear" onclick="clearBatch()">✕ Clear</button>
-    <button class="bb-process" onclick="processBatch()">▶ Process</button>
-  </div>
-  <div style="position:relative">
-    <div class="manual-row">
-      <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" autocomplete="off" onclick="this.select()"
-        oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
-        onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()"
-        onblur="setTimeout(hideSuggestions,200)">
-      <select class="m-input" id="manualC" style="max-width:130px">
-        <option value="">Any color</option>
-        <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
-        <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
-      </select>
-      <button class="act-btn go" onclick="hideSuggestions();manualMatch()">Match</button>
-    </div>
-    <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
   </div>
 
   <div id="resultArea"></div>
@@ -1143,25 +1153,25 @@ function resizeImage(dataUrl, maxPx) {
 }
 
 function setCamState(state) {
-  const face = document.getElementById('camFace');
   const icon = document.getElementById('camIcon');
   const lbl  = document.getElementById('camLabel');
   const sub  = document.getElementById('camSub');
+  const card = document.getElementById('camCard');
   if (state === 'analyzing') {
-    face.className = 'cam-face analyzing';
-    icon.textContent = '···'; lbl.textContent = 'Reading piece…'; sub.textContent = 'AI is recognizing quote & color';
+    if (card) card.style.opacity = '.6';
+    icon.textContent = '···'; lbl.textContent = 'Reading…';
   } else {
-    face.className = 'cam-face';
-    icon.textContent = '[ ]';
-    lbl.textContent = rackItems.length ? 'Tap to Scan a Piece' : 'Sync orders first';
-    sub.textContent  = rackItems.length ? 'Point camera at the wooden piece' : '';
+    if (card) card.style.opacity = '1';
+    icon.textContent = '📷';
+    lbl.textContent = rackItems.length ? 'Scan' : 'Sync first';
+    if (sub) sub.style.display = 'none';
   }
 }
 
 // ── MANUAL MATCH ───────────────────────────────────────────────────────────────
 function showQuoteSuggestions(val) {
   const box = document.getElementById('quoteSuggest');
-  const q = val.trim().toLowerCase();
+  const q = norm(val.trim());
   if (q.length < 2) { box.style.display = 'none'; return; }
   // deduplicate by quote only — color is selected via pills after match
   const seenQuote = new Set();
@@ -1169,7 +1179,7 @@ function showQuoteSuggestions(val) {
   for (const it of rackItems) {
     if (it.dispatched) continue;
     if (seenQuote.has(it.quote)) continue;
-    if (!it.quote.toLowerCase().includes(q)) continue;
+    if (!norm(it.quote).includes(q)) continue;
     seenQuote.add(it.quote);
     // check if all variants of this quote are done
     const allDone = rackItems.filter(r => r.quote === it.quote && !r.dispatched).every(r => r.found >= r.needed);
