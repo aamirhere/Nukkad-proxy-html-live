@@ -1160,9 +1160,10 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
 
     logScan({ order_name: orderName, order_date: orderDate, quote: visQuote, color: visColor, match_type: 'matched', confidence });
     updateSummary();
-    // keep other tabs in sync without a full network reload
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
+    // silently refresh from DB so List/Dispatch are always accurate
+    loadRackStatus().catch(() => {});
 
     // Get all items for this order
     const orderItems = rackItems.filter(it => it.order_name === orderName);
@@ -2402,6 +2403,7 @@ async function submitBatch() {
   updateSummary();
   if (activeTab === 'list')     { buildDateNav(); renderList(); }
   if (activeTab === 'dispatch') { renderDispatch(); }
+  loadRackStatus().catch(() => {});
   document.getElementById('brOverlay').style.display = 'none';
   clearBatch();
   batchMode = false;
