@@ -559,7 +559,7 @@ input[type=file]{display:none}
   </div>
   <div style="position:relative">
     <div class="manual-row">
-      <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" autocomplete="off"
+      <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" autocomplete="off" onclick="this.select()"
         oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
         onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()"
         onblur="setTimeout(hideSuggestions,200)">
