@@ -907,11 +907,20 @@ function switchTab(t) {
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
-async function apiFetch(payload, url = API) {
-  const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-  const d = await r.json();
-  if (d.error) throw new Error(d.error);
-  return d;
+async function apiFetch(payload, url = API, timeoutMs = 20000) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: ctrl.signal });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    return d;
+  } catch(e) {
+    if (e.name === 'AbortError') throw new Error('Request timed out — check connection');
+    throw e;
+  } finally {
+    clearTimeout(tid);
+  }
 }
 
 // ── SYNC (incremental — backend handles from/to via Redis cursor) ──────────────
@@ -948,7 +957,7 @@ async function loadRackStatus() {
     }
     else setStatus('No data yet — tap Sync New Orders.');
   } catch(e) {
-    setStatus('Load error: ' + e.message);
+    document.getElementById('statusLine').innerHTML = `Load failed: ${e.message} &nbsp;<a href="#" onclick="loadRackStatus();return false;" style="color:var(--accent);text-decoration:underline">Retry</a>`;
   }
 }
 
