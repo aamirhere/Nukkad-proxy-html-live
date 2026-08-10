@@ -77,7 +77,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .lf-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
 /* ── PACKING CONTEXT ── */
-.pctx-btn{padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.74rem;cursor:pointer;font-family:var(--fb);font-weight:600}
+.pctx-btn{padding:3px 9px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.68rem;cursor:pointer;font-family:var(--fb);font-weight:600;white-space:nowrap}
 .pctx-btn.pctx-active{background:var(--ink);color:#fff;border-color:var(--ink)}
 
 /* ── CHANNEL PICKER ── */
@@ -486,15 +486,13 @@ input[type=file]{display:none}
   </div>
   <!-- webcam live feed (desktop) -->
   <!-- packing context — one-time session selector -->
-  <div id="packingCtxBar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 11px">
-    <span style="font-size:.72rem;font-weight:700;color:var(--muted);white-space:nowrap">Packing for:</span>
-    <div style="display:flex;gap:5px;flex-wrap:wrap">
-      <button class="pctx-btn pctx-active" data-ctx="daily" onclick="setPackingCtx('daily',this)">📦 Daily Orders</button>
-      <button class="pctx-btn" data-ctx="prime"   onclick="setPackingCtx('prime',this)">🔵 Prime</button>
-      <button class="pctx-btn" data-ctx="zepto"   onclick="setPackingCtx('zepto',this)">⚡ Zepto</button>
-      <button class="pctx-btn" data-ctx="blinkit" onclick="setPackingCtx('blinkit',this)">🟡 Blinkit</button>
-      <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">📋 Bulk</button>
-    </div>
+  <div id="packingCtxBar" style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 10px;overflow-x:auto">
+    <span style="font-size:.65rem;font-weight:700;color:var(--muted);white-space:nowrap;margin-right:2px">For:</span>
+    <button class="pctx-btn pctx-active" data-ctx="daily" onclick="setPackingCtx('daily',this)">Daily</button>
+    <button class="pctx-btn" data-ctx="prime"   onclick="setPackingCtx('prime',this)">Prime</button>
+    <button class="pctx-btn" data-ctx="zepto"   onclick="setPackingCtx('zepto',this)">Zepto</button>
+    <button class="pctx-btn" data-ctx="blinkit" onclick="setPackingCtx('blinkit',this)">Blinkit</button>
+    <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">Bulk</button>
   </div>
 
   <div id="webcamContainer" style="display:none;position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;background:#111">
@@ -2005,17 +2003,17 @@ function renderSlip(slip) {
   });
 
   const isCOD = slip.is_cod;
-  const shipPrice = slip.shipping_price || 0;
-  const shipTax = slip.shipping_tax || 0;
+  // COD orders always have a shipping charge; default ₹100 if not in Shopify data
+  const shipPrice = isCOD ? (slip.shipping_price > 0 ? slip.shipping_price : 100) : 0;
   const totalTax = slip.total_tax || 0;
   const totalPrice = slip.total_price || 0;
 
   let shippingRow = '';
-  if (isCOD && shipPrice > 0) {
+  if (isCOD) {
     shippingRow = `<tr>
       <td style="text-align:left">Shipping Charges</td>
       <td>—</td>
-      <td>₹${(shipPrice/(1+TAX_RATE)).toFixed(2)}</td>
+      <td>₹${(shipPrice / (1 + TAX_RATE)).toFixed(2)}</td>
       <td>1</td>
       <td>IGST</td>
       <td>5%</td>
@@ -2029,7 +2027,7 @@ function renderSlip(slip) {
   </div>` : '';
 
   const awbBlock = slip.awb
-    ? `<div class="awb-num" data-editable="1">${esc(slip.awb)}</div><div style="font-size:6.5px;color:#555;margin-top:1px">${esc(slip.courier||'Courier')}</div>`
+    ? `<div class="awb-num">${esc(slip.awb)}</div><canvas id="slipBarcode" style="display:block;margin-top:3px;max-width:100%"></canvas><div style="font-size:6.5px;color:#555;margin-top:1px">${esc(slip.courier||'Courier')}</div>`
     : `<div class="no-awb">AWB pending — fulfil in Shopify</div>`;
 
   const pieceCount = items.reduce((s,li) => s + li.quantity, 0);
@@ -2101,6 +2099,11 @@ function renderSlip(slip) {
       </tr>
     </table>
   </div>`;
+
+  if (slip.awb) {
+    const bc = document.getElementById('slipBarcode');
+    if (bc) drawCode128(bc, slip.awb, 40);
+  }
 }
 
 // ── MODE SWITCHER ─────────────────────────────────────────────────────────────
@@ -2211,196 +2214,56 @@ async function printAllQueued() {
 
 // ── MINIMAL QR CODE RENDERER ───────────────────────────────────────────────────
 // Reed-Solomon + QR matrix encoder (self-contained, no external deps)
-function drawQR(canvas, text, size) {
-  const qr = createQR(text);
-  const n = qr.length;
-  const cell = Math.floor(size / n);
-  const total = cell * n;
-  canvas.width = canvas.height = total;
+function drawCode128(canvas, text, h) {
+  // Code 128B encoder — produces scannable linear barcode (ISO/IEC 15417)
+  const P = [
+    [2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],
+    [1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],
+    [2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],
+    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,3,2,1],
+    [2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],
+    [3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],
+    [2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],
+    [1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],
+    [2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],
+    [1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],[3,1,3,1,2,1],[2,1,1,3,3,1],
+    [2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],
+    [3,1,1,3,2,1],[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],
+    [3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],[1,1,1,4,2,2],
+    [1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],
+    [1,1,2,4,1,2],[1,2,2,1,1,4],[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],
+    [2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],
+    [1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],
+    [1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],[4,2,1,2,1,1],[2,1,2,1,4,1],
+    [2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],
+    [1,1,4,1,1,3],[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],
+    [1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],[2,1,1,2,1,4],
+    [2,1,1,2,3,2] // 105 = START C (also used as index 105)
+  ];
+  const START_B = 104, STOP_PAT = [2,3,3,1,1,1,2];
+  const codes = [START_B];
+  for (let i = 0; i < text.length; i++) {
+    const v = text.charCodeAt(i) - 32;
+    if (v >= 0 && v <= 95) codes.push(v);
+  }
+  let chk = START_B;
+  for (let i = 1; i < codes.length; i++) chk = (chk + i * codes[i]) % 103;
+  codes.push(chk);
+  const allPats = codes.map(c => P[c]);
+  allPats.push(STOP_PAT);
+  const U = 2; // pixels per unit
+  const totalUnits = allPats.reduce((s,p) => s + p.reduce((a,b)=>a+b,0), 0);
+  canvas.width = totalUnits * U;
+  canvas.height = h || 50;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, total, total);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#000';
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      if (qr[r][c]) ctx.fillRect(c * cell, r * cell, cell, cell);
-    }
-  }
-}
-
-// createQR: returns boolean[][] matrix. Uses qrcode-generator algorithm (MIT).
-// Supports alphanumeric / byte mode, ECC level M, version auto 1-10.
-function createQR(text) {
-  // Encode as bytes (UTF-8 subset: ASCII)
-  const data = [];
-  for (let i = 0; i < text.length; i++) data.push(text.charCodeAt(i) & 0xff);
-
-  // QR version selection: pick smallest version that fits
-  // Byte mode capacities for ECC-M (approx)
-  const CAPS = [0,14,26,42,62,84,106,122,154,180,213];
-  let ver = 1;
-  while (ver < CAPS.length && CAPS[ver] < data.length) ver++;
-  if (ver >= CAPS.length) ver = CAPS.length - 1;
-
-  return qrMatrix(data, ver);
-}
-
-function qrMatrix(bytes, ver) {
-  const size = ver * 4 + 17;
-  const M = Array.from({length:size}, () => new Array(size).fill(null));
-
-  // Place finder patterns
-  function finder(row, col) {
-    for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) {
-      const pr = row + r, pc = col + c;
-      if (pr < 0 || pr >= size || pc < 0 || pc >= size) continue;
-      M[pr][pc] = (r >= 0 && r <= 6 && c >= 0 && c <= 6) &&
-        (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4));
-    }
-  }
-  finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
-
-  // Timing patterns
-  for (let i = 8; i < size - 8; i++) {
-    if (M[6][i] === null) M[6][i] = i % 2 === 0;
-    if (M[i][6] === null) M[i][6] = i % 2 === 0;
-  }
-
-  // Dark module
-  M[size - 8][8] = true;
-
-  // Alignment patterns (ver >= 2)
-  const AP = [null,[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50]];
-  if (ver >= 2 && AP[ver]) {
-    const pos = AP[ver];
-    for (const r of pos) for (const c of pos) {
-      if (M[r][c] !== null) continue;
-      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
-        M[r+dr][c+dc] = (Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0));
-      }
-    }
-  }
-
-  // Build data codewords (byte mode, ECC-M)
-  const dc = buildData(bytes, ver);
-  const bits = [];
-  for (const b of dc) for (let i = 7; i >= 0; i--) bits.push((b >> i) & 1);
-
-  // Place data bits (zigzag)
-  let bi = 0;
-  const isFn = (r,c) => M[r][c] !== null;
-  let up = true;
-  for (let col = size - 1; col >= 1; col -= 2) {
-    if (col === 6) col--;
-    for (let ri = 0; ri < size; ri++) {
-      const r = up ? size - 1 - ri : ri;
-      for (let dc2 = 0; dc2 <= 1; dc2++) {
-        const c = col - dc2;
-        if (!isFn(r, c)) {
-          M[r][c] = bi < bits.length ? bits[bi++] === 1 : false;
-        }
-      }
-    }
-    up = !up;
-  }
-
-  // Apply mask 0 (best universal mask)
-  const mask = (r,c) => (r + c) % 2 === 0;
-  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
-    if (M[r][c] !== null) M[r][c] = M[r][c] !== mask(r, c) ? M[r][c] : !M[r][c];
-  }
-  // Re-fix function modules (mask shouldn't flip them, restore)
-  finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
-  for (let i = 8; i < size - 8; i++) {
-    M[6][i] = i % 2 === 0; M[i][6] = i % 2 === 0;
-  }
-  M[size - 8][8] = true;
-
-  // Format info (ECC-M, mask 0) = standard value 0x5412 → bits placed at fixed positions
-  const fmt = [1,0,1,0,1,1,0,0,0,0,1,0,0,1,0]; // ECC-M mask-0 format string
-  const fpos = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
-  for (let i = 0; i < 15; i++) {
-    const [fr,fc] = fpos[i];
-    M[fr][fc] = fmt[i] === 1;
-    M[size-1-Math.min(i,6)-(i>6?1:0)][8] = fmt[i] === 1;
-    M[8][size-1-i] = fmt[14-i] === 1;
-  }
-
-  return M.map(row => row.map(v => v === true));
-}
-
-function buildData(bytes, ver) {
-  // Byte mode header + length + data
-  const total = [0,16,19,22,26,30,33,35,38,43,48][ver] || 26; // codewords for ECC-M
-  const ecPer = [0,10,16,26,36,48,64,72,88,110,130][ver] || 26;
-  const dataCw = total - ecPer;
-
-  const bits = [];
-  // Mode indicator: byte = 0100
-  bits.push(0,1,0,0);
-  // Char count (8 bits for ver 1-9)
-  for (let i = 7; i >= 0; i--) bits.push((bytes.length >> i) & 1);
-  // Data
-  for (const b of bytes) for (let i = 7; i >= 0; i--) bits.push((b >> i) & 1);
-  // Terminator
-  for (let i = 0; i < 4 && bits.length < dataCw * 8; i++) bits.push(0);
-  // Pad to byte boundary
-  while (bits.length % 8) bits.push(0);
-  // Pad codewords
-  const pads = [0xEC, 0x11];
-  let pi = 0;
-  while (bits.length < dataCw * 8) { for (let i = 7; i >= 0; i--) bits.push((pads[pi] >> i) & 1); pi ^= 1; }
-
-  // Convert to codewords
-  const cw = [];
-  for (let i = 0; i < bits.length; i += 8) {
-    let b = 0;
-    for (let j = 0; j < 8; j++) b = (b << 1) | (bits[i+j] || 0);
-    cw.push(b);
-  }
-
-  // Reed-Solomon ECC
-  const ec = rsEncode(cw, ecPer);
-  return [...cw, ...ec];
-}
-
-function rsEncode(data, ecCount) {
-  const gen = rsGeneratorPoly(ecCount);
-  const msg = [...data, ...new Array(ecCount).fill(0)];
-  for (let i = 0; i < data.length; i++) {
-    const coef = msg[i];
-    if (coef !== 0) {
-      for (let j = 0; j < gen.length; j++) {
-        msg[i + j] ^= rsGF.mul(gen[j], coef);
-      }
-    }
-  }
-  return msg.slice(data.length);
-}
-
-const rsGF = (() => {
-  const exp = new Uint8Array(512), log = new Uint8Array(256);
-  let x = 1;
-  for (let i = 0; i < 255; i++) {
-    exp[i] = x; log[x] = i;
-    x <<= 1; if (x & 0x100) x ^= 0x11d;
-  }
-  for (let i = 255; i < 512; i++) exp[i] = exp[i - 255];
-  return {
-    mul: (a, b) => a && b ? exp[log[a] + log[b]] : 0,
-    pow: (a, b) => exp[(log[a] * b) % 255],
-  };
-})();
-
-function rsGeneratorPoly(degree) {
-  let p = [1];
-  for (let i = 0; i < degree; i++) {
-    const q = [1, rsGF.pow(2, i)];
-    const r = new Array(p.length + q.length - 1).fill(0);
-    for (let j = 0; j < p.length; j++) for (let k = 0; k < q.length; k++) r[j+k] ^= rsGF.mul(p[j], q[k]);
-    p = r;
-  }
-  return p;
+  let x = 0, bar = true;
+  allPats.forEach(pat => pat.forEach(w => {
+    if (bar) ctx.fillRect(x * U, 0, w * U, canvas.height);
+    x += w; bar = !bar;
+  }));
 }
 
 // ── BATCH SCAN MODE ──────────────────────────────────────────────────────────────
