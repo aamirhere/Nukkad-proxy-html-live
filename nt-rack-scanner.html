@@ -390,10 +390,19 @@ input[type=file]{display:none}
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
     <button class="hbtn" onclick="toggleLegacyPanel()">📥 Legacy Orders</button>
+    <button class="hbtn" onclick="toggleResyncPanel()" id="resyncToggle">📅 Re-sync Date</button>
     <button class="hbtn" id="pendingBtn" onclick="openSummaryOverlay()" style="position:relative">📊 Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
   </div>
   <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
   <!-- legacy orders panel -->
+  <div class="legacy-panel" id="resyncPanel">
+    <h4>Re-sync orders from a specific date</h4>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="date" id="resyncFrom" class="dj-input" style="flex:1;min-width:130px">
+      <button class="legacy-fetch-btn" onclick="resyncFrom()">↺ Re-sync from this date</button>
+    </div>
+    <span class="legacy-status" id="resyncStatus"></span>
+  </div>
   <div class="legacy-panel" id="legacyPanel">
     <h4>Add orders placed before 29 Jul</h4>
     <textarea class="legacy-ta" id="legacyInput" placeholder="Paste order numbers, one per line or comma-separated&#10;e.g. #83201, #83202, 83210"></textarea>
@@ -501,9 +510,8 @@ input[type=file]{display:none}
       onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()">
     <select class="m-input" id="manualC" style="max-width:130px">
       <option value="">Any color</option>
-      <option>Peach</option><option>Blue</option><option>White</option><option>Orange</option>
-      <option>Yellow</option><option>Purple</option><option>Green</option><option>Red</option>
-      <option>Gold</option><option>Pink</option><option>Standard</option>
+      <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
+      <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
     </select>
     <button class="act-btn go" onclick="hideSuggestions();manualMatch()">Match</button>
   </div>
@@ -1049,7 +1057,7 @@ function showResult({ type, quote, color, confidence, matches, message }) {
     return;
   }
 
-  const COLOR_PILLS = ['Peach','Blue','White','Orange','Yellow','Purple','Green','Red','Gold','Pink','Standard'];
+  const COLOR_PILLS = ['Peach','Blue','White','Red','Orange','Green','Yellow','Purple','Gold'];
   const colorPillsHtml = `<div class="color-pills">${COLOR_PILLS.map(c => {
     const active = c.toLowerCase() === (color||'').toLowerCase();
     return `<button class="cpill${active?' cpill-active':''}" onclick="reMatchWithColor('${c}')">${c}</button>`;
@@ -2370,8 +2378,27 @@ async function submitBatch() {
 }
 
 function toggleLegacyPanel() {
-  const p = document.getElementById('legacyPanel');
+  document.getElementById('legacyPanel').classList.toggle('open');
+}
+function toggleResyncPanel() {
+  const p = document.getElementById('resyncPanel');
   p.classList.toggle('open');
+  if (p.classList.contains('open') && !document.getElementById('resyncFrom').value) {
+    // default to 7 days ago
+    const d = new Date(); d.setDate(d.getDate() - 7);
+    document.getElementById('resyncFrom').value = d.toISOString().slice(0,10);
+  }
+}
+async function resyncFrom() {
+  const from = document.getElementById('resyncFrom').value;
+  if (!from) return;
+  const st = document.getElementById('resyncStatus');
+  st.textContent = 'Re-syncing…';
+  try {
+    const r = await apiFetch({ action: 'sync_rack_from', from_date: from });
+    st.textContent = `✓ Fetched ${r.orders} orders · ${r.synced} items from ${fmtDate(from)}`;
+    await loadRackStatus();
+  } catch(e) { st.textContent = 'Error: ' + e.message; }
 }
 
 async function fetchLegacyOrders() {
