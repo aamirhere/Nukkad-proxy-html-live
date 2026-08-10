@@ -1272,6 +1272,7 @@ function reMatchWithColor(color) {
 
 // ── RESULT DISPLAY ─────────────────────────────────────────────────────────────
 function showResult({ type, quote, color, confidence, matches, message, counted }) {
+  const isManual = confidence === 'manual';
   const area = document.getElementById('resultArea');
 
   if (type === 'error') {
@@ -1303,7 +1304,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
         </div>
       </div>
     </div>`;
-    area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!isManual) area.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
 
@@ -1343,7 +1344,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
           </div>
         </div>
       </div>`;
-      area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!isManual) area.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     return;
   }
@@ -1407,7 +1408,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
 
   html += '</div>';
   area.innerHTML = html;
-  area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!isManual) area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── CONFIRM / MARK ─────────────────────────────────────────────────────────────
