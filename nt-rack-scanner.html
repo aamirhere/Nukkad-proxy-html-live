@@ -1471,6 +1471,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;justify-content:center">
           <button class="act-btn go" onclick="triggerCamera()">Scan Next</button>
           <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="queueForPrint('${esc(orderName)}',this)">Queue Print</button>
+          ${allFound ? `<button class="act-btn" style="background:#388e3c;color:#fff;border:none" data-bd="${_bd([orderName])}" onclick="var d=_btnData[this.dataset.bd];dispatchFromQueue(d[0],this)">✓ Dispatched</button>` : ''}
           <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="jumpToOrderInList('${esc(orderName)}','${esc(orderDate||'')}',${allFound})">See in List</button>
         </div>
       </div>
