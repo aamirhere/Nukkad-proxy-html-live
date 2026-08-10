@@ -779,10 +779,22 @@ let searchQuery  = '';
 let prodFilter   = 'today';
 let todayDispatchCount = 0;  // session-tracked dispatches confirmed today
 
-// painter names from localStorage
+// ── PAINTERS — Supabase-backed ─────────────────────────────────────────────────
 const DEFAULT_PAINTERS = ['Painter 1', 'Painter 2', 'Painter 3', 'Painter 4'];
-function getPainterNames() {
-  try { return JSON.parse(localStorage.getItem('nt_painters')) || DEFAULT_PAINTERS; } catch { return DEFAULT_PAINTERS; }
+let _paintersCache = null;
+
+async function getPainterNames() {
+  if (_paintersCache) return _paintersCache;
+  try {
+    const res = await apiFetch({ action: 'get_setting', key: 'painters' });
+    _paintersCache = Array.isArray(res.value) && res.value.length ? res.value : [...DEFAULT_PAINTERS];
+  } catch { _paintersCache = [...DEFAULT_PAINTERS]; }
+  return _paintersCache;
+}
+
+async function setPainterNames(names) {
+  _paintersCache = names;
+  await apiFetch({ action: 'set_setting', key: 'painters', value: names }).catch(() => {});
 }
 
 // current painter drop-off session
@@ -802,12 +814,13 @@ function setPackingCtx(ctx, btn) {
 // ── INIT ───────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fileInput').addEventListener('change', handleFile);
-  // Restore painter names in settings inputs
-  const names = getPainterNames();
-  for (let i = 0; i < 4; i++) {
-    const el = document.getElementById('pn' + i);
-    if (el) el.value = names[i] || '';
-  }
+  // Restore painter names in settings inputs (async — Supabase)
+  getPainterNames().then(names => {
+    for (let i = 0; i < 4; i++) {
+      const el = document.getElementById('pn' + i);
+      if (el) el.value = names[i] || '';
+    }
+  });
   // Show laptop button only on desktop
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   if (!isMobile) document.getElementById('modeLaptop').style.display = '';
@@ -816,6 +829,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 async function init() {
   await loadRackStatus();
+  _loadSkips().catch(() => {}); // warm skip cache in background
   updatePendingBadge();
   maybeAutoSync();
 }
@@ -1411,8 +1425,8 @@ async function queueForPrint(orderName, btn) {
   }
 }
 
-function doSkipItem(orderName, quote, color, orderDate) {
-  skipItem(orderName, quote, color, orderDate);
+async function doSkipItem(orderName, quote, color, orderDate) {
+  await skipItem(orderName, quote, color, orderDate);
   logScan({ order_name: orderName, order_date: orderDate, quote, color, match_type: 'skipped', confidence: '' });
   document.getElementById('resultArea').innerHTML = `<div class="result-card">
     <div style="padding:18px 16px;text-align:center">
@@ -1424,34 +1438,59 @@ function doSkipItem(orderName, quote, color, orderDate) {
   </div>`;
 }
 
-function confirmMatchAndClearSkip(orderName, quote, color, orderDate, visQuote, visColor, confidence) {
-  clearSkip(orderName, quote, color);
+async function confirmMatchAndClearSkip(orderName, quote, color, orderDate, visQuote, visColor, confidence) {
+  await clearSkip(orderName, quote, color);
   confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence);
 }
 
-// ── SKIP-FOR-NOW ──────────────────────────────────────────────────────────────
+// ── SKIP-FOR-NOW — Supabase-backed ────────────────────────────────────────────
 function _todayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
 }
 function _skipKey(orderName, quote, color) {
-  return `nt_skip:${orderName}:${quote}:${color}`;
+  return `${orderName}:${quote}:${color}`;
 }
-function skipItem(orderName, quote, color, orderDate) {
-  const rec = { skippedOn: _todayIST(), orderDate };
-  localStorage.setItem(_skipKey(orderName, quote, color), JSON.stringify(rec));
-}
-function getSkip(orderName, quote, color) {
+
+let _skipsCache = null; // { key: { skippedOn, orderDate } }
+
+async function _loadSkips() {
+  if (_skipsCache !== null) return _skipsCache;
   try {
-    const raw = localStorage.getItem(_skipKey(orderName, quote, color));
-    if (!raw) return null;
-    const rec = JSON.parse(raw);
-    // skip expires at end of skip day (cleared next calendar day IST)
-    if (rec.skippedOn !== _todayIST()) { localStorage.removeItem(_skipKey(orderName, quote, color)); return null; }
-    return rec;
-  } catch { return null; }
+    const res = await apiFetch({ action: 'get_setting', key: 'skip_records' });
+    _skipsCache = res.value && typeof res.value === 'object' ? res.value : {};
+  } catch { _skipsCache = {}; }
+  // purge stale entries (not from today)
+  const today = _todayIST();
+  let dirty = false;
+  for (const k of Object.keys(_skipsCache)) {
+    if (_skipsCache[k].skippedOn !== today) { delete _skipsCache[k]; dirty = true; }
+  }
+  if (dirty) _saveSkips().catch(() => {});
+  return _skipsCache;
 }
-function clearSkip(orderName, quote, color) {
-  localStorage.removeItem(_skipKey(orderName, quote, color));
+
+async function _saveSkips() {
+  await apiFetch({ action: 'set_setting', key: 'skip_records', value: _skipsCache }).catch(() => {});
+}
+
+async function skipItem(orderName, quote, color, orderDate) {
+  const map = await _loadSkips();
+  map[_skipKey(orderName, quote, color)] = { skippedOn: _todayIST(), orderDate };
+  await _saveSkips();
+}
+
+function getSkip(orderName, quote, color) {
+  if (!_skipsCache) return null; // not loaded yet — callers must await _loadSkips() first
+  const rec = _skipsCache[_skipKey(orderName, quote, color)];
+  if (!rec) return null;
+  if (rec.skippedOn !== _todayIST()) return null;
+  return rec;
+}
+
+async function clearSkip(orderName, quote, color) {
+  const map = await _loadSkips();
+  delete map[_skipKey(orderName, quote, color)];
+  await _saveSkips();
 }
 
 // ── STOCK SUMMARY OVERLAY ──────────────────────────────────────────────────────
@@ -2913,12 +2952,12 @@ async function manualDispatch(orderName) {
 
 // ── PAINTER DROP-OFF MODE ──────────────────────────────────────────────────────
 function openPainterDropOff() {
-  renderPainterOpts();
   document.getElementById('painterOverlay').style.display = 'flex';
+  renderPainterOpts(); // async — fills list when ready
 }
 
-function renderPainterOpts() {
-  const names = getPainterNames();
+async function renderPainterOpts() {
+  const names = await getPainterNames();
   const opts = names.map((n, i) =>
     `<div class="painter-opt-row">
       <button class="painter-opt" onclick="selectPainterByIndex(${i})">
@@ -2932,12 +2971,11 @@ function renderPainterOpts() {
   document.getElementById('painterOptList').innerHTML = opts;
 }
 
-function saveOverlayPainterName(i) {
-  const names = getPainterNames();
+async function saveOverlayPainterName(i) {
+  const names = await getPainterNames();
   const val = (document.getElementById('pno'+i).value||'').trim();
-  if (val) names[i] = val;
-  else names[i] = `Painter ${i+1}`;
-  localStorage.setItem('nt_painters', JSON.stringify(names));
+  names[i] = val || `Painter ${i+1}`;
+  await setPainterNames(names);
   // sync production tab inputs if they exist
   const prodInp = document.getElementById('pn'+i);
   if (prodInp) prodInp.value = names[i];
@@ -2948,10 +2986,9 @@ function closePainterOverlay() {
 }
 
 
-function selectPainterByIndex(i) {
-  // save any unsaved name edit first
-  saveOverlayPainterName(i);
-  const names = getPainterNames();
+async function selectPainterByIndex(i) {
+  await saveOverlayPainterName(i);
+  const names = await getPainterNames();
   selectPainter(names[i]);
 }
 
@@ -2970,9 +3007,9 @@ function closePainterOverlayCancel() {
 }
 
 // ── PAINTER SETTINGS ───────────────────────────────────────────────────────────
-function savePainterNames() {
+async function savePainterNames() {
   const names = [0,1,2,3].map(i => document.getElementById('pn'+i).value.trim() || `Painter ${i+1}`);
-  localStorage.setItem('nt_painters', JSON.stringify(names));
+  await setPainterNames(names);
   setStatus('✓ Painter names saved');
 }
 
