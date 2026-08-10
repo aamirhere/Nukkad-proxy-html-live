@@ -390,16 +390,17 @@ input[type=file]{display:none}
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
     <button class="hbtn" onclick="toggleLegacyPanel()">📥 Legacy Orders</button>
-    <button class="hbtn" onclick="toggleResyncPanel()" id="resyncToggle">📅 Re-sync Date</button>
     <button class="hbtn" id="pendingBtn" onclick="openSummaryOverlay()" style="position:relative">📊 Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
   </div>
-  <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
+  <div class="status-line" id="statusLine">Loading…</div>
+  <div style="text-align:center;margin:-4px 0 4px;font-size:.7rem;color:var(--muted)">Orders missing? <a href="#" onclick="toggleResyncPanel();return false;" style="color:var(--muted);text-decoration:underline dotted">Sync until a date</a></div>
   <!-- legacy orders panel -->
   <div class="legacy-panel" id="resyncPanel">
-    <h4>Re-sync orders from a specific date</h4>
+    <h4>Sync all orders up to a date</h4>
+    <p style="margin:0 0 8px;font-size:.8rem;color:var(--ink2)">Use this if orders for a past date are missing. Pick the date and we'll pull everything from the beginning up to that day.</p>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <input type="date" id="resyncFrom" class="dj-input" style="flex:1;min-width:130px">
-      <button class="legacy-fetch-btn" onclick="resyncFrom()">↺ Re-sync from this date</button>
+      <input type="date" id="resyncUntil" class="dj-input" style="flex:1;min-width:130px">
+      <button class="legacy-fetch-btn" onclick="resyncUntil()">↺ Sync until this date</button>
     </div>
     <span class="legacy-status" id="resyncStatus"></span>
   </div>
@@ -806,7 +807,10 @@ async function loadRackStatus() {
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
     const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-    if (rackItems.length) setStatus(`${rackItems.length} items loaded · refreshed ${t}`);
+    if (rackItems.length) {
+      const orderCount = new Set(rackItems.map(i => i.order_name)).size;
+      setStatus(`${orderCount} orders loaded · refreshed ${t}`);
+    }
     else setStatus('No data yet — tap Sync New Orders.');
   } catch(e) {
     setStatus('Load error: ' + e.message);
@@ -2406,20 +2410,20 @@ function toggleLegacyPanel() {
 function toggleResyncPanel() {
   const p = document.getElementById('resyncPanel');
   p.classList.toggle('open');
-  if (p.classList.contains('open') && !document.getElementById('resyncFrom').value) {
-    // default to 7 days ago
-    const d = new Date(); d.setDate(d.getDate() - 7);
-    document.getElementById('resyncFrom').value = d.toISOString().slice(0,10);
+  if (p.classList.contains('open') && !document.getElementById('resyncUntil').value) {
+    // default to yesterday
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    document.getElementById('resyncUntil').value = d.toISOString().slice(0,10);
   }
 }
-async function resyncFrom() {
-  const from = document.getElementById('resyncFrom').value;
-  if (!from) return;
+async function resyncUntil() {
+  const until = document.getElementById('resyncUntil').value;
+  if (!until) return;
   const st = document.getElementById('resyncStatus');
-  st.textContent = 'Re-syncing…';
+  st.textContent = 'Syncing…';
   try {
-    const r = await apiFetch({ action: 'sync_rack_from', from_date: from });
-    st.textContent = `✓ Fetched ${r.orders} orders · ${r.synced} items from ${fmtDate(from)}`;
+    const r = await apiFetch({ action: 'sync_rack_until', to_date: until });
+    st.textContent = `✓ Fetched ${r.orders} orders · ${r.synced} items until ${fmtDate(until)}`;
     await loadRackStatus();
   } catch(e) { st.textContent = 'Error: ' + e.message; }
 }
