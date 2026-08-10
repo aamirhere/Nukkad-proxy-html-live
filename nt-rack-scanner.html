@@ -575,10 +575,6 @@ input[type=file]{display:none}
 
   <div id="resultArea"></div>
 
-  <div class="sec-hdr no-print" id="recentScansHdr" style="display:none">
-    <span>Recent Scans</span>
-    <button class="act-btn" onclick="renderHistory()" style="padding:2px 9px;font-size:.68rem">↺</button>
-  </div>
   <div class="hist-list no-print" id="histList" style="display:none">
     <div class="empty-msg">No scans yet.</div>
   </div>
@@ -1975,36 +1971,9 @@ function showChannelPicker(orderName, quote, color) {
 
 // ── SCAN LOG ───────────────────────────────────────────────────────────────────
 function logScan(entry) {
-  const time = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-  scanLog.unshift({ ...entry, time });
-  if (scanLog.length > 60) scanLog.pop();
-  renderHistory();
   apiFetch({ action: 'log_rack_scan', ...entry }).catch(()=>{});
 }
-
-function renderHistory() {
-  // only show on mobile (scanner operators); hidden on desktop
-  const isMobile = window.innerWidth < 900;
-  const hdr = document.getElementById('recentScansHdr');
-  const list = document.getElementById('histList');
-  if (hdr) hdr.style.display = isMobile ? '' : 'none';
-  if (list) list.style.display = isMobile ? '' : 'none';
-  if (!isMobile) return;
-  if (!scanLog.length) { list.innerHTML = '<div class="empty-msg">No scans yet.</div>'; return; }
-  list.innerHTML = scanLog.slice(0,12).map(s => {
-    const dc = s.match_type==='matched'?'matched':s.match_type==='extra'?'extra':'none';
-    const sub = s.match_type==='matched' ? `→ ${s.order_name} (${fmtDate(s.order_date)})` :
-                s.match_type==='extra'   ? 'Extra piece — set aside' : 'No match found';
-    return `<div class="hist-row">
-      <div class="h-dot ${dc}"></div>
-      <div class="h-info">
-        <div class="h-quote">"${esc(s.quote)}"${s.color?` · ${esc(s.color)}`:''}</div>
-        <div class="h-sub">${sub}</div>
-      </div>
-      <div class="h-time">${s.time}</div>
-    </div>`;
-  }).join('');
-}
+function renderHistory() {}
 
 // ── SEARCH ─────────────────────────────────────────────────────────────────────
 function onSearch(val) {
