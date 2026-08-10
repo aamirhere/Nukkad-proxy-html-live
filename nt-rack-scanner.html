@@ -525,34 +525,27 @@ input[type=file]{display:none}
     <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">Bulk</button>
   </div>
 
-  <!-- search first: large input + inline camera button -->
+  <!-- scan button + search input row -->
   <div style="position:relative;margin-bottom:6px">
     <div style="display:flex;gap:6px;align-items:center">
-      <div style="flex:1;position:relative">
-        <input class="m-input" type="text" id="manualQ"
-          placeholder="Type design name to search…"
-          autocomplete="off" onclick="this.select()"
-          style="width:100%;padding:11px 12px;font-size:.92rem;border-radius:10px;box-sizing:border-box"
-          oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
-          onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()"
-          onblur="setTimeout(hideSuggestions,200)">
+      <div id="camCard" onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:10px;display:flex;align-items:center;gap:6px;padding:10px 12px;flex-shrink:0">
+        <span id="camIcon" style="font-size:1.1rem;line-height:1">📷</span>
+        <span id="camLabel" style="color:#fff;font-size:.75rem;font-weight:700;white-space:nowrap">Scan</span>
       </div>
-      <select class="m-input" id="manualC" style="max-width:110px;padding:11px 8px;border-radius:10px;font-size:.82rem">
-        <option value="">Any color</option>
-        <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
-        <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
-      </select>
-      <button class="act-btn go" style="white-space:nowrap;padding:10px 14px" onclick="hideSuggestions();manualMatch()">Match</button>
+      <input class="m-input" type="text" id="manualQ"
+        placeholder="Type design name…"
+        autocomplete="off" onclick="this.select()"
+        style="flex:1;padding:11px 12px;font-size:.92rem;border-radius:10px;box-sizing:border-box"
+        oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
+        onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()"
+        onblur="setTimeout(hideSuggestions,200)">
+      <select id="manualC" style="display:none"></select>
     </div>
     <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
   </div>
 
-  <!-- compact camera strip -->
+  <!-- preview + batch bar strip -->
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <div id="camCard" onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:10px;display:flex;align-items:center;gap:8px;padding:7px 12px;flex-shrink:0">
-      <span id="camIcon" style="font-size:1.1rem;line-height:1">📷</span>
-      <span id="camLabel" style="color:#fff;font-size:.75rem;font-weight:700;white-space:nowrap">Scan</span>
-    </div>
     <img id="previewImg" style="display:none;height:40px;border-radius:6px;object-fit:contain;background:#000">
     <span id="camSub" style="font-size:.7rem;color:var(--muted);display:none"></span>
     <!-- batch mode bar inline -->
