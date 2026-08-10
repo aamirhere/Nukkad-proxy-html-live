@@ -722,7 +722,7 @@ input[type=file]{display:none}
 
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="tpl-save-btn" style="flex:1;margin-top:0" onclick="saveTpl()">Save Template</button>
-      <button class="hbtn" style="padding:10px 16px;font-size:.8rem;border-color:var(--accent);color:var(--accent)" onclick="previewTplSlip()">Preview</button>
+      <button id="tplPreviewBtn" class="hbtn" style="padding:10px 16px;font-size:.8rem;border-color:var(--accent);color:var(--accent)" onclick="previewTplSlip()">Preview</button>
     </div>
   </div>
 </div>
@@ -1222,6 +1222,8 @@ function showResult({ type, quote, color, confidence, matches, message }) {
 
   let html = `<div class="result-card"><div class="rc-top">Best match${matches.length>1?' — scroll for more':''}</div>${visionHtml}`;
 
+  const today = _todayIST();
+
   matches.forEach((m, idx) => {
     const { it } = m;
     const orderItems = rackItems.filter(r => r.order_name === it.order_name && !r.dispatched);
@@ -1229,17 +1231,31 @@ function showResult({ type, quote, color, confidence, matches, message }) {
     const totalF = orderItems.reduce((s,r)=>s+r.found,0);
     const pct = Math.round(m.score * 100);
 
+    const isFutureOrder = it.order_date && it.order_date > today;
+    const skipRec = getSkip(it.order_name, it.quote, it.color);
+    const alreadySkipped = !!skipRec;
+
+    const skipBanner = alreadySkipped
+      ? `<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:7px;padding:7px 10px;margin-bottom:8px;font-size:.74rem;color:#795548;display:flex;align-items:center;gap:6px">
+           <span>⏭</span><span>Skipped earlier today — item is in rack. Confirm below to pack it now.</span>
+         </div>` : '';
+
+    const skipBtn = isFutureOrder && !alreadySkipped
+      ? `<button class="m-btn" style="background:#f5f5f5;color:var(--ink2);border:1px solid var(--line)" onclick="doSkipItem('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}','${esc(it.order_date||'')}')">⏭ Skip — pack later</button>`
+      : '';
+
     html += `<div class="match-block${idx===0?' best':''}">
       <div class="m-head">
         <div>
           <div class="m-order">${esc(it.order_name)} · ${esc(it.customer||'')}</div>
           <div class="m-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">📅 ${fmtDate(it.order_date)}</span>
+            <span style="background:${isFutureOrder?'#e8f5e9':'#fff3e0'};color:${isFutureOrder?'#2e7d32':'#e65100'};padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">📅 ${fmtDate(it.order_date)}${isFutureOrder?' · future':''}</span>
             <span>${totalF}/${totalN} pieces · match ${pct}%</span>
           </div>
         </div>
         ${idx===0?'<span class="m-badge">BEST</span>':`<span style="color:var(--muted);font-size:.72rem">#${idx+1}</span>`}
       </div>
+      ${skipBanner}
       <div class="m-items">${orderItems.map(r => {
         const isTarget = r.quote===it.quote && r.color===it.color;
         const p = r.found>=r.needed?'done':r.found>0?'partial':'wait';
@@ -1250,7 +1266,8 @@ function showResult({ type, quote, color, confidence, matches, message }) {
         </div>`;
       }).join('')}</div>
       <div class="m-actions">
-        <button class="m-btn confirm" onclick="confirmMatch('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}','${esc(it.order_date||'')}','${esc(quote)}','${esc(color||'')}','${esc(confidence||'')}')">✓ This is it</button>
+        <button class="m-btn confirm" onclick="confirmMatchAndClearSkip('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}','${esc(it.order_date||'')}','${esc(quote)}','${esc(color||'')}','${esc(confidence||'')}')">✓ This is it</button>
+        ${skipBtn}
         <button class="m-btn extra-btn" onclick="showChannelPicker('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}')">📦 Tag as stock</button>
       </div>
     </div>`;
@@ -1352,6 +1369,49 @@ async function queueForPrint(orderName, btn) {
     if (btn) { btn.disabled = false; btn.textContent = '📤 Queue Print'; }
     alert('Error: ' + e.message);
   }
+}
+
+function doSkipItem(orderName, quote, color, orderDate) {
+  skipItem(orderName, quote, color, orderDate);
+  logScan({ order_name: orderName, order_date: orderDate, quote, color, match_type: 'skipped', confidence: '' });
+  document.getElementById('resultArea').innerHTML = `<div class="result-card">
+    <div style="padding:18px 16px;text-align:center">
+      <div style="font-size:1.6rem;margin-bottom:8px">⏭</div>
+      <div style="font-weight:700;font-size:.95rem;margin-bottom:4px">${esc(orderName)} saved — pack later</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">Item confirmed in rack. Next time you scan this, it'll show as saved and you can confirm to pack.</div>
+      <button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button>
+    </div>
+  </div>`;
+}
+
+function confirmMatchAndClearSkip(orderName, quote, color, orderDate, visQuote, visColor, confidence) {
+  clearSkip(orderName, quote, color);
+  confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence);
+}
+
+// ── SKIP-FOR-NOW ──────────────────────────────────────────────────────────────
+function _todayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+}
+function _skipKey(orderName, quote, color) {
+  return `nt_skip:${orderName}:${quote}:${color}`;
+}
+function skipItem(orderName, quote, color, orderDate) {
+  const rec = { skippedOn: _todayIST(), orderDate };
+  localStorage.setItem(_skipKey(orderName, quote, color), JSON.stringify(rec));
+}
+function getSkip(orderName, quote, color) {
+  try {
+    const raw = localStorage.getItem(_skipKey(orderName, quote, color));
+    if (!raw) return null;
+    const rec = JSON.parse(raw);
+    // skip expires at end of skip day (cleared next calendar day IST)
+    if (rec.skippedOn !== _todayIST()) { localStorage.removeItem(_skipKey(orderName, quote, color)); return null; }
+    return rec;
+  } catch { return null; }
+}
+function clearSkip(orderName, quote, color) {
+  localStorage.removeItem(_skipKey(orderName, quote, color));
 }
 
 // ── STOCK SUMMARY OVERLAY ──────────────────────────────────────────────────────
@@ -2138,6 +2198,8 @@ async function resetTpl() {
 }
 
 async function previewTplSlip() {
+  const btn = document.getElementById('tplPreviewBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
   const logo = document.getElementById('tplLogoPreview').style.display !== 'none'
     ? document.getElementById('tplLogoPreview').src : '';
   const previewTpl = {
@@ -2168,18 +2230,38 @@ async function previewTplSlip() {
     shipping_price: 100,
     shipping_tax: 0,
   };
-  closeTplOverlay();
-  document.getElementById('slipOverlay').style.display = 'flex';
-  document.getElementById('slipOrderInput').value = '';
-  slipEditMode = false;
-  // Temporarily override getTpl to return our preview values
+
+  // Build slip HTML using preview template values (don't touch slipOverlay)
   const realCache = _tplCache;
   _tplCache = previewTpl;
+  let slipHtml = '';
   try {
-    await renderSlip(dummySlip);
+    slipHtml = await buildSlipHtml(dummySlip);
   } finally {
     _tplCache = realCache;
   }
+
+  // Inject into tpl-sheet inline preview panel
+  let panel = document.getElementById('tplInlinePreview');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'tplInlinePreview';
+    panel.style.cssText = 'margin-top:16px;border:1.5px solid var(--line);border-radius:10px;overflow:hidden';
+    document.querySelector('.tpl-sheet').appendChild(panel);
+  }
+  panel.innerHTML = `
+    <div style="background:var(--bg);padding:6px 12px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;justify-content:space-between;align-items:center">
+      <span>Preview (sample data)</span>
+      <button onclick="document.getElementById('tplInlinePreview').remove()" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:.9rem">✕</button>
+    </div>
+    <div style="transform:scale(0.55);transform-origin:top left;width:182%;pointer-events:none">
+      ${slipHtml}
+    </div>`;
+  // Draw barcode inside the scaled preview
+  const bc = panel.querySelector('#slipBarcode');
+  if (bc) drawCode128(bc, '1234567890123', 40);
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (btn) { btn.disabled = false; btn.textContent = 'Preview'; }
 }
 
 function openBlankSlip() {
@@ -2216,7 +2298,7 @@ function amountInWords(n) {
   return words + ' Only';
 }
 
-async function renderSlip(slip) {
+async function buildSlipHtml(slip) {
   const addr = slip.shipping_address || {};
   const addrLine1 = [addr.address1, addr.address2].filter(Boolean).join(', ');
   const addrLine2 = [addr.city, addr.province, addr.zip].filter(Boolean).join(', ');
@@ -2282,7 +2364,7 @@ async function renderSlip(slip) {
     : '';
   const phoneHtml = tpl.phone ? `<div style="font-size:6.5px;color:#555">${esc(tpl.phone)}</div>` : '';
 
-  document.getElementById('slipContent').innerHTML = `<div class="inv">
+  return `<div class="inv">
     <table>
       <tr>
         <td class="brand-cell" width="38%">
@@ -2351,7 +2433,11 @@ async function renderSlip(slip) {
       </tr>
     </table>
   </div>`;
+}
 
+async function renderSlip(slip) {
+  const html = await buildSlipHtml(slip);
+  document.getElementById('slipContent').innerHTML = html;
   if (slip.awb) {
     const bc = document.getElementById('slipBarcode');
     if (bc) drawCode128(bc, slip.awb, 40);
