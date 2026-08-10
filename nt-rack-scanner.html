@@ -177,6 +177,8 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .oi-q{flex:1;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oi-c{font-size:.68rem;color:var(--muted);white-space:nowrap}
 .oi-n{font-size:.68rem;font-weight:700;color:var(--muted);white-space:nowrap}
+.oi-clickable{cursor:pointer;border-radius:5px;transition:background .15s}
+.oi-clickable:hover{background:rgba(212,84,31,.08)}
 .tag-disp{font-size:.67rem;background:#e8f4fc;color:var(--blue);border-radius:6px;padding:1px 6px;margin-left:4px}
 .tag-emg{font-size:.67rem;background:#fdecea;color:var(--red);border-radius:6px;padding:1px 6px;margin-left:4px}
 .tag-overdue{font-size:.67rem;background:#fff3e0;color:#e65100;border-radius:6px;padding:1px 6px;margin-left:4px;font-weight:700}
@@ -1402,6 +1404,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
         <button class="m-btn confirm" data-bd="${bdConfirm}" onclick="var d=_btnData[this.dataset.bd];confirmMatchAndClearSkip(d[0],d[1],d[2],d[3],d[4],d[5],d[6])">✓ This is it</button>
         ${skipBtn}
         <button class="m-btn extra-btn" data-bd="${bdExtra}" onclick="var d=_btnData[this.dataset.bd];showChannelPicker(d[0],d[1],d[2])">Tag as stock</button>
+        <button class="m-btn" style="background:#388e3c;color:#fff;border:none;font-size:.72rem" data-bd="${_bd([it.order_name])}" onclick="var d=_btnData[this.dataset.bd];dispatchFromQueue(d[0],this)">🚚 Dispatch</button>
       </div>
     </div>`;
   });
@@ -1650,6 +1653,29 @@ function renderSumReady() {
   body.innerHTML = html;
   // store for print
   window._readyOrders = allReadyOrders;
+}
+
+async function markItemFound(el) {
+  const d = _btnData[el.dataset.bd];
+  if (!d) return;
+  const [orderName, quote, color] = d;
+  el.style.opacity = '.5'; el.style.pointerEvents = 'none';
+  try {
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
+    const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
+    if (row) row.found = r.found ?? row.needed;
+    updateSummary();
+    buildDateNav();
+    renderList();
+    // if all done for order, refresh print queue silently
+    const orderItems = rackItems.filter(it => it.order_name === orderName);
+    if (orderItems.every(it => it.found >= it.needed)) {
+      apiFetch({ action: 'queue_for_print', order_name: orderName }).then(() => loadPrintQueue()).catch(() => {});
+    }
+  } catch(e) {
+    el.style.opacity = ''; el.style.pointerEvents = '';
+    alert('Error: ' + e.message);
+  }
 }
 
 async function dispatchOrder(orderName, btn) {
@@ -2122,9 +2148,11 @@ function renderList() {
         </div>
         <div class="ord-items">
           ${o.items.map(it => {
-            const chkCls = it.found>=it.needed?'done':it.found>0?'part':'';
-            const chkTxt = it.found>=it.needed?'✓':it.found>0?it.found:'';
-            return `<div class="oi-line">
+            const done = it.found>=it.needed;
+            const chkCls = done?'done':it.found>0?'part':'';
+            const chkTxt = done?'✓':it.found>0?it.found:'';
+            const bk = _bd([it.order_name, it.quote, it.color]);
+            return `<div class="oi-line${done?'':' oi-clickable'}" ${done?'':` data-bd="${bk}" onclick="markItemFound(this)"`} title="${done?'':'Tap to mark as found'}">
               <div class="oi-chk ${chkCls}">${chkTxt}</div>
               <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
               <div class="oi-c">${esc(it.color)}</div>
