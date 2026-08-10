@@ -1160,6 +1160,9 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
 
     logScan({ order_name: orderName, order_date: orderDate, quote: visQuote, color: visColor, match_type: 'matched', confidence });
     updateSummary();
+    // keep other tabs in sync without a full network reload
+    if (activeTab === 'list')     { buildDateNav(); renderList(); }
+    if (activeTab === 'dispatch') { renderDispatch(); }
 
     // Get all items for this order
     const orderItems = rackItems.filter(it => it.order_name === orderName);
@@ -1212,6 +1215,8 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;justify-content:center">
           <button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button>
           <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="queueForPrint('${esc(orderName)}',this)">📤 Queue Print</button>
+          <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="switchTab('list')">📋 List</button>
+          <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="switchTab('dispatch')">🚚 Dispatch</button>
         </div>
       </div>
     </div>`;
@@ -2394,6 +2399,8 @@ async function submitBatch() {
   }
 
   updateSummary();
+  if (activeTab === 'list')     { buildDateNav(); renderList(); }
+  if (activeTab === 'dispatch') { renderDispatch(); }
   document.getElementById('brOverlay').style.display = 'none';
   clearBatch();
   batchMode = false;
