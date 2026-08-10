@@ -55,6 +55,10 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .cpill{padding:4px 10px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;cursor:pointer;font-family:var(--fb)}
 .cpill-active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
+/* ── PACKING CONTEXT ── */
+.pctx-btn{padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.74rem;cursor:pointer;font-family:var(--fb);font-weight:600}
+.pctx-btn.pctx-active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
 /* ── CHANNEL PICKER ── */
 .ch-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .ch-btn{padding:5px 13px;border-radius:20px;border:1.5px solid var(--chc,#ccc);background:#fff;color:var(--chc,#333);font-size:.78rem;font-weight:700;cursor:pointer;font-family:var(--fb);transition:background .15s,color .15s}
@@ -374,6 +378,7 @@ input[type=file]{display:none}
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
     <button class="hbtn" onclick="toggleLegacyPanel()">📥 Legacy Orders</button>
+    <button class="hbtn" id="pendingBtn" onclick="resolvePendingNow()" style="display:none;position:relative">⏳ Pending <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px"></span></button>
   </div>
   <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
   <!-- legacy orders panel -->
@@ -439,6 +444,18 @@ input[type=file]{display:none}
     </div>
   </div>
   <!-- webcam live feed (desktop) -->
+  <!-- packing context — one-time session selector -->
+  <div id="packingCtxBar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 11px">
+    <span style="font-size:.72rem;font-weight:700;color:var(--muted);white-space:nowrap">Packing for:</span>
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      <button class="pctx-btn pctx-active" data-ctx="daily" onclick="setPackingCtx('daily',this)">📦 Daily Orders</button>
+      <button class="pctx-btn" data-ctx="prime"   onclick="setPackingCtx('prime',this)">🔵 Prime</button>
+      <button class="pctx-btn" data-ctx="zepto"   onclick="setPackingCtx('zepto',this)">⚡ Zepto</button>
+      <button class="pctx-btn" data-ctx="blinkit" onclick="setPackingCtx('blinkit',this)">🟡 Blinkit</button>
+      <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">📋 Bulk</button>
+    </div>
+  </div>
+
   <div id="webcamContainer" style="display:none;position:relative;border-radius:14px;overflow:hidden;margin-bottom:10px;background:#111">
     <video id="webcamVideo" autoplay playsinline muted style="width:100%;max-height:340px;object-fit:cover;display:block"></video>
     <canvas id="webcamCanvas" style="display:none"></canvas>
@@ -633,6 +650,14 @@ let currentPainter = null;
 // last AI vision result — used for color override re-matching
 let currentVision = null;
 
+// packing context — session-level, what are we packing for right now
+let packingCtx = 'daily';
+function setPackingCtx(ctx, btn) {
+  packingCtx = ctx;
+  document.querySelectorAll('.pctx-btn').forEach(b => b.classList.remove('pctx-active'));
+  btn.classList.add('pctx-active');
+}
+
 // ── INIT ───────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fileInput').addEventListener('change', handleFile);
@@ -658,6 +683,7 @@ async function init() {
     }
   } catch(e) { /* ignore */ }
   await loadRackStatus();
+  updatePendingBadge();
 }
 
 function setStatus(msg) { document.getElementById('statusLine').textContent = msg; }
@@ -694,8 +720,10 @@ async function syncAll() {
   setStatus('Fetching new orders from Shopify…');
   try {
     const r = await apiFetch({ action: 'sync_rack' });
-    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} items (${fmtDate(r.from)} → ${fmtDate(r.to)})`);
+    const resolvedMsg = r.pending_resolved > 0 ? ` · ✓ ${r.pending_resolved} pending applied` : '';
+    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} items (${fmtDate(r.from)} → ${fmtDate(r.to)})${resolvedMsg}`);
     await loadRackStatus();
+    updatePendingBadge();
   } catch(e) {
     setStatus('Sync error: ' + e.message);
   } finally {
@@ -955,9 +983,16 @@ function showResult({ type, quote, color, confidence, matches, message }) {
     area.innerHTML = `<div class="result-card">
       <div class="rc-top">Scan Result</div>
       ${visionHtml}
-      <div class="m-no-match"><span class="m-big">📦</span>No matching order found.<br><small>Tag this piece for a channel below.</small></div>
+      <div class="m-no-match"><span class="m-big">📦</span>No matching order found.<br><small>Tag for a channel — or save as pending if the order isn't synced yet.</small></div>
       <div style="padding:9px 13px;border-top:1px solid var(--line)">
         ${channelPickerHtml(quote, color||'')}
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
+          <div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Save as pending (order not synced yet)</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <input class="m-input" id="pendingOrderInput" placeholder="Order # e.g. #84201" style="flex:1;min-width:130px">
+            <button class="act-btn go" style="font-size:.76rem;padding:7px 12px" onclick="savePendingFromResult('${esc(quote)}','${esc(color||'')}')">💾 Save Pending</button>
+          </div>
+        </div>
       </div>
     </div>`;
     return;
@@ -1054,7 +1089,8 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
           <div style="font-weight:700;font-size:.95rem">${esc(orderName)}</div>
           <div style="font-size:.78rem;font-weight:700;color:${allFound ? '#4caf50' : 'var(--muted)'}">${totalFound}/${totalNeeded} pieces</div>
         </div>
-        <div style="font-size:.72rem;color:var(--muted);margin-bottom:10px">${esc(orderItems[0]?.customer || '')}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px">${esc(orderItems[0]?.customer || '')}</div>
+        ${packingCtx !== 'daily' ? `<div style="display:inline-block;padding:2px 10px;border-radius:20px;background:#e8eaf6;color:#283593;font-size:.72rem;font-weight:700;margin-bottom:8px">Packing for: ${packingCtx.charAt(0).toUpperCase()+packingCtx.slice(1)}</div>` : ''}
         ${allFound ? `<div style="text-align:center;padding:6px 0;font-size:.88rem;color:#4caf50;font-weight:700;margin-bottom:8px">✅ All pieces found — ready to dispatch!</div>` : ''}
         <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px">
           ${itemsHtml}
@@ -1066,6 +1102,9 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         </div>
       </div>
     </div>`;
+
+    // save to pending so if re-sync is needed this confirm is preserved
+    apiFetch({ action: 'save_pending_confirm', order_name: orderName, quote, color, painter: currentPainter || null }).catch(() => {});
 
     if (allFound) {
       todayDispatchCount++;
@@ -1085,6 +1124,48 @@ async function queueForPrint(orderName, btn) {
     if (btn) { btn.disabled = false; btn.textContent = '📤 Queue Print'; }
     alert('Error: ' + e.message);
   }
+}
+
+async function savePendingFromResult(quote, color) {
+  const inp = document.getElementById('pendingOrderInput');
+  const orderName = (inp?.value || '').trim().replace(/^#/, '');
+  if (!orderName) { inp?.focus(); return; }
+  const btn = inp.nextElementSibling;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await apiFetch({ action: 'save_pending_confirm', order_name: '#' + orderName, quote, color, painter: currentPainter || null });
+    btn.textContent = '✓ Saved';
+    btn.style.background = '#388e3c';
+    updatePendingBadge();
+    setStatus(`💾 Pending saved for #${orderName} — will auto-apply on next Sync`);
+  } catch(e) { btn.disabled = false; btn.textContent = '💾 Save Pending'; alert('Error: '+e.message); }
+}
+
+async function resolvePendingNow() {
+  const btn = document.getElementById('pendingBtn');
+  btn.disabled = true;
+  setStatus('Applying pending confirmations…');
+  try {
+    const r = await apiFetch({ action: 'resolve_pending' });
+    setStatus(`✓ Applied ${r.resolved} pending · ${r.skipped} still waiting (order not synced yet)`);
+    if (r.resolved > 0) await loadRackStatus();
+    updatePendingBadge();
+  } catch(e) { setStatus('Error: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function updatePendingBadge() {
+  try {
+    const { count } = await apiFetch({ action: 'get_pending_count' });
+    const btn = document.getElementById('pendingBtn');
+    const badge = document.getElementById('pendingBadge');
+    if (count > 0) {
+      btn.style.display = '';
+      badge.textContent = count;
+    } else {
+      btn.style.display = 'none';
+    }
+  } catch {}
 }
 
 const CHANNELS = [
