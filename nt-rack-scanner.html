@@ -15,15 +15,24 @@
 body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100vh;padding-bottom:70px}
 
 /* ── HEADER ── */
-.header{background:#fff;border-bottom:3px solid var(--accent);padding:10px 14px}
-.htop{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.header h1{font-family:var(--ff);font-size:1rem}
-.hrow{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
-.hbtn{padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.78rem;cursor:pointer;white-space:nowrap}
+.header{background:#fff;border-bottom:3px solid var(--accent);padding:8px 12px}
+.htop{display:flex;align-items:center;gap:7px}
+.header h1{font-family:var(--ff);font-size:.95rem;flex:1}
+.hbtn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.76rem;cursor:pointer;white-space:nowrap}
 .hbtn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
 .hbtn:disabled{opacity:.4;cursor:default}
 .hlink{font-size:.72rem;color:var(--accent);text-decoration:none;white-space:nowrap}
-.status-line{font-size:.73rem;color:var(--muted);margin-top:5px;min-height:15px}
+.status-line{font-size:.7rem;color:var(--muted);margin-top:4px;min-height:14px}
+/* more-menu dropdown */
+.hmenu-wrap{position:relative}
+.hmenu-btn{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink2);font-size:.9rem;cursor:pointer;line-height:1}
+.hmenu-drop{display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1.5px solid var(--line);border-radius:10px;min-width:170px;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.hmenu-drop.open{display:block}
+.hmenu-item{display:block;width:100%;border:none;background:none;padding:10px 14px;font-size:.82rem;color:var(--ink2);cursor:pointer;text-align:left;white-space:nowrap}
+.hmenu-item:hover{background:var(--bg)}
+.hmenu-item+.hmenu-item{border-top:1px solid var(--line)}
+.hmenu-sep{border:none;border-top:1px solid var(--line);margin:2px 0}
+.hmenu-item a{color:inherit;text-decoration:none}
 
 /* ── TABS ── */
 .tabs{display:flex;background:#fff;border-bottom:2px solid var(--line)}
@@ -308,7 +317,7 @@ input[type=file]{display:none}
   .slip-overlay{position:static!important;background:none!important;display:block!important;padding:0}
   .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:100%}
   .slip-header,.slip-actions{display:none!important}
-  @page{size:A5 portrait;margin:4mm}
+  @page{size:100mm 150mm;margin:2mm}
 }
 
 /* ── MODE PICKER ── */
@@ -389,19 +398,21 @@ input[type=file]{display:none}
 <div class="header">
   <div class="htop">
     <h1>📦 Rack Scanner</h1>
-    <div style="display:flex;gap:6px;align-items:center">
-      <button class="hbtn" onclick="openPainterDropOff()">🎨 Drop-off</button>
-      <a class="hlink" href="nt-inventory.html">↗ Inventory</a>
+    <button class="hbtn accent" onclick="syncAll()" id="syncBtn" style="padding:6px 14px">⟳ Sync</button>
+    <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn" style="padding:6px 10px">↺</button>
+    <div class="hmenu-wrap">
+      <button class="hmenu-btn" onclick="toggleHMenu()" id="hmenuBtn">⋮</button>
+      <div class="hmenu-drop" id="hmenuDrop">
+        <button class="hmenu-item" onclick="openPainterDropOff();closeHMenu()">🎨 Painter Drop-off</button>
+        <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">📊 Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
+        <button class="hmenu-item" onclick="toggleLegacyPanel();closeHMenu()">📥 Legacy Orders</button>
+        <button class="hmenu-item" onclick="toggleResyncPanel();closeHMenu()">📅 Sync until date</button>
+        <hr class="hmenu-sep">
+        <button class="hmenu-item"><a href="nt-inventory.html">↗ Inventory</a></button>
+      </div>
     </div>
   </div>
-  <div class="hrow">
-    <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync</button>
-    <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
-    <button class="hbtn" onclick="toggleLegacyPanel()">📥 Legacy Orders</button>
-    <button class="hbtn" id="pendingBtn" onclick="openSummaryOverlay()" style="position:relative">📊 Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
-  </div>
-  <div class="status-line" id="statusLine">Loading…</div>
-  <div style="text-align:center;margin:-4px 0 4px;font-size:.7rem;color:var(--muted)">Orders missing? <a href="#" onclick="toggleResyncPanel();return false;" style="color:var(--muted);text-decoration:underline dotted">Sync until a date</a></div>
+  <div class="status-line" id="statusLine">Loading… <span style="font-size:.65rem;opacity:.7">· <a href="#" onclick="toggleResyncPanel();return false;" style="color:var(--muted);text-decoration:underline dotted">orders missing?</a></span></div>
   <!-- legacy orders panel -->
   <div class="legacy-panel" id="resyncPanel">
     <h4>Sync all orders up to a date</h4>
@@ -652,12 +663,15 @@ input[type=file]{display:none}
   <div class="slip-sheet">
     <div class="slip-header">
       <h2>🚚 Shipping Slip</h2>
-      <button class="slip-close" onclick="closeSlip()">✕</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="slipEditBtn" class="hbtn" onclick="toggleSlipEdit()" style="font-size:.72rem;padding:5px 10px">✏️ Edit</button>
+        <button class="slip-close" onclick="closeSlip()">✕</button>
+      </div>
     </div>
     <div id="slipContent"></div>
     <div class="slip-actions">
       <button class="slip-cancel-btn" onclick="closeSlip()">Close</button>
-      <button class="slip-print-btn" onclick="window.print()">🖨 Print Slip</button>
+      <button class="slip-print-btn" onclick="window.print()">🖨 Print</button>
     </div>
   </div>
 </div>
@@ -1940,6 +1954,7 @@ async function openSlip(orderName) {
 
 function closeSlip() {
   document.getElementById('slipOverlay').style.display = 'none';
+  if (slipEditMode) { slipEditMode = false; document.getElementById('slipEditBtn').textContent = '✏️ Edit'; }
 }
 
 function amountInWords(n) {
@@ -2014,7 +2029,7 @@ function renderSlip(slip) {
   </div>` : '';
 
   const awbBlock = slip.awb
-    ? `<div class="awb-num">${esc(slip.awb)}</div><div style="font-size:6.5px;color:#555;margin-top:1px">${esc(slip.courier||'Courier')}</div>`
+    ? `<div class="awb-num" data-editable="1">${esc(slip.awb)}</div><div style="font-size:6.5px;color:#555;margin-top:1px">${esc(slip.courier||'Courier')}</div>`
     : `<div class="no-awb">AWB pending — fulfil in Shopify</div>`;
 
   const pieceCount = items.reduce((s,li) => s + li.quantity, 0);
@@ -2029,9 +2044,9 @@ function renderSlip(slip) {
         </td>
         <td class="ship-cell">
           <div class="ship-label">Ship To</div>
-          <div class="ship-name">${esc(slip.customer_name)}</div>
-          <div class="ship-addr">${esc(addrLine1)}<br>${esc(addrLine2)}<br>${esc(addrLine3)}</div>
-          ${slip.phone ? `<div class="ship-addr" style="margin-top:2px">Ph: ${esc(slip.phone)}</div>` : ''}
+          <div class="ship-name" data-editable="1">${esc(slip.customer_name)}</div>
+          <div class="ship-addr" data-editable="1">${esc(addrLine1)}<br>${esc(addrLine2)}<br>${esc(addrLine3)}</div>
+          ${slip.phone ? `<div class="ship-addr" style="margin-top:2px" data-editable="1">Ph: ${esc(slip.phone)}</div>` : ''}
         </td>
       </tr>
       <tr class="hdr-row"><td colspan="2">ORDER DETAILS</td></tr>
@@ -2540,6 +2555,28 @@ async function submitBatch() {
   setStatus(`✓ Batch: ${done} piece${done !== 1 ? 's' : ''} marked found`);
   btn.textContent = '✓ Submit';
   btn.disabled = false;
+}
+
+function toggleHMenu() {
+  document.getElementById('hmenuDrop').classList.toggle('open');
+}
+function closeHMenu() {
+  document.getElementById('hmenuDrop').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('hmenuBtn')?.contains(e.target)) closeHMenu();
+});
+
+let slipEditMode = false;
+function toggleSlipEdit() {
+  slipEditMode = !slipEditMode;
+  const editables = document.querySelectorAll('#slipContent [data-editable]');
+  editables.forEach(el => {
+    el.contentEditable = slipEditMode ? 'true' : 'false';
+    el.style.outline = slipEditMode ? '1.5px dashed #d4541f' : 'none';
+    el.style.borderRadius = slipEditMode ? '2px' : '';
+  });
+  document.getElementById('slipEditBtn').textContent = slipEditMode ? '✅ Done' : '✏️ Edit';
 }
 
 function toggleLegacyPanel() {
