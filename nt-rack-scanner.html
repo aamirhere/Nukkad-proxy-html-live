@@ -756,6 +756,18 @@ async function autoSync() {
 
 function setStatus(msg) { document.getElementById('statusLine').textContent = msg; }
 
+// Jump to List tab, select the order's date and the right filter
+function jumpToOrderInList(orderName, orderDate, isComplete) {
+  if (orderDate) selectDate(orderDate);
+  setFilter(isComplete ? 'matched' : 'partial');
+  switchTab('list');
+  // scroll to the order card after render
+  setTimeout(() => {
+    const el = document.getElementById('card-' + orderName);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 150);
+}
+
 // ── TAB SWITCHING ──────────────────────────────────────────────────────────────
 function switchTab(t) {
   activeTab = t;
@@ -1217,8 +1229,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;justify-content:center">
           <button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button>
           <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="queueForPrint('${esc(orderName)}',this)">📤 Queue Print</button>
-          <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="switchTab('list')">📋 List</button>
-          <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="switchTab('dispatch')">🚚 Dispatch</button>
+          <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="jumpToOrderInList('${esc(orderName)}','${esc(orderDate||'')}',${allFound})">📋 See in List</button>
         </div>
       </div>
     </div>`;
