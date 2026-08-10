@@ -345,7 +345,6 @@ input[type=file]{display:none}
   .slip-overlay{position:static!important;background:none!important;display:block!important;padding:0}
   .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:100%}
   .slip-header,.slip-actions{display:none!important}
-  .bulk-slip-page{display:block;width:100%;overflow:hidden}
   @page{size:101.6mm 152.4mm;margin:2mm}
 }
 
@@ -420,7 +419,6 @@ input[type=file]{display:none}
 .prod-stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;flex:1;min-width:100px}
 .ps-num{font-size:1.4rem;font-weight:700;color:var(--accent);line-height:1}
 .ps-sub{font-size:.65rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
-@media(min-width:900px){body>*:not(#slipOverlay){max-width:860px;margin-left:auto;margin-right:auto}}
 </style>
 </head>
 <body>
@@ -957,7 +955,7 @@ async function loadRackStatus() {
     }
     else setStatus('No data yet — tap Sync New Orders.');
   } catch(e) {
-    document.getElementById('statusLine').innerHTML = `Load failed: ${esc(e.message)} &nbsp;<a href="#" onclick="loadRackStatus();return false;" style="color:var(--accent);text-decoration:underline">Retry</a>`;
+    setStatus('Load error: ' + e.message);
   }
 }
 
@@ -2488,11 +2486,11 @@ async function buildSlipHtml(slip) {
 
   // AWB block — barcode goes in bc-cell (top-right); AWB number + courier name below barcode
   const barcodeCell = slip.awb
-    ? `<div class="courier-name" data-editable="1" style="border-bottom:1px solid #000;margin-bottom:4px;padding-bottom:3px">${esc(slip.courier||'Courier')}</div>
-       <canvas id="slipBarcode" data-awb="${esc(slip.awb)}" style="display:block;max-width:100%"></canvas>
+    ? `<canvas id="slipBarcode" data-awb="${esc(slip.awb)}" style="display:block;max-width:100%"></canvas>
        <div class="awb-num" data-editable="1" style="margin-top:2px">${esc(slip.awb)}</div>`
     : `<div class="no-awb">AWB pending</div>`;
-  const courierName = '';
+  const courierName = slip.awb
+    ? `<div class="courier-name" data-editable="1">${esc(slip.courier||'Courier')}</div>` : '';
 
   const codBox = isCOD ? `<tr><td colspan="2" style="padding:3px 5px;border:none">
     <div class="cod-box">Collect Cash On Delivery &nbsp;₹${totalPrice.toFixed(2)}
@@ -2535,6 +2533,7 @@ async function buildSlipHtml(slip) {
     </tr>
     ${codBox}
     <!-- ITEMS -->
+    <tr class="sec-hdr"><td colspan="2">ITEMS</td></tr>
     <tr><td colspan="2" style="padding:0;border:none">
       <table class="items-table" style="width:100%">
         <thead><tr>
@@ -2561,13 +2560,15 @@ async function buildSlipHtml(slip) {
 async function renderSlip(slip) {
   const html = await buildSlipHtml(slip);
   document.getElementById('slipContent').innerHTML = html;
-  const bc = document.querySelector('#slipContent canvas[data-awb]');
-  if (bc) {
-    drawCode128(bc, bc.dataset.awb, 72);
-    const img = document.createElement('img');
-    img.src = bc.toDataURL('image/png');
-    img.style.cssText = 'display:block;width:100%;max-width:100%';
-    bc.parentNode.replaceChild(img, bc);
+  if (slip.awb) {
+    const bc = document.getElementById('slipBarcode');
+    if (bc) {
+      drawCode128(bc, slip.awb, 72);
+      const img = document.createElement('img');
+      img.src = bc.toDataURL('image/png');
+      img.style.cssText = 'display:block;width:100%;max-width:100%';
+      bc.parentNode.replaceChild(img, bc);
+    }
   }
 }
 
@@ -2644,8 +2645,8 @@ async function loadPrintQueue() {
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printAndClear('${esc(o.order_name)}',this)">↻ Reprint</button>
-            <button class="act-btn go" style="font-size:.72rem" onclick="clearPrinted('${esc(o.order_name)}',this)">✓ Mark Done</button>
+            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printAndClear('${esc(o.order_name)}',this)">Print Slip</button>
+            <button class="act-btn" style="font-size:.72rem;color:var(--muted)" onclick="clearPrinted('${esc(o.order_name)}',this)">✓ Done (no print)</button>
           </div>
         </div>
       </div>`;
@@ -2658,8 +2659,8 @@ async function loadPrintQueue() {
 async function printAndClear(orderName, btn) {
   btn.disabled = true;
   await openSlip(orderName);
-  btn.disabled = false;
-  // Do NOT clear — queue persists until Mark Done
+  await apiFetch({ action: 'clear_print_queued', order_name: orderName }).catch(() => {});
+  setTimeout(() => loadPrintQueue(), 1200);
 }
 
 async function clearPrinted(orderName, btn) {
@@ -2669,16 +2670,11 @@ async function clearPrinted(orderName, btn) {
 }
 
 async function printAllQueued() {
-  // Collect order names from data attributes set at render time
   const cards = [...document.querySelectorAll('#printQueueList [data-order]')];
   const orderNames = cards.map(c => c.dataset.order).filter(Boolean);
-
   if (!orderNames.length) return alert('No orders in queue.');
-
   const btn = document.querySelector('[onclick="printAllQueued()"]');
   if (btn) { btn.disabled = true; btn.textContent = `Fetching ${orderNames.length} slips…`; }
-
-  // Single server-side batch call — all Shopify fetches run in parallel on the server
   let slips = [];
   try {
     const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: orderNames }, API, 60000);
@@ -2687,32 +2683,16 @@ async function printAllQueued() {
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
     return alert('Failed to fetch slips: ' + e.message);
   }
-
   if (!slips.length) {
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
-    return alert('Could not load any slips.');
+    return alert('No printable slips found.');
   }
-
-  // Build all slip HTMLs
-  if (btn) btn.textContent = 'Preparing…';
-  const slipHtmls = await Promise.all(slips.map(s => buildSlipHtml(s)));
-
-  // Render into slipOverlay as multi-page doc
-  const overlay = document.getElementById('slipOverlay');
-  const content = document.getElementById('slipContent');
-  // Hide header/actions during bulk print
-  const header = overlay.querySelector('.slip-header');
-  const actions = overlay.querySelector('.slip-actions');
-  if (header) header.style.display = 'none';
-  if (actions) actions.style.display = 'none';
-
-  // Each slip gets its own page — both legacy and modern page-break properties for cross-browser safety
-  content.innerHTML = slipHtmls.map((h, i) =>
-    `<div class="bulk-slip-page"${i > 0 ? ' style="break-before:page;page-break-before:always"' : ''}>${h}</div>`
+  const slipHtmls = await Promise.all(slips.map(slip => buildSlipHtml(slip)));
+  const allHtml = slipHtmls.map((html, idx) =>
+    `<div class="bulk-slip-page" style="width:101.6mm;min-height:152.4mm;overflow:hidden;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
   ).join('');
-  overlay.style.display = 'flex';
-
-  // Draw barcodes — each canvas carries its own AWB in data-awb, no index matching needed
+  const content = document.createElement('div');
+  content.innerHTML = allHtml;
   content.querySelectorAll('canvas[data-awb]').forEach(bc => {
     drawCode128(bc, bc.dataset.awb, 72);
     const img = document.createElement('img');
@@ -2720,22 +2700,19 @@ async function printAllQueued() {
     img.style.cssText = 'display:block;width:100%;max-width:100%';
     bc.parentNode.replaceChild(img, bc);
   });
-
-  if (btn) btn.textContent = 'Printing…';
-  await new Promise(r => setTimeout(r, 300)); // let barcodes paint
-  window.print();
-
-  // Restore UI
-  if (header) header.style.display = '';
-  if (actions) actions.style.display = '';
-  overlay.style.display = 'none';
-  if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
-
-  // Mark all as done
-  await Promise.allSettled(
-    orderNames.map(name => apiFetch({ action: 'clear_print_queued', order_name: name }))
-  );
-  loadPrintQueue();
+  const ov = document.getElementById('slipOverlay');
+  const sc = document.getElementById('slipContent');
+  sc.innerHTML = '';
+  sc.appendChild(content);
+  ov.style.display = 'flex';
+  requestAnimationFrame(() => { window.print(); });
+  setTimeout(() => {
+    ov.style.display = 'none';
+    sc.innerHTML = '';
+    if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
+    orderNames.forEach(name => apiFetch({ action: 'clear_print_queued', order_name: name }).catch(() => {}));
+    setTimeout(() => loadPrintQueue(), 800);
+  }, 1500);
 }
 
 // ── MINIMAL QR CODE RENDERER ───────────────────────────────────────────────────
@@ -2971,7 +2948,7 @@ function toggleSlipEdit() {
   if (!slipEditMode) {
     const awbEl = document.querySelector('#slipContent .awb-num[data-editable]');
     const bc = document.getElementById('slipBarcode');
-    if (awbEl && bc) drawCode128(bc, awbEl.textContent.trim(), 72);
+    if (awbEl && bc) drawCode128(bc, awbEl.textContent.trim(), 40);
   }
 }
 
