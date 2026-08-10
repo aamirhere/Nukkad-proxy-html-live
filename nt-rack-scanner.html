@@ -271,36 +271,44 @@ input[type=file]{display:none}
 
 /* ── SLIP OVERLAY ── */
 .slip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:flex-end;justify-content:center}
-.slip-sheet{background:#fff;width:100%;max-width:420px;border-radius:16px 16px 0 0;padding:18px 16px 28px;max-height:92vh;overflow-y:auto}
+.slip-sheet{background:#fff;width:100%;max-width:500px;border-radius:16px 16px 0 0;padding:18px 16px 28px;max-height:92vh;overflow-y:auto}
 .slip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .slip-header h2{font-family:var(--ff);font-size:1rem;color:var(--ink)}
 .slip-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)}
-.slip-card{border:1.5px solid var(--line);border-radius:10px;padding:14px;font-size:.82rem}
-.slip-from{font-size:.7rem;color:var(--muted);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
-.slip-to-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:3px}
-.slip-to-name{font-size:1rem;font-weight:700;color:var(--ink);margin-bottom:2px}
-.slip-to-addr{font-size:.78rem;color:var(--ink2);line-height:1.55}
-.slip-to-phone{font-size:.78rem;color:var(--ink2);margin-top:3px}
-.slip-divider{border:none;border-top:1px dashed var(--line);margin:12px 0}
-.slip-awb-row{display:flex;align-items:center;gap:12px;justify-content:space-between}
-.slip-awb-info{}
-.slip-awb-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-.slip-awb-num{font-size:1.3rem;font-weight:700;color:var(--ink);letter-spacing:.04em;font-family:monospace}
-.slip-awb-courier{font-size:.72rem;color:var(--ink2);margin-top:1px}
-.slip-qr{flex-shrink:0}
-.slip-qr canvas{border:1px solid var(--line);border-radius:4px}
-.slip-order-row{margin-top:10px;display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)}
-.slip-no-awb{text-align:center;padding:14px;color:var(--amber);font-size:.84rem}
 .slip-actions{display:flex;gap:8px;margin-top:14px}
 .slip-actions button{flex:1;padding:10px;border-radius:8px;border:none;font-size:.84rem;font-weight:700;cursor:pointer}
 .slip-print-btn{background:var(--accent);color:#fff}
 .slip-cancel-btn{background:var(--bg);color:var(--ink2);border:1px solid var(--line)!important}
 
+/* A5 invoice styles */
+.inv{font-family:Arial,Helvetica,sans-serif;font-size:8px;color:#000;border:1.5px solid #000;width:100%;box-sizing:border-box}
+.inv table{border-collapse:collapse;width:100%}
+.inv td,.inv th{padding:2px 4px;border:1px solid #555;vertical-align:top;line-height:1.3}
+.inv .no-border td,.inv .no-border{border:none}
+.inv .hdr-row{background:#222;color:#fff;font-weight:700;font-size:7.5px;text-align:center}
+.inv .brand-cell{font-size:13px;font-weight:900;letter-spacing:.5px;font-family:Georgia,serif;padding:6px 8px;border-right:1.5px solid #000;vertical-align:middle}
+.inv .ship-cell{padding:5px 7px;vertical-align:top}
+.inv .ship-label{font-size:6.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#555;margin-bottom:2px}
+.inv .ship-name{font-size:10px;font-weight:700;margin-bottom:1px}
+.inv .ship-addr{font-size:7.5px;line-height:1.5}
+.inv .meta-label{font-size:6.5px;color:#555;font-weight:700;text-transform:uppercase}
+.inv .meta-val{font-size:7.5px;font-weight:700}
+.inv .cod-box{border:2px solid #000;padding:6px 8px;text-align:center;font-weight:700;font-size:9px;margin:4px 0}
+.inv .cod-words{font-size:7px;font-weight:400;color:#333;margin-top:2px}
+.inv .items-table th{background:#eee;font-size:7px;font-weight:700;text-align:center}
+.inv .items-table td{font-size:7.5px;text-align:center}
+.inv .items-table td:first-child{text-align:left}
+.inv .total-row td{font-weight:700;font-size:8px;background:#f5f5f5}
+.inv .footer-row{border-top:1.5px solid #000;font-size:7px;padding:4px 6px}
+.inv .awb-num{font-size:11px;font-weight:900;font-family:monospace;letter-spacing:.08em}
+.inv .no-awb{font-size:7.5px;color:#c00;font-style:italic;padding:4px}
+
 @media print {
-  .slip-overlay{position:static!important;background:none!important;display:block!important}
-  .slip-sheet{border-radius:0;padding:8px;max-height:none;box-shadow:none}
+  body > *:not(#slipOverlay){display:none!important}
+  .slip-overlay{position:static!important;background:none!important;display:block!important;padding:0}
+  .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:100%}
   .slip-header,.slip-actions{display:none!important}
-  .slip-card{border:1px solid #999;break-inside:avoid}
+  @page{size:A5 portrait;margin:4mm}
 }
 
 /* ── MODE PICKER ── */
@@ -1934,42 +1942,150 @@ function closeSlip() {
   document.getElementById('slipOverlay').style.display = 'none';
 }
 
+function amountInWords(n) {
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function below100(x){ return x<20?ones[x]:tens[Math.floor(x/10)]+(x%10?' '+ones[x%10]:''); }
+  function below1000(x){ return x>=100?ones[Math.floor(x/100)]+' Hundred'+(x%100?' '+below100(x%100):''):below100(x); }
+  const paise = Math.round((n % 1) * 100);
+  const rupees = Math.floor(n);
+  let parts=[];
+  const cr=Math.floor(rupees/10000000); if(cr) parts.push(below1000(cr)+' Crore');
+  const lac=Math.floor((rupees%10000000)/100000); if(lac) parts.push(below1000(lac)+' Lakh');
+  const thou=Math.floor((rupees%100000)/1000); if(thou) parts.push(below1000(thou)+' Thousand');
+  const rem=rupees%1000; if(rem) parts.push(below1000(rem));
+  let words = (parts.join(' ')||'Zero')+' Rupees';
+  if(paise) words += ' and '+below100(paise)+' Paise';
+  return words + ' Only';
+}
+
 function renderSlip(slip) {
-  const addr = slip.shipping_address;
-  const addrLines = [addr?.address1, addr?.address2, addr?.city, addr?.province, addr?.zip].filter(Boolean).join(', ');
+  const addr = slip.shipping_address || {};
+  const addrLine1 = [addr.address1, addr.address2].filter(Boolean).join(', ');
+  const addrLine2 = [addr.city, addr.province, addr.zip].filter(Boolean).join(', ');
+  const addrLine3 = addr.country || 'India';
+  const orderDate = slip.created_at ? new Date(slip.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+  const invoiceNo = slip.order_name || '—';
 
-  let awbHtml;
-  if (slip.awb) {
-    awbHtml = `<div class="slip-awb-row">
-      <div class="slip-awb-info">
-        <div class="slip-awb-label">AWB Number</div>
-        <div class="slip-awb-num">${esc(slip.awb)}</div>
-        ${slip.courier ? `<div class="slip-awb-courier">${esc(slip.courier)}</div>` : ''}
-      </div>
-      <div class="slip-qr"><canvas id="slipQr"></canvas></div>
-    </div>`;
-  } else {
-    awbHtml = `<div class="slip-no-awb">⚠️ No AWB assigned yet.<br><small>Fulfil the order in Shopify to get a tracking number.</small></div>`;
+  // items
+  const items = slip.line_items || [];
+  const TAX_RATE = 0.05;
+  let itemsHtml = '';
+  let itemsSubtotal = 0;
+  items.forEach(li => {
+    const lineTotal = li.price * li.quantity;
+    const base = lineTotal / (1 + TAX_RATE);
+    const tax = lineTotal - base;
+    itemsSubtotal += lineTotal;
+    const productLabel = li.variant_title ? `${li.title} — ${li.variant_title}` : li.title;
+    itemsHtml += `<tr>
+      <td style="text-align:left">${esc(productLabel)}</td>
+      <td>${esc(li.sku||'—')}</td>
+      <td>₹${(li.price/( 1+TAX_RATE)).toFixed(2)}</td>
+      <td>${li.quantity}</td>
+      <td>IGST</td>
+      <td>5%</td>
+      <td>₹${lineTotal.toFixed(2)}</td>
+    </tr>`;
+  });
+
+  const isCOD = slip.is_cod;
+  const shipPrice = slip.shipping_price || 0;
+  const shipTax = slip.shipping_tax || 0;
+  const totalTax = slip.total_tax || 0;
+  const totalPrice = slip.total_price || 0;
+
+  let shippingRow = '';
+  if (isCOD && shipPrice > 0) {
+    shippingRow = `<tr>
+      <td style="text-align:left">Shipping Charges</td>
+      <td>—</td>
+      <td>₹${(shipPrice/(1+TAX_RATE)).toFixed(2)}</td>
+      <td>1</td>
+      <td>IGST</td>
+      <td>5%</td>
+      <td>₹${shipPrice.toFixed(2)}</td>
+    </tr>`;
   }
 
-  document.getElementById('slipContent').innerHTML = `<div class="slip-card">
-    <div class="slip-from">From: NukkadTales · nukkadtales.com · +91-XXXXXXXXXX</div>
-    <div class="slip-to-label">Ship To</div>
-    <div class="slip-to-name">${esc(slip.customer_name)}</div>
-    <div class="slip-to-addr">${esc(addrLines)}</div>
-    ${slip.phone ? `<div class="slip-to-phone">📞 ${esc(slip.phone)}</div>` : ''}
-    <hr class="slip-divider">
-    ${awbHtml}
-    <div class="slip-order-row">
-      <span>Order: <strong>${esc(slip.order_name)}</strong></span>
-      <span>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
-    </div>
+  const codBox = isCOD ? `<div class="cod-box">
+    Collect Cash On Delivery &nbsp; ₹${totalPrice.toFixed(2)}
+    <div class="cod-words">${amountInWords(totalPrice)}</div>
+  </div>` : '';
+
+  const awbBlock = slip.awb
+    ? `<div class="awb-num">${esc(slip.awb)}</div><div style="font-size:6.5px;color:#555;margin-top:1px">${esc(slip.courier||'Courier')}</div>`
+    : `<div class="no-awb">AWB pending — fulfil in Shopify</div>`;
+
+  const pieceCount = items.reduce((s,li) => s + li.quantity, 0);
+
+  document.getElementById('slipContent').innerHTML = `<div class="inv">
+    <table>
+      <tr>
+        <td class="brand-cell" width="38%">
+          NukkadTales<br>
+          <span style="font-size:7px;font-weight:400;font-family:Arial,sans-serif;color:#555">nukkadtales.com</span><br>
+          <div style="margin-top:5px">${awbBlock}</div>
+        </td>
+        <td class="ship-cell">
+          <div class="ship-label">Ship To</div>
+          <div class="ship-name">${esc(slip.customer_name)}</div>
+          <div class="ship-addr">${esc(addrLine1)}<br>${esc(addrLine2)}<br>${esc(addrLine3)}</div>
+          ${slip.phone ? `<div class="ship-addr" style="margin-top:2px">Ph: ${esc(slip.phone)}</div>` : ''}
+        </td>
+      </tr>
+      <tr class="hdr-row"><td colspan="2">ORDER DETAILS</td></tr>
+      <tr>
+        <td colspan="2">
+          <table style="border:none;width:100%">
+            <tr class="no-border">
+              <td style="border:none;width:25%"><div class="meta-label">Order Date</div><div class="meta-val">${orderDate}</div></td>
+              <td style="border:none;width:25%"><div class="meta-label">Invoice No</div><div class="meta-val">${esc(invoiceNo)}</div></td>
+              <td style="border:none;width:25%"><div class="meta-label">Pieces</div><div class="meta-val">${pieceCount}</div></td>
+              <td style="border:none;width:25%"><div class="meta-label">Payment Mode</div><div class="meta-val">${isCOD ? 'COD' : 'Pre-Paid'}</div></td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      ${isCOD ? `<tr><td colspan="2">${codBox}</td></tr>` : ''}
+      <tr class="hdr-row"><td colspan="2">ITEMS</td></tr>
+      <tr>
+        <td colspan="2">
+          <table class="items-table" style="width:100%">
+            <thead>
+              <tr>
+                <th style="text-align:left;width:35%">Product</th>
+                <th>Code</th>
+                <th>Unit Price</th>
+                <th>Qty</th>
+                <th>Tax Type</th>
+                <th>Tax Rate</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+              ${shippingRow}
+              <tr>
+                <td colspan="6" style="text-align:right;font-weight:700">Taxes (IGST 5%)</td>
+                <td>₹${totalTax.toFixed(2)}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="6" style="text-align:right">Total</td>
+                <td>₹${totalPrice.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td class="footer-row" colspan="2">
+          <strong>Return Address:</strong> 360 SPIN LAB, 323, Second Floor, Near Upkar Apartment, Chilla Village, East Delhi, DL 110091<br>
+          <strong>GSTIN:</strong> 07ASVPR0563L1ZZ
+        </td>
+      </tr>
+    </table>
   </div>`;
-
-  if (slip.awb) {
-    const canvas = document.getElementById('slipQr');
-    drawQR(canvas, slip.awb, 120);
-  }
 }
 
 // ── MODE SWITCHER ─────────────────────────────────────────────────────────────
