@@ -307,37 +307,37 @@ input[type=file]{display:none}
 .tpl-reset{font-size:.7rem;color:var(--muted);text-decoration:underline dotted;cursor:pointer;background:none;border:none;padding:0}
 
 /* A5 invoice styles */
-.inv{font-family:Arial,Helvetica,sans-serif;font-size:9px;color:#000;border:1.5px solid #000;width:100%;box-sizing:border-box}
+.inv{font-family:Arial,Helvetica,sans-serif;font-size:9px;color:#000;border:2px solid #000;width:100%;box-sizing:border-box}
 .inv table{border-collapse:collapse;width:100%}
-.inv td,.inv th{padding:3px 5px;border:1px solid #888;vertical-align:top;line-height:1.4}
+.inv td,.inv th{padding:3px 5px;border:1px solid #000;vertical-align:top;line-height:1.4}
 .inv .no-border td,.inv .no-border{border:none}
 /* TOP HEADER — logo left, barcode right */
 .inv .top-row td{border:none;padding:5px 6px;vertical-align:middle}
-.inv .logo-cell{width:28%;border-right:1px solid #bbb!important}
+.inv .logo-cell{width:28%;border-right:1.5px solid #000!important}
 .inv .bc-cell{text-align:center;padding:16px 6px 4px 6px!important;vertical-align:bottom!important}
-.inv .courier-name{font-size:9px;font-weight:700;letter-spacing:.05em;text-align:center;padding:3px 0;border-top:1px solid #bbb}
+.inv .courier-name{font-size:9px;font-weight:700;letter-spacing:.05em;text-align:center;padding:3px 0;border-top:none;border-bottom:1px solid #000}
 /* SHIP + ORDER META */
 .inv .ship-cell{padding:6px 7px;vertical-align:top;width:52%}
-.inv .meta-cell{padding:5px 6px;vertical-align:top;border-left:1.5px solid #000!important}
-.inv .ship-label{font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#555;margin-bottom:2px}
+.inv .meta-cell{padding:5px 6px;vertical-align:top;border-left:2px solid #000!important}
+.inv .ship-label{font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#000;margin-bottom:2px}
 .inv .ship-name{font-size:12px;font-weight:700;margin-bottom:2px}
 .inv .ship-addr{font-size:9px;line-height:1.5}
 .inv .pin-code{font-size:12px;font-weight:900;margin-top:3px}
-.inv .meta-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #eee;font-size:8px}
+.inv .meta-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #000;font-size:8px}
 .inv .meta-row:last-child{border-bottom:none}
-.inv .meta-lbl{color:#555;font-weight:700;text-transform:uppercase;font-size:7.5px;min-width:58px}
+.inv .meta-lbl{color:#000;font-weight:700;text-transform:uppercase;font-size:7.5px;min-width:58px}
 .inv .meta-val{font-weight:700;text-align:right}
 /* COD */
 .inv .cod-box{border:2px solid #000;padding:6px 7px;text-align:center;font-weight:700;font-size:10px}
-.inv .cod-words{font-size:7.5px;font-weight:400;color:#333;margin-top:2px}
+.inv .cod-words{font-size:7.5px;font-weight:400;color:#000;margin-top:2px}
 /* ITEMS */
-.inv .sec-hdr td{background:#222;color:#fff;font-weight:700;font-size:8px;text-align:center;padding:3px 5px}
-.inv .items-table th{background:#eee;font-size:7.5px;font-weight:700;text-align:center;padding:3px 4px}
-.inv .items-table td{font-size:8px;text-align:center;padding:3px 4px}
+.inv .sec-hdr td{background:#000;color:#fff;font-weight:700;font-size:8px;text-align:center;padding:3px 5px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.inv .items-table th{background:#000;color:#fff;font-size:7.5px;font-weight:700;text-align:center;padding:3px 4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.inv .items-table td{font-size:8px;text-align:center;padding:3px 4px;border:1px solid #000}
 .inv .items-table td:first-child{text-align:left}
 .inv .disc-row td{font-size:8px;color:#c00;font-style:italic}
-.inv .total-row td{font-weight:700;font-size:9px;background:#f5f5f5}
-.inv .footer-row{border-top:1.5px solid #000;font-size:7.5px;padding:4px 6px}
+.inv .total-row td{font-weight:700;font-size:9px;border-top:2px solid #000}
+.inv .footer-row{border-top:2px solid #000;font-size:7.5px;padding:4px 6px}
 .inv .awb-num{font-size:10px;font-weight:900;font-family:monospace;letter-spacing:.06em;margin-top:3px}
 .inv .no-awb{font-size:8px;color:#c00;font-style:italic;padding:4px}
 
@@ -347,6 +347,8 @@ input[type=file]{display:none}
   #slipOverlay{visibility:visible;position:fixed!important;top:0;left:0;width:100%;background:none!important;padding:0;display:block!important}
   .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;width:100%;max-width:100%}
   .slip-header,.slip-actions,#slipLookupBar{display:none!important}
+  /* force black backgrounds to print */
+  .inv *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   /* multi-page: keep header row on every page, avoid splitting rows */
   .inv thead{display:table-header-group}
   .inv .items-table tbody tr{page-break-inside:avoid}
@@ -2594,7 +2596,7 @@ async function renderSlip(slip) {
   if (slip.awb) {
     const bc = document.getElementById('slipBarcode');
     if (bc) {
-      drawCode128(bc, slip.awb, 60);
+      drawCode128(bc, slip.awb, 72);
       // immediately convert canvas → img so it prints reliably in all browsers
       const img = document.createElement('img');
       img.src = bc.toDataURL('image/png');
