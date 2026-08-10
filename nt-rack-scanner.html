@@ -2480,7 +2480,7 @@ async function buildSlipHtml(slip) {
 
   // AWB block — barcode goes in bc-cell (top-right); AWB number + courier name below barcode
   const barcodeCell = slip.awb
-    ? `<canvas id="slipBarcode" style="display:block;max-width:100%"></canvas>
+    ? `<canvas id="slipBarcode" data-awb="${esc(slip.awb)}" style="display:block;max-width:100%"></canvas>
        <div class="awb-num" data-editable="1" style="margin-top:2px">${esc(slip.awb)}</div>`
     : `<div class="no-awb">AWB pending</div>`;
   const courierName = slip.awb
@@ -2553,9 +2553,13 @@ async function buildSlipHtml(slip) {
 async function renderSlip(slip) {
   const html = await buildSlipHtml(slip);
   document.getElementById('slipContent').innerHTML = html;
-  if (slip.awb) {
-    const bc = document.getElementById('slipBarcode');
-    if (bc) drawCode128(bc, slip.awb, 40);
+  const bc = document.querySelector('#slipContent canvas[data-awb]');
+  if (bc) {
+    drawCode128(bc, bc.dataset.awb, 40);
+    const img = document.createElement('img');
+    img.src = bc.toDataURL('image/png');
+    img.style.cssText = 'display:block;width:100%;max-width:100%';
+    bc.parentNode.replaceChild(img, bc);
   }
 }
 
@@ -2700,18 +2704,13 @@ async function printAllQueued() {
   ).join('');
   overlay.style.display = 'flex';
 
-  // Draw barcodes and convert to img immediately
-  slips.forEach((slip, i) => {
-    if (!slip.awb) return;
-    const containers = content.querySelectorAll('.inv');
-    const bc = containers[i] ? containers[i].querySelector('#slipBarcode') : null;
-    if (bc) {
-      drawCode128(bc, slip.awb, 40);
-      const img = document.createElement('img');
-      img.src = bc.toDataURL('image/png');
-      img.style.cssText = 'display:block;width:100%;max-width:100%';
-      bc.parentNode.replaceChild(img, bc);
-    }
+  // Draw barcodes — each canvas carries its own AWB in data-awb, no index matching needed
+  content.querySelectorAll('canvas[data-awb]').forEach(bc => {
+    drawCode128(bc, bc.dataset.awb, 40);
+    const img = document.createElement('img');
+    img.src = bc.toDataURL('image/png');
+    img.style.cssText = 'display:block;width:100%;max-width:100%';
+    bc.parentNode.replaceChild(img, bc);
   });
 
   if (btn) btn.textContent = 'Printing…';
