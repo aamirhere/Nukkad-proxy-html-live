@@ -717,11 +717,27 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function init() {
-  // load cached data immediately so UI is usable
   await loadRackStatus();
   updatePendingBadge();
-  // auto-sync in background — no spinner, status shows progress
-  autoSync();
+  maybeAutoSync();
+}
+
+// Only hit Shopify if last sync was more than 30 minutes ago
+async function maybeAutoSync() {
+  try {
+    const meta = await apiFetch({ action: 'get_rack_meta' });
+    const ts = meta.last_sync_ts ? new Date(meta.last_sync_ts) : null;
+    const ageMin = ts ? (Date.now() - ts.getTime()) / 60000 : Infinity;
+    if (ageMin < 30) {
+      const ago = ageMin < 1 ? 'just now' : `${Math.round(ageMin)}m ago`;
+      setStatus(`✓ Orders up to date · synced ${ago}`);
+      return;
+    }
+    await autoSync();
+  } catch(e) {
+    // meta fetch failed — try sync anyway
+    autoSync();
+  }
 }
 
 async function autoSync() {
@@ -730,7 +746,6 @@ async function autoSync() {
     const r = await apiFetch({ action: 'sync_rack' });
     const resolvedMsg = r.pending_resolved > 0 ? ` · ✓ ${r.pending_resolved} pending applied` : '';
     setStatus(`✓ Up to date · ${r.orders} orders · ${r.synced} items${resolvedMsg}`);
-    // reload silently if new data came in
     if (r.synced > 0) await loadRackStatus();
   } catch(e) {
     setStatus(`Auto-sync failed: ${e.message} — tap ⟳ Sync to retry`);
