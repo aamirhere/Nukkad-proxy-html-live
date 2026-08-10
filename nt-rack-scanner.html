@@ -2673,8 +2673,11 @@ function renderPqList() {
   if (!list) return;
   const q = (document.getElementById('pqSearch')?.value || '').toLowerCase().trim();
   let orders = _pqOrders;
-  if (_pqFilter === 'pending') orders = orders.filter(o => !o.printed);
-  if (_pqFilter === 'printed') orders = orders.filter(o => o.printed);
+  // when searching, bypass the printed/pending filter so any order is findable
+  if (!q) {
+    if (_pqFilter === 'pending') orders = orders.filter(o => !o.printed);
+    if (_pqFilter === 'printed') orders = orders.filter(o => o.printed);
+  }
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
   const cnt = document.getElementById('pqCount');
   if (cnt) cnt.textContent = `(${orders.length})`;
