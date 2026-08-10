@@ -720,7 +720,10 @@ input[type=file]{display:none}
       <input class="tpl-input" id="tplGstin" placeholder="07ASVPR0563L1ZZ">
     </div>
 
-    <button class="tpl-save-btn" onclick="saveTpl()">Save Template</button>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="tpl-save-btn" style="flex:1;margin-top:0" onclick="saveTpl()">Save Template</button>
+      <button class="hbtn" style="padding:10px 16px;font-size:.8rem;border-color:var(--accent);color:var(--accent)" onclick="previewTplSlip()">Preview</button>
+    </div>
   </div>
 </div>
 
@@ -2132,6 +2135,51 @@ async function resetTpl() {
   await apiFetch({ action: 'set_setting', key: TPL_SETTING_KEY, value: TPL_DEFAULTS }).catch(() => {});
   _tplCache = { ...TPL_DEFAULTS };
   populateTplForm(_tplCache);
+}
+
+async function previewTplSlip() {
+  const logo = document.getElementById('tplLogoPreview').style.display !== 'none'
+    ? document.getElementById('tplLogoPreview').src : '';
+  const previewTpl = {
+    companyName: document.getElementById('tplCompanyName').value.trim() || TPL_DEFAULTS.companyName,
+    website:     document.getElementById('tplWebsite').value.trim() || TPL_DEFAULTS.website,
+    phone:       document.getElementById('tplPhone').value.trim(),
+    address:     document.getElementById('tplAddress').value.trim() || TPL_DEFAULTS.address,
+    gstin:       document.getElementById('tplGstin').value.trim() || TPL_DEFAULTS.gstin,
+    logo,
+  };
+  const dummySlip = {
+    order_name: '#PREVIEW',
+    order_number: 99999,
+    created_at: new Date().toISOString(),
+    awb: '1234567890123',
+    courier: 'Bluedart',
+    customer_name: 'Sample Customer',
+    phone: '+91-9876543210',
+    note: 'Handle with care',
+    shipping_address: { address1: '12 Sample Street', address2: 'Apt 3B', city: 'Delhi', province: 'DL', zip: '110001', country: 'India' },
+    line_items: [
+      { title: 'Handmade Wooden Quote Piece', variant_title: 'Natural', sku: 'NTQ-001', price: 599, quantity: 1 },
+      { title: 'Custom AI Quote Piece', variant_title: 'Rustic Brown', sku: 'NTQ-AI', price: 999, quantity: 2 },
+    ],
+    total_price: 2597,
+    total_tax: 123.67,
+    is_cod: true,
+    shipping_price: 100,
+    shipping_tax: 0,
+  };
+  closeTplOverlay();
+  document.getElementById('slipOverlay').style.display = 'flex';
+  document.getElementById('slipOrderInput').value = '';
+  slipEditMode = false;
+  // Temporarily override getTpl to return our preview values
+  const realCache = _tplCache;
+  _tplCache = previewTpl;
+  try {
+    await renderSlip(dummySlip);
+  } finally {
+    _tplCache = realCache;
+  }
 }
 
 function openBlankSlip() {
