@@ -2017,7 +2017,7 @@ async function openSlip(orderName) {
   content.innerHTML = '<div class="empty-msg"><span class="spinner" style="border-top-color:var(--accent);border-color:var(--line)"></span> Loading…</div>';
   try {
     const slip = await apiFetch({ action: 'get_order_slip', order_name: orderName });
-    renderSlip(slip);
+    await renderSlip(slip);
   } catch(e) {
     content.innerHTML = `<div class="empty-msg" style="color:var(--red)">Error: ${esc(e.message)}</div>`;
   }
@@ -2029,30 +2029,47 @@ function closeSlip() {
 }
 
 // ── SLIP TEMPLATE SETTINGS ───────────────────────────────────────────────────
-const TPL_KEY = 'nt_slip_template';
+const TPL_SETTING_KEY = 'slip_template';
 const TPL_DEFAULTS = {
   companyName: 'NukkadTales',
   website: 'nukkadtales.com',
   phone: '',
   address: '360 SPIN LAB, 323, Second Floor, Near Upkar Apartment, Chilla Village, East Delhi, DL 110091',
   gstin: '07ASVPR0563L1ZZ',
-  logo: '', // base64 data URL
+  logo: '',
 };
 
-function getTpl() {
-  try { return { ...TPL_DEFAULTS, ...JSON.parse(localStorage.getItem(TPL_KEY) || '{}') }; }
-  catch { return { ...TPL_DEFAULTS }; }
+let _tplCache = null; // in-memory cache after first fetch
+
+async function getTpl() {
+  if (_tplCache) return _tplCache;
+  try {
+    const res = await apiFetch({ action: 'get_setting', key: TPL_SETTING_KEY });
+    _tplCache = res.value ? { ...TPL_DEFAULTS, ...res.value } : { ...TPL_DEFAULTS };
+  } catch { _tplCache = { ...TPL_DEFAULTS }; }
+  return _tplCache;
 }
 
-function openTplOverlay() {
-  const t = getTpl();
+async function openTplOverlay() {
+  document.getElementById('tplOverlay').style.display = 'flex';
+  // show current values immediately from cache, then refresh from server
+  const t = _tplCache || { ...TPL_DEFAULTS };
+  populateTplForm(t);
+  try {
+    const res = await apiFetch({ action: 'get_setting', key: TPL_SETTING_KEY });
+    const fresh = res.value ? { ...TPL_DEFAULTS, ...res.value } : { ...TPL_DEFAULTS };
+    _tplCache = fresh;
+    populateTplForm(fresh);
+  } catch {}
+}
+
+function populateTplForm(t) {
   document.getElementById('tplCompanyName').value = t.companyName;
   document.getElementById('tplWebsite').value = t.website;
   document.getElementById('tplPhone').value = t.phone;
   document.getElementById('tplAddress').value = t.address;
   document.getElementById('tplGstin').value = t.gstin;
   showLogoPreview(t.logo);
-  document.getElementById('tplOverlay').style.display = 'flex';
 }
 
 function closeTplOverlay() {
@@ -2085,13 +2102,11 @@ function clearLogo() {
   showLogoPreview('');
 }
 
-function saveTpl() {
-  const logoFile = document.getElementById('tplLogoFile');
-  const existingLogo = document.getElementById('tplLogoPreview').src;
-  const logo = logoFile.files[0]
-    ? document.getElementById('tplLogoPreview').src  // already loaded by handleLogoUpload
-    : (document.getElementById('tplLogoPreview').style.display !== 'none' ? document.getElementById('tplLogoPreview').src : '');
-
+async function saveTpl() {
+  const btn = document.querySelector('.tpl-save-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  const logo = document.getElementById('tplLogoPreview').style.display !== 'none'
+    ? document.getElementById('tplLogoPreview').src : '';
   const t = {
     companyName: document.getElementById('tplCompanyName').value.trim() || TPL_DEFAULTS.companyName,
     website:     document.getElementById('tplWebsite').value.trim(),
@@ -2100,16 +2115,23 @@ function saveTpl() {
     gstin:       document.getElementById('tplGstin').value.trim() || TPL_DEFAULTS.gstin,
     logo,
   };
-  localStorage.setItem(TPL_KEY, JSON.stringify(t));
-  closeTplOverlay();
-  // show brief confirmation in status
-  setStatus('✓ Slip template saved');
+  try {
+    await apiFetch({ action: 'set_setting', key: TPL_SETTING_KEY, value: t });
+    _tplCache = t;
+    closeTplOverlay();
+    setStatus('✓ Slip template saved');
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+  } finally {
+    btn.textContent = 'Save Template'; btn.disabled = false;
+  }
 }
 
-function resetTpl() {
+async function resetTpl() {
   if (!confirm('Reset template to defaults?')) return;
-  localStorage.removeItem(TPL_KEY);
-  openTplOverlay(); // re-open with defaults
+  await apiFetch({ action: 'set_setting', key: TPL_SETTING_KEY, value: TPL_DEFAULTS }).catch(() => {});
+  _tplCache = { ...TPL_DEFAULTS };
+  populateTplForm(_tplCache);
 }
 
 function openBlankSlip() {
@@ -2147,7 +2169,7 @@ function amountInWords(n) {
   return words + ' Only';
 }
 
-function renderSlip(slip) {
+async function renderSlip(slip) {
   const addr = slip.shipping_address || {};
   const addrLine1 = [addr.address1, addr.address2].filter(Boolean).join(', ');
   const addrLine2 = [addr.city, addr.province, addr.zip].filter(Boolean).join(', ');
@@ -2207,7 +2229,7 @@ function renderSlip(slip) {
 
   const pieceCount = items.reduce((s,li) => s + li.quantity, 0);
 
-  const tpl = getTpl();
+  const tpl = await getTpl();
   const logoHtml = tpl.logo
     ? `<img src="${tpl.logo}" style="max-height:28px;max-width:80px;object-fit:contain;display:block;margin-bottom:3px">`
     : '';
