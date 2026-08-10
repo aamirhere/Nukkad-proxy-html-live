@@ -1285,7 +1285,8 @@ async function renderSumLog(filter) {
   </div>`:''}`;
 
   try {
-    const { scans, stock } = await apiFetch(payload);
+    const res = await apiFetch(payload);
+    const scans = res.scans || [], stock = res.stock || [];
 
     // stats
     const matched = scans.filter(s=>s.match_type==='matched').length;
