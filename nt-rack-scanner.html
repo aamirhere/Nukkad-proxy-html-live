@@ -341,12 +341,13 @@ input[type=file]{display:none}
 .inv .awb-num{font-size:9px;font-weight:900;font-family:monospace;letter-spacing:.06em}
 .inv .no-awb{font-size:7px;color:#c00;font-style:italic;padding:3px}
 
+@page{size:101.6mm 152.4mm portrait;margin:2mm}
 @media print {
   body > *:not(#slipOverlay){display:none!important}
   .slip-overlay{position:static!important;background:none!important;display:block!important;padding:0}
-  .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:100%}
+  .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:101.6mm;width:101.6mm}
   .slip-header,.slip-actions{display:none!important}
-  @page{size:101.6mm 152.4mm;margin:2mm}
+  .page-wrap{max-width:none}
 }
 
 /* ── MODE PICKER ── */
@@ -2588,34 +2589,21 @@ async function refreshSlipAwb() {
   }
 }
 
-async function printSlipWindow() {
-  const slipEl = document.getElementById('slipContent');
-  if (!slipEl || !slipEl.children.length) return;
-
-  // capture barcode canvas as image so it survives a new window
-  let barcodeDataUrl = null;
+function printSlipWindow() {
+  // Convert barcode canvas to img so it prints correctly
   const bc = document.getElementById('slipBarcode');
-  if (bc) barcodeDataUrl = bc.toDataURL('image/png');
-
-  const slipHtml = slipEl.innerHTML.replace(
-    /<canvas[^>]*id="slipBarcode"[^>]*><\/canvas>/,
-    barcodeDataUrl ? `<img src="${barcodeDataUrl}" style="display:block;max-width:100%">` : ''
-  );
-
-  const tpl = await getTpl();
-  const win = window.open('', '_blank', 'width=420,height=640');
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8">
-<title>Slip ${_currentSlip?.order_name || ''}</title>
-<style>
-@page{size:101.6mm 152.4mm portrait;margin:2mm}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:11px;width:101.6mm}
-${document.querySelector('style').textContent.split('/* ── MODE PICKER')[0]}
-</style>
-</head><body onload="window.print();window.close()">
-${slipHtml}
-</body></html>`);
-  win.document.close();
+  let tempImg = null;
+  if (bc) {
+    tempImg = document.createElement('img');
+    tempImg.src = bc.toDataURL('image/png');
+    tempImg.style.cssText = bc.style.cssText + ';display:block;max-width:100%';
+    bc.parentNode.replaceChild(tempImg, bc);
+  }
+  window.print();
+  // Restore canvas after print dialog closes
+  if (tempImg && bc) {
+    setTimeout(() => { if (tempImg.parentNode) tempImg.parentNode.replaceChild(bc, tempImg); }, 1000);
+  }
 }
 
 // ── MODE SWITCHER ─────────────────────────────────────────────────────────────
