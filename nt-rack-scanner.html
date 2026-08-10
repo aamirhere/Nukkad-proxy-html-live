@@ -759,7 +759,8 @@ input[type=file]{display:none}
     <div id="slipContent"></div>
     <div class="slip-actions">
       <button class="slip-cancel-btn" onclick="closeSlip()">Close</button>
-      <button class="slip-print-btn" onclick="window.print()">Print</button>
+      <button id="slipRefreshAwbBtn" class="hbtn" style="font-size:.74rem;padding:5px 10px" onclick="refreshSlipAwb()">Refresh AWB</button>
+      <button class="slip-print-btn" onclick="printSlipWindow()">Print</button>
     </div>
   </div>
 </div>
@@ -2561,13 +2562,60 @@ async function buildSlipHtml(slip) {
 </div>`;
 }
 
+let _currentSlip = null; // track slip loaded in overlay
+
 async function renderSlip(slip) {
+  _currentSlip = slip;
   const html = await buildSlipHtml(slip);
   document.getElementById('slipContent').innerHTML = html;
   if (slip.awb) {
     const bc = document.getElementById('slipBarcode');
     if (bc) drawCode128(bc, slip.awb, 40);
   }
+}
+
+async function refreshSlipAwb() {
+  if (!_currentSlip?.order_name) return;
+  const btn = document.getElementById('slipRefreshAwbBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const slip = await apiFetch({ action: 'get_order_slip', order_name: _currentSlip.order_name });
+    await renderSlip(slip);
+  } catch(e) {
+    alert('Refresh failed: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Refresh AWB'; }
+  }
+}
+
+async function printSlipWindow() {
+  const slipEl = document.getElementById('slipContent');
+  if (!slipEl || !slipEl.children.length) return;
+
+  // capture barcode canvas as image so it survives a new window
+  let barcodeDataUrl = null;
+  const bc = document.getElementById('slipBarcode');
+  if (bc) barcodeDataUrl = bc.toDataURL('image/png');
+
+  const slipHtml = slipEl.innerHTML.replace(
+    /<canvas[^>]*id="slipBarcode"[^>]*><\/canvas>/,
+    barcodeDataUrl ? `<img src="${barcodeDataUrl}" style="display:block;max-width:100%">` : ''
+  );
+
+  const tpl = await getTpl();
+  const win = window.open('', '_blank', 'width=420,height=640');
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8">
+<title>Slip ${_currentSlip?.order_name || ''}</title>
+<style>
+@page{size:101.6mm 152.4mm portrait;margin:2mm}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:11px;width:101.6mm}
+${document.querySelector('style').textContent.split('/* ── MODE PICKER')[0]}
+</style>
+</head><body onload="window.print();window.close()">
+${slipHtml}
+</body></html>`);
+  win.document.close();
 }
 
 // ── MODE SWITCHER ─────────────────────────────────────────────────────────────
@@ -2628,11 +2676,15 @@ async function loadPrintQueue() {
       return;
     }
     list.innerHTML = orders.map(o => {
-      return `<div class="result-card" style="margin-bottom:0">
+      const isPrinted = o.printed;
+      const statusBadge = isPrinted
+        ? `<span style="background:#e8f5e9;color:#2e7d32;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">Printed</span>`
+        : `<span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">${fmtDate(o.order_date)}</span>`;
+      return `<div class="result-card" style="margin-bottom:0;${isPrinted?'opacity:.75':''}">
         <div style="padding:11px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
           <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:.9rem">${esc(o.order_name)} · ${esc(o.customer||'')}</div>
-            <div style="margin-top:3px"><span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">${fmtDate(o.order_date)}</span></div>
+            <div style="margin-top:3px;display:flex;gap:5px;flex-wrap:wrap">${statusBadge}</div>
             <div style="margin-top:6px;display:flex;flex-direction:column;gap:2px">
               ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
                 <span style="color:${it.found>=it.needed?'#4caf50':'var(--amber)'}">●</span>
@@ -2643,8 +2695,8 @@ async function loadPrintQueue() {
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printAndClear('${esc(o.order_name)}',this)">Print Slip</button>
-            <button class="act-btn" style="font-size:.72rem;color:var(--muted)" onclick="clearPrinted('${esc(o.order_name)}',this)">✓ Done (no print)</button>
+            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printQueueSlip('${esc(o.order_name)}',this)">${isPrinted?'Reprint':'Print Slip'}</button>
+            <button class="act-btn" style="font-size:.72rem;color:${isPrinted?'var(--green)':'var(--muted)'};font-weight:${isPrinted?'700':'400'}" onclick="clearPrinted('${esc(o.order_name)}',this)">✓ Mark Done</button>
           </div>
         </div>
       </div>`;
@@ -2654,11 +2706,13 @@ async function loadPrintQueue() {
   }
 }
 
-async function printAndClear(orderName, btn) {
+async function printQueueSlip(orderName, btn) {
   btn.disabled = true;
   await openSlip(orderName);
-  await apiFetch({ action: 'clear_print_queued', order_name: orderName }).catch(() => {});
-  setTimeout(() => loadPrintQueue(), 1200);
+  // mark as printed in backend (doesn't remove from queue)
+  apiFetch({ action: 'mark_print_queued', order_name: orderName }).catch(() => {});
+  btn.disabled = false;
+  loadPrintQueue();
 }
 
 async function clearPrinted(orderName, btn) {
