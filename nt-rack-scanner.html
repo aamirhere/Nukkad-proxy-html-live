@@ -557,7 +557,7 @@ input[type=file]{display:none}
   </div>
   <div class="manual-row" style="position:relative">
     <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" autocomplete="off"
-      oninput="showQuoteSuggestions(this.value)"
+      oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
       onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()">
     <select class="m-input" id="manualC" style="max-width:130px">
       <option value="">Any color</option>
@@ -1152,13 +1152,14 @@ function showQuoteSuggestions(val) {
     if (it.quote.toLowerCase().includes(q)) hits.push(it);
   }
   if (!hits.length) { box.style.display = 'none'; return; }
-  box.innerHTML = hits.slice(0, 12).map(it =>
-    `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem"
-      onclick="pickSuggestion('${esc(it.quote)}','${esc(it.color)}')">
+  box.innerHTML = hits.slice(0, 12).map(it => {
+    const k = _bd([it.quote, it.color]);
+    return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem"
+      data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
       <span style="font-weight:600">${esc(it.quote)}</span>
       <span style="color:var(--muted);font-size:.75rem;margin-left:6px">${esc(it.color)}</span>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
   box.style.display = 'block';
 }
 function hideSuggestions() {
@@ -1175,6 +1176,13 @@ function manualMatch() {
   const c = document.getElementById('manualC').value;
   if (!q) return;
   handleVisionResult({ quote: q, color: c || '', confidence: 'manual' });
+}
+let _manualMatchTimer = null;
+function debouncedManualMatch() {
+  clearTimeout(_manualMatchTimer);
+  const q = document.getElementById('manualQ').value.trim();
+  if (q.length < 3) return;
+  _manualMatchTimer = setTimeout(() => { hideSuggestions(); manualMatch(); }, 450);
 }
 
 // ── MATCHING ───────────────────────────────────────────────────────────────────
@@ -1328,7 +1336,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
           <div style="font-size:.76rem;color:var(--ink2);margin-bottom:10px;text-align:center">Is this a duplicate / extra piece painted?</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
             <button class="act-btn go" onclick="triggerCamera()">Scan Next</button>
-            <button class="act-btn" style="background:#e65100;color:#fff;border:none" onclick="showChannelPicker('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}')">Mark as extra</button>
+            <button class="act-btn" style="background:#e65100;color:#fff;border:none" data-bd="${_bd([it.order_name,it.quote,it.color])}" onclick="var d=_btnData[this.dataset.bd];showChannelPicker(d[0],d[1],d[2])">Mark as extra</button>
           </div>
         </div>
       </div>`;
@@ -1357,8 +1365,11 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
            Skip:<span>Skipped earlier today — item is in rack. Confirm below to pack it now.</span>
          </div>` : '';
 
+    const bdConfirm = _bd([it.order_name, it.quote, it.color, it.order_date||'', quote, color||'', confidence||'']);
+    const bdSkip    = _bd([it.order_name, it.quote, it.color, it.order_date||'']);
+    const bdExtra   = _bd([it.order_name, it.quote, it.color]);
     const skipBtn = isFutureOrder && !alreadySkipped
-      ? `<button class="m-btn" style="background:#f5f5f5;color:var(--ink2);border:1px solid var(--line)" onclick="doSkipItem('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}','${esc(it.order_date||'')}')">Skip — pack later</button>`
+      ? `<button class="m-btn" style="background:#f5f5f5;color:var(--ink2);border:1px solid var(--line)" data-bd="${bdSkip}" onclick="var d=_btnData[this.dataset.bd];doSkipItem(d[0],d[1],d[2],d[3])">Skip — pack later</button>`
       : '';
 
     html += `<div class="match-block${idx===0?' best':''}">
@@ -1383,9 +1394,9 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
         </div>`;
       }).join('')}</div>
       <div class="m-actions">
-        <button class="m-btn confirm" onclick="confirmMatchAndClearSkip('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}','${esc(it.order_date||'')}','${esc(quote)}','${esc(color||'')}','${esc(confidence||'')}')">✓ This is it</button>
+        <button class="m-btn confirm" data-bd="${bdConfirm}" onclick="var d=_btnData[this.dataset.bd];confirmMatchAndClearSkip(d[0],d[1],d[2],d[3],d[4],d[5],d[6])">✓ This is it</button>
         ${skipBtn}
-        <button class="m-btn extra-btn" onclick="showChannelPicker('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}')">Tag as stock</button>
+        <button class="m-btn extra-btn" data-bd="${bdExtra}" onclick="var d=_btnData[this.dataset.bd];showChannelPicker(d[0],d[1],d[2])">Tag as stock</button>
       </div>
     </div>`;
   });
@@ -1516,6 +1527,9 @@ function _skipKey(orderName, quote, color) {
 }
 
 let _skipsCache = null; // { key: { skippedOn, orderDate } }
+const _btnData = {}; // keyed by unique id, stores params for inline-onclick-safe buttons
+let _btnDataSeq = 0;
+function _bd(params) { const k = 'bd' + (++_btnDataSeq); _btnData[k] = params; return k; }
 
 async function _loadSkips() {
   if (_skipsCache !== null) return _skipsCache;
