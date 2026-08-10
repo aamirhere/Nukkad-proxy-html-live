@@ -2512,13 +2512,13 @@ async function buildSlipHtml(slip) {
     : '';
   const phoneHtml = tpl.phone ? `<div style="font-size:6px;color:#555">${esc(tpl.phone)}</div>` : '';
 
-  // AWB block — barcode goes in bc-cell (top-right); AWB number + courier name below barcode
+  // AWB block — courier name top, then barcode, then AWB number
   const barcodeCell = slip.awb
-    ? `<canvas id="slipBarcode" style="display:block;max-width:100%"></canvas>
+    ? `<div class="courier-name" data-editable="1" style="border-top:none;border-bottom:1px solid #bbb;margin-bottom:4px;padding-bottom:3px">${esc(slip.courier||'Courier')}</div>
+       <canvas id="slipBarcode" style="display:block;max-width:100%"></canvas>
        <div class="awb-num" data-editable="1" style="margin-top:2px">${esc(slip.awb)}</div>`
     : `<div class="no-awb">AWB pending</div>`;
-  const courierName = slip.awb
-    ? `<div class="courier-name" data-editable="1">${esc(slip.courier||'Courier')}</div>` : '';
+  const courierName = '';
 
   const codBox = isCOD ? `<tr><td colspan="2" style="padding:3px 5px;border:none">
     <div class="cod-box">Collect Cash On Delivery &nbsp;₹${totalPrice.toFixed(2)}
