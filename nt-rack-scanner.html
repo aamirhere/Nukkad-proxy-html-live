@@ -570,11 +570,11 @@ input[type=file]{display:none}
 
   <div id="resultArea"></div>
 
-  <div class="sec-hdr no-print">
+  <div class="sec-hdr no-print" id="recentScansHdr" style="display:none">
     <span>Recent Scans</span>
     <button class="act-btn" onclick="renderHistory()" style="padding:2px 9px;font-size:.68rem">↺</button>
   </div>
-  <div class="hist-list no-print" id="histList">
+  <div class="hist-list no-print" id="histList" style="display:none">
     <div class="empty-msg">No scans yet.</div>
   </div>
 </div>
@@ -1937,7 +1937,13 @@ function logScan(entry) {
 }
 
 function renderHistory() {
+  // only show on mobile (scanner operators); hidden on desktop
+  const isMobile = window.innerWidth < 900;
+  const hdr = document.getElementById('recentScansHdr');
   const list = document.getElementById('histList');
+  if (hdr) hdr.style.display = isMobile ? '' : 'none';
+  if (list) list.style.display = isMobile ? '' : 'none';
+  if (!isMobile) return;
   if (!scanLog.length) { list.innerHTML = '<div class="empty-msg">No scans yet.</div>'; return; }
   list.innerHTML = scanLog.slice(0,12).map(s => {
     const dc = s.match_type==='matched'?'matched':s.match_type==='extra'?'extra':'none';
@@ -2654,7 +2660,8 @@ function renderPqList() {
   const cnt = document.getElementById('pqCount');
   if (cnt) cnt.textContent = `(${orders.length})`;
   if (!orders.length) {
-    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${_pqFilter==='pending'?'Nothing left to print — all done!':'No orders match.'}</div>`;
+    const emptyMsg = _pqFilter==='pending' ? 'Nothing left to print — switch to "All" to reprint.' : _pqFilter==='printed' ? 'No printed orders yet.' : 'No fully-matched orders yet.';
+    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${emptyMsg}</div>`;
     return;
   }
   list.innerHTML = orders.map(o => {
@@ -2687,7 +2694,7 @@ async function loadPrintQueue() {
   if (!list) return;
   list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div>';
   try {
-    const { orders } = await apiFetch({ action: 'get_print_queue', days: 2 });
+    const { orders } = await apiFetch({ action: 'get_print_queue' });
     _pqOrders = orders || [];
     renderPqList();
   } catch(e) {
