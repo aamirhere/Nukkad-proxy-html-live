@@ -1203,15 +1203,45 @@ function handleVisionResult(vision) {
   reMatchWithColor(vision.color);
 }
 
+function findAlreadyCounted(quote, color) {
+  // search fully-found, non-dispatched items — same scoring as findMatches
+  const results = [];
+  for (const it of rackItems) {
+    if (it.dispatched) continue;
+    if (it.found < it.needed) continue; // only fully-found items
+    const qScore = wordSim(quote, it.quote);
+    if (qScore < 0.65) continue;
+    if (color) {
+      const cScore = wordSim(color, it.color);
+      if (cScore < 0.65) continue;
+      results.push({ it, score: qScore * 0.75 + cScore * 0.25 });
+    } else {
+      results.push({ it, score: qScore * 0.75 + 0.5 * 0.25 });
+    }
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results[0] || null;
+}
+
 function reMatchWithColor(color) {
   const { quote, confidence } = currentVision;
   currentVision.color = color;
   const matches = findMatches(quote, color);
-  showResult({ type: matches.length ? 'matches' : 'no_match', quote, color, confidence, matches });
+  if (matches.length) {
+    showResult({ type: 'matches', quote, color, confidence, matches });
+    return;
+  }
+  // No active match — check if this piece is already fully counted
+  const counted = findAlreadyCounted(quote, color);
+  if (counted) {
+    showResult({ type: 'already_counted', quote, color, confidence, matches: [], counted });
+    return;
+  }
+  showResult({ type: 'no_match', quote, color, confidence, matches });
 }
 
 // ── RESULT DISPLAY ─────────────────────────────────────────────────────────────
-function showResult({ type, quote, color, confidence, matches, message }) {
+function showResult({ type, quote, color, confidence, matches, message, counted }) {
   const area = document.getElementById('resultArea');
 
   if (type === 'error') {
@@ -1243,31 +1273,30 @@ function showResult({ type, quote, color, confidence, matches, message }) {
         </div>
       </div>
     </div>`;
+    area.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
 
-  const today = _todayIST();
-
-  // If the best match item is already fully counted, show idempotent screen instead
-  if (matches.length > 0) {
-    const best = matches[0].it;
-    const matchedRow = rackItems.find(r => r.order_name === best.order_name && r.quote === best.quote && r.color === best.color);
-    if (matchedRow && matchedRow.found >= matchedRow.needed) {
-      const orderItems = rackItems.filter(r => r.order_name === best.order_name && !r.dispatched);
+  // Already-counted type — item matched but found >= needed (no active order slot open)
+  if (type === 'already_counted') {
+    const it = counted?.it;
+    if (it) {
+      const orderItems = rackItems.filter(r => r.order_name === it.order_name && !r.dispatched);
       const totalN = orderItems.reduce((s,r)=>s+r.needed,0);
       const totalF = orderItems.reduce((s,r)=>s+r.found,0);
       const allDone = totalF >= totalN;
       area.innerHTML = `<div class="result-card">
         <div style="padding:14px 16px">
-          <div style="text-align:center;padding:6px 0 10px">
+          ${visionHtml}
+          <div style="text-align:center;padding:8px 0 10px">
             <div style="font-size:1.8rem">✅</div>
-            <div style="font-weight:700;font-size:.95rem;margin-top:4px">Already counted for ${esc(best.order_name)}</div>
-            <div style="font-size:.75rem;color:var(--muted);margin-top:2px">${esc(best.customer||'')} · ${fmtDate(best.order_date)}</div>
+            <div style="font-weight:700;font-size:.95rem;margin-top:4px">Already counted for ${esc(it.order_name)}</div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:2px">${esc(it.customer||'')} · ${fmtDate(it.order_date)}</div>
           </div>
           <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px">
             ${orderItems.map(r => {
               const done = r.found >= r.needed;
-              const isThis = r.quote === best.quote && r.color === best.color;
+              const isThis = r.quote === it.quote && r.color === it.color;
               return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:.78rem;${isThis?'font-weight:700':''}">
                 <span style="color:${done?'#4caf50':'#e0e0e0'}">${done?'✓':'○'}</span>
                 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.quote)}</span>
@@ -1277,16 +1306,19 @@ function showResult({ type, quote, color, confidence, matches, message }) {
             }).join('')}
           </div>
           ${allDone ? `<div style="text-align:center;font-size:.82rem;color:#4caf50;font-weight:700;margin-bottom:10px">✅ All pieces found — ready to dispatch!</div>` : ''}
-          <div style="font-size:.76rem;color:var(--ink2);margin-bottom:10px;text-align:center">Is this a duplicate / extra piece you painted?</div>
+          <div style="font-size:.76rem;color:var(--ink2);margin-bottom:10px;text-align:center">Is this a duplicate / extra piece painted?</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
             <button class="act-btn go" onclick="triggerCamera()">📷 Scan Next</button>
-            <button class="act-btn" style="background:#e65100;color:#fff;border:none" onclick="showChannelPicker('${esc(best.order_name)}','${esc(best.quote)}','${esc(best.color)}')">📦 Mark as extra</button>
+            <button class="act-btn" style="background:#e65100;color:#fff;border:none" onclick="showChannelPicker('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}')">📦 Mark as extra</button>
           </div>
         </div>
       </div>`;
-      return;
+      area.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+    return;
   }
+
+  const today = _todayIST();
 
   let html = `<div class="result-card"><div class="rc-top">Best match${matches.length>1?' — scroll for more':''}</div>${visionHtml}`;
 
@@ -1341,6 +1373,7 @@ function showResult({ type, quote, color, confidence, matches, message }) {
 
   html += '</div>';
   area.innerHTML = html;
+  area.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── CONFIRM / MARK ─────────────────────────────────────────────────────────────
