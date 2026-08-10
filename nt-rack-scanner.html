@@ -2488,11 +2488,11 @@ async function buildSlipHtml(slip) {
 
   // AWB block — barcode goes in bc-cell (top-right); AWB number + courier name below barcode
   const barcodeCell = slip.awb
-    ? `<canvas id="slipBarcode" data-awb="${esc(slip.awb)}" style="display:block;max-width:100%"></canvas>
+    ? `<div class="courier-name" data-editable="1" style="border-bottom:1px solid #000;margin-bottom:4px;padding-bottom:3px">${esc(slip.courier||'Courier')}</div>
+       <canvas id="slipBarcode" data-awb="${esc(slip.awb)}" style="display:block;max-width:100%"></canvas>
        <div class="awb-num" data-editable="1" style="margin-top:2px">${esc(slip.awb)}</div>`
     : `<div class="no-awb">AWB pending</div>`;
-  const courierName = slip.awb
-    ? `<div class="courier-name" data-editable="1">${esc(slip.courier||'Courier')}</div>` : '';
+  const courierName = '';
 
   const codBox = isCOD ? `<tr><td colspan="2" style="padding:3px 5px;border:none">
     <div class="cod-box">Collect Cash On Delivery &nbsp;₹${totalPrice.toFixed(2)}
@@ -2563,7 +2563,7 @@ async function renderSlip(slip) {
   document.getElementById('slipContent').innerHTML = html;
   const bc = document.querySelector('#slipContent canvas[data-awb]');
   if (bc) {
-    drawCode128(bc, bc.dataset.awb, 40);
+    drawCode128(bc, bc.dataset.awb, 72);
     const img = document.createElement('img');
     img.src = bc.toDataURL('image/png');
     img.style.cssText = 'display:block;width:100%;max-width:100%';
@@ -2714,7 +2714,7 @@ async function printAllQueued() {
 
   // Draw barcodes — each canvas carries its own AWB in data-awb, no index matching needed
   content.querySelectorAll('canvas[data-awb]').forEach(bc => {
-    drawCode128(bc, bc.dataset.awb, 40);
+    drawCode128(bc, bc.dataset.awb, 72);
     const img = document.createElement('img');
     img.src = bc.toDataURL('image/png');
     img.style.cssText = 'display:block;width:100%;max-width:100%';
@@ -2971,7 +2971,7 @@ function toggleSlipEdit() {
   if (!slipEditMode) {
     const awbEl = document.querySelector('#slipContent .awb-num[data-editable]');
     const bc = document.getElementById('slipBarcode');
-    if (awbEl && bc) drawCode128(bc, awbEl.textContent.trim(), 40);
+    if (awbEl && bc) drawCode128(bc, awbEl.textContent.trim(), 72);
   }
 }
 
