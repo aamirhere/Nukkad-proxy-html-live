@@ -555,18 +555,21 @@ input[type=file]{display:none}
     <button class="bb-clear" onclick="clearBatch()">✕ Clear</button>
     <button class="bb-process" onclick="processBatch()">▶ Process</button>
   </div>
-  <div class="manual-row" style="position:relative">
-    <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" autocomplete="off"
-      oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
-      onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()">
-    <select class="m-input" id="manualC" style="max-width:130px">
-      <option value="">Any color</option>
-      <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
-      <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
-    </select>
-    <button class="act-btn go" onclick="hideSuggestions();manualMatch()">Match</button>
+  <div style="position:relative">
+    <div class="manual-row">
+      <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" autocomplete="off"
+        oninput="showQuoteSuggestions(this.value);debouncedManualMatch()"
+        onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()"
+        onblur="setTimeout(hideSuggestions,200)">
+      <select class="m-input" id="manualC" style="max-width:130px">
+        <option value="">Any color</option>
+        <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
+        <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
+      </select>
+      <button class="act-btn go" onclick="hideSuggestions();manualMatch()">Match</button>
+    </div>
+    <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
   </div>
-  <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
 
   <div id="resultArea"></div>
 
@@ -1141,23 +1144,25 @@ function showQuoteSuggestions(val) {
   const box = document.getElementById('quoteSuggest');
   const q = val.trim().toLowerCase();
   if (q.length < 2) { box.style.display = 'none'; return; }
-  // substring search across all unique quotes in rack
+  // show all undispatched items matching quote, including already-found (user may need to locate order)
   const seen = new Set();
   const hits = [];
   for (const it of rackItems) {
-    if (it.dispatched || it.found >= it.needed) continue;
+    if (it.dispatched) continue;
     const key = it.quote + '|||' + it.color;
     if (seen.has(key)) continue;
     seen.add(key);
     if (it.quote.toLowerCase().includes(q)) hits.push(it);
   }
   if (!hits.length) { box.style.display = 'none'; return; }
-  box.innerHTML = hits.slice(0, 12).map(it => {
+  box.innerHTML = hits.slice(0, 15).map(it => {
+    const done = it.found >= it.needed;
     const k = _bd([it.quote, it.color]);
-    return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem"
+    return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
       data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
-      <span style="font-weight:600">${esc(it.quote)}</span>
-      <span style="color:var(--muted);font-size:.75rem;margin-left:6px">${esc(it.color)}</span>
+      <span style="flex:1;font-weight:600;${done?'color:var(--muted);text-decoration:line-through':''}">${esc(it.quote)}</span>
+      <span style="color:var(--muted);font-size:.75rem;white-space:nowrap">${esc(it.color)}</span>
+      ${done ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
     </div>`;
   }).join('');
   box.style.display = 'block';
@@ -1182,7 +1187,7 @@ function debouncedManualMatch() {
   clearTimeout(_manualMatchTimer);
   const q = document.getElementById('manualQ').value.trim();
   if (q.length < 3) return;
-  _manualMatchTimer = setTimeout(() => { hideSuggestions(); manualMatch(); }, 450);
+  _manualMatchTimer = setTimeout(() => manualMatch(), 500);
 }
 
 // ── MATCHING ───────────────────────────────────────────────────────────────────
