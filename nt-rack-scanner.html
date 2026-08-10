@@ -341,12 +341,17 @@ input[type=file]{display:none}
 .inv .awb-num{font-size:10px;font-weight:900;font-family:monospace;letter-spacing:.06em;margin-top:3px}
 .inv .no-awb{font-size:8px;color:#c00;font-style:italic;padding:4px}
 
-@page{size:101.6mm 152.4mm portrait;margin:2mm}
+@page{size:101.6mm 152.4mm portrait;margin:4mm 4mm 4mm 4mm}
 @media print {
   .page-wrap{visibility:hidden;position:relative}
-  #slipOverlay{visibility:visible;position:fixed!important;top:0;left:0;width:101.6mm;background:none!important;padding:0;display:block!important}
-  .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;width:101.6mm;max-width:101.6mm}
+  #slipOverlay{visibility:visible;position:fixed!important;top:0;left:0;width:100%;background:none!important;padding:0;display:block!important}
+  .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;width:100%;max-width:100%}
   .slip-header,.slip-actions,#slipLookupBar{display:none!important}
+  /* multi-page: keep header row on every page, avoid splitting rows */
+  .inv thead{display:table-header-group}
+  .inv .items-table tbody tr{page-break-inside:avoid}
+  .inv .footer-row{page-break-inside:avoid}
+  .inv .cod-box{page-break-inside:avoid}
 }
 
 /* ── MODE PICKER ── */
@@ -2588,7 +2593,14 @@ async function renderSlip(slip) {
   document.getElementById('slipContent').innerHTML = html;
   if (slip.awb) {
     const bc = document.getElementById('slipBarcode');
-    if (bc) drawCode128(bc, slip.awb, 60);
+    if (bc) {
+      drawCode128(bc, slip.awb, 60);
+      // immediately convert canvas → img so it prints reliably in all browsers
+      const img = document.createElement('img');
+      img.src = bc.toDataURL('image/png');
+      img.style.cssText = 'display:block;width:100%;max-width:100%';
+      bc.parentNode.replaceChild(img, bc);
+    }
   }
 }
 
@@ -2607,20 +2619,7 @@ async function refreshSlipAwb() {
 }
 
 function printSlipWindow() {
-  // Convert barcode canvas to img so it prints correctly
-  const bc = document.getElementById('slipBarcode');
-  let tempImg = null;
-  if (bc) {
-    tempImg = document.createElement('img');
-    tempImg.src = bc.toDataURL('image/png');
-    tempImg.style.cssText = bc.style.cssText + ';display:block;max-width:100%';
-    bc.parentNode.replaceChild(tempImg, bc);
-  }
   window.print();
-  // Restore canvas after print dialog closes
-  if (tempImg && bc) {
-    setTimeout(() => { if (tempImg.parentNode) tempImg.parentNode.replaceChild(bc, tempImg); }, 1000);
-  }
 }
 
 // ── MODE SWITCHER ─────────────────────────────────────────────────────────────
@@ -2967,8 +2966,12 @@ function toggleSlipEdit() {
   // When finishing edit, redraw barcode if AWB field was changed
   if (!slipEditMode) {
     const awbEl = document.querySelector('#slipContent .awb-num[data-editable]');
-    const bc = document.getElementById('slipBarcode');
-    if (awbEl && bc) drawCode128(bc, awbEl.textContent.trim(), 60);
+    const barcodeImg = document.querySelector('#slipContent .bc-cell img');
+    if (awbEl && barcodeImg) {
+      const tmp = document.createElement('canvas');
+      drawCode128(tmp, awbEl.textContent.trim(), 60);
+      barcodeImg.src = tmp.toDataURL('image/png');
+    }
   }
 }
 
