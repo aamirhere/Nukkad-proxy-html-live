@@ -1180,42 +1180,89 @@ function switchSumTab(tab) {
 
 function renderSumReady() {
   const body = document.getElementById('sumBody');
-  // orders where all pieces found, not dispatched
   const byDate = {};
   for (const it of rackItems) {
     if (it.dispatched) continue;
     if (!byDate[it.order_date]) byDate[it.order_date] = {};
     if (!byDate[it.order_date][it.order_name])
-      byDate[it.order_date][it.order_name] = { customer: it.customer, needed: 0, found: 0 };
+      byDate[it.order_date][it.order_name] = { customer: it.customer, needed: 0, found: 0, items: [] };
     byDate[it.order_date][it.order_name].needed += it.needed;
     byDate[it.order_date][it.order_name].found  += it.found;
+    byDate[it.order_date][it.order_name].items.push(it);
   }
   const dates = Object.keys(byDate).sort();
   let html = '';
   let totalReady = 0, totalPending = 0;
+  const allReadyOrders = [];
+
   for (const d of dates) {
     const orders = byDate[d];
     const ready   = Object.entries(orders).filter(([,o]) => o.found >= o.needed);
     const missing = Object.entries(orders).filter(([,o]) => o.found < o.needed);
     totalReady += ready.length; totalPending += missing.length;
+    ready.forEach(([n,o]) => allReadyOrders.push({ name: n, ...o, date: d }));
     if (!ready.length && !missing.length) continue;
     html += `<div class="sum-hdr">${fmtDate(d)}
       <span style="font-size:.7rem;font-weight:400;color:var(--muted)">${ready.length} ready · ${missing.length} missing</span>
     </div>`;
     for (const [name, o] of [...ready, ...missing]) {
       const done = o.found >= o.needed;
-      html += `<div class="sum-row">
+      html += `<div class="sum-row" id="srow-${CSS.escape(name)}">
         <div class="sum-dot" style="background:${done?'var(--green)':'var(--amber)'}"></div>
         <div style="flex:1">
           <div style="font-weight:600">${esc(name)} <span style="font-size:.7rem;color:var(--muted)">${esc(o.customer||'')}</span></div>
-          <div style="font-size:.7rem;color:var(--muted)">${o.found}/${o.needed} pieces ${done?'✓ Ready':'— missing '+(o.needed-o.found)}</div>
+          <div style="font-size:.7rem;color:var(--muted)">${o.found}/${o.needed} pcs ${done?'✓ Ready':'— missing '+(o.needed-o.found)}</div>
         </div>
+        ${done ? `<button class="act-btn" style="font-size:.68rem;padding:4px 9px;background:#e8f5e9;color:#388e3c;border:1.5px solid #388e3c;white-space:nowrap" onclick="dispatchOrder('${esc(name)}',this)">✓ Dispatched</button>` : ''}
       </div>`;
     }
   }
+
+  const printBtn = allReadyOrders.length
+    ? `<button class="act-btn go" style="font-size:.72rem;padding:5px 14px" onclick="printReadyPicklist()">🖨 Print All Ready (${allReadyOrders.length})</button>`
+    : '';
+
   if (!html) html = '<div style="text-align:center;padding:32px;color:var(--muted)">No active orders. Sync first.</div>';
-  else html = `<div style="padding:8px 0 12px;font-size:.8rem;color:var(--ink2)">🟢 <b>${totalReady}</b> orders ready to pack &nbsp;·&nbsp; ⏳ <b>${totalPending}</b> pending</div>` + html;
+  else html = `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px;flex-wrap:wrap;gap:6px">
+    <span style="font-size:.8rem;color:var(--ink2)">🟢 <b>${totalReady}</b> ready &nbsp;·&nbsp; ⏳ <b>${totalPending}</b> pending</span>
+    ${printBtn}
+  </div>` + html;
   body.innerHTML = html;
+  // store for print
+  window._readyOrders = allReadyOrders;
+}
+
+async function dispatchOrder(orderName, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await apiFetch({ action: 'mark_dispatched', order_name: orderName });
+    const row = document.getElementById('srow-' + CSS.escape(orderName));
+    if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+    btn.textContent = '✓ Done';
+    // refresh rack data so list tab also updates
+    rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, dispatched: true } : it);
+    updatePendingBadge();
+  } catch(e) { btn.disabled = false; btn.textContent = '✓ Dispatched'; alert('Error: '+e.message); }
+}
+
+function printReadyPicklist() {
+  const orders = window._readyOrders || [];
+  if (!orders.length) return;
+  const rows = orders.map(o => {
+    const lines = o.items.map(it => `<tr><td style="padding:3px 8px">${esc(it.quote||'')}</td><td style="padding:3px 8px;text-align:center">${esc(it.color||'')}</td><td style="padding:3px 8px;text-align:center">${it.needed}</td></tr>`).join('');
+    return `<tr style="background:#f5f5f5"><td colspan="3" style="padding:6px 8px;font-weight:700">${esc(o.name)} — ${esc(o.customer||'')} <span style="font-weight:400;font-size:.85em">(${fmtDate(o.date)})</span></td></tr>${lines}`;
+  }).join('');
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Ready Picklist</title>
+  <style>body{font-family:sans-serif;font-size:13px;padding:16px}table{border-collapse:collapse;width:100%}th{background:#333;color:#fff;padding:5px 8px;text-align:left}td{border-bottom:1px solid #ddd}@media print{button{display:none}}</style>
+  </head><body>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h2 style="margin:0">📦 Ready to Dispatch — ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</h2>
+    <button onclick="window.print()">🖨 Print</button>
+  </div>
+  <table><thead><tr><th>Quote</th><th>Colour</th><th>Qty</th></tr></thead><tbody>${rows}</tbody></table>
+  </body></html>`);
+  win.document.close();
 }
 
 async function renderSumPending() {
@@ -1321,6 +1368,26 @@ async function renderSumLog(filter) {
         </div></div>`;
     }
 
+    // painter breakdown
+    const withPainter = scans.filter(s => s.painter);
+    if (withPainter.length) {
+      const byPainter = {};
+      for (const s of withPainter) {
+        if (!byPainter[s.painter]) byPainter[s.painter] = { total: 0, matched: 0 };
+        byPainter[s.painter].total++;
+        if (s.match_type === 'matched') byPainter[s.painter].matched++;
+      }
+      html += `<div class="sum-hdr">🎨 Painter Breakdown<span></span></div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:12px">
+          ${Object.entries(byPainter).sort((a,b)=>b[1].total-a[1].total).map(([name,p])=>
+            `<div style="background:var(--bg2,#f5f0e8);border-radius:10px;padding:8px 12px">
+              <div style="font-weight:700;font-size:.82rem">${esc(name)}</div>
+              <div style="font-size:.7rem;color:var(--muted)">${p.total} scans &nbsp;·&nbsp; <span style="color:var(--green)">${p.matched} matched</span></div>
+            </div>`
+          ).join('')}
+        </div>`;
+    }
+
     // scan log
     if (scans.length) {
       html += `<div class="sum-hdr">🔍 Scan Log (${scans.length})<span></span></div>`;
@@ -1331,7 +1398,7 @@ async function renderSumLog(filter) {
           <div class="sum-dot ${dotCls}"></div>
           <div style="flex:1;min-width:0">
             <div style="font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.quote||'—')} <span style="color:var(--muted)">${esc(s.color||'')}</span></div>
-            <div style="font-size:.68rem;color:var(--muted)">${s.order_name?esc(s.order_name)+' · ':''} ${t}</div>
+            <div style="font-size:.68rem;color:var(--muted)">${s.order_name?esc(s.order_name)+' · ':''} ${t}${s.painter?' · 🎨 '+esc(s.painter):''}</div>
           </div>
           <div style="font-size:.68rem;color:var(--muted);white-space:nowrap;padding-left:4px">${s.match_type?.replace('_',' ')||''}</div>
         </div>`;
