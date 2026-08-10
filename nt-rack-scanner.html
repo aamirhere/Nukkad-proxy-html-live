@@ -529,10 +529,6 @@ input[type=file]{display:none}
   <!-- scan button + search input row -->
   <div style="position:relative;margin-bottom:6px">
     <div style="display:flex;gap:6px;align-items:center">
-      <div id="camCard" onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:10px;display:flex;align-items:center;gap:6px;padding:10px 12px;flex-shrink:0">
-        <span id="camIcon" style="font-size:1.1rem;line-height:1">📷</span>
-        <span id="camLabel" style="color:#fff;font-size:.75rem;font-weight:700;white-space:nowrap">Scan</span>
-      </div>
       <input class="m-input" type="text" id="manualQ"
         placeholder="Type design name…"
         autocomplete="off" onclick="this.select()"
@@ -541,6 +537,10 @@ input[type=file]{display:none}
         onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()"
         onblur="setTimeout(hideSuggestions,200)">
       <select id="manualC" style="display:none"></select>
+      <div id="camCard" onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:10px;display:flex;align-items:center;gap:6px;padding:10px 12px;flex-shrink:0">
+        <span id="camIcon" style="font-size:1.1rem;line-height:1">📷</span>
+        <span id="camLabel" style="color:#fff;font-size:.75rem;font-weight:700;white-space:nowrap">Scan</span>
+      </div>
     </div>
     <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
   </div>
