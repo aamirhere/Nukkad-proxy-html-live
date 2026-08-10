@@ -420,6 +420,7 @@ input[type=file]{display:none}
 .prod-stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;flex:1;min-width:100px}
 .ps-num{font-size:1.4rem;font-weight:700;color:var(--accent);line-height:1}
 .ps-sub{font-size:.65rem;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+@media(min-width:900px){body>*:not(#slipOverlay){max-width:860px;margin-left:auto;margin-right:auto}}
 </style>
 </head>
 <body>
@@ -908,11 +909,18 @@ function switchTab(t) {
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
-async function apiFetch(payload, url = API) {
-  const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-  const d = await r.json();
-  if (d.error) throw new Error(d.error);
-  return d;
+async function apiFetch(payload, url = API, timeoutMs = 25000) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: ctrl.signal });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    return d;
+  } catch(e) {
+    if (e.name === 'AbortError') throw new Error('Request timed out — tap Retry');
+    throw e;
+  } finally { clearTimeout(tid); }
 }
 
 // ── SYNC (incremental — backend handles from/to via Redis cursor) ──────────────
@@ -949,7 +957,7 @@ async function loadRackStatus() {
     }
     else setStatus('No data yet — tap Sync New Orders.');
   } catch(e) {
-    setStatus('Load error: ' + e.message);
+    document.getElementById('statusLine').innerHTML = `Load failed: ${esc(e.message)} &nbsp;<a href="#" onclick="loadRackStatus();return false;" style="color:var(--accent);text-decoration:underline">Retry</a>`;
   }
 }
 
