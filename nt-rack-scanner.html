@@ -390,10 +390,10 @@ input[type=file]{display:none}
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn">⟳ Sync</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn">↺ Refresh</button>
     <button class="hbtn" onclick="toggleLegacyPanel()">📥 Legacy Orders</button>
-    <button class="hbtn" onclick="toggleResyncPanel()" id="resyncToggle">📅 Sync Until Date</button>
     <button class="hbtn" id="pendingBtn" onclick="openSummaryOverlay()" style="position:relative">📊 Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
   </div>
-  <div class="status-line" id="statusLine">Tap Sync to fetch all orders from 29 Jul.</div>
+  <div class="status-line" id="statusLine">Loading…</div>
+  <div style="text-align:center;margin:-4px 0 4px;font-size:.7rem;color:var(--muted)">Orders missing? <a href="#" onclick="toggleResyncPanel();return false;" style="color:var(--muted);text-decoration:underline dotted">Sync until a date</a></div>
   <!-- legacy orders panel -->
   <div class="legacy-panel" id="resyncPanel">
     <h4>Sync all orders up to a date</h4>
@@ -807,7 +807,10 @@ async function loadRackStatus() {
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
     const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-    if (rackItems.length) setStatus(`${rackItems.length} items loaded · refreshed ${t}`);
+    if (rackItems.length) {
+      const orderCount = new Set(rackItems.map(i => i.order_name)).size;
+      setStatus(`${orderCount} orders loaded · refreshed ${t}`);
+    }
     else setStatus('No data yet — tap Sync New Orders.');
   } catch(e) {
     setStatus('Load error: ' + e.message);
