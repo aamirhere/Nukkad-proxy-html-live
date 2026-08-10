@@ -1596,11 +1596,14 @@ function toggleListSelMode() {
   renderList();
 }
 
-function listSelToggle(key) {
+function listSelToggle(bdKey) {
+  const d = _btnData[bdKey];
+  if (!d) return;
+  const key = d[0] + '|||' + d[1] + '|||' + d[2];
   if (_listSel.has(key)) _listSel.delete(key);
   else _listSel.add(key);
   updateListSelBar();
-  const chk = document.getElementById('lchk-' + CSS.escape(key));
+  const chk = document.getElementById('lchk-' + bdKey);
   if (chk) chk.checked = _listSel.has(key);
 }
 
@@ -2246,8 +2249,9 @@ function renderList() {
             const selKey = `${it.order_name}|||${it.quote}|||${it.color}`;
             const isSel = _listSel.has(selKey);
             if (_listSelMode && !done) {
-              return `<div class="oi-line oi-clickable" onclick="listSelToggle(${JSON.stringify(selKey)})" style="${isSel?'background:#fff3e0;':''}">
-                <input type="checkbox" id="lchk-${CSS.escape(selKey)}" style="width:15px;height:15px;accent-color:var(--accent);pointer-events:none;flex-shrink:0" ${isSel?'checked':''}>
+              const lk = _bd([it.order_name, it.quote, it.color]);
+              return `<div class="oi-line oi-clickable" data-bd="${lk}" onclick="listSelToggle(this.dataset.bd)" style="${isSel?'background:#fff3e0;':''}">
+                <input type="checkbox" id="lchk-${lk}" style="width:15px;height:15px;accent-color:var(--accent);pointer-events:none;flex-shrink:0" ${isSel?'checked':''}>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}</div>
                 <div class="oi-n">${it.found}/${it.needed}</div>
