@@ -279,8 +279,8 @@ input[type=file]{display:none}
 .status-tag.unfulfilled{background:#fce4ec;color:#c62828}
 
 /* ── SLIP OVERLAY ── */
-.slip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:flex-end;justify-content:center}
-.slip-sheet{background:#fff;width:100%;max-width:500px;border-radius:16px 16px 0 0;padding:18px 16px 28px;max-height:92vh;overflow-y:auto}
+.slip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
+.slip-sheet{background:#fff;width:100%;max-width:520px;border-radius:14px;padding:18px 16px 24px;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)}
 .slip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .slip-header h2{font-family:var(--ff);font-size:1rem;color:var(--ink)}
 .slip-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)}
@@ -290,8 +290,8 @@ input[type=file]{display:none}
 .slip-cancel-btn{background:var(--bg);color:var(--ink2);border:1px solid var(--line)!important}
 
 /* ── TEMPLATE SETTINGS OVERLAY ── */
-.tpl-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;display:flex;align-items:flex-end;justify-content:center}
-.tpl-sheet{background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:18px 16px 32px;max-height:90vh;overflow-y:auto}
+.tpl-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
+.tpl-sheet{background:#fff;width:100%;max-width:460px;border-radius:14px;padding:18px 16px 28px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)}
 .tpl-title{font-family:var(--ff);font-size:1rem;color:var(--ink);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
 .tpl-field{margin-bottom:12px}
 .tpl-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px}
@@ -2135,12 +2135,11 @@ async function resetTpl() {
 }
 
 function openBlankSlip() {
-  const overlay = document.getElementById('slipOverlay');
-  overlay.style.display = 'flex';
+  document.getElementById('slipOverlay').style.display = 'flex';
   document.getElementById('slipContent').innerHTML = '<div class="empty-msg" style="color:var(--muted);font-size:.82rem;padding:18px 0;text-align:center">Type an order number above and tap Load,<br>or use ✏️ Edit to fill in manually.</div>';
   document.getElementById('slipOrderInput').value = '';
-  document.getElementById('slipOrderInput').focus();
-  // auto-enable edit mode so all fields are immediately editable
+  setTimeout(() => document.getElementById('slipOrderInput').focus(), 100);
+  // make sure edit mode is off so toggleSlipEdit turns it on cleanly
   slipEditMode = false;
 }
 
@@ -2425,7 +2424,7 @@ function drawCode128(canvas, text, h) {
     [2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],
     [1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],
     [2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],
-    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,3,2,1],
+    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],
     [2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],
     [3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],
     [2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],
@@ -2456,7 +2455,7 @@ function drawCode128(canvas, text, h) {
   codes.push(chk);
   const allPats = codes.map(c => P[c]);
   allPats.push(STOP_PAT);
-  const U = 2; // pixels per unit
+  const U = 3; // pixels per unit — 3px gives better print quality on thermal labels
   const totalUnits = allPats.reduce((s,p) => s + p.reduce((a,b)=>a+b,0), 0);
   canvas.width = totalUnits * U;
   canvas.height = h || 50;
