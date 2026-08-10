@@ -1378,6 +1378,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
       <div class="m-actions">
         <button class="m-btn confirm" onclick="confirmMatchAndClearSkip('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}','${esc(it.order_date||'')}','${esc(quote)}','${esc(color||'')}','${esc(confidence||'')}')">✓ This is it</button>
         ${skipBtn}
+        <button class="m-btn" style="background:#4caf50;color:#fff;border:none" onclick="dispatchFromScan('${esc(it.order_name)}',this)">Mark Dispatched</button>
         <button class="m-btn extra-btn" onclick="showChannelPicker('${esc(it.order_name)}','${esc(it.quote)}','${esc(it.color)}')">Tag as stock</button>
       </div>
     </div>`;
@@ -1623,6 +1624,23 @@ function renderSumReady() {
   body.innerHTML = html;
   // store for print
   window._readyOrders = allReadyOrders;
+}
+
+async function dispatchFromScan(orderName, btn) {
+  if (!confirm(`Mark ${orderName} as dispatched? This cannot be undone.`)) return;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await apiFetch({ action: 'mark_dispatched', order_name: orderName });
+    rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, dispatched: true } : it);
+    updateSummary();
+    updatePendingBadge();
+    loadRackStatus().catch(() => {});
+    document.getElementById('resultArea').innerHTML = `<div class="result-card"><div style="padding:18px;text-align:center">
+      <div style="font-size:1.3rem;color:#4caf50;font-weight:900">✓ Dispatched</div>
+      <div style="color:var(--muted);font-size:.82rem;margin-top:4px">${esc(orderName)} marked as dispatched</div>
+      <button class="act-btn go" style="margin-top:12px" onclick="triggerCamera()">Scan Next</button>
+    </div></div>`;
+  } catch(e) { btn.disabled = false; btn.textContent = 'Mark Dispatched'; alert('Error: '+e.message); }
 }
 
 async function dispatchOrder(orderName, btn) {
