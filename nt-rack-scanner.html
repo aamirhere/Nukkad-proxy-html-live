@@ -1146,25 +1146,25 @@ function showQuoteSuggestions(val) {
   const box = document.getElementById('quoteSuggest');
   const q = val.trim().toLowerCase();
   if (q.length < 2) { box.style.display = 'none'; return; }
-  // show all undispatched items matching quote, including already-found (user may need to locate order)
-  const seen = new Set();
+  // deduplicate by quote only — color is selected via pills after match
+  const seenQuote = new Set();
   const hits = [];
   for (const it of rackItems) {
     if (it.dispatched) continue;
-    const key = it.quote + '|||' + it.color;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    if (it.quote.toLowerCase().includes(q)) hits.push(it);
+    if (seenQuote.has(it.quote)) continue;
+    if (!it.quote.toLowerCase().includes(q)) continue;
+    seenQuote.add(it.quote);
+    // check if all variants of this quote are done
+    const allDone = rackItems.filter(r => r.quote === it.quote && !r.dispatched).every(r => r.found >= r.needed);
+    hits.push({ quote: it.quote, allDone });
   }
   if (!hits.length) { box.style.display = 'none'; return; }
-  box.innerHTML = hits.slice(0, 15).map(it => {
-    const done = it.found >= it.needed;
-    const k = _bd([it.quote, it.color]);
+  box.innerHTML = hits.slice(0, 15).map(h => {
+    const k = _bd([h.quote, '']);
     return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
       data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
-      <span style="flex:1;font-weight:600;${done?'color:var(--muted);text-decoration:line-through':''}">${esc(it.quote)}</span>
-      <span style="color:var(--muted);font-size:.75rem;white-space:nowrap">${esc(it.color)}</span>
-      ${done ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
+      <span style="flex:1;font-weight:600;${h.allDone?'color:var(--muted);text-decoration:line-through':''}">${esc(h.quote)}</span>
+      ${h.allDone ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
     </div>`;
   }).join('');
   box.style.display = 'block';
