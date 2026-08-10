@@ -495,15 +495,18 @@ input[type=file]{display:none}
     <button class="bb-clear" onclick="clearBatch()">✕ Clear</button>
     <button class="bb-process" onclick="processBatch()">▶ Process</button>
   </div>
-  <div class="manual-row">
-    <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" onkeydown="if(event.key==='Enter')manualMatch()">
+  <div class="manual-row" style="position:relative">
+    <input class="m-input" type="text" id="manualQ" placeholder="Or type quote manually…" autocomplete="off"
+      oninput="showQuoteSuggestions(this.value)"
+      onkeydown="if(event.key==='Enter'){hideSuggestions();manualMatch();}if(event.key==='Escape')hideSuggestions()">
     <select class="m-input" id="manualC" style="max-width:130px">
       <option value="">Any color</option>
-      <option>Black</option><option>White</option><option>Natural</option>
-      <option>Walnut Brown</option><option>Mango Wood</option>
+      <option>Pink</option><option>Blue</option><option>White</option><option>Orange</option>
+      <option>Yellow</option><option>Purple</option><option>Green</option><option>Red</option><option>Gold</option>
     </select>
-    <button class="act-btn go" onclick="manualMatch()">Match</button>
+    <button class="act-btn go" onclick="hideSuggestions();manualMatch()">Match</button>
   </div>
+  <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
 
   <div id="resultArea"></div>
 
@@ -942,17 +945,50 @@ function setCamState(state) {
 }
 
 // ── MANUAL MATCH ───────────────────────────────────────────────────────────────
+function showQuoteSuggestions(val) {
+  const box = document.getElementById('quoteSuggest');
+  const q = val.trim().toLowerCase();
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  // substring search across all unique quotes in rack
+  const seen = new Set();
+  const hits = [];
+  for (const it of rackItems) {
+    if (it.dispatched || it.found >= it.needed) continue;
+    const key = it.quote + '|||' + it.color;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (it.quote.toLowerCase().includes(q)) hits.push(it);
+  }
+  if (!hits.length) { box.style.display = 'none'; return; }
+  box.innerHTML = hits.slice(0, 12).map(it =>
+    `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem"
+      onclick="pickSuggestion('${esc(it.quote)}','${esc(it.color)}')">
+      <span style="font-weight:600">${esc(it.quote)}</span>
+      <span style="color:var(--muted);font-size:.75rem;margin-left:6px">${esc(it.color)}</span>
+    </div>`
+  ).join('');
+  box.style.display = 'block';
+}
+function hideSuggestions() {
+  document.getElementById('quoteSuggest').style.display = 'none';
+}
+function pickSuggestion(quote, color) {
+  document.getElementById('manualQ').value = quote;
+  document.getElementById('manualC').value = color;
+  hideSuggestions();
+  handleVisionResult({ quote, color, confidence: 'manual' });
+}
 function manualMatch() {
   const q = document.getElementById('manualQ').value.trim();
   const c = document.getElementById('manualC').value;
   if (!q) return;
-  document.getElementById('manualQ').value = '';
   handleVisionResult({ quote: q, color: c || '', confidence: 'manual' });
 }
 
 // ── MATCHING ───────────────────────────────────────────────────────────────────
 function norm(s) {
-  return (s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+  // preserve Hindi (Devanagari U+0900–U+097F) alongside latin/digits
+  return (s||'').toLowerCase().replace(/[^a-z0-9ऀ-ॿ\s]/g,' ').replace(/\s+/g,' ').trim();
 }
 function wordSim(a, b) {
   const wa = new Set(norm(a).split(' ').filter(Boolean));
