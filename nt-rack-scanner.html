@@ -975,7 +975,7 @@ function findMatches(quote, color) {
     const qScore = wordSim(quote, it.quote);
     const cScore = color ? wordSim(color, it.color) : 0.5;
     const score  = qScore * 0.75 + cScore * 0.25;
-    if (qScore >= 0.35) results.push({ it, qScore, cScore, score });
+    if (qScore >= 0.65) results.push({ it, qScore, cScore, score });
   }
   results.sort((a, b) => b.score - a.score);
   return results.slice(0, 4);
