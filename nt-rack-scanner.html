@@ -345,6 +345,7 @@ input[type=file]{display:none}
   .slip-overlay{position:static!important;background:none!important;display:block!important;padding:0}
   .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:100%}
   .slip-header,.slip-actions{display:none!important}
+  .bulk-slip-page{display:block;width:100%;overflow:hidden}
   @page{size:101.6mm 152.4mm;margin:2mm}
 }
 
@@ -2699,8 +2700,9 @@ async function printAllQueued() {
   if (header) header.style.display = 'none';
   if (actions) actions.style.display = 'none';
 
+  // Each slip gets its own page — both legacy and modern page-break properties for cross-browser safety
   content.innerHTML = slipHtmls.map((h, i) =>
-    `<div style="${i < slipHtmls.length - 1 ? 'page-break-after:always' : ''}">${h}</div>`
+    `<div class="bulk-slip-page"${i > 0 ? ' style="break-before:page;page-break-before:always"' : ''}>${h}</div>`
   ).join('');
   overlay.style.display = 'flex';
 
