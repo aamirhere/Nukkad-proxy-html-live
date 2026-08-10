@@ -1183,25 +1183,40 @@ function showQuoteSuggestions(val) {
   const box = document.getElementById('quoteSuggest');
   const q = norm(val.trim());
   if (q.length < 2) { box.style.display = 'none'; return; }
-  // deduplicate by quote only — color is selected via pills after match
-  const seenQuote = new Set();
-  const hits = [];
+
+  // Build hit map from ALL rack items (including dispatched) so catalogue names always appear
+  const hitMap = new Map(); // quote → { hasActive, allDone }
   for (const it of rackItems) {
-    if (it.dispatched) continue;
-    if (seenQuote.has(it.quote)) continue;
     if (!norm(it.quote).includes(q)) continue;
-    seenQuote.add(it.quote);
-    // check if all variants of this quote are done
-    const allDone = rackItems.filter(r => r.quote === it.quote && !r.dispatched).every(r => r.found >= r.needed);
-    hits.push({ quote: it.quote, allDone });
+    const existing = hitMap.get(it.quote);
+    if (!existing) {
+      hitMap.set(it.quote, { hasActive: !it.dispatched && it.found < it.needed, allDone: false });
+    } else if (!it.dispatched && it.found < it.needed) {
+      existing.hasActive = true;
+    }
   }
+  // Mark allDone: non-dispatched items all found
+  for (const [quote, h] of hitMap) {
+    const nonDispatched = rackItems.filter(r => r.quote === quote && !r.dispatched);
+    if (nonDispatched.length > 0 && nonDispatched.every(r => r.found >= r.needed)) h.allDone = true;
+  }
+
+  // Sort: active first, then allDone, then dispatched-only
+  const hits = [...hitMap.entries()].sort((a, b) => {
+    const aScore = a[1].hasActive ? 2 : a[1].allDone ? 1 : 0;
+    const bScore = b[1].hasActive ? 2 : b[1].allDone ? 1 : 0;
+    return bScore - aScore;
+  });
+
   if (!hits.length) { box.style.display = 'none'; return; }
-  box.innerHTML = hits.slice(0, 15).map(h => {
-    const k = _bd([h.quote, '']);
+  box.innerHTML = hits.slice(0, 15).map(([quote, h]) => {
+    const isDispatchedOnly = !h.hasActive && !h.allDone;
+    const k = _bd([quote, '']);
     return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
       data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
-      <span style="flex:1;font-weight:600;${h.allDone?'color:var(--muted);text-decoration:line-through':''}">${esc(h.quote)}</span>
+      <span style="flex:1;font-weight:600;${h.allDone||isDispatchedOnly?'color:var(--muted);text-decoration:line-through':''}">${esc(quote)}</span>
       ${h.allDone ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
+      ${isDispatchedOnly ? '<span style="font-size:.7rem;color:var(--muted);white-space:nowrap">dispatched</span>' : ''}
     </div>`;
   }).join('');
   box.style.display = 'block';
