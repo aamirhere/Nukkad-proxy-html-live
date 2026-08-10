@@ -435,6 +435,7 @@ input[type=file]{display:none}
         <button class="hmenu-item" onclick="openTplOverlay();closeHMenu()">Slip Template</button>
         <button class="hmenu-item" onclick="openPainterDropOff();closeHMenu()">Painter Drop-off</button>
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
+        <button class="hmenu-item" onclick="fixRackQuotes();closeHMenu()">🔧 Fix Design Names</button>
         <button class="hmenu-item" onclick="toggleLegacyPanel();closeHMenu()">📥 Legacy Orders</button>
         <button class="hmenu-item" onclick="toggleResyncPanel();closeHMenu()">Sync until date</button>
         <hr class="hmenu-sep">
@@ -981,6 +982,20 @@ async function syncAll() {
 }
 
 // ── LOAD RACK STATUS ───────────────────────────────────────────────────────────
+async function fixRackQuotes() {
+  const btn = document.querySelector('[onclick="fixRackQuotes();closeHMenu()"]');
+  if (btn) { btn.textContent = '🔧 Fixing…'; btn.disabled = true; }
+  try {
+    const res = await apiFetch({ action: 'fix_rack_quotes' });
+    await loadRackStatus();
+    alert(`Done. Fixed ${res.fixed} order(s), skipped ${res.skipped}. Reload to see updated design names.`);
+  } catch(e) {
+    alert('Fix failed: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = '🔧 Fix Design Names'; btn.disabled = false; }
+  }
+}
+
 async function loadRackStatus() {
   try {
     rackItems = await apiFetch({ action: 'get_rack_status' });
