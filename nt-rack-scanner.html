@@ -2645,8 +2645,8 @@ async function loadPrintQueue() {
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printAndClear('${esc(o.order_name)}',this)">Print Slip</button>
-            <button class="act-btn" style="font-size:.72rem;color:var(--muted)" onclick="clearPrinted('${esc(o.order_name)}',this)">✓ Done (no print)</button>
+            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printSlip('${esc(o.order_name)}',this)">↻ Print Slip</button>
+            <button class="act-btn" style="background:#1565c0;color:#fff;border:none;font-size:.72rem" onclick="dispatchFromQueue('${esc(o.order_name)}',this)">✓ Dispatched</button>
           </div>
         </div>
       </div>`;
@@ -2656,17 +2656,24 @@ async function loadPrintQueue() {
   }
 }
 
-async function printAndClear(orderName, btn) {
+async function printSlip(orderName, btn) {
   btn.disabled = true;
   await openSlip(orderName);
-  await apiFetch({ action: 'clear_print_queued', order_name: orderName }).catch(() => {});
-  setTimeout(() => loadPrintQueue(), 1200);
+  btn.disabled = false;
+  // queue stays — tap Dispatched to remove
 }
 
-async function clearPrinted(orderName, btn) {
+async function dispatchFromQueue(orderName, btn) {
   btn.disabled = true; btn.textContent = '…';
-  await apiFetch({ action: 'clear_print_queued', order_name: orderName }).catch(() => {});
-  loadPrintQueue();
+  try {
+    await apiFetch({ action: 'mark_dispatched', order_name: orderName });
+    await apiFetch({ action: 'clear_print_queued', order_name: orderName }).catch(() => {});
+    rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, dispatched: true } : it);
+    loadPrintQueue();
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '✓ Dispatched';
+    alert('Error: ' + e.message);
+  }
 }
 
 async function printAllQueued() {
@@ -2710,7 +2717,7 @@ async function printAllQueued() {
     ov.style.display = 'none';
     sc.innerHTML = '';
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
-    orderNames.forEach(name => apiFetch({ action: 'clear_print_queued', order_name: name }).catch(() => {}));
+    // queue stays — tap Dispatched on each card to remove after handing over
     setTimeout(() => loadPrintQueue(), 800);
   }, 1500);
 }
