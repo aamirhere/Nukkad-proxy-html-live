@@ -902,7 +902,9 @@ async function processImage(dataUrl, mimeType) {
 
   try {
     const b64 = (await resizeImage(dataUrl, 700)).split(',')[1];
-    const vision = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: mimeType.split(';')[0] }, VISION_API);
+    // pass unique known quotes so AI can recognise rather than cold-read
+    const knownQuotes = [...new Set(rackItems.filter(i=>!i.dispatched && i.found<i.needed).map(i=>i.quote))].slice(0,120);
+    const vision = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: mimeType.split(';')[0], known_quotes: knownQuotes }, VISION_API);
     setCamState('idle');
     setTimeout(() => { preview.style.display = 'none'; preview.src = ''; }, 400);
     handleVisionResult(vision);
