@@ -611,6 +611,7 @@ input[type=file]{display:none}
 
   <div class="print-btn-row no-print">
     <button class="hbtn" onclick="window.print()">Print</button>
+    <button id="listSelModeBtn" class="hbtn" onclick="toggleListSelMode()">☑ Select</button>
   </div>
 
   <div id="listContent">
@@ -1369,12 +1370,25 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
            Skip:<span>Skipped earlier today — item is in rack. Confirm below to pack it now.</span>
          </div>` : '';
 
+    const remaining = Math.max(1, it.needed - it.found);
+    const qid = 'sq' + (++_btnDataSeq);
+    _scanQty[qid] = 1;
+    _scanSelItems[qid] = { orderName: it.order_name, quote: it.quote, color: it.color, orderDate: it.order_date||'', visQuote: quote||'', visColor: color||'', confidence: confidence||'' };
+
     const bdConfirm = _bd([it.order_name, it.quote, it.color, it.order_date||'', quote, color||'', confidence||'']);
     const bdSkip    = _bd([it.order_name, it.quote, it.color, it.order_date||'']);
     const bdExtra   = _bd([it.order_name, it.quote, it.color]);
     const skipBtn = isFutureOrder && !alreadySkipped
       ? `<button class="m-btn" style="background:#f5f5f5;color:var(--ink2);border:1px solid var(--line)" data-bd="${bdSkip}" onclick="var d=_btnData[this.dataset.bd];doSkipItem(d[0],d[1],d[2],d[3])">Skip — pack later</button>`
       : '';
+
+    const qtyHtml = remaining > 1 ? `<div style="display:flex;align-items:center;gap:6px;margin:6px 0 2px;flex-wrap:wrap">
+      <span style="font-size:.72rem;color:var(--muted);font-weight:700">QTY:</span>
+      <button class="qty-btn" onclick="scanQtyAdj('${qid}',-1,${remaining})">−</button>
+      <span id="sqv-${qid}" style="font-weight:700;font-size:.9rem;min-width:18px;text-align:center">1</span>
+      <button class="qty-btn" onclick="scanQtyAdj('${qid}',1,${remaining})">+</button>
+      <span style="font-size:.7rem;color:var(--muted)">(${remaining} needed)</span>
+    </div>` : '';
 
     html += `<div class="match-block${idx===0?' best':''}">
       <div class="m-head">
@@ -1385,7 +1399,10 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
             <span>${totalF}/${totalN} pieces · match ${pct}%</span>
           </div>
         </div>
-        ${idx===0?'<span class="m-badge">BEST</span>':`<span style="color:var(--muted);font-size:.72rem">#${idx+1}</span>`}
+        <div style="display:flex;align-items:center;gap:6px">
+          ${idx===0?'<span class="m-badge">BEST</span>':`<span style="color:var(--muted);font-size:.72rem">#${idx+1}</span>`}
+          <input type="checkbox" class="scan-sel-chk" id="schk-${qid}" style="width:17px;height:17px;accent-color:var(--accent);cursor:pointer" onchange="scanSelToggle('${qid}',this.checked)">
+        </div>
       </div>
       ${skipBanner}
       <div class="m-items">${orderItems.map(r => {
@@ -1397,8 +1414,9 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
           <span class="m-item-p p-${p}">${r.found}/${r.needed}</span>
         </div>`;
       }).join('')}</div>
+      ${qtyHtml}
       <div class="m-actions">
-        <button class="m-btn confirm" data-bd="${bdConfirm}" onclick="var d=_btnData[this.dataset.bd];confirmMatchAndClearSkip(d[0],d[1],d[2],d[3],d[4],d[5],d[6])">✓ This is it</button>
+        <button class="m-btn confirm" data-bd="${bdConfirm}" data-qid="${qid}" onclick="var d=_btnData[this.dataset.bd];confirmMatchAndClearSkip(d[0],d[1],d[2],d[3],d[4],d[5],d[6],_scanQty[this.dataset.qid]||1)">✓ This is it</button>
         ${skipBtn}
         <button class="m-btn extra-btn" data-bd="${bdExtra}" onclick="var d=_btnData[this.dataset.bd];showChannelPicker(d[0],d[1],d[2])">Tag as stock</button>
         <button class="m-btn" style="background:#388e3c;color:#fff;border:none;font-size:.72rem" data-bd="${_bd([it.order_name])}" onclick="var d=_btnData[this.dataset.bd];dispatchFromQueue(d[0],this)">🚚 Dispatch</button>
@@ -1412,9 +1430,9 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
 }
 
 // ── CONFIRM / MARK ─────────────────────────────────────────────────────────────
-async function confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence) {
+async function confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence, qty = 1) {
   try {
-    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1 });
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty });
     const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
     if (row) row.found = r.found;
 
@@ -1519,9 +1537,102 @@ async function doSkipItem(orderName, quote, color, orderDate) {
   </div>`;
 }
 
-async function confirmMatchAndClearSkip(orderName, quote, color, orderDate, visQuote, visColor, confidence) {
+async function confirmMatchAndClearSkip(orderName, quote, color, orderDate, visQuote, visColor, confidence, qty = 1) {
   await clearSkip(orderName, quote, color);
-  confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence);
+  confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence, qty);
+}
+
+// ── SCAN QTY + MULTI-SELECT FUNCTIONS ─────────────────────────────────────────
+function scanQtyAdj(qid, delta, max) {
+  const cur = _scanQty[qid] || 1;
+  const nv = Math.max(1, Math.min(max || 99, cur + delta));
+  _scanQty[qid] = nv;
+  const el = document.getElementById('sqv-' + qid);
+  if (el) el.textContent = nv;
+}
+
+function scanSelToggle(qid, checked) {
+  if (checked) _scanSelSet.add(qid);
+  else _scanSelSet.delete(qid);
+  updateScanSelBar();
+}
+
+function updateScanSelBar() {
+  const n = _scanSelSet.size;
+  const bar = document.getElementById('scanSelBar');
+  if (!bar) return;
+  bar.style.display = n ? 'flex' : 'none';
+  const lbl = document.getElementById('scanSelLabel');
+  if (lbl) lbl.textContent = n + ' order' + (n > 1 ? 's' : '') + ' selected';
+}
+
+async function confirmScanSelected() {
+  const qids = [..._scanSelSet];
+  if (!qids.length) return;
+  const btn = document.getElementById('scanSelConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Confirming…'; }
+  for (const qid of qids) {
+    const s = _scanSelItems[qid];
+    if (!s) continue;
+    const qty = _scanQty[qid] || 1;
+    try {
+      await confirmMatch(s.orderName, s.quote, s.color, s.orderDate, s.visQuote, s.visColor, s.confidence, qty);
+    } catch(e) { console.error('confirmScanSelected', e); }
+  }
+  _scanSelSet.clear();
+  _scanQty = {};
+  _scanSelItems = {};
+  updateScanSelBar();
+  if (btn) { btn.disabled = false; btn.textContent = 'Confirm Selected'; }
+}
+
+// ── LIST MULTI-SELECT FUNCTIONS ───────────────────────────────────────────────
+function toggleListSelMode() {
+  _listSelMode = !_listSelMode;
+  _listSel.clear();
+  const btn = document.getElementById('listSelModeBtn');
+  if (btn) { btn.textContent = _listSelMode ? '✕ Cancel' : '☑ Select'; btn.style.background = _listSelMode ? '#e0e0e0' : ''; }
+  updateListSelBar();
+  renderList();
+}
+
+function listSelToggle(key) {
+  if (_listSel.has(key)) _listSel.delete(key);
+  else _listSel.add(key);
+  updateListSelBar();
+  const chk = document.getElementById('lchk-' + CSS.escape(key));
+  if (chk) chk.checked = _listSel.has(key);
+}
+
+function updateListSelBar() {
+  const n = _listSel.size;
+  const bar = document.getElementById('listSelBar');
+  if (!bar) return;
+  bar.style.display = (_listSelMode && n > 0) ? 'flex' : 'none';
+  const lbl = document.getElementById('listSelLabel');
+  if (lbl) lbl.textContent = n + ' item' + (n > 1 ? 's' : '') + ' selected';
+}
+
+async function confirmListSelected() {
+  const keys = [..._listSel];
+  if (!keys.length) return;
+  const btn = document.getElementById('listSelConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Marking…'; }
+  let successCount = 0;
+  for (const key of keys) {
+    const [orderName, quote, color] = key.split('|||');
+    try {
+      const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
+      const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
+      if (row) row.found = r.found ?? row.needed;
+      successCount++;
+    } catch(e) { console.error('confirmListSelected', e); }
+  }
+  _listSel.clear();
+  updateSummary(); buildDateNav(); renderList();
+  updateListSelBar();
+  loadPrintQueue().catch(() => {});
+  if (btn) { btn.disabled = false; btn.textContent = 'Mark Found'; }
 }
 
 // ── SKIP-FOR-NOW — Supabase-backed ────────────────────────────────────────────
@@ -1536,6 +1647,15 @@ let _skipsCache = null; // { key: { skippedOn, orderDate } }
 const _btnData = {}; // keyed by unique id, stores params for inline-onclick-safe buttons
 let _btnDataSeq = 0;
 function _bd(params) { const k = 'bd' + (++_btnDataSeq); _btnData[k] = params; return k; }
+
+// ── SCAN MULTI-SELECT + QTY STATE ─────────────────────────────────────────────
+let _scanQty = {};       // qid → current qty (integer)
+let _scanSelItems = {};  // qid → {orderName, quote, color, orderDate, visQuote, visColor, confidence}
+let _scanSelSet = new Set(); // set of checked qids
+
+// ── LIST MULTI-SELECT STATE ───────────────────────────────────────────────────
+let _listSelMode = false;
+let _listSel = new Set(); // keys: "orderName|||quote|||color"
 
 async function _loadSkips() {
   if (_skipsCache !== null) return _skipsCache;
@@ -2123,6 +2243,16 @@ function renderList() {
             const chkCls = done?'done':it.found>0?'part':'';
             const chkTxt = done?'✓':it.found>0?it.found:'';
             const bk = _bd([it.order_name, it.quote, it.color]);
+            const selKey = `${it.order_name}|||${it.quote}|||${it.color}`;
+            const isSel = _listSel.has(selKey);
+            if (_listSelMode && !done) {
+              return `<div class="oi-line oi-clickable" onclick="listSelToggle(${JSON.stringify(selKey)})" style="${isSel?'background:#fff3e0;':''}">
+                <input type="checkbox" id="lchk-${CSS.escape(selKey)}" style="width:15px;height:15px;accent-color:var(--accent);pointer-events:none;flex-shrink:0" ${isSel?'checked':''}>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-c">${esc(it.color)}</div>
+                <div class="oi-n">${it.found}/${it.needed}</div>
+              </div>`;
+            }
             return `<div class="oi-line${done?'':' oi-clickable'}" ${done?'':` data-bd="${bk}" onclick="markItemFound(this)"`} title="${done?'':'Tap to mark as found'}">
               <div class="oi-chk ${chkCls}">${chkTxt}</div>
               <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
@@ -3303,5 +3433,23 @@ function fmtDate(d) {
   return dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
 }
 </script>
+
+<!-- ── SCAN MULTI-SELECT BAR ── -->
+<div id="scanSelBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:var(--accent);color:#fff;padding:12px 16px;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 -2px 12px rgba(0,0,0,.18)">
+  <span id="scanSelLabel" style="font-weight:700;font-size:.88rem"></span>
+  <div style="display:flex;gap:8px">
+    <button id="scanSelConfirmBtn" style="background:#fff;color:var(--accent);border:none;padding:7px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="confirmScanSelected()">Confirm Selected</button>
+    <button style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="_scanSelSet.clear();_scanQty={};updateScanSelBar();document.querySelectorAll('.scan-sel-chk').forEach(c=>c.checked=false)">Cancel</button>
+  </div>
+</div>
+
+<!-- ── LIST MULTI-SELECT BAR ── -->
+<div id="listSelBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:#1565c0;color:#fff;padding:12px 16px;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 -2px 12px rgba(0,0,0,.18)">
+  <span id="listSelLabel" style="font-weight:700;font-size:.88rem"></span>
+  <div style="display:flex;gap:8px">
+    <button id="listSelConfirmBtn" style="background:#fff;color:#1565c0;border:none;padding:7px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="confirmListSelected()">Mark Found</button>
+    <button style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="toggleListSelMode()">Cancel</button>
+  </div>
+</div>
 </body>
 </html>
