@@ -346,7 +346,7 @@ input[type=file]{display:none}
   body > *:not(#slipOverlay){display:none!important}
   .slip-overlay{position:static!important;background:none!important;display:block!important;padding:0}
   .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:100%}
-  .slip-header,.slip-actions{display:none!important}
+  .slip-header,.slip-actions,#slipLookupBar{display:none!important}
   @page{size:101.6mm 152.4mm;margin:2mm}
 }
 
@@ -2510,8 +2510,8 @@ async function buildSlipHtml(slip) {
         ${phoneHtml}
       </td>
       <td style="border:none;text-align:center;padding:4px 5px;vertical-align:middle">
-        ${barcodeCell}
         ${courierName}
+        ${barcodeCell}
       </td>
     </tr>
     <!-- SHIP TO left | ORDER DETAILS right -->
@@ -2698,7 +2698,7 @@ async function printAllQueued() {
   }
   const slipHtmls = await Promise.all(slips.map(slip => buildSlipHtml(slip)));
   const allHtml = slipHtmls.map((html, idx) =>
-    `<div class="bulk-slip-page" style="width:101.6mm;min-height:152.4mm;overflow:hidden;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
+    `<div class="bulk-slip-page" style="width:101.6mm;height:152.4mm;overflow:hidden;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
   ).join('');
   const content = document.createElement('div');
   content.innerHTML = allHtml;
