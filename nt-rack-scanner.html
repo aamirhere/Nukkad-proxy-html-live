@@ -470,6 +470,7 @@ input[type=file]{display:none}
   <div class="tab" id="tabList" onclick="switchTab('list')">List</div>
   <div class="tab" id="tabDispatch" onclick="switchTab('dispatch')">Dispatch</div>
   <div class="tab" id="tabProd" onclick="switchTab('prod')">Production</div>
+  <div class="tab" id="tabPending" onclick="switchTab('pending')" style="position:relative">Pending<span id="photoPendingBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;border-radius:99px;font-size:.6rem;padding:1px 5px;line-height:1.4"></span></div>
 </div>
 
 <input type="file" id="fileInput" accept="image/*" capture="environment" multiple style="display:none">
@@ -654,6 +655,13 @@ input[type=file]{display:none}
 <div id="dispatchTab" class="list-wrap" style="display:none">
   <div id="dispatchContent">
     <div class="empty-msg">Sync orders first, then switch to this tab.</div>
+  </div>
+</div>
+
+<!-- ── PENDING APPROVAL TAB ── -->
+<div id="pendingTab" class="list-wrap" style="display:none">
+  <div id="pendingContent">
+    <div class="empty-msg">No items waiting for approval.</div>
   </div>
 </div>
 
@@ -887,8 +895,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
 async function init() {
   await loadRackStatus();
-  _loadSkips().catch(() => {}); // warm skip cache in background
+  _loadSkips().catch(() => {});
   updatePendingBadge();
+  refreshPendingBadge();
   maybeAutoSync();
 }
 
@@ -943,13 +952,16 @@ function switchTab(t) {
   document.getElementById('listTab').style.display     = t === 'list'     ? '' : 'none';
   document.getElementById('dispatchTab').style.display = t === 'dispatch' ? '' : 'none';
   document.getElementById('prodTab').style.display     = t === 'prod'     ? '' : 'none';
+  document.getElementById('pendingTab').style.display  = t === 'pending'  ? '' : 'none';
   document.getElementById('tabScan').classList.toggle('active',     t === 'scan');
   document.getElementById('tabList').classList.toggle('active',     t === 'list');
   document.getElementById('tabDispatch').classList.toggle('active', t === 'dispatch');
   document.getElementById('tabProd').classList.toggle('active',     t === 'prod');
+  document.getElementById('tabPending').classList.toggle('active',  t === 'pending');
   if (t === 'list')     { buildDateNav(); renderList(); }
   if (t === 'dispatch') { renderDispatch(); }
   if (t === 'prod')     { renderProduction(); }
+  if (t === 'pending')  { renderPending(); }
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -2214,7 +2226,6 @@ async function resolvePendingNow() {
 async function updatePendingBadge() {
   try {
     const { count } = await apiFetch({ action: 'get_pending_count' });
-    const btn = document.getElementById('pendingBtn');
     const badge = document.getElementById('pendingBadge');
     if (count > 0) {
       badge.textContent = count;
@@ -3384,40 +3395,141 @@ function updateBrCount() {
   }
 }
 
+function compressToThumb(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 320;
+      let w = img.width, h = img.height;
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else        { w = Math.round(w * MAX / h); h = MAX; }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', 0.5));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 async function submitBatch() {
   const toConfirm = batchQueue.filter(it => it.tag?.match);
   if (!toConfirm.length) return;
 
   const btn = document.getElementById('brSubmitBtn');
-  btn.textContent = 'Saving…'; btn.style.pointerEvents = 'none';
+  btn.textContent = 'Submitting…'; btn.style.pointerEvents = 'none';
 
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   let done = 0;
   for (const item of toConfirm) {
     const m = item.tag.match;
     try {
-      const r = await apiFetch({ action: 'update_rack_found', order_name: m.order_name, quote: m.quote, color: m.color, delta: 1 });
-      const row = rackItems.find(it => it.order_name === m.order_name && it.quote === m.quote && it.color === m.color);
-      if (row) row.found = r.found;
-      logScan({ order_name: m.order_name, order_date: m.order_date, quote: item.tag.quote, color: item.tag.color, match_type: 'batch_manual', confidence: 'manual' });
-      if (currentPainter) {
-        apiFetch({ action: 'update_order_meta', order_name: m.order_name, quote: m.quote, color: m.color, painter: currentPainter, painter_date: today }).catch(() => {});
-        if (row) { row.painter = currentPainter; row.painter_date = today; }
-      }
+      const thumb = await compressToThumb(item.dataUrl);
+      await apiFetch({
+        action: 'submit_batch_pending',
+        order_name: m.order_name, quote: m.quote, color: m.color,
+        painter: currentPainter || null, thumb
+      });
       done++;
     } catch {}
   }
 
-  updateSummary();
-  if (activeTab === 'list')     { buildDateNav(); renderList(); }
-  if (activeTab === 'dispatch') { renderDispatch(); }
-  loadRackStatus().catch(() => {});
   closeBrOverlay();
   clearBatch();
   batchMode = false;
   currentPainter = null;
   setMode('sort');
-  setStatus(`✓ Tagged: ${done} piece${done !== 1 ? 's' : ''} confirmed`);
+  refreshPendingBadge();
+  setStatus(`✓ ${done} photo${done !== 1 ? 's' : ''} submitted for approval — check Pending tab`);
+}
+
+async function refreshPendingBadge() {
+  try {
+    const res = await apiFetch({ action: 'get_batch_pending_count' });
+    const badge = document.getElementById('photoPendingBadge');
+    if (res.count > 0) { badge.textContent = res.count; badge.style.display = ''; }
+    else               { badge.style.display = 'none'; }
+  } catch {}
+}
+
+async function renderPending() {
+  const el = document.getElementById('pendingContent');
+  el.innerHTML = '<div class="empty-msg">Loading…</div>';
+  try {
+    const res = await apiFetch({ action: 'get_batch_pending' });
+    const items = res.items || [];
+    if (!items.length) {
+      el.innerHTML = '<div class="empty-msg">No items waiting for approval.</div>';
+      document.getElementById('photoPendingBadge').style.display = 'none';
+      return;
+    }
+    document.getElementById('photoPendingBadge').textContent = items.length;
+    document.getElementById('photoPendingBadge').style.display = '';
+    el.innerHTML = `
+      <div style="padding:12px;font-size:.78rem;color:var(--muted);border-bottom:1px solid var(--line)">${items.length} item${items.length!==1?'s':''} waiting for approval</div>
+      <div id="pendingList"></div>`;
+    const list = document.getElementById('pendingList');
+    list.innerHTML = items.map(it => {
+      const k = _bd([it.id]);
+      return `<div class="order-card" id="pend-${it.id}" style="margin:10px;border-radius:12px;border:1px solid var(--line);overflow:hidden">
+        <div style="display:flex;gap:10px;padding:10px;align-items:flex-start">
+          ${it.thumb ? `<img src="${esc(it.thumb)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer" onclick="expandPendingImg('${esc(it.thumb)}')" >` : '<div style="width:80px;height:80px;background:var(--line);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.5rem">📷</div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.88rem;color:var(--ink)">${esc(it.quote)}</div>
+            <div style="font-size:.76rem;color:var(--ink2);margin-top:2px">${esc(it.order_name)} · <span style="background:var(--ink2);color:#fff;border-radius:4px;padding:1px 6px;font-size:.7rem">${esc(it.color)}</span></div>
+            ${it.painter ? `<div style="font-size:.72rem;color:var(--muted);margin-top:3px">by ${esc(it.painter)}</div>` : ''}
+            <div style="font-size:.7rem;color:var(--muted)">${new Date(it.submitted_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;padding:8px 10px;border-top:1px solid var(--line);background:rgba(0,0,0,.02)">
+          <button data-bd="${k}" onclick="approvePending(_bd(this))" style="flex:1;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer">✓ Approve — Mark Found</button>
+          <button data-bd="${k}" onclick="rejectPending(_bd(this))" style="padding:9px 14px;background:none;border:1px solid var(--line);border-radius:8px;font-size:.82rem;color:var(--ink2);cursor:pointer">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-msg">Failed to load. Tap Pending tab to retry.</div>';
+  }
+}
+
+function expandPendingImg(src) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.onclick = () => ov.remove();
+  const img = document.createElement('img');
+  img.src = src;
+  img.style.cssText = 'max-width:90vw;max-height:90vh;border-radius:12px';
+  ov.appendChild(img);
+  document.body.appendChild(ov);
+}
+
+async function approvePending(params) {
+  const [id] = params;
+  const card = document.getElementById('pend-' + id);
+  if (card) card.style.opacity = '.4';
+  try {
+    await apiFetch({ action: 'approve_batch_pending', id });
+    await loadRackStatus();
+    updateSummary();
+    if (activeTab === 'list') { buildDateNav(); renderList(); }
+    renderPending();
+  } catch(e) {
+    if (card) card.style.opacity = '';
+    alert('Failed: ' + e.message);
+  }
+}
+
+async function rejectPending(params) {
+  const [id] = params;
+  const card = document.getElementById('pend-' + id);
+  if (card) card.style.opacity = '.4';
+  try {
+    await apiFetch({ action: 'reject_batch_pending', id });
+    renderPending();
+  } catch(e) {
+    if (card) card.style.opacity = '';
+    alert('Failed: ' + e.message);
+  }
 }
 
 function toggleHMenu() {
