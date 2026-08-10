@@ -984,7 +984,7 @@ function buildDateNav() {
     const dt = new Date(d + 'T00:00:00+05:30');
     const label = dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
     html += `<div class="d-chip${selectedDate===d?' active':''}${overdue?' overdue':''}" onclick="selectDate('${d}')">
-      <span class="d-day">${label}${overdue?':''}</span>
+      <span class="d-day">${label}${overdue?' !':''}</span>
       <span class="d-count">${missing > 0 ? missing + ' missing' : 'done'}</span>
       <span class="d-orders">${orders} orders</span>
     </div>`;
