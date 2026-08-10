@@ -552,8 +552,9 @@ input[type=file]{display:none}
 
   <div class="filter-row no-print">
     <div class="ftab active" onclick="setFilter('all')" data-f="all">All</div>
-    <div class="ftab" onclick="setFilter('missing')" data-f="missing">Missing</div>
-    <div class="ftab" onclick="setFilter('complete')" data-f="complete">Complete</div>
+    <div class="ftab" onclick="setFilter('missing')" data-f="missing">Not Started</div>
+    <div class="ftab" onclick="setFilter('partial')" data-f="partial">In Progress</div>
+    <div class="ftab" onclick="setFilter('matched')" data-f="matched">Matched ✓</div>
     <div class="ftab" onclick="setFilter('emergency')" data-f="emergency">Emergency</div>
   </div>
 
@@ -1714,11 +1715,11 @@ function renderList() {
     const totalF = o.items.reduce((s,it)=>s+it.found,0);
     const complete = totalF >= totalN;
     const partial  = totalF > 0 && !complete;
-    if (activeFilter === 'all')       return true;
+    if (activeFilter === 'all')       return !o.dispatched;
     if (activeFilter === 'missing')   return totalF === 0 && !o.dispatched;
     if (activeFilter === 'partial')   return partial && !o.dispatched;
-    if (activeFilter === 'complete')  return complete || o.dispatched;
-    if (activeFilter === 'emergency') return o.is_emergency;
+    if (activeFilter === 'matched')   return complete && !o.dispatched;
+    if (activeFilter === 'emergency') return o.is_emergency && !o.dispatched;
     return true;
   });
 
