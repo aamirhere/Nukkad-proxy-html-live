@@ -2644,8 +2644,8 @@ async function loadPrintQueue() {
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
-            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printAndClear('${esc(o.order_name)}',this)">Print Slip</button>
-            <button class="act-btn" style="font-size:.72rem;color:var(--muted)" onclick="clearPrinted('${esc(o.order_name)}',this)">✓ Done (no print)</button>
+            <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printAndClear('${esc(o.order_name)}',this)">↻ Reprint</button>
+            <button class="act-btn go" style="font-size:.72rem" onclick="clearPrinted('${esc(o.order_name)}',this)">✓ Mark Done</button>
           </div>
         </div>
       </div>`;
@@ -2658,8 +2658,8 @@ async function loadPrintQueue() {
 async function printAndClear(orderName, btn) {
   btn.disabled = true;
   await openSlip(orderName);
-  await apiFetch({ action: 'clear_print_queued', order_name: orderName }).catch(() => {});
-  setTimeout(() => loadPrintQueue(), 1200);
+  btn.disabled = false;
+  // Do NOT clear — queue persists until Mark Done
 }
 
 async function clearPrinted(orderName, btn) {
