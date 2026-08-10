@@ -472,14 +472,20 @@ input[type=file]{display:none}
   <div class="tab" id="tabProd" onclick="switchTab('prod')">Production</div>
 </div>
 
-<input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="fileInput" accept="image/*" capture="environment" multiple style="display:none">
 
 <!-- ── BATCH REVIEW OVERLAY ── -->
 <div class="br-overlay" id="brOverlay" style="display:none">
   <div class="br-sheet">
     <div class="br-header">
-      <div class="br-title">Review Batch — <span id="brConfirmCount">0</span> confirmed</div>
-      <button class="br-submit" onclick="submitBatch()">✓ Submit</button>
+      <div>
+        <div class="br-title">Tag Photos</div>
+        <div style="font-size:.72rem;color:var(--muted)"><span id="brTaggedCount">0</span> of <span id="brTotalCount">0</span> tagged</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="closeBrOverlay()" style="background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:.78rem;cursor:pointer;color:var(--ink2)">Cancel</button>
+        <button class="br-submit" id="brSubmitBtn" onclick="submitBatch()" style="opacity:.4;pointer-events:none">✓ Confirm Tagged</button>
+      </div>
     </div>
     <div class="br-list" id="brList"></div>
   </div>
@@ -553,7 +559,7 @@ input[type=file]{display:none}
     <div class="batch-bar" id="batchBar" style="margin:0;flex:1">
       <span class="bb-count" id="batchCount">0 photos queued</span>
       <button class="bb-clear" onclick="clearBatch()">✕ Clear</button>
-      <button class="bb-process" onclick="processBatch()">▶ Process</button>
+      <button class="bb-process" onclick="openBatchTag()">✎ Tag</button>
     </div>
   </div>
 
@@ -1108,21 +1114,43 @@ function captureWebcam() {
 }
 
 function handleFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+  const files = [...e.target.files];
+  if (!files.length) return;
+  // multiple files → batch tag mode always
+  if (files.length > 1) {
+    let loaded = 0;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        batchQueue.push({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', tag: null });
+        loaded++;
+        if (loaded === files.length) { updateBatchBar(); openBatchTag(); }
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+    return;
+  }
+  const file = files[0];
+  // single file in batch mode → add to queue
   if (batchMode) {
     const reader = new FileReader();
     reader.onload = ev => {
-      batchQueue.push({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', status: 'pending', vision: null, match: null, confirmed: false });
+      batchQueue.push({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', tag: null });
       updateBatchBar();
     };
     reader.readAsDataURL(file);
     e.target.value = '';
     return;
   }
-  setCamState('analyzing');
+  // single file normal mode → AI/manual single scan (skip AI, just show image + open search)
   const reader = new FileReader();
-  reader.onload = ev => processImage(ev.target.result, file.type || 'image/jpeg');
+  reader.onload = ev => {
+    const preview = document.getElementById('previewImg');
+    preview.src = ev.target.result;
+    preview.style.display = 'block';
+    document.getElementById('manualQ').focus();
+  };
   reader.readAsDataURL(file);
   e.target.value = '';
 }
@@ -3166,10 +3194,11 @@ function drawCode128(canvas, text, h) {
   }));
 }
 
-// ── BATCH SCAN MODE ──────────────────────────────────────────────────────────────
+// ── BATCH TAG MODE ──────────────────────────────────────────────────────────────
 let batchMode = false;
-let batchQueue = []; // { dataUrl, mimeType, status, vision, match, confirmed }
-
+let batchQueue = []; // { dataUrl, mimeType, tag: { quote, color, match } | null }
+// per-item suggestion state — keyed by index
+const _brSuggestIdx = {}; // i → current search val
 
 function clearBatch() {
   batchQueue = [];
@@ -3187,119 +3216,192 @@ function updateBatchBar() {
   }
 }
 
-async function processBatch() {
+function openBatchTag() {
   if (!batchQueue.length) return;
-  const processBtn = document.getElementById('batchBar').querySelector('.bb-process');
-  processBtn.textContent = 'Processing…';
-  processBtn.disabled = true;
-
-  await Promise.all(batchQueue.map(async (item) => {
-    if (item.status === 'done') return;
-    item.status = 'processing';
-    try {
-      const b64 = (await resizeImage(item.dataUrl, 700)).split(',')[1];
-      const vision = await apiFetch({ action: 'analyze_piece', image_base64: b64, media_type: item.mimeType.split(';')[0] }, VISION_API);
-      item.vision = vision;
-      if (vision.quote) {
-        const q = vision.quote.trim().toUpperCase();
-        const c = (vision.color || '').trim().toUpperCase();
-        const matches = rackItems.filter(it => {
-          const iq = it.quote.toUpperCase();
-          const ic = it.color.toUpperCase();
-          const quoteOk = iq === q || iq.includes(q) || q.includes(iq);
-          const colorOk = !c || c === 'UNKNOWN' || ic === c || ic.includes(c) || c.includes(ic);
-          return quoteOk && colorOk && it.found < it.needed;
-        });
-        item.match = matches.length ? matches[0] : null;
-      }
-      item.status = 'done';
-    } catch(e) {
-      item.status = 'error';
-      item.vision = { quote: '', color: '', confidence: 'none' };
-    }
-  }));
-
-  renderBatchReview();
+  renderBatchTag();
+  document.getElementById('brOverlay').style.display = 'flex';
 }
 
-function renderBatchReview() {
-  const overlay = document.getElementById('brOverlay');
-  const list    = document.getElementById('brList');
+function closeBrOverlay() {
+  document.getElementById('brOverlay').style.display = 'none';
+}
 
+function renderBatchTag() {
+  const list = document.getElementById('brList');
   list.innerHTML = batchQueue.map((item, i) => {
-    const conf  = item.vision?.confidence || 'none';
-    const quote = item.vision?.quote || '';
-    const color = item.vision?.color || '';
-    const m = item.match;
-    const matchHtml = m
-      ? `<div class="br-order">→ ${esc(m.order_name)} · ${esc(m.customer || '')}</div>`
-      : `<div class="br-nomatch">No match found in pending orders</div>`;
-    return `<div class="br-item${item.confirmed?' confirmed':''}" id="brItem${i}">
-      <div class="br-top">
-        <img class="br-thumb" src="${item.dataUrl}" loading="lazy">
-        <div class="br-info">
-          <span class="br-badge ${conf}">${conf} confidence</span>
-          <div class="br-quote">${esc(quote || '—')}</div>
-          <div class="br-color">${esc(color || '—')}</div>
-          ${matchHtml}
+    const tag = item.tag;
+    const tagged = !!tag;
+    const matchLine = tag?.match
+      ? `<div class="br-order" style="margin-top:4px">→ ${esc(tag.match.order_name)} · ${esc(tag.match.customer||'')} <span style="color:#4caf50;font-weight:700">${tag.match.found}/${tag.match.needed}</span></div>`
+      : tag ? `<div class="br-nomatch" style="margin-top:4px">No active order for this design</div>` : '';
+    return `<div class="br-item${tagged?' confirmed':''}" id="brItem${i}" style="position:relative">
+      <div class="br-top" style="align-items:flex-start">
+        <img class="br-thumb" src="${item.dataUrl}" loading="lazy" style="cursor:pointer;flex-shrink:0" onclick="brExpandImg(${i})">
+        <div class="br-info" style="flex:1;min-width:0">
+          ${tagged
+            ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                 <span style="font-weight:700;font-size:.84rem;color:var(--ink)">${esc(tag.quote)}</span>
+                 <span style="font-size:.72rem;background:#e8f5e9;color:#388e3c;padding:1px 8px;border-radius:20px;font-weight:700">✓ ${esc(tag.color||'Any color')}</span>
+                 <button onclick="brClearTag(${i})" style="background:none;border:none;color:var(--muted);font-size:.72rem;cursor:pointer;padding:0">✕ change</button>
+               </div>
+               ${matchLine}`
+            : `<div style="position:relative">
+                 <input id="brInp${i}" type="text" placeholder="Type design name…"
+                   style="width:100%;padding:8px 10px;border:1.5px solid var(--accent);border-radius:8px;font-size:.84rem;font-family:var(--fb);box-sizing:border-box;outline:none"
+                   autocomplete="off"
+                   oninput="brShowSuggest(${i},this.value)"
+                   onkeydown="if(event.key==='Enter')brPickFirst(${i});if(event.key==='Escape')brHideSuggest(${i})"
+                   onblur="setTimeout(()=>brHideSuggest(${i}),200)">
+                 <div id="brSuggest${i}" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:600;max-height:180px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.13);margin-top:2px"></div>
+               </div>`
+          }
         </div>
-      </div>
-      <div class="br-actions">
-        <button class="br-confirm-btn" onclick="toggleBrConfirm(${i})" ${!m?'disabled style="opacity:.35;cursor:not-allowed"':''}>✓ Confirm</button>
-        <button class="br-reject-btn" onclick="toggleBrReject(${i})">✗ Reject</button>
       </div>
     </div>`;
   }).join('');
 
-  updateBrCount();
-  overlay.style.display = 'flex';
-  const processBtn = document.getElementById('batchBar').querySelector('.bb-process');
-  processBtn.textContent = '▶ Process';
-  processBtn.disabled = false;
-}
+  // focus first untagged input
+  const first = batchQueue.findIndex(it => !it.tag);
+  if (first >= 0) setTimeout(() => document.getElementById('brInp' + first)?.focus(), 80);
 
-function toggleBrConfirm(i) {
-  const item = batchQueue[i];
-  item.confirmed = !item.confirmed;
-  const el = document.getElementById('brItem' + i);
-  el.classList.toggle('confirmed', item.confirmed);
-  el.classList.remove('rejected');
   updateBrCount();
 }
 
-function toggleBrReject(i) {
-  const item = batchQueue[i];
-  item.confirmed = false;
-  const el = document.getElementById('brItem' + i);
-  el.classList.add('rejected');
-  el.classList.remove('confirmed');
-  updateBrCount();
+function brShowSuggest(i, val) {
+  const box = document.getElementById('brSuggest' + i);
+  if (!box) return;
+  const q = norm(val.trim());
+  if (q.length < 1) { box.style.display = 'none'; return; }
+
+  const hitMap = new Map();
+  for (const it of rackItems) {
+    if (!norm(it.quote).includes(q)) continue;
+    if (!hitMap.has(it.quote)) {
+      hitMap.set(it.quote, { hasActive: !it.dispatched && it.found < it.needed });
+    } else if (!it.dispatched && it.found < it.needed) {
+      hitMap.get(it.quote).hasActive = true;
+    }
+  }
+
+  const hits = [...hitMap.entries()].sort((a,b) => b[1].hasActive - a[1].hasActive);
+  if (!hits.length) { box.style.display = 'none'; return; }
+
+  box.innerHTML = hits.slice(0, 12).map(([quote, h]) => {
+    const bk = _bd([i, quote]);
+    return `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.82rem;display:flex;gap:6px;align-items:center"
+      data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brPickDesign(d[0],d[1])">
+      <span style="flex:1;font-weight:600${!h.hasActive?';color:var(--muted)':''}">${esc(quote)}</span>
+      ${!h.hasActive ? '<span style="font-size:.66rem;color:var(--muted)">done/dispatched</span>' : ''}
+    </div>`;
+  }).join('');
+  box.style.display = 'block';
+}
+
+function brHideSuggest(i) {
+  const box = document.getElementById('brSuggest' + i);
+  if (box) box.style.display = 'none';
+}
+
+function brPickFirst(i) {
+  const box = document.getElementById('brSuggest' + i);
+  const first = box?.querySelector('[data-bd]');
+  if (first) first.click();
+}
+
+function brPickDesign(i, quote) {
+  brHideSuggest(i);
+  // find matching active rack items for color selection
+  const active = rackItems.filter(r => r.quote === quote && !r.dispatched && r.found < r.needed);
+  if (active.length === 1) {
+    // single match — auto-confirm with that color
+    brSetTag(i, quote, active[0].color, active[0]);
+  } else if (active.length === 0) {
+    // no active order — tag anyway so user sees it
+    brSetTag(i, quote, '', null);
+  } else {
+    // multiple colors — show color picker inline
+    brShowColorPick(i, quote, active);
+  }
+}
+
+function brShowColorPick(i, quote, options) {
+  const info = document.getElementById('brItem' + i)?.querySelector('.br-info');
+  if (!info) return;
+  info.innerHTML = `<div style="font-size:.82rem;font-weight:700;margin-bottom:6px">${esc(quote)}</div>
+    <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px">Pick color:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${options.map(r => {
+        const bk = _bd([i, quote, r.color, r.order_name]);
+        return `<button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brSetTagFromBtn(d[0],d[1],d[2],d[3])"
+          style="padding:5px 12px;border:1.5px solid var(--accent);border-radius:20px;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--ink)">${esc(r.color)} (${r.found}/${r.needed})</button>`;
+      }).join('')}
+    </div>`;
+}
+
+function brSetTagFromBtn(i, quote, color, orderName) {
+  const match = rackItems.find(r => r.order_name === orderName && r.quote === quote && r.color === color);
+  brSetTag(i, quote, color, match || null);
+}
+
+function brSetTag(i, quote, color, match) {
+  batchQueue[i].tag = { quote, color, match };
+  renderBatchTag();
+  // auto-focus next untagged
+  const next = batchQueue.findIndex((it, idx) => idx > i && !it.tag);
+  if (next >= 0) setTimeout(() => document.getElementById('brInp' + next)?.focus(), 60);
+}
+
+function brClearTag(i) {
+  batchQueue[i].tag = null;
+  renderBatchTag();
+  setTimeout(() => document.getElementById('brInp' + i)?.focus(), 60);
+}
+
+function brExpandImg(i) {
+  const src = batchQueue[i]?.dataUrl;
+  if (!src) return;
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center;cursor:pointer';
+  ov.onclick = () => document.body.removeChild(ov);
+  const img = document.createElement('img');
+  img.src = src;
+  img.style.cssText = 'max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain';
+  ov.appendChild(img);
+  document.body.appendChild(ov);
 }
 
 function updateBrCount() {
-  const n = batchQueue.filter(it => it.confirmed).length;
-  document.getElementById('brConfirmCount').textContent = n;
+  const tagged = batchQueue.filter(it => it.tag).length;
+  const total  = batchQueue.length;
+  document.getElementById('brTaggedCount').textContent = tagged;
+  document.getElementById('brTotalCount').textContent  = total;
+  const btn = document.getElementById('brSubmitBtn');
+  if (btn) {
+    const hasMatch = batchQueue.some(it => it.tag?.match);
+    btn.style.opacity = hasMatch ? '1' : '.4';
+    btn.style.pointerEvents = hasMatch ? 'auto' : 'none';
+    btn.textContent = `✓ Confirm Tagged (${batchQueue.filter(it=>it.tag?.match).length})`;
+  }
 }
 
 async function submitBatch() {
-  const confirmed = batchQueue.filter(it => it.confirmed && it.match);
-  if (!confirmed.length) { alert('No items confirmed.'); return; }
+  const toConfirm = batchQueue.filter(it => it.tag?.match);
+  if (!toConfirm.length) return;
 
-  const btn = document.querySelector('.br-submit');
-  btn.textContent = 'Submitting…';
-  btn.disabled = true;
+  const btn = document.getElementById('brSubmitBtn');
+  btn.textContent = 'Saving…'; btn.style.pointerEvents = 'none';
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   let done = 0;
-  for (const item of confirmed) {
+  for (const item of toConfirm) {
+    const m = item.tag.match;
     try {
-      const r = await apiFetch({ action: 'update_rack_found', order_name: item.match.order_name, quote: item.match.quote, color: item.match.color, delta: 1 });
-      const row = rackItems.find(it => it.order_name === item.match.order_name && it.quote === item.match.quote && it.color === item.match.color);
+      const r = await apiFetch({ action: 'update_rack_found', order_name: m.order_name, quote: m.quote, color: m.color, delta: 1 });
+      const row = rackItems.find(it => it.order_name === m.order_name && it.quote === m.quote && it.color === m.color);
       if (row) row.found = r.found;
-      logScan({ order_name: item.match.order_name, order_date: item.match.order_date, quote: item.vision.quote, color: item.vision.color, match_type: 'batch', confidence: item.vision.confidence });
-      // Tag painter if in painter drop-off mode
+      logScan({ order_name: m.order_name, order_date: m.order_date, quote: item.tag.quote, color: item.tag.color, match_type: 'batch_manual', confidence: 'manual' });
       if (currentPainter) {
-        apiFetch({ action: 'update_order_meta', order_name: item.match.order_name, quote: item.match.quote, color: item.match.color, painter: currentPainter, painter_date: today }).catch(() => {});
+        apiFetch({ action: 'update_order_meta', order_name: m.order_name, quote: m.quote, color: m.color, painter: currentPainter, painter_date: today }).catch(() => {});
         if (row) { row.painter = currentPainter; row.painter_date = today; }
       }
       done++;
@@ -3310,14 +3412,12 @@ async function submitBatch() {
   if (activeTab === 'list')     { buildDateNav(); renderList(); }
   if (activeTab === 'dispatch') { renderDispatch(); }
   loadRackStatus().catch(() => {});
-  document.getElementById('brOverlay').style.display = 'none';
+  closeBrOverlay();
   clearBatch();
   batchMode = false;
   currentPainter = null;
   setMode('sort');
-  setStatus(`✓ Batch: ${done} piece${done !== 1 ? 's' : ''} marked found`);
-  btn.textContent = '✓ Submit';
-  btn.disabled = false;
+  setStatus(`✓ Tagged: ${done} piece${done !== 1 ? 's' : ''} confirmed`);
 }
 
 function toggleHMenu() {
