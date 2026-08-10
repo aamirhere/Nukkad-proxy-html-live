@@ -289,6 +289,22 @@ input[type=file]{display:none}
 .slip-print-btn{background:var(--accent);color:#fff}
 .slip-cancel-btn{background:var(--bg);color:var(--ink2);border:1px solid var(--line)!important}
 
+/* ── TEMPLATE SETTINGS OVERLAY ── */
+.tpl-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;display:flex;align-items:flex-end;justify-content:center}
+.tpl-sheet{background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:18px 16px 32px;max-height:90vh;overflow-y:auto}
+.tpl-title{font-family:var(--ff);font-size:1rem;color:var(--ink);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.tpl-field{margin-bottom:12px}
+.tpl-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px}
+.tpl-input{width:100%;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;color:var(--ink);font-family:var(--fb)}
+.tpl-input:focus{outline:none;border-color:var(--accent)}
+.tpl-ta{width:100%;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.8rem;color:var(--ink);font-family:var(--fb);resize:vertical;min-height:60px}
+.tpl-ta:focus{outline:none;border-color:var(--accent)}
+.tpl-logo-row{display:flex;align-items:center;gap:10px}
+.tpl-logo-preview{width:56px;height:40px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.tpl-logo-empty{width:56px;height:40px;border:1.5px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.62rem;color:var(--muted);text-align:center;line-height:1.2}
+.tpl-save-btn{width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:.88rem;font-weight:700;cursor:pointer;margin-top:6px}
+.tpl-reset{font-size:.7rem;color:var(--muted);text-decoration:underline dotted;cursor:pointer;background:none;border:none;padding:0}
+
 /* A5 invoice styles */
 .inv{font-family:Arial,Helvetica,sans-serif;font-size:8px;color:#000;border:1.5px solid #000;width:100%;box-sizing:border-box}
 .inv table{border-collapse:collapse;width:100%}
@@ -404,6 +420,7 @@ input[type=file]{display:none}
     <div class="hmenu-wrap">
       <button class="hmenu-btn" onclick="toggleHMenu()" id="hmenuBtn">⋮</button>
       <div class="hmenu-drop" id="hmenuDrop">
+        <button class="hmenu-item" onclick="openTplOverlay();closeHMenu()">🖨 Slip Template</button>
         <button class="hmenu-item" onclick="openPainterDropOff();closeHMenu()">🎨 Painter Drop-off</button>
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">📊 Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
         <button class="hmenu-item" onclick="toggleLegacyPanel();closeHMenu()">📥 Legacy Orders</button>
@@ -654,6 +671,56 @@ input[type=file]{display:none}
     </div>
     <!-- body -->
     <div style="flex:1;overflow-y:auto;padding:12px 14px" id="sumBody"></div>
+  </div>
+</div>
+
+<!-- ── SLIP TEMPLATE SETTINGS ── -->
+<div id="tplOverlay" class="tpl-overlay" style="display:none" onclick="if(event.target===this)closeTplOverlay()">
+  <div class="tpl-sheet">
+    <div class="tpl-title">
+      <span>Slip Template</span>
+      <button class="tpl-reset" onclick="resetTpl()">Reset to defaults</button>
+    </div>
+
+    <div class="tpl-field">
+      <div class="tpl-label">Logo</div>
+      <div class="tpl-logo-row">
+        <div id="tplLogoWrap"><div class="tpl-logo-empty" id="tplLogoEmpty">No logo</div><img id="tplLogoPreview" class="tpl-logo-preview" style="display:none"></div>
+        <div>
+          <input type="file" id="tplLogoFile" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">
+          <button class="hbtn" onclick="document.getElementById('tplLogoFile').click()" style="font-size:.74rem;padding:5px 12px">Upload Image</button>
+          <button class="hbtn" onclick="clearLogo()" style="font-size:.7rem;padding:5px 10px;margin-left:4px;color:var(--muted)">Remove</button>
+          <div style="font-size:.65rem;color:var(--muted);margin-top:4px">PNG or JPG · will appear top-left on slip</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tpl-field">
+      <div class="tpl-label">Company Name</div>
+      <input class="tpl-input" id="tplCompanyName" placeholder="NukkadTales">
+    </div>
+
+    <div class="tpl-field">
+      <div class="tpl-label">Website / Tagline</div>
+      <input class="tpl-input" id="tplWebsite" placeholder="nukkadtales.com">
+    </div>
+
+    <div class="tpl-field">
+      <div class="tpl-label">Phone</div>
+      <input class="tpl-input" id="tplPhone" placeholder="+91-XXXXXXXXXX">
+    </div>
+
+    <div class="tpl-field">
+      <div class="tpl-label">Return / Seller Address</div>
+      <textarea class="tpl-ta" id="tplAddress" placeholder="360 SPIN LAB, 323, Second Floor, Near Upkar Apartment, Chilla Village, East Delhi, DL 110091"></textarea>
+    </div>
+
+    <div class="tpl-field">
+      <div class="tpl-label">GSTIN</div>
+      <input class="tpl-input" id="tplGstin" placeholder="07ASVPR0563L1ZZ">
+    </div>
+
+    <button class="tpl-save-btn" onclick="saveTpl()">Save Template</button>
   </div>
 </div>
 
@@ -1961,6 +2028,90 @@ function closeSlip() {
   if (slipEditMode) { slipEditMode = false; document.getElementById('slipEditBtn').textContent = '✏️ Edit'; }
 }
 
+// ── SLIP TEMPLATE SETTINGS ───────────────────────────────────────────────────
+const TPL_KEY = 'nt_slip_template';
+const TPL_DEFAULTS = {
+  companyName: 'NukkadTales',
+  website: 'nukkadtales.com',
+  phone: '',
+  address: '360 SPIN LAB, 323, Second Floor, Near Upkar Apartment, Chilla Village, East Delhi, DL 110091',
+  gstin: '07ASVPR0563L1ZZ',
+  logo: '', // base64 data URL
+};
+
+function getTpl() {
+  try { return { ...TPL_DEFAULTS, ...JSON.parse(localStorage.getItem(TPL_KEY) || '{}') }; }
+  catch { return { ...TPL_DEFAULTS }; }
+}
+
+function openTplOverlay() {
+  const t = getTpl();
+  document.getElementById('tplCompanyName').value = t.companyName;
+  document.getElementById('tplWebsite').value = t.website;
+  document.getElementById('tplPhone').value = t.phone;
+  document.getElementById('tplAddress').value = t.address;
+  document.getElementById('tplGstin').value = t.gstin;
+  showLogoPreview(t.logo);
+  document.getElementById('tplOverlay').style.display = 'flex';
+}
+
+function closeTplOverlay() {
+  document.getElementById('tplOverlay').style.display = 'none';
+}
+
+function showLogoPreview(dataUrl) {
+  const img = document.getElementById('tplLogoPreview');
+  const empty = document.getElementById('tplLogoEmpty');
+  if (dataUrl) {
+    img.src = dataUrl;
+    img.style.display = 'block';
+    empty.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    empty.style.display = 'flex';
+  }
+}
+
+function handleLogoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => showLogoPreview(e.target.result);
+  reader.readAsDataURL(file);
+}
+
+function clearLogo() {
+  document.getElementById('tplLogoFile').value = '';
+  showLogoPreview('');
+}
+
+function saveTpl() {
+  const logoFile = document.getElementById('tplLogoFile');
+  const existingLogo = document.getElementById('tplLogoPreview').src;
+  const logo = logoFile.files[0]
+    ? document.getElementById('tplLogoPreview').src  // already loaded by handleLogoUpload
+    : (document.getElementById('tplLogoPreview').style.display !== 'none' ? document.getElementById('tplLogoPreview').src : '');
+
+  const t = {
+    companyName: document.getElementById('tplCompanyName').value.trim() || TPL_DEFAULTS.companyName,
+    website:     document.getElementById('tplWebsite').value.trim(),
+    phone:       document.getElementById('tplPhone').value.trim(),
+    address:     document.getElementById('tplAddress').value.trim() || TPL_DEFAULTS.address,
+    gstin:       document.getElementById('tplGstin').value.trim() || TPL_DEFAULTS.gstin,
+    logo,
+  };
+  localStorage.setItem(TPL_KEY, JSON.stringify(t));
+  closeTplOverlay();
+  // show brief confirmation in status
+  setStatus('✓ Slip template saved');
+}
+
+function resetTpl() {
+  if (!confirm('Reset template to defaults?')) return;
+  localStorage.removeItem(TPL_KEY);
+  openTplOverlay(); // re-open with defaults
+}
+
 function openBlankSlip() {
   const overlay = document.getElementById('slipOverlay');
   overlay.style.display = 'flex';
@@ -2056,12 +2207,20 @@ function renderSlip(slip) {
 
   const pieceCount = items.reduce((s,li) => s + li.quantity, 0);
 
+  const tpl = getTpl();
+  const logoHtml = tpl.logo
+    ? `<img src="${tpl.logo}" style="max-height:28px;max-width:80px;object-fit:contain;display:block;margin-bottom:3px">`
+    : '';
+  const phoneHtml = tpl.phone ? `<div style="font-size:6.5px;color:#555">${esc(tpl.phone)}</div>` : '';
+
   document.getElementById('slipContent').innerHTML = `<div class="inv">
     <table>
       <tr>
         <td class="brand-cell" width="38%">
-          NukkadTales<br>
-          <span style="font-size:7px;font-weight:400;font-family:Arial,sans-serif;color:#555">nukkadtales.com</span><br>
+          ${logoHtml}
+          <span style="font-size:${tpl.logo ? '9px' : '13px'};font-weight:900;font-family:Georgia,serif">${esc(tpl.companyName)}</span><br>
+          <span style="font-size:7px;font-weight:400;font-family:Arial,sans-serif;color:#555">${esc(tpl.website)}</span>
+          ${phoneHtml}
           <div style="margin-top:5px">${awbBlock}</div>
         </td>
         <td class="ship-cell">
@@ -2117,8 +2276,8 @@ function renderSlip(slip) {
       </tr>
       <tr>
         <td class="footer-row" colspan="2">
-          <strong>Return Address:</strong> 360 SPIN LAB, 323, Second Floor, Near Upkar Apartment, Chilla Village, East Delhi, DL 110091<br>
-          <strong>GSTIN:</strong> 07ASVPR0563L1ZZ
+          <strong>Return Address:</strong> ${esc(tpl.address)}<br>
+          <strong>GSTIN:</strong> ${esc(tpl.gstin)}
         </td>
       </tr>
     </table>
