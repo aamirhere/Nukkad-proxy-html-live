@@ -1227,7 +1227,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     if (allFound) {
       todayDispatchCount++;
       updateSummary();
-      apiFetch({ action: 'queue_for_print', order_name: orderName }).catch(() => {});
+      apiFetch({ action: 'queue_for_print', order_name: orderName }).then(() => loadPrintQueue()).catch(() => {});
     }
     renderHistory();
   } catch(e) { alert('Error: ' + e.message); }
@@ -1238,6 +1238,7 @@ async function queueForPrint(orderName, btn) {
   try {
     await apiFetch({ action: 'queue_for_print', order_name: orderName });
     if (btn) { btn.textContent = '✓ Queued'; btn.style.background = '#388e3c'; }
+    loadPrintQueue(); // refresh queue panel silently
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = '📤 Queue Print'; }
     alert('Error: ' + e.message);
