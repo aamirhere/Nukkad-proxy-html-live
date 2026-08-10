@@ -717,16 +717,24 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function init() {
-  try {
-    const meta = await apiFetch({ action: 'get_rack_meta' });
-    if (meta.last_sync) {
-      setStatus(`Last synced: ${fmtDate(meta.last_sync)} · Loading from Supabase…`);
-    } else {
-      setStatus('First time — tap Sync to fetch all orders from 29 Jul.');
-    }
-  } catch(e) { /* ignore */ }
+  // load cached data immediately so UI is usable
   await loadRackStatus();
   updatePendingBadge();
+  // auto-sync in background — no spinner, status shows progress
+  autoSync();
+}
+
+async function autoSync() {
+  try {
+    setStatus('Syncing latest orders…');
+    const r = await apiFetch({ action: 'sync_rack' });
+    const resolvedMsg = r.pending_resolved > 0 ? ` · ✓ ${r.pending_resolved} pending applied` : '';
+    setStatus(`✓ Up to date · ${r.orders} orders · ${r.synced} items${resolvedMsg}`);
+    // reload silently if new data came in
+    if (r.synced > 0) await loadRackStatus();
+  } catch(e) {
+    setStatus(`Auto-sync failed: ${e.message} — tap ⟳ Sync to retry`);
+  }
 }
 
 function setStatus(msg) { document.getElementById('statusLine').textContent = msg; }
