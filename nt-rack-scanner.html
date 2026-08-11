@@ -1706,9 +1706,12 @@ function listSelToggle(bdKey) {
   const key = d[0] + '|||' + d[1] + '|||' + d[2];
   if (_listSel.has(key)) _listSel.delete(key);
   else _listSel.add(key);
+  const selected = _listSel.has(key);
   updateListSelBar();
   const chk = document.getElementById('lchk-' + bdKey);
-  if (chk) chk.checked = _listSel.has(key);
+  if (chk) chk.checked = selected;
+  const rowEl = document.querySelector(`.oi-line[data-bd="${bdKey}"]`);
+  if (rowEl) rowEl.style.background = selected ? '#fff3e0' : '';
 }
 
 function updateListSelBar() {
