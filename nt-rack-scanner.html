@@ -3289,10 +3289,16 @@ async function printAllQueued() {
   if (btn) { btn.disabled = true; btn.textContent = `Fetching ${orderNames.length} slips…`; }
   let slips = [];
   try {
-    const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: orderNames }, API, 120000);
-    const errors = (fetched || []).filter(s => s.error);
-    if (errors.length) console.warn('[PrintAll] failed slips:', errors.map(e => `${e.order_name}: ${e.error}`));
-    slips = (fetched || []).filter(s => !s.error);
+    // split into frontend batches of 20 so each backend call stays under 10s
+    const BATCH = 20;
+    for (let i = 0; i < orderNames.length; i += BATCH) {
+      const chunk = orderNames.slice(i, i + BATCH);
+      if (btn) btn.textContent = `Fetching ${i + chunk.length}/${orderNames.length} slips…`;
+      const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: chunk }, API, 30000);
+      const errors = (fetched || []).filter(s => s.error);
+      if (errors.length) console.warn('[PrintAll] failed slips:', errors.map(e => `${e.order_name}: ${e.error}`));
+      slips = slips.concat((fetched || []).filter(s => !s.error));
+    }
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
     return alert('Failed to fetch slips: ' + e.message);
