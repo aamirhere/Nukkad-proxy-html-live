@@ -964,9 +964,18 @@ async function init() {
   updatePendingBadge();
   refreshPendingBadge();
   maybeAutoSync();
-  // load full product catalog in background for scan suggestions
+  // load catalog from DB cache immediately, then sync new products from Shopify
   apiFetch({ action: 'get_design_catalog' }).then(r => {
     _designCatalog = (r.titles || []);
+    // sync in background to pick up any new Shopify products
+    return apiFetch({ action: 'sync_design_catalog' });
+  }).then(s => {
+    if (s && s.added > 0) {
+      // new products were added — refresh catalog
+      apiFetch({ action: 'get_design_catalog' }).then(r => {
+        _designCatalog = (r.titles || []);
+      }).catch(() => {});
+    }
   }).catch(() => {});
 }
 
@@ -1620,10 +1629,11 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
             <span class="m-item-p" style="color:var(--accent);font-size:.68rem;font-weight:700">tap ✓</span>
           </div>`;
         }
-        return `<div class="m-item${isTarget?' target':''}">
+        const ubk2 = _bd([it.order_name, r.quote, r.color]);
+        return `<div class="m-item${isTarget?' target':''}" style="cursor:pointer" data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck">
           <span class="m-item-q">${esc(r.quote)}</span>
           <span class="m-item-c">${esc(r.color)}</span>
-          <span class="m-item-p p-${p}">${r.found}/${r.needed}</span>
+          <span class="m-item-p p-${p}" style="font-size:.68rem">✓ ${r.found}/${r.needed} ↩</span>
         </div>`;
       }).join('')}</div>
       ${qtyHtml}
@@ -2012,6 +2022,47 @@ async function markItemFound(el) {
     el.style.opacity = ''; el.style.pointerEvents = '';
     alert('Error: ' + e.message);
   }
+}
+
+let _undoTimer = null;
+async function uncheckItem(orderName, quote, color) {
+  const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
+  if (!row || row.found <= 0) return;
+  const prevFound = row.found;
+  try {
+    const r = await apiFetch({ action: 'decrement_rack_found', order_name: orderName, quote, color });
+    row.found = r.found;
+    updateSummary();
+    buildDateNav();
+    renderList();
+    showUndoToast(orderName, quote, color, prevFound);
+  } catch(e) { alert('Uncheck failed: ' + e.message); }
+}
+
+function showUndoToast(orderName, quote, color, prevFound) {
+  let toast = document.getElementById('undoToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'undoToast';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#3a2b1d;color:#fff;padding:9px 16px;border-radius:20px;font-size:.8rem;z-index:9999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap';
+    document.body.appendChild(toast);
+  }
+  clearTimeout(_undoTimer);
+  toast.innerHTML = `Unmarked 1 piece <button onclick="redoMark('${esc(orderName)}','${esc(quote)}','${esc(color)}',${prevFound})" style="background:var(--accent);border:none;color:#fff;padding:3px 10px;border-radius:12px;font-size:.78rem;cursor:pointer;font-family:var(--fb)">Undo</button>`;
+  toast.style.display = 'flex';
+  _undoTimer = setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
+async function redoMark(orderName, quote, color, prevFound) {
+  clearTimeout(_undoTimer);
+  document.getElementById('undoToast').style.display = 'none';
+  const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
+  if (!row) return;
+  try {
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1 });
+    row.found = r.found;
+    updateSummary(); buildDateNav(); renderList();
+  } catch(e) { alert('Redo failed: ' + e.message); }
 }
 
 const ALL_COLORS = ['Peach','White','Blue','Orange','Red','Yellow','Purple','Green','Gold','Standard'];
@@ -2645,7 +2696,16 @@ function renderList() {
                 <div class="oi-n" style="color:${done?'#4caf50':'var(--muted)'}">${it.found}/${it.needed}</div>
               </div>`;
             }
-            return `<div class="oi-line${done?'':' oi-clickable'}" ${done?'':` data-bd="${bk}" onclick="markItemFound(this)"`} title="${done?'':'Tap to mark as found'}">
+            if (done) {
+              const ubk = _bd([it.order_name, it.quote, it.color]);
+              return `<div class="oi-line oi-clickable" data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck / reduce count">
+                <div class="oi-chk done" style="cursor:pointer">✓</div>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-c">${esc(it.color)}</div>
+                <div class="oi-n" style="color:var(--green)">${it.found}/${it.needed}</div>
+              </div>`;
+            }
+            return `<div class="oi-line oi-clickable" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found">
               <div class="oi-chk ${chkCls}">${chkTxt}</div>
               <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
               <div class="oi-c">${esc(it.color)}</div>
