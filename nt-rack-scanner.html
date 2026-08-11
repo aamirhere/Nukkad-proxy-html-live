@@ -608,11 +608,11 @@ input[type=file]{display:none}
   <div class="date-nav no-print" id="dateNav"></div>
 
   <div class="filter-row no-print">
-    <div class="ftab active" onclick="setFilter('all')" data-f="all">All</div>
-    <div class="ftab" onclick="setFilter('missing')" data-f="missing">Not Started</div>
-    <div class="ftab" onclick="setFilter('partial')" data-f="partial">In Progress</div>
-    <div class="ftab" onclick="setFilter('matched')" data-f="matched">Matched ✓</div>
-    <div class="ftab" onclick="setFilter('emergency')" data-f="emergency">Emergency</div>
+    <div class="ftab active" onclick="setFilter('all')" data-f="all" data-label="All">All</div>
+    <div class="ftab" onclick="setFilter('missing')" data-f="missing" data-label="Not Started">Not Started</div>
+    <div class="ftab" onclick="setFilter('partial')" data-f="partial" data-label="In Progress">In Progress</div>
+    <div class="ftab" onclick="setFilter('matched')" data-f="matched" data-label="Matched ✓">Matched ✓</div>
+    <div class="ftab" onclick="setFilter('emergency')" data-f="emergency" data-label="Emergency">Emergency</div>
   </div>
 
   <div class="print-btn-row no-print">
@@ -706,6 +706,7 @@ input[type=file]{display:none}
     <div style="display:flex;gap:6px">
       <button class="act-btn go" onclick="loadPrintQueue()">↺ Refresh</button>
       <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="printAllQueued()">Print All</button>
+      <button class="act-btn" style="background:#388e3c;color:#fff;border:none" onclick="dispatchAllQueued()">✓ Dispatch All</button>
     </div>
   </div>
   <!-- date chips: Today / Yesterday / 2 Days Ago (by scan date) + custom -->
@@ -2340,6 +2341,32 @@ function setFilter(f) {
   renderList();
 }
 
+function updateFilterCounts() {
+  let items = selectedDate === 'all' ? rackItems : rackItems.filter(it => it.order_date === selectedDate);
+  const byOrder = {};
+  for (const it of items) {
+    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0 };
+    byOrder[it.order_name].needed += it.needed;
+    byOrder[it.order_name].found  += it.found;
+    if (it.dispatched)   byOrder[it.order_name].dispatched   = true;
+    if (it.is_emergency) byOrder[it.order_name].is_emergency = true;
+  }
+  const all = Object.values(byOrder);
+  const counts = {
+    all:       all.filter(o => !o.dispatched).length,
+    missing:   all.filter(o => !o.dispatched && o.found === 0).length,
+    partial:   all.filter(o => !o.dispatched && o.found > 0 && o.found < o.needed).length,
+    matched:   all.filter(o => !o.dispatched && o.found >= o.needed).length,
+    emergency: all.filter(o => !o.dispatched && o.is_emergency).length,
+  };
+  document.querySelectorAll('.ftab').forEach(b => {
+    const f = b.dataset.f;
+    const c = counts[f];
+    b.textContent = b.dataset.label + (c != null ? ` ${c}` : '');
+    if (f === 'matched') b.textContent = b.dataset.label + ` ${c}`;
+  });
+}
+
 function renderList() {
   // Determine items to show based on selectedDate
   let items = selectedDate === 'all'
@@ -2471,13 +2498,13 @@ function renderList() {
             const bk = _bd([it.order_name, it.quote, it.color]);
             const selKey = `${it.order_name}|||${it.quote}|||${it.color}`;
             const isSel = _listSel.has(selKey);
-            if (_listSelMode && !done) {
+            if (_listSelMode) {
               const lk = _bd([it.order_name, it.quote, it.color]);
-              return `<div class="oi-line oi-clickable" data-bd="${lk}" onclick="listSelToggle(this.dataset.bd)" style="${isSel?'background:#fff3e0;':''}">
+              return `<div class="oi-line oi-clickable" data-bd="${lk}" onclick="listSelToggle(this.dataset.bd)" style="${isSel?'background:#fff3e0;':done?'opacity:.55;':''}">
                 <input type="checkbox" id="lchk-${lk}" style="width:15px;height:15px;accent-color:var(--accent);pointer-events:none;flex-shrink:0" ${isSel?'checked':''}>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}</div>
-                <div class="oi-n">${it.found}/${it.needed}</div>
+                <div class="oi-n" style="color:${done?'#4caf50':'var(--muted)'}">${it.found}/${it.needed}</div>
               </div>`;
             }
             return `<div class="oi-line${done?'':' oi-clickable'}" ${done?'':` data-bd="${bk}" onclick="markItemFound(this)"`} title="${done?'':'Tap to mark as found'}">
@@ -2499,6 +2526,7 @@ function renderList() {
   }
 
   document.getElementById('listContent').innerHTML = html;
+  updateFilterCounts();
 }
 
 // ── SUMMARY BAR ────────────────────────────────────────────────────────────────
@@ -3202,6 +3230,24 @@ async function dispatchFromQueue(orderName, btn) {
     btn.disabled = false; btn.textContent = '✓ Dispatched';
     alert('Error: ' + e.message);
   }
+}
+
+async function dispatchAllQueued() {
+  // dispatch all currently visible orders (respects date + print filter)
+  const cards = [...document.querySelectorAll('#printQueueList [data-order]')];
+  const orderNames = cards.map(c => c.dataset.order).filter(Boolean);
+  if (!orderNames.length) return alert('No visible orders to dispatch.');
+  if (!confirm(`Mark ${orderNames.length} order${orderNames.length !== 1 ? 's' : ''} as dispatched?`)) return;
+  const btn = document.querySelector('[onclick="dispatchAllQueued()"]');
+  if (btn) { btn.disabled = true; btn.textContent = `Dispatching…`; }
+  try {
+    await Promise.allSettled(orderNames.map(name => apiFetch({ action: 'dispatch_order', order_name: name })));
+    _pqOrders = _pqOrders.filter(o => !orderNames.includes(o.order_name));
+    buildPqDateChips();
+    renderPqList();
+    setStatus(`✓ ${orderNames.length} orders marked dispatched`);
+  } catch(e) { alert('Error: ' + e.message); }
+  if (btn) { btn.disabled = false; btn.textContent = '✓ Dispatch All'; }
 }
 
 async function printAllQueued() {
