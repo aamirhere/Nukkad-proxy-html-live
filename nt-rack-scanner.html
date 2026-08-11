@@ -3678,6 +3678,7 @@ async function printAllQueued() {
   if (_pqFilter === 'initiated') toPrint = toPrint.filter(o => o.print_initiated && !o.printed);
   if (_pqFilter === 'printed')   toPrint = toPrint.filter(o => o.printed);
   const orderNames = toPrint.map(o => o.order_name);
+  console.log('[PrintAll] filter:', _pqFilter, '| orders to print:', orderNames.length, '| names:', orderNames.slice(0,5));
   if (!orderNames.length) return alert('No visible orders to print.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
   if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length} slips…`; }
