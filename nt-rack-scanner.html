@@ -1354,6 +1354,26 @@ function findAlreadyCounted(quote, color) {
   return results[0] || null;
 }
 
+function findAllCounted(quote, color) {
+  // like findAlreadyCounted but returns all matched (non-dispatched) results
+  const results = [];
+  for (const it of rackItems) {
+    if (it.dispatched) continue;
+    if (it.found < it.needed) continue;
+    const qScore = wordSim(quote, it.quote);
+    if (qScore < 0.65) continue;
+    if (color) {
+      const cScore = wordSim(color, it.color);
+      if (cScore < 0.65) continue;
+      results.push({ it, qScore, cScore, score: qScore * 0.75 + cScore * 0.25 });
+    } else {
+      results.push({ it, qScore, cScore: 0.5, score: qScore * 0.75 + 0.5 * 0.25 });
+    }
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
 function reMatchWithColor(color) {
   const { quote, confidence } = currentVision;
   currentVision.color = color;
@@ -1362,17 +1382,17 @@ function reMatchWithColor(color) {
     showResult({ type: 'matches', quote, color, confidence, matches });
     return;
   }
-  // No active match — check if this piece is already fully counted
-  const counted = findAlreadyCounted(quote, color);
-  if (counted) {
-    showResult({ type: 'already_counted', quote, color, confidence, matches: [], counted });
+  // No unmatched orders — show matched orders dimmed if all done for this design
+  const counted = findAllCounted(quote, color);
+  if (counted.length) {
+    showResult({ type: 'matches', quote, color, confidence, matches: counted, allCounted: true });
     return;
   }
   showResult({ type: 'no_match', quote, color, confidence, matches });
 }
 
 // ── RESULT DISPLAY ─────────────────────────────────────────────────────────────
-function showResult({ type, quote, color, confidence, matches, message, counted }) {
+function showResult({ type, quote, color, confidence, matches, message, counted, allCounted }) {
   const isManual = confidence === 'manual';
   const area = document.getElementById('resultArea');
 
@@ -1452,7 +1472,10 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
 
   const today = _todayIST();
 
-  let html = `<div class="result-card"><div class="rc-top">Best match${matches.length>1?' — scroll for more':''}</div>${visionHtml}`;
+  const topLabel = allCounted
+    ? `All orders matched — ${matches.length} order${matches.length>1?'s':''} done`
+    : `Best match${matches.length>1?' — scroll for more':''}`;
+  let html = `<div class="result-card"><div class="rc-top">${topLabel}</div>${visionHtml}`;
 
   matches.forEach((m, idx) => {
     const { it } = m;
@@ -1490,7 +1513,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted 
       <span style="font-size:.7rem;color:var(--muted)">(${remaining} needed)</span>
     </div>` : '';
 
-    html += `<div class="match-block${idx===0?' best':''}">
+    html += `<div class="match-block${idx===0?' best':''}" style="${allCounted?'opacity:.45;pointer-events:none;':''}">
       <div class="m-head">
         <div>
           <div class="m-order">${esc(it.order_name)} · ${esc(it.customer||'')}</div>
