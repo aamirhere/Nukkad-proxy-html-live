@@ -470,6 +470,9 @@ input[type=file]{display:none}
 
 <input type="file" id="fileInput" accept="image/*" capture="environment" multiple style="display:none">
 
+<!-- shared portal dropdown for brSuggest — outside any overflow container -->
+<div id="brSuggestPortal" style="display:none;position:fixed;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:1000;max-height:220px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.22)"></div>
+
 <!-- ── BATCH REVIEW OVERLAY ── -->
 <div class="br-overlay" id="brOverlay" style="display:none">
   <div class="br-sheet">
@@ -3915,15 +3918,12 @@ function renderBatchTag() {
                  <button onclick="brClearTag(${i})" style="background:none;border:none;color:var(--muted);font-size:.72rem;cursor:pointer;padding:0">✕ change</button>
                </div>
                ${matchLine}`
-            : `<div style="position:relative">
-                 <input id="brInp${i}" type="text" placeholder="Type design name…"
+            : `<input id="brInp${i}" type="text" placeholder="Type design name…"
                    style="width:100%;padding:8px 10px;border:1.5px solid var(--accent);border-radius:8px;font-size:.84rem;font-family:var(--fb);box-sizing:border-box;outline:none"
                    autocomplete="off"
                    oninput="brShowSuggest(${i},this.value)"
-                   onkeydown="if(event.key==='Enter')brPickFirst(${i});if(event.key==='Escape')brHideSuggest(${i})"
-                   onblur="setTimeout(()=>brHideSuggest(${i}),200)">
-                 <div id="brSuggest${i}" style="display:none;position:fixed;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:900;max-height:200px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
-               </div>`
+                   onkeydown="if(event.key==='Enter')brPickFirst(${i});if(event.key==='Escape')brHideSuggest()"
+                   onblur="setTimeout(()=>brHideSuggest(),200)">`
           }
         </div>
       </div>
@@ -3937,12 +3937,13 @@ function renderBatchTag() {
   updateBrCount();
 }
 
+let _brSuggestFor = null; // current item index the portal is serving
 function brShowSuggest(i, val) {
-  const box = document.getElementById('brSuggest' + i);
+  const box = document.getElementById('brSuggestPortal');
   if (!box) return;
   const q = norm(val.trim());
   if (q.length < 1) { box.style.display = 'none'; return; }
-  // position fixed relative to input
+  _brSuggestFor = i;
   const inp = document.getElementById('brInp' + i);
   if (inp) {
     const r = inp.getBoundingClientRect();
@@ -3960,6 +3961,10 @@ function brShowSuggest(i, val) {
       hitMap.get(it.quote).hasActive = true;
     }
   }
+  // also include catalog-only matches
+  for (const t of _designCatalog) {
+    if (norm(t).includes(q) && !hitMap.has(t)) hitMap.set(t, { hasActive: false });
+  }
 
   const hits = [...hitMap.entries()].sort((a,b) => b[1].hasActive - a[1].hasActive);
   if (!hits.length) { box.style.display = 'none'; return; }
@@ -3967,7 +3972,7 @@ function brShowSuggest(i, val) {
   box.innerHTML = hits.slice(0, 12).map(([quote, h]) => {
     const bk = _bd([i, quote]);
     return `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.82rem;display:flex;gap:6px;align-items:center"
-      data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brPickDesign(d[0],d[1])">
+      data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brPickDesign(d[0],d[1]);brHideSuggest()">
       <span style="flex:1;font-weight:600${!h.hasActive?';color:var(--muted)':''}">${esc(quote)}</span>
       ${!h.hasActive ? '<span style="font-size:.66rem;color:var(--muted)">done/dispatched</span>' : ''}
     </div>`;
@@ -3975,13 +3980,14 @@ function brShowSuggest(i, val) {
   box.style.display = 'block';
 }
 
-function brHideSuggest(i) {
-  const box = document.getElementById('brSuggest' + i);
+function brHideSuggest() {
+  const box = document.getElementById('brSuggestPortal');
   if (box) box.style.display = 'none';
+  _brSuggestFor = null;
 }
 
 function brPickFirst(i) {
-  const box = document.getElementById('brSuggest' + i);
+  const box = document.getElementById('brSuggestPortal');
   const first = box?.querySelector('[data-bd]');
   if (first) first.click();
 }
@@ -4005,13 +4011,19 @@ function brPickDesign(i, quote) {
 function brShowColorPick(i, quote, options) {
   const info = document.getElementById('brItem' + i)?.querySelector('.br-info');
   if (!info) return;
+  // deduplicate by color — pick the first matching order per color
+  const byColor = new Map();
+  for (const r of options) {
+    if (!byColor.has(r.color)) byColor.set(r.color, r);
+  }
+  const unique = [...byColor.values()];
   info.innerHTML = `<div style="font-size:.82rem;font-weight:700;margin-bottom:6px">${esc(quote)}</div>
     <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px">Pick color:</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px">
-      ${options.map(r => {
+      ${unique.map(r => {
         const bk = _bd([i, quote, r.color, r.order_name]);
         return `<button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brSetTagFromBtn(d[0],d[1],d[2],d[3])"
-          style="padding:5px 12px;border:1.5px solid var(--accent);border-radius:20px;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--ink)">${esc(r.color)} (${r.found}/${r.needed})</button>`;
+          style="padding:5px 12px;border:1.5px solid var(--accent);border-radius:20px;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--ink)">${esc(r.color)}</button>`;
       }).join('')}
     </div>`;
 }
