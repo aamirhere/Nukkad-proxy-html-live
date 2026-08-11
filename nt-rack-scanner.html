@@ -4424,36 +4424,64 @@ function _renderPainterResults(q, origVal) {
   const activeChannel = (packingCtx !== 'daily') ? packingCtx : null;
   const activeCh = activeChannel ? CH.find(c => c.id === activeChannel) : null;
 
-  function _chQtyBlock(qk, quoteTxt) {
+  // unique colors available for a quote in active (pending) rack items
+  function _quoteColors(quote) {
+    const seen = new Set();
+    return rackItems.filter(r => r.quote === quote && !r.dispatched && r.found < r.needed && r.color)
+      .filter(r => { if (seen.has(r.color)) return false; seen.add(r.color); return true; })
+      .map(r => r.color);
+  }
+
+  function _colorPills(qk, colors, inputId) {
+    if (!colors.length) return '';
+    return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
+      ${colors.map(c => `<button type="button"
+        onclick="painterPickColor('${qk}','${esc(c)}','${inputId}')"
+        id="pcol_${qk}_${esc(c).replace(/\s/g,'_')}"
+        style="padding:4px 10px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">${esc(c)}</button>`).join('')}
+    </div>`;
+  }
+
+  function _chBlock(qk, quoteTxt) {
+    const colors = _quoteColors(quoteTxt);
     if (activeCh) {
-      // channel already known — show qty directly
-      return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:${activeCh.bg};border-radius:10px;margin-top:8px">
-        <span style="font-size:.82rem;font-weight:700;color:${activeCh.color}">${activeCh.label}</span>
-        <span style="font-size:.78rem;color:var(--ink2)">— Qty:</span>
-        <input type="number" min="1" value="1"
-          style="width:56px;padding:4px 8px;border:1.5px solid ${activeCh.color};border-radius:6px;font-size:.88rem;text-align:center"
-          id="pchqty_${qk}_inp">
-        <button onclick="painterTagChannel('${qk}','${esc(quoteTxt)}',this)"
-          style="padding:6px 16px;border-radius:8px;border:none;background:${activeCh.color};color:#fff;font-size:.8rem;font-weight:700;cursor:pointer">Confirm</button>
+      // packingCtx already set — show color pills + qty
+      return `<div style="padding:10px 12px;background:${activeCh.bg};border-radius:10px;margin-top:8px">
+        <div style="font-size:.78rem;font-weight:700;color:${activeCh.color};margin-bottom:6px">${activeCh.label}</div>
+        ${colors.length > 1 ? `<div style="font-size:.68rem;color:var(--muted);margin-bottom:4px">Color:</div>${_colorPills(qk, colors, 'pchcolor_'+qk)}` : ''}
+        <input type="hidden" id="pchcolor_${qk}" value="${esc(colors.length === 1 ? colors[0] : (_scanColor||''))}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
+          <input type="number" min="1" value="1"
+            style="width:56px;padding:4px 8px;border:1.5px solid ${activeCh.color};border-radius:6px;font-size:.88rem;text-align:center"
+            id="pchqty_${qk}_inp">
+          <button onclick="painterTagChannel('${qk}','${esc(quoteTxt)}',this)"
+            style="padding:6px 16px;border-radius:8px;border:none;background:${activeCh.color};color:#fff;font-size:.8rem;font-weight:700;cursor:pointer">Confirm</button>
+        </div>
       </div>`;
     }
-    // no channel selected — show picker buttons
-    return `<div style="margin-top:8px">
+    // daily mode — show channel picker buttons; expand on tap
+    return `<div style="margin-top:8px" id="pchsec_${qk}">
       <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Tag for channel</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px">
-        ${CH.map(ch => `<button onclick="painterExpandChannel('${qk}','${esc(quoteTxt)}','${ch.id}')"
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px" id="pchbtns_${qk}">
+        ${CH.map(ch => `<button type="button" onclick="painterExpandChannel('${qk}','${esc(quoteTxt)}','${ch.id}')"
           style="padding:4px 10px;border-radius:20px;border:1.5px solid ${ch.color};background:#fff;color:${ch.color};font-size:.72rem;font-weight:700;cursor:pointer"
           id="pch_${qk}_${ch.id}">${ch.label}</button>`).join('')}
       </div>
-      <div id="pchqty_${qk}" style="display:none;align-items:center;gap:8px;padding:8px 10px;background:#e8eaf6;border-radius:8px">
-        <span style="font-size:.78rem;color:var(--ink2)" id="pchqty_${qk}_lbl">Qty:</span>
-        <input type="number" min="1" value="1"
-          style="width:56px;padding:4px 8px;border:1.5px solid #9fa8da;border-radius:6px;font-size:.88rem;text-align:center"
-          id="pchqty_${qk}_inp">
-        <button onclick="painterTagChannel('${qk}','${esc(quoteTxt)}',this)"
-          style="padding:5px 14px;border-radius:8px;border:none;background:#283593;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
-        <button onclick="painterClearChannelExpand('${qk}')"
-          style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+      <div id="pchqty_${qk}" style="display:none;flex-direction:column;gap:8px;padding:10px 12px;background:#e8eaf6;border-radius:10px">
+        <div style="font-size:.78rem;font-weight:700;color:var(--ink2)" id="pchqty_${qk}_lbl">Channel</div>
+        ${colors.length > 0 ? `<div><div style="font-size:.68rem;color:var(--muted);margin-bottom:4px">Color:</div>${_colorPills(qk, colors, 'pchcolor_'+qk)}</div>` : ''}
+        <input type="hidden" id="pchcolor_${qk}" value="${esc(_scanColor||'')}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
+          <input type="number" min="1" value="1"
+            style="width:56px;padding:4px 8px;border:1.5px solid #9fa8da;border-radius:6px;font-size:.88rem;text-align:center"
+            id="pchqty_${qk}_inp">
+          <button onclick="painterTagChannel('${qk}','${esc(quoteTxt)}',this)"
+            style="padding:5px 14px;border-radius:8px;border:none;background:#283593;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+          <button type="button" onclick="painterClearChannelExpand('${qk}')"
+            style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+        </div>
       </div>
     </div>`;
   }
@@ -4467,8 +4495,8 @@ function _renderPainterResults(q, origVal) {
       <div style="font-weight:700;font-size:.88rem;margin-bottom:8px">${esc(quote)}</div>`;
 
     if (!activeChannel && active.length) {
-      // daily mode — show individual order rows
-      html += `<div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Orders</div>`;
+      html += `<div id="pord_${qk}">
+        <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Orders</div>`;
       html += active.map(r => {
         const bk = _bd([r.order_name, r.quote, r.color]);
         const rowId = 'prow_' + bk;
@@ -4485,20 +4513,23 @@ function _renderPainterResults(q, origVal) {
             <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
               style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
           </div>
-          <div id="${rowId}_qty" style="display:none;margin-top:8px;align-items:center;gap:8px;padding:8px 10px;background:#f1f8e9;border-radius:8px">
-            <span style="font-size:.78rem;color:var(--ink2)">Qty found:</span>
-            <input type="number" min="1" max="${r.needed - r.found}" value="${r.needed - r.found}"
-              style="width:56px;padding:4px 8px;border:1.5px solid #a5d6a7;border-radius:6px;font-size:.88rem;text-align:center"
-              id="${rowId}_qtyinp">
-            <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this,'${rowId}_qtyinp')"
-              style="padding:5px 14px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
-            <button onclick="document.getElementById('${rowId}_qty').style.display='none'"
-              style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+          <div id="${rowId}_qty" style="display:none;margin-top:8px;flex-direction:column;gap:6px;padding:8px 10px;background:#f1f8e9;border-radius:8px">
+            <div style="font-size:.72rem;color:var(--muted)">Marking found for <strong>${esc(r.order_name)}</strong> · ${esc(r.color||'')}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
+              <input type="number" min="1" max="${r.needed - r.found}" value="${r.needed - r.found}"
+                style="width:56px;padding:4px 8px;border:1.5px solid #a5d6a7;border-radius:6px;font-size:.88rem;text-align:center"
+                id="${rowId}_qtyinp">
+              <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this,'${rowId}_qtyinp','${rowId}')"
+                style="padding:5px 14px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+              <button onclick="document.getElementById('${rowId}_qty').style.display='none'"
+                style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+            </div>
           </div>
         </div>`;
       }).join('');
+      html += `</div>`; // close pord_${qk}
     } else if (activeChannel && active.length) {
-      // channel mode — show pending order context but route to channel
       html += `<div style="font-size:.72rem;color:var(--ink2);margin-bottom:6px">${active.length} pending order${active.length>1?'s':''}: ${active.map(r=>`<span style="color:var(--accent);font-weight:700">${esc(r.order_name)}</span>`).join(', ')}</div>`;
     }
 
@@ -4506,7 +4537,8 @@ function _renderPainterResults(q, origVal) {
       html += `<div style="font-size:.7rem;color:var(--muted);margin-top:4px;margin-bottom:4px">✓ ${done.length} already done</div>`;
     }
 
-    html += _chQtyBlock(qk, quote);
+    html += _chBlock(qk, quote);
+    html += `<div id="pmatch_${qk}"></div>`; // matched orders shown here after confirm
     html += `</div>`;
   }
 
@@ -4514,66 +4546,97 @@ function _renderPainterResults(q, origVal) {
     const qk = title.replace(/[^a-z0-9]/gi,'_').slice(0,30) + '_cat';
     html += `<div style="background:#fdf5ec;border:1px dashed var(--line);border-radius:12px;padding:12px 14px;margin-bottom:6px">
       <div style="font-size:.82rem;color:var(--ink2);margin-bottom:6px">${esc(title)} <span style="font-size:.68rem;color:var(--muted)">— no pending orders</span></div>
-      ${_chQtyBlock(qk, title)}
+      ${_chBlock(qk, title)}
+      <div id="pmatch_${qk}"></div>
     </div>`;
   }
 
   document.getElementById('painterSearchResults').innerHTML = html;
 }
 
-function painterExpandOrder(bk, rowId) {
-  const qtyDiv = document.getElementById(rowId + '_qty');
-  if (!qtyDiv) return;
-  qtyDiv.style.display = 'flex';
+function painterPickColor(qk, color, inputId) {
+  document.getElementById(inputId).value = color;
+  // highlight active pill
+  document.querySelectorAll(`[id^="pcol_${qk}_"]`).forEach(b => {
+    const isThis = b.id === `pcol_${qk}_${color.replace(/\s/g,'_')}`;
+    b.style.background = isThis ? 'var(--accent)' : '#fff';
+    b.style.color = isThis ? '#fff' : 'var(--ink2)';
+    b.style.borderColor = isThis ? 'var(--accent)' : 'var(--line)';
+  });
 }
 
-let _painterChCtx = {}; // qk → channelId
+function painterExpandOrder(bk, rowId) {
+  document.getElementById(rowId + '_qty').style.display = 'flex';
+}
+
+let _painterChCtx = {};
 function painterExpandChannel(qk, quote, channelId) {
   _painterChCtx[qk] = { channelId, quote };
-  // highlight selected
+  const ch = [{id:'prime',color:'#1565c0',bg:'#e8eaf6',label:'🔵 Prime'},{id:'zepto',color:'#6a0dad',bg:'#f3e5f5',label:'⚡ Zepto'},{id:'blinkit',color:'#d48f00',bg:'#fff8e1',label:'🟡 Blinkit'},{id:'bulk',color:'#2e7d32',bg:'#e8f5e9',label:'📦 Bulk'}];
+  const sel = ch.find(c => c.id === channelId);
   ['prime','zepto','blinkit','bulk'].forEach(id => {
     const b = document.getElementById('pch_' + qk + '_' + id);
-    if (b) b.style.fontWeight = id === channelId ? '900' : '700';
-    if (b) b.style.opacity = id === channelId ? '1' : '0.5';
+    if (b) b.style.opacity = id === channelId ? '1' : '0.4';
   });
   const lbl = document.getElementById('pchqty_' + qk + '_lbl');
-  if (lbl) lbl.textContent = 'Qty for ' + channelId + ':';
+  if (lbl && sel) { lbl.textContent = sel.label; lbl.style.color = sel.color; }
+  // hide orders section
+  const ordEl = document.getElementById('pord_' + qk);
+  if (ordEl) ordEl.style.display = 'none';
   const qtyDiv = document.getElementById('pchqty_' + qk);
-  if (qtyDiv) qtyDiv.style.display = 'flex';
+  if (qtyDiv) { qtyDiv.style.display = 'flex'; qtyDiv.style.flexDirection = 'column'; }
 }
 
 function painterClearChannelExpand(qk) {
   delete _painterChCtx[qk];
   ['prime','zepto','blinkit','bulk'].forEach(id => {
     const b = document.getElementById('pch_' + qk + '_' + id);
-    if (b) { b.style.fontWeight = '700'; b.style.opacity = '1'; }
+    if (b) b.style.opacity = '1';
   });
+  const ordEl = document.getElementById('pord_' + qk);
+  if (ordEl) ordEl.style.display = '';
   const qtyDiv = document.getElementById('pchqty_' + qk);
   if (qtyDiv) qtyDiv.style.display = 'none';
 }
 
+function _showMatchedOrders(qk, quote, color) {
+  const el = document.getElementById('pmatch_' + qk);
+  if (!el) return;
+  const matched = rackItems.filter(r => r.quote === quote && !r.dispatched && r.found < r.needed && (!color || r.color.toLowerCase() === color.toLowerCase()));
+  if (!matched.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)">
+    <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Matched orders</div>
+    ${matched.map(r => `<div style="font-size:.78rem;padding:4px 0;border-bottom:1px solid var(--line)">
+      <span style="font-weight:700;color:var(--accent)">${esc(r.color)}</span>
+      <span style="color:var(--muted);margin-left:5px">${esc(r.order_name)}</span>
+      ${r.customer ? `<span style="color:var(--ink2);margin-left:4px">· ${esc(r.customer)}</span>` : ''}
+      <span style="color:var(--ink2);font-size:.7rem;margin-left:4px">(${r.found}/${r.needed})</span>
+    </div>`).join('')}
+  </div>`;
+}
+
 async function painterTagChannel(qk, quote, btn) {
-  // channel is either the active packingCtx (when not daily) or manually picked
   const channelId = (packingCtx !== 'daily') ? packingCtx : (_painterChCtx[qk]?.channelId);
   if (!channelId) return;
   const inp = document.getElementById('pchqty_' + qk + '_inp');
   const qty = parseInt(inp?.value) || 1;
-  const color = (_scanColor || '').trim() || '';
+  const colorInp = document.getElementById('pchcolor_' + qk);
+  const color = (colorInp?.value || _scanColor || '').trim();
   btn.disabled = true; btn.textContent = '…';
   try {
     await apiFetch({ action: 'add_stock_item', quote, color, channel: channelId, qty, painter: currentPainter || null });
-    btn.textContent = '✓ Tagged';
-    btn.style.background = '#4caf50';
+    btn.textContent = '✓ Tagged'; btn.style.background = '#4caf50';
+    _showMatchedOrders(qk, quote, color);
     setTimeout(() => {
       painterClearChannelExpand(qk);
       btn.disabled = false; btn.textContent = 'Confirm';
-      const CH_COLORS = {prime:'#1565c0',zepto:'#6a0dad',blinkit:'#283593',bulk:'#2e7d32'};
+      const CH_COLORS = {prime:'#1565c0',zepto:'#6a0dad',blinkit:'#d48f00',bulk:'#2e7d32'};
       btn.style.background = CH_COLORS[channelId] || '#283593';
-    }, 1800);
+    }, 2000);
   } catch(e) { btn.disabled = false; btn.textContent = 'Confirm'; alert(e.message); }
 }
 
-async function painterMarkFound(orderName, quote, color, btn, qtyInpId) {
+async function painterMarkFound(orderName, quote, color, btn, qtyInpId, rowId) {
   const qty = qtyInpId ? (parseInt(document.getElementById(qtyInpId)?.value) || 1) : 1;
   btn.disabled = true; btn.textContent = '…';
   try {
@@ -4582,8 +4645,13 @@ async function painterMarkFound(orderName, quote, color, btn, qtyInpId) {
     if (it) it.found = r.found ?? Math.min(it.found + qty, it.needed);
     btn.textContent = '✓ Done'; btn.style.background = '#4caf50';
     updateSummary(); buildDateNav(); renderList();
-    const qv = norm(document.getElementById('painterSearchQ')?.value || '');
-    if (qv.length >= 2) _renderPainterResults(qv, qv);
+    // show remaining matched orders
+    const qk = quote.replace(/[^a-z0-9]/gi,'_').slice(0,30) + '_' + Math.abs(quote.split('').reduce((a,c)=>a+c.charCodeAt(0),0));
+    _showMatchedOrders(qk, quote, color);
+    setTimeout(() => {
+      const qv = norm(document.getElementById('painterSearchQ')?.value || '');
+      if (qv.length >= 2) _renderPainterResults(qv, qv);
+    }, 2000);
   } catch(e) { btn.disabled = false; btn.textContent = 'Confirm'; alert(e.message); }
 }
 
