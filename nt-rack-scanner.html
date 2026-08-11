@@ -528,7 +528,17 @@ input[type=file]{display:none}
     <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">Bulk</button>
   </div>
 
-  <!-- scan button + search input row -->
+  <!-- painter-mode big camera button (shown only in painter mode) -->
+  <div id="painterScanArea" style="display:none;flex-direction:column;align-items:center;gap:14px;padding:24px 0 8px">
+    <div style="font-size:.78rem;color:var(--muted)">Painter: <strong id="painterScanName"></strong></div>
+    <div onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:100%;padding:32px 0">
+      <span style="font-size:2.6rem;line-height:1">📷</span>
+      <span style="color:#fff;font-size:1rem;font-weight:700">Scan Piece</span>
+    </div>
+  </div>
+
+  <!-- scan button + search input row (hidden in painter mode) -->
+  <div id="normalScanArea">
   <div style="position:relative;margin-bottom:6px">
     <div style="display:flex;gap:6px;align-items:center">
       <input class="m-input" type="text" id="manualQ"
@@ -551,6 +561,7 @@ input[type=file]{display:none}
   <div id="scanColorBar" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center">
     <span style="font-size:.7rem;color:var(--muted);white-space:nowrap">Color:</span>
     <div class="color-pills" id="scanColorPills" style="margin-top:0"></div>
+  </div>
   </div>
 
   <!-- preview + batch bar strip -->
@@ -1208,12 +1219,13 @@ function handleFile(e) {
     return;
   }
   const file = files[0];
-  // single file in batch mode → add to queue
+  // single file in batch mode → add to queue and open tag overlay immediately
   if (batchMode) {
     const reader = new FileReader();
     reader.onload = ev => {
       batchQueue.push({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', tag: null });
       updateBatchBar();
+      openBatchTag();
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -3356,6 +3368,8 @@ function setMode(mode) {
     batchMode = false;
     clearBatch();
     currentPainter = null;
+    document.getElementById('normalScanArea').style.display = '';
+    document.getElementById('painterScanArea').style.display = 'none';
   }
 
   activeMode = mode;
@@ -3879,7 +3893,7 @@ function renderBatchTag() {
                    oninput="brShowSuggest(${i},this.value)"
                    onkeydown="if(event.key==='Enter')brPickFirst(${i});if(event.key==='Escape')brHideSuggest(${i})"
                    onblur="setTimeout(()=>brHideSuggest(${i}),200)">
-                 <div id="brSuggest${i}" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:600;max-height:180px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.13);margin-top:2px"></div>
+                 <div id="brSuggest${i}" style="display:none;position:fixed;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:900;max-height:200px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
                </div>`
           }
         </div>
@@ -3899,6 +3913,14 @@ function brShowSuggest(i, val) {
   if (!box) return;
   const q = norm(val.trim());
   if (q.length < 1) { box.style.display = 'none'; return; }
+  // position fixed relative to input
+  const inp = document.getElementById('brInp' + i);
+  if (inp) {
+    const r = inp.getBoundingClientRect();
+    box.style.left = r.left + 'px';
+    box.style.width = r.width + 'px';
+    box.style.top = (r.bottom + 4) + 'px';
+  }
 
   const hitMap = new Map();
   for (const it of rackItems) {
@@ -4313,7 +4335,10 @@ function selectPainter(name) {
   closePainterOverlay();
   batchMode = true;
   switchTab('scan');
-  setStatus(`Painter: ${name} — snap all pieces then tap Process`);
+  document.getElementById('normalScanArea').style.display = 'none';
+  document.getElementById('painterScanArea').style.display = 'flex';
+  document.getElementById('painterScanName').textContent = name;
+  setStatus(`Painter: ${name} — tap camera to scan each piece`);
 }
 
 function closePainterOverlayCancel() {
