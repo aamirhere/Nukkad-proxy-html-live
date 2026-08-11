@@ -3195,8 +3195,21 @@ let _pqDate   = 'all'; // 'all' | 'today' | 'yesterday' | 'day2' | 'YYYY-MM-DD'
 let _pqFilter = 'all'; // 'all' | 'toprint' | 'initiated' | 'printed'
 let _pqLastPrintedNames = []; // order names from last Print All — waiting for user confirmation
 
+function _pqCounts() {
+  const ready = _pqOrders.filter(o => o.allFound);
+  return {
+    all:       ready.filter(o => !o.dispatched || true).length, // all matched (incl dispatched shown for 3d)
+    toprint:   ready.filter(o => !o.dispatched && !o.printed && !o.print_initiated).length,
+    initiated: ready.filter(o => !o.dispatched && o.print_initiated && !o.printed).length,
+    printed:   ready.filter(o => !o.dispatched && o.printed).length,
+  };
+}
+
 function setPqFilter(f) {
   _pqFilter = f;
+  const counts = _pqCounts();
+  const labels = { All: 'All', ToPrint: 'To Print', Initiated: '🖨 Initiated', Printed: 'Printed' };
+  const countKeys = { All: 'all', ToPrint: 'toprint', Initiated: 'initiated', Printed: 'printed' };
   ['All','ToPrint','Initiated','Printed'].forEach(k => {
     const btn = document.getElementById('pqf' + k);
     if (!btn) return;
@@ -3205,6 +3218,8 @@ function setPqFilter(f) {
     btn.style.background  = active ? activeColor : '#fff';
     btn.style.color       = active ? '#fff' : 'var(--ink2)';
     btn.style.borderColor = active ? activeColor : 'var(--line)';
+    const c = counts[countKeys[k]];
+    btn.textContent = `${labels[k]} ${c}`;
   });
   // show/hide the initiated bulk-mark bar
   const iBar = document.getElementById('pqInitiatedBar');
@@ -3419,7 +3434,7 @@ async function loadPrintQueue() {
     _pqOrders = res.orders || [];
     if (res._debug) console.log('[PQ debug]', res._debug);
     buildPqDateChips();
-    renderPqList();
+    setPqFilter(_pqFilter); // rebuilds counts + renders list
   } catch(e) {
     list.innerHTML = `<div style="text-align:center;color:var(--red);padding:18px;font-size:.82rem">Error: ${esc(e.message)}</div>`;
   }
