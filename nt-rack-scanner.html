@@ -708,9 +708,10 @@ input[type=file]{display:none}
       <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="printAllQueued()">Print All</button>
     </div>
   </div>
-  <!-- date chips — built dynamically from actual data -->
-  <div id="pqDateChips" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-    <button onclick="setPqDate('all')" data-pqdate="all" style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;cursor:pointer">All</button>
+  <!-- date chips: Today / Yesterday / 2 Days Ago (by scan date) + custom -->
+  <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+    <div id="pqDateChips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+    <input id="pqDatePicker" type="date" onchange="setPqDate(this.value||'all')" title="Pick a specific scan date" style="padding:2px 6px;border:1.5px solid var(--line);border-radius:20px;font-size:.7rem;font-family:var(--fb);cursor:pointer;color:var(--ink2)">
   </div>
   <!-- search -->
   <div style="display:flex;gap:6px;align-items:center">
@@ -3008,49 +3009,66 @@ function setMode(mode) {
 }
 
 let _pqOrders = [];
-let _pqDate   = 'all'; // 'all' | 'YYYY-MM-DD'
+let _pqDate   = 'all'; // 'all' | 'today' | 'yesterday' | 'day2' | 'YYYY-MM-DD'
 
-function setPqDate(date) {
-  _pqDate = date;
+function _istDateStr(offsetDays = 0) {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  d.setDate(d.getDate() - offsetDays);
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function _scanDate(o) {
+  // IST date of the most recently updated item in this order
+  if (!o.last_updated) return null;
+  return new Date(o.last_updated).toLocaleString('en-CA', { timeZone: 'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit' }).slice(0, 10);
+}
+
+function setPqDate(key) {
+  _pqDate = key;
   document.querySelectorAll('#pqDateChips button').forEach(b => {
-    const active = b.dataset.pqdate === date;
+    const active = b.dataset.pqdate === key;
     b.style.background  = active ? 'var(--accent)' : '#fff';
     b.style.color       = active ? '#fff' : 'var(--ink2)';
     b.style.borderColor = active ? 'var(--accent)' : 'var(--line)';
   });
+  const picker = document.getElementById('pqDatePicker');
+  if (picker && !['all','today','yesterday','day2'].includes(key)) picker.value = key;
+  else if (picker) picker.value = '';
   renderPqList();
 }
 
 function buildPqDateChips() {
-  // derive distinct dates from allFound orders, sorted oldest→newest
-  const ready  = _pqOrders.filter(o => o.allFound);
-  const dateMap = {}; // date → { total, unprinted }
-  ready.forEach(o => {
-    if (!dateMap[o.order_date]) dateMap[o.order_date] = { total: 0, unprinted: 0 };
-    dateMap[o.order_date].total++;
-    if (!o.printed) dateMap[o.order_date].unprinted++;
-  });
-  const allReady    = ready.length;
-  const allUnprinted = ready.filter(o => !o.printed).length;
-  const dates = Object.keys(dateMap).sort();
+  const ready = _pqOrders.filter(o => o.allFound);
+  const today     = _istDateStr(0);
+  const yesterday = _istDateStr(1);
+  const day2      = _istDateStr(2);
+
+  function countFor(filterKey) {
+    let pool = ready;
+    if (filterKey !== 'all') {
+      const target = filterKey === 'today' ? today : filterKey === 'yesterday' ? yesterday : filterKey === 'day2' ? day2 : filterKey;
+      pool = ready.filter(o => _scanDate(o) === target);
+    }
+    return { total: pool.length, unprinted: pool.filter(o => !o.printed).length };
+  }
+
+  const chips = [
+    { key: 'all',       label: 'All' },
+    { key: 'today',     label: 'Today' },
+    { key: 'yesterday', label: 'Yesterday' },
+    { key: 'day2',      label: '2 Days Ago' },
+  ];
 
   const chipEl = document.getElementById('pqDateChips');
   if (!chipEl) return;
-
-  const chips = [
-    { date: 'all', label: `All <b>${allUnprinted}</b><span style="color:var(--muted);font-weight:400">/${allReady}</span>` },
-    ...dates.map(d => ({
-      date: d,
-      label: `${fmtDate(d)} <b>${dateMap[d].unprinted}</b><span style="color:var(--muted);font-weight:400">/${dateMap[d].total}</span>`
-    }))
-  ];
-
   chipEl.innerHTML = chips.map(c => {
-    const active = c.date === _pqDate;
-    return `<button data-pqdate="${c.date}" onclick="setPqDate('${c.date}')"
+    const { total, unprinted } = countFor(c.key);
+    const active = _pqDate === c.key;
+    const countHtml = total ? ` <b>${unprinted}</b><span style="color:${active?'rgba(255,255,255,.7)':'var(--muted)'};font-weight:400">/${total}</span>` : ` <span style="opacity:.4">0</span>`;
+    return `<button data-pqdate="${c.key}" onclick="setPqDate('${c.key}')"
       style="padding:3px 10px;border-radius:20px;border:1.5px solid ${active?'var(--accent)':'var(--line)'};
              background:${active?'var(--accent)':'#fff'};color:${active?'#fff':'var(--ink2)'};
-             font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap">${c.label}</button>`;
+             font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap">${c.label}${countHtml}</button>`;
   }).join('');
 }
 
@@ -3062,8 +3080,11 @@ function renderPqList() {
   // only show allFound orders (matched) — both printed and unprinted
   let orders = _pqOrders.filter(o => o.allFound);
 
-  // date filter
-  if (!q && _pqDate !== 'all') orders = orders.filter(o => o.order_date === _pqDate);
+  // date filter by scan date (when pieces were last confirmed)
+  if (!q && _pqDate !== 'all') {
+    const target = _pqDate === 'today' ? _istDateStr(0) : _pqDate === 'yesterday' ? _istDateStr(1) : _pqDate === 'day2' ? _istDateStr(2) : _pqDate;
+    orders = orders.filter(o => _scanDate(o) === target);
+  }
 
   // text search
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
