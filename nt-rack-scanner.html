@@ -3678,9 +3678,13 @@ async function dispatchAllQueued() {
 }
 
 async function printAllQueued() {
-  // print only non-dispatched orders visible in current filter
-  const visibleNames = new Set([...document.querySelectorAll('#printQueueList [data-order]')].map(c => c.dataset.order).filter(Boolean));
-  const orderNames = _pqOrders.filter(o => visibleNames.has(o.order_name) && !o.dispatched).map(o => o.order_name);
+  // print only: allFound, not dispatched, not printed — respecting current date filter
+  let toPrint = _pqOrders.filter(o => o.allFound && !o.dispatched && !o.printed);
+  if (_pqDate !== 'all') {
+    const target = _pqDate === 'today' ? _istDateStr(0) : _pqDate === 'yesterday' ? _istDateStr(1) : _pqDate === 'day2' ? _istDateStr(2) : _pqDate;
+    toPrint = toPrint.filter(o => _scanDate(o) === target);
+  }
+  const orderNames = toPrint.map(o => o.order_name);
   if (!orderNames.length) return alert('No visible orders to print.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
   if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length} slips…`; }
