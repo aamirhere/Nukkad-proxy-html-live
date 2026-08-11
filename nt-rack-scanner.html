@@ -961,20 +961,15 @@ async function init() {
     if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
   }).catch(() => {});
 
-  // 2. Sync from Shopify at most once per hour — background, non-blocking
-  const CATALOG_SYNC_KEY = 'nt_catalog_last_sync';
-  const lastSync = parseInt(localStorage.getItem(CATALOG_SYNC_KEY) || '0', 10);
-  if (Date.now() - lastSync > 60 * 60 * 1000) {
-    apiFetch({ action: 'sync_design_catalog' }).then(s => {
-      localStorage.setItem(CATALOG_SYNC_KEY, String(Date.now()));
-      if (s && s.added > 0) return apiFetch({ action: 'get_design_catalog' });
-    }).then(r => {
-      if (r && r.titles) {
-        _designCatalog = r.titles;
-        if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
-      }
-    }).catch(() => {});
-  }
+  // 2. Sync new Shopify products into Supabase on every load — runs in background, never blocks UI
+  apiFetch({ action: 'sync_design_catalog' }).then(s => {
+    if (s && s.added > 0) return apiFetch({ action: 'get_design_catalog' });
+  }).then(r => {
+    if (r && r.titles) {
+      _designCatalog = r.titles;
+      if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
+    }
+  }).catch(() => {});
 }
 
 // Only hit Shopify if last sync was more than 30 minutes ago
