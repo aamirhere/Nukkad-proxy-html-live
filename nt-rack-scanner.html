@@ -2673,7 +2673,7 @@ function renderList() {
             ${o.is_emergency?'<span class="tag-emg">Emergency</span>':''}
             ${(!o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
-            <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}</div>
+            <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
