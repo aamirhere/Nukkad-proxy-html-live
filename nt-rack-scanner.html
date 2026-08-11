@@ -3072,6 +3072,11 @@ function buildPqDateChips() {
   }).join('');
 }
 
+function _fmtScanTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
 function renderPqList() {
   const list = document.getElementById('printQueueList');
   if (!list) return;
@@ -3089,23 +3094,37 @@ function renderPqList() {
   // text search
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
 
-  const unprinted    = orders.filter(o => !o.printed).length;
-  const totalPieces  = orders.reduce((s,o) => s + o.items.reduce((s2,it) => s2 + it.needed, 0), 0);
+  // sort by scan timestamp ascending — matches physical rack sequence
+  orders = [...orders].sort((a, b) => (a.last_updated || '') < (b.last_updated || '') ? -1 : 1);
+
+  const unprinted   = orders.filter(o => !o.printed).length;
+  const totalPieces = orders.reduce((s,o) => s + o.items.reduce((s2,it) => s2 + it.needed, 0), 0);
   const cnt = document.getElementById('pqCount');
-  if (cnt) cnt.textContent = `(${orders.length} orders · ${totalPieces} pcs · ${unprinted} unprinted)`;
+  if (cnt) cnt.textContent = `(${orders.length} orders · ${totalPieces} pcs · ${unprinted} to print)`;
 
   if (!orders.length) {
-    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">No matched orders for this date.</div>`;
+    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">No matched orders for this period.</div>`;
     return;
   }
-  list.innerHTML = orders.map(o => {
-    const printedBadge = o.printed ? `<span style="background:#e8f5e9;color:#388e3c;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.66rem;margin-left:6px">✓ Printed</span>` : '';
-    return `<div class="result-card" style="margin-bottom:0;${o.printed?'opacity:.6':''}" data-order="${esc(o.order_name)}">
-      <div style="padding:11px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
+
+  let html = '';
+  let seq = 0;
+  for (const o of orders) {
+    seq++;
+    const scanTime = _fmtScanTime(o.last_updated);
+    const isPrinted = o.printed;
+    html += `<div class="result-card" style="margin-bottom:0;${isPrinted ? 'opacity:.55;' : ''}" data-order="${esc(o.order_name)}">
+      <div style="padding:10px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:.9rem">${esc(o.order_name)} · ${esc(o.customer||'')}${printedBadge}</div>
-          <div style="margin-top:3px"><span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">${fmtDate(o.order_date)}</span></div>
-          <div style="margin-top:6px;display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:.68rem;font-weight:700;color:#fff;background:${isPrinted?'#388e3c':'var(--accent)'};border-radius:20px;padding:1px 7px;white-space:nowrap">${isPrinted ? '✓ Printed' : `#${seq} To Print`}</span>
+            <span style="font-weight:700;font-size:.88rem">${esc(o.order_name)} · ${esc(o.customer||'')}</span>
+          </div>
+          <div style="margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.68rem">${fmtDate(o.order_date)}</span>
+            ${scanTime ? `<span style="font-size:.68rem;color:var(--muted)">sorted ${scanTime}</span>` : ''}
+          </div>
+          <div style="margin-top:5px;display:flex;flex-direction:column;gap:2px">
             ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
               <span style="color:#4caf50">●</span>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.quote)}</span>
