@@ -2001,49 +2001,81 @@ function executePrint() {
   const dateLabel = selectedDate === 'all' ? 'All Dates' : fmtDate(selectedDate);
   const colorLabel = _pdColors.size === 0 ? 'All Colors' : [..._pdColors].join(', ');
 
-  // Group by date, then by quote+color for cleanliness
-  const byDate = {};
-  for (const it of items) {
-    if (!byDate[it.order_date]) byDate[it.order_date] = [];
-    byDate[it.order_date].push(it);
-  }
-  const dates = Object.keys(byDate).sort();
+  // Get distinct colors in this print set, sorted
+  const colors = [...new Set(items.map(i => i.color).filter(Boolean))].sort();
 
-  let rows = '';
-  for (const d of dates) {
-    const dayItems = byDate[d];
-    rows += `<tr><td colspan="2" style="background:#f5f5f5;font-weight:700;padding:4px 6px;font-size:10pt;border-top:2px solid #333">${fmtDate(d)}</td></tr>`;
-    // deduplicate: same quote+color same day might appear multiple times (qty)
-    const seen = {};
-    for (const it of dayItems) {
-      const k = it.quote + '|||' + it.color;
-      if (!seen[k]) seen[k] = { quote: it.quote, color: it.color, needed: 0, found: 0 };
-      seen[k].needed += it.needed;
-      seen[k].found  += it.found;
+  // Build per-color sections (grouped by date within each color)
+  function buildColorSection(color) {
+    const colorItems = items.filter(i => i.color === color);
+    const byDate = {};
+    for (const it of colorItems) {
+      if (!byDate[it.order_date]) byDate[it.order_date] = {};
+      const k = it.quote;
+      if (!byDate[it.order_date][k]) byDate[it.order_date][k] = { quote: it.quote, needed: 0, found: 0 };
+      byDate[it.order_date][k].needed += it.needed;
+      byDate[it.order_date][k].found  += it.found;
     }
-    for (const s of Object.values(seen)) {
-      const rem = s.needed - s.found;
-      rows += `<tr><td style="padding:3px 6px;font-size:10pt">${esc(s.quote)}</td><td style="padding:3px 6px;font-size:10pt;color:#555;white-space:nowrap">${esc(s.color)}${rem > 1 ? ' ×' + rem : ''}</td></tr>`;
+    const dates = Object.keys(byDate).sort();
+    let html = `<div style="font-size:13pt;font-weight:900;color:#fff;background:#333;padding:5px 10px;margin-bottom:0;letter-spacing:.02em">${esc(color)} <span style="font-weight:400;font-size:10pt">(${colorItems.length} pc${colorItems.length!==1?'s':''})</span></div>`;
+    html += `<table style="width:100%;border-collapse:collapse;margin-bottom:0">`;
+    for (const d of dates) {
+      html += `<tr><td colspan="2" style="background:#f0f0f0;font-weight:700;padding:3px 8px;font-size:9pt;border-top:1px solid #ccc">${fmtDate(d)}</td></tr>`;
+      for (const s of Object.values(byDate[d])) {
+        const rem = s.needed - s.found;
+        const qty = rem > 1 ? `<td style="padding:3px 8px;font-size:10pt;font-weight:700;color:#c00;text-align:center;white-space:nowrap">×${rem}</td>` : `<td></td>`;
+        html += `<tr style="border-bottom:1px solid #eee"><td style="padding:3px 8px;font-size:10pt">${esc(s.quote)}</td>${qty}</tr>`;
+      }
     }
+    html += `</table>`;
+    return html;
+  }
+
+  let bodyHtml = '';
+  if (colors.length <= 1) {
+    // Single color or all-same: single full-width column
+    bodyHtml = `<div style="break-inside:avoid">${colors.length ? buildColorSection(colors[0]) : ''}</div>`;
+    if (!colors.length) {
+      // fallback: flat list
+      const byDate = {};
+      for (const it of items) {
+        if (!byDate[it.order_date]) byDate[it.order_date] = [];
+        byDate[it.order_date].push(it);
+      }
+      let rows = '';
+      for (const d of Object.keys(byDate).sort()) {
+        rows += `<tr><td colspan="2" style="background:#f5f5f5;font-weight:700;padding:4px 6px;font-size:10pt;border-top:2px solid #333">${fmtDate(d)}</td></tr>`;
+        for (const it of byDate[d]) {
+          rows += `<tr><td style="padding:3px 6px;font-size:10pt">${esc(it.quote)}</td><td style="padding:3px 6px;font-size:10pt;color:#555">${esc(it.color)}</td></tr>`;
+        }
+      }
+      bodyHtml = `<table style="width:100%;border-collapse:collapse"><tbody>${rows}</tbody></table>`;
+    }
+  } else {
+    // Multiple colors: 2-column grid, one color block per cell
+    // Pair them up: [col1, col2], [col3, col4], …
+    const pairs = [];
+    for (let i = 0; i < colors.length; i += 2) pairs.push([colors[i], colors[i+1]||null]);
+    bodyHtml = pairs.map(([c1, c2]) => `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-bottom:16px;break-inside:avoid;page-break-inside:avoid">
+        <div style="border:1.5px solid #333">${buildColorSection(c1)}</div>
+        ${c2 ? `<div style="border:1.5px solid #333">${buildColorSection(c2)}</div>` : '<div></div>'}
+      </div>`).join('');
   }
 
   const sheet = document.getElementById('printSheet');
   sheet.innerHTML = `
-    <div style="font-family:sans-serif;padding:16px">
-      <div style="font-size:16pt;font-weight:700;margin-bottom:2px">NukkadTales — Unmatched Pieces</div>
-      <div style="font-size:10pt;color:#666;margin-bottom:4px">${dateLabel} · ${colorLabel} · Printed ${new Date().toLocaleString('en-IN')}</div>
-      <div style="font-size:9pt;color:#999;margin-bottom:12px">${items.length} piece${items.length!==1?'s':''} remaining</div>
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr>
-          <th style="text-align:left;padding:4px 6px;border-bottom:2px solid #333;font-size:10pt">Design</th>
-          <th style="text-align:left;padding:4px 6px;border-bottom:2px solid #333;font-size:10pt">Color</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+    <div style="font-family:sans-serif;padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:12px">
+        <div>
+          <div style="font-size:15pt;font-weight:900">NukkadTales — Unmatched Pieces</div>
+          <div style="font-size:9pt;color:#666">${dateLabel} · ${colorLabel} · ${items.length} piece${items.length!==1?'s':''}</div>
+        </div>
+        <div style="font-size:9pt;color:#999">${new Date().toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+      ${bodyHtml}
     </div>`;
 
   closePrintDialog();
-  // remove slip class so sheet CSS applies
   document.body.classList.remove('printing-slip');
   requestAnimationFrame(() => window.print());
 }
