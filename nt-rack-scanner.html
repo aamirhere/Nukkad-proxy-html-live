@@ -713,9 +713,14 @@ input[type=file]{display:none}
     <div id="pqDateChips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
     <input id="pqDatePicker" type="date" onchange="setPqDate(this.value||'all')" title="Pick a specific scan date" style="padding:2px 6px;border:1.5px solid var(--line);border-radius:20px;font-size:.7rem;font-family:var(--fb);cursor:pointer;color:var(--ink2)">
   </div>
-  <!-- search -->
-  <div style="display:flex;gap:6px;align-items:center">
-    <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
+  <!-- print status filter + search -->
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:4px">
+      <button id="pqfAll"     onclick="setPqFilter('all')"      style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:var(--accent);color:#fff;border-color:var(--accent)">All</button>
+      <button id="pqfToPrint" onclick="setPqFilter('toprint')"  style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">To Print</button>
+      <button id="pqfPrinted" onclick="setPqFilter('printed')"  style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">Printed</button>
+    </div>
+    <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;min-width:120px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
   </div>
   <div id="printQueueList"><div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div></div>
 </div>
@@ -3010,6 +3015,20 @@ function setMode(mode) {
 
 let _pqOrders = [];
 let _pqDate   = 'all'; // 'all' | 'today' | 'yesterday' | 'day2' | 'YYYY-MM-DD'
+let _pqFilter = 'all'; // 'all' | 'toprint' | 'printed'
+
+function setPqFilter(f) {
+  _pqFilter = f;
+  ['All','ToPrint','Printed'].forEach(k => {
+    const btn = document.getElementById('pqf' + k);
+    if (!btn) return;
+    const active = (k.toLowerCase().replace('toprint','toprint') === f) || (k === 'All' && f === 'all');
+    btn.style.background  = active ? 'var(--accent)' : '#fff';
+    btn.style.color       = active ? '#fff' : 'var(--ink2)';
+    btn.style.borderColor = active ? 'var(--accent)' : 'var(--line)';
+  });
+  renderPqList();
+}
 
 function _istDateStr(offsetDays = 0) {
   const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
@@ -3093,6 +3112,10 @@ function renderPqList() {
 
   // text search
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
+
+  // print status filter
+  if (_pqFilter === 'toprint') orders = orders.filter(o => !o.printed);
+  if (_pqFilter === 'printed')  orders = orders.filter(o => o.printed);
 
   // sort by scan timestamp ascending — matches physical rack sequence
   orders = [...orders].sort((a, b) => (a.last_updated || '') < (b.last_updated || '') ? -1 : 1);
