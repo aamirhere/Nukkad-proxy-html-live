@@ -4404,11 +4404,47 @@ function _renderPainterResults(q, origVal) {
   }
 
   const CH = [
-    { id:'prime',   label:'🔵 Prime',   color:'#1565c0' },
-    { id:'zepto',   label:'⚡ Zepto',   color:'#6a0dad' },
-    { id:'blinkit', label:'🟡 Blinkit', color:'#d48f00' },
-    { id:'bulk',    label:'📦 Bulk',    color:'#2e7d32' },
+    { id:'prime',   label:'🔵 Prime',   color:'#1565c0', bg:'#e8eaf6' },
+    { id:'zepto',   label:'⚡ Zepto',   color:'#6a0dad', bg:'#f3e5f5' },
+    { id:'blinkit', label:'🟡 Blinkit', color:'#d48f00', bg:'#fff8e1' },
+    { id:'bulk',    label:'📦 Bulk',    color:'#2e7d32', bg:'#e8f5e9' },
   ];
+  const activeChannel = (packingCtx !== 'daily') ? packingCtx : null;
+  const activeCh = activeChannel ? CH.find(c => c.id === activeChannel) : null;
+
+  function _chQtyBlock(qk, quoteTxt) {
+    if (activeCh) {
+      // channel already known — show qty directly
+      return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:${activeCh.bg};border-radius:10px;margin-top:8px">
+        <span style="font-size:.82rem;font-weight:700;color:${activeCh.color}">${activeCh.label}</span>
+        <span style="font-size:.78rem;color:var(--ink2)">— Qty:</span>
+        <input type="number" min="1" value="1"
+          style="width:56px;padding:4px 8px;border:1.5px solid ${activeCh.color};border-radius:6px;font-size:.88rem;text-align:center"
+          id="pchqty_${qk}_inp">
+        <button onclick="painterTagChannel('${qk}','${esc(quoteTxt)}',this)"
+          style="padding:6px 16px;border-radius:8px;border:none;background:${activeCh.color};color:#fff;font-size:.8rem;font-weight:700;cursor:pointer">Confirm</button>
+      </div>`;
+    }
+    // no channel selected — show picker buttons
+    return `<div style="margin-top:8px">
+      <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Tag for channel</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px">
+        ${CH.map(ch => `<button onclick="painterExpandChannel('${qk}','${esc(quoteTxt)}','${ch.id}')"
+          style="padding:4px 10px;border-radius:20px;border:1.5px solid ${ch.color};background:#fff;color:${ch.color};font-size:.72rem;font-weight:700;cursor:pointer"
+          id="pch_${qk}_${ch.id}">${ch.label}</button>`).join('')}
+      </div>
+      <div id="pchqty_${qk}" style="display:none;align-items:center;gap:8px;padding:8px 10px;background:#e8eaf6;border-radius:8px">
+        <span style="font-size:.78rem;color:var(--ink2)" id="pchqty_${qk}_lbl">Qty:</span>
+        <input type="number" min="1" value="1"
+          style="width:56px;padding:4px 8px;border:1.5px solid #9fa8da;border-radius:6px;font-size:.88rem;text-align:center"
+          id="pchqty_${qk}_inp">
+        <button onclick="painterTagChannel('${qk}','${esc(quoteTxt)}',this)"
+          style="padding:5px 14px;border-radius:8px;border:none;background:#283593;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+        <button onclick="painterClearChannelExpand('${qk}')"
+          style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+      </div>
+    </div>`;
+  }
 
   let html = '';
   for (const [quote, items] of [...matchMap.entries()].slice(0, 8)) {
@@ -4418,7 +4454,8 @@ function _renderPainterResults(q, origVal) {
     html += `<div style="background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px">
       <div style="font-weight:700;font-size:.88rem;margin-bottom:8px">${esc(quote)}</div>`;
 
-    if (active.length) {
+    if (!activeChannel && active.length) {
+      // daily mode — show individual order rows
       html += `<div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Orders</div>`;
       html += active.map(r => {
         const bk = _bd([r.order_name, r.quote, r.color]);
@@ -4436,7 +4473,7 @@ function _renderPainterResults(q, origVal) {
             <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
               style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
           </div>
-          <div id="${rowId}_qty" style="display:none;margin-top:8px;display:none;align-items:center;gap:8px;padding:8px 10px;background:#f1f8e9;border-radius:8px">
+          <div id="${rowId}_qty" style="display:none;margin-top:8px;align-items:center;gap:8px;padding:8px 10px;background:#f1f8e9;border-radius:8px">
             <span style="font-size:.78rem;color:var(--ink2)">Qty found:</span>
             <input type="number" min="1" max="${r.needed - r.found}" value="${r.needed - r.found}"
               style="width:56px;padding:4px 8px;border:1.5px solid #a5d6a7;border-radius:6px;font-size:.88rem;text-align:center"
@@ -4448,53 +4485,24 @@ function _renderPainterResults(q, origVal) {
           </div>
         </div>`;
       }).join('');
-    }
-    if (done.length) {
-      html += `<div style="font-size:.7rem;color:var(--muted);margin-top:6px">✓ ${done.length} already done</div>`;
+    } else if (activeChannel && active.length) {
+      // channel mode — show pending order context but route to channel
+      html += `<div style="font-size:.72rem;color:var(--ink2);margin-bottom:6px">${active.length} pending order${active.length>1?'s':''}: ${active.map(r=>`<span style="color:var(--accent);font-weight:700">${esc(r.order_name)}</span>`).join(', ')}</div>`;
     }
 
-    // Channel section
-    html += `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)">
-      <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Tag for channel</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
-        ${CH.map(ch => `<button onclick="painterExpandChannel('${qk}','${esc(quote)}','${ch.id}')"
-          style="padding:4px 10px;border-radius:20px;border:1.5px solid ${ch.color};background:#fff;color:${ch.color};font-size:.72rem;font-weight:700;cursor:pointer"
-          id="pch_${qk}_${ch.id}">${ch.label}</button>`).join('')}
-      </div>
-      <div id="pchqty_${qk}" style="display:none;align-items:center;gap:8px;padding:8px 10px;background:#e8eaf6;border-radius:8px">
-        <span style="font-size:.78rem;color:var(--ink2)" id="pchqty_${qk}_lbl">Qty:</span>
-        <input type="number" min="1" value="1"
-          style="width:56px;padding:4px 8px;border:1.5px solid #9fa8da;border-radius:6px;font-size:.88rem;text-align:center"
-          id="pchqty_${qk}_inp">
-        <button onclick="painterTagChannel('${qk}','${esc(quote)}',this)"
-          style="padding:5px 14px;border-radius:8px;border:none;background:#283593;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
-        <button onclick="painterClearChannelExpand('${qk}')"
-          style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
-      </div>
-    </div>
-    </div>`;
+    if (done.length) {
+      html += `<div style="font-size:.7rem;color:var(--muted);margin-top:4px;margin-bottom:4px">✓ ${done.length} already done</div>`;
+    }
+
+    html += _chQtyBlock(qk, quote);
+    html += `</div>`;
   }
 
   for (const title of catalogMatches) {
     const qk = title.replace(/[^a-z0-9]/gi,'_').slice(0,30) + '_cat';
-    const CH_COLORS = {prime:'#1565c0',zepto:'#6a0dad',blinkit:'#d48f00',bulk:'#2e7d32'};
     html += `<div style="background:#fdf5ec;border:1px dashed var(--line);border-radius:12px;padding:12px 14px;margin-bottom:6px">
-      <div style="font-size:.82rem;color:var(--ink2);margin-bottom:8px">${esc(title)} <span style="font-size:.68rem;color:var(--muted)">— no pending orders</span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
-        ${CH.map(ch => `<button onclick="painterExpandChannel('${qk}','${esc(title)}','${ch.id}')"
-          style="padding:4px 10px;border-radius:20px;border:1.5px solid ${ch.color};background:#fff;color:${ch.color};font-size:.72rem;font-weight:700;cursor:pointer"
-          id="pch_${qk}_${ch.id}">${ch.label}</button>`).join('')}
-      </div>
-      <div id="pchqty_${qk}" style="display:none;align-items:center;gap:8px;padding:8px 10px;background:#e8eaf6;border-radius:8px">
-        <span style="font-size:.78rem;color:var(--ink2)" id="pchqty_${qk}_lbl">Qty:</span>
-        <input type="number" min="1" value="1"
-          style="width:56px;padding:4px 8px;border:1.5px solid #9fa8da;border-radius:6px;font-size:.88rem;text-align:center"
-          id="pchqty_${qk}_inp">
-        <button onclick="painterTagChannel('${qk}','${esc(title)}',this)"
-          style="padding:5px 14px;border-radius:8px;border:none;background:#283593;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
-        <button onclick="painterClearChannelExpand('${qk}')"
-          style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
-      </div>
+      <div style="font-size:.82rem;color:var(--ink2);margin-bottom:6px">${esc(title)} <span style="font-size:.68rem;color:var(--muted)">— no pending orders</span></div>
+      ${_chQtyBlock(qk, title)}
     </div>`;
   }
 
@@ -4533,19 +4541,22 @@ function painterClearChannelExpand(qk) {
 }
 
 async function painterTagChannel(qk, quote, btn) {
-  const ctx = _painterChCtx[qk];
-  if (!ctx) return;
+  // channel is either the active packingCtx (when not daily) or manually picked
+  const channelId = (packingCtx !== 'daily') ? packingCtx : (_painterChCtx[qk]?.channelId);
+  if (!channelId) return;
   const inp = document.getElementById('pchqty_' + qk + '_inp');
   const qty = parseInt(inp?.value) || 1;
   const color = (_scanColor || '').trim() || '';
   btn.disabled = true; btn.textContent = '…';
   try {
-    await apiFetch({ action: 'add_stock_item', quote, color, channel: ctx.channelId, qty, painter: currentPainter || null });
+    await apiFetch({ action: 'add_stock_item', quote, color, channel: channelId, qty, painter: currentPainter || null });
     btn.textContent = '✓ Tagged';
     btn.style.background = '#4caf50';
     setTimeout(() => {
       painterClearChannelExpand(qk);
-      btn.disabled = false; btn.textContent = 'Confirm'; btn.style.background = '#283593';
+      btn.disabled = false; btn.textContent = 'Confirm';
+      const CH_COLORS = {prime:'#1565c0',zepto:'#6a0dad',blinkit:'#283593',bulk:'#2e7d32'};
+      btn.style.background = CH_COLORS[channelId] || '#283593';
     }, 1800);
   } catch(e) { btn.disabled = false; btn.textContent = 'Confirm'; alert(e.message); }
 }
