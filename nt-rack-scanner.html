@@ -3257,14 +3257,10 @@ async function dispatchAllQueued() {
 }
 
 async function printAllQueued() {
-  // only print unprinted orders from the current visible date filter
+  // print all visible orders (respects date + filter, ignores printed status — allows reprint)
   const cards = [...document.querySelectorAll('#printQueueList [data-order]')];
-  const allNames = cards.map(c => c.dataset.order).filter(Boolean);
-  const orderNames = allNames.filter(name => {
-    const o = _pqOrders.find(x => x.order_name === name);
-    return o && !o.printed;
-  });
-  if (!orderNames.length) return alert('All visible orders are already printed. Nothing new to print.');
+  const orderNames = cards.map(c => c.dataset.order).filter(Boolean);
+  if (!orderNames.length) return alert('No visible orders to print.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
   if (btn) { btn.disabled = true; btn.textContent = `Fetching ${orderNames.length} slips…`; }
   let slips = [];
@@ -3304,10 +3300,10 @@ async function printAllQueued() {
     ov.style.display = 'none';
     sc.innerHTML = '';
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
-    // mark all printed in local state + DB
+    // mark all printed in local state + DB; switch to All so printed cards stay visible
     _pqOrders = _pqOrders.map(o => orderNames.includes(o.order_name) ? { ...o, printed: true } : o);
     apiFetch({ action: 'mark_print_done', order_names: orderNames }).catch(() => {});
-    renderPqList();
+    setPqFilter('all');  // keep all cards visible after print so count stays accurate
   }, 1500);
 }
 
