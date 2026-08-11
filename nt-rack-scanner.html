@@ -528,13 +528,35 @@ input[type=file]{display:none}
     <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">Bulk</button>
   </div>
 
-  <!-- painter-mode big camera button (shown only in painter mode) -->
-  <div id="painterScanArea" style="display:none;flex-direction:column;align-items:center;gap:14px;padding:24px 0 8px">
+  <!-- painter-mode area (shown only in painter mode) -->
+  <div id="painterScanArea" style="display:none;flex-direction:column;gap:12px;padding:8px 0">
     <div style="font-size:.78rem;color:var(--muted)">Painter: <strong id="painterScanName"></strong></div>
-    <div onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:100%;padding:32px 0">
-      <span style="font-size:2.6rem;line-height:1">📷</span>
-      <span style="color:#fff;font-size:1rem;font-weight:700">Scan Piece</span>
+
+    <!-- big camera for mixed/multi designs -->
+    <div onclick="triggerCamera()" style="cursor:pointer;background:var(--ink);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:100%;padding:28px 0">
+      <span style="font-size:2.4rem;line-height:1">📷</span>
+      <span style="color:#fff;font-size:.95rem;font-weight:700">Scan Pieces</span>
+      <span style="color:rgba(255,255,255,.6);font-size:.68rem">for mixed designs</span>
     </div>
+
+    <!-- batch bar shown here too -->
+    <div class="batch-bar" id="painterBatchBar" style="display:none">
+      <span class="bb-count" id="painterBatchCount"></span>
+      <button class="bb-clear" onclick="clearBatch()">✕ Clear</button>
+      <button class="bb-process" onclick="openBatchTag()">✎ Tag</button>
+    </div>
+
+    <!-- bulk same-design search -->
+    <div style="text-align:center;font-size:.7rem;color:var(--muted);letter-spacing:.04em">— or bulk same design —</div>
+    <div style="position:relative">
+      <input id="painterSearchQ" class="m-input" type="text" placeholder="Type design name…" autocomplete="off"
+        style="width:100%;padding:11px 12px;font-size:.9rem;border-radius:10px;box-sizing:border-box"
+        oninput="painterSearchDesign(this.value)"
+        onkeydown="if(event.key==='Escape'){this.value='';painterClearResult()}"
+        onclick="this.select()">
+    </div>
+    <!-- inline search results -->
+    <div id="painterSearchResults"></div>
   </div>
 
   <!-- scan button + search input row (hidden in painter mode) -->
@@ -1219,13 +1241,12 @@ function handleFile(e) {
     return;
   }
   const file = files[0];
-  // single file in batch mode → add to queue and open tag overlay immediately
+  // single file in batch mode → add to queue
   if (batchMode) {
     const reader = new FileReader();
     reader.onload = ev => {
       batchQueue.push({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', tag: null });
       updateBatchBar();
-      openBatchTag();
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -3370,6 +3391,8 @@ function setMode(mode) {
     currentPainter = null;
     document.getElementById('normalScanArea').style.display = '';
     document.getElementById('painterScanArea').style.display = 'none';
+    const pq = document.getElementById('painterSearchQ'); if (pq) pq.value = '';
+    painterClearResult();
   }
 
   activeMode = mode;
@@ -3849,11 +3872,17 @@ function clearBatch() {
 function updateBatchBar() {
   const bar = document.getElementById('batchBar');
   const cnt = document.getElementById('batchCount');
+  const label = batchQueue.length + ' photo' + (batchQueue.length > 1 ? 's' : '') + ' queued';
   if (batchQueue.length === 0) {
     bar.classList.remove('visible');
+    const pb = document.getElementById('painterBatchBar');
+    if (pb) pb.style.display = 'none';
   } else {
     bar.classList.add('visible');
-    cnt.textContent = batchQueue.length + ' photo' + (batchQueue.length > 1 ? 's' : '') + ' queued';
+    cnt.textContent = label;
+    const pb = document.getElementById('painterBatchBar');
+    const pc = document.getElementById('painterBatchCount');
+    if (pb) { pb.style.display = 'flex'; if (pc) pc.textContent = label; }
   }
 }
 
@@ -4342,9 +4371,95 @@ function selectPainter(name) {
 }
 
 function closePainterOverlayCancel() {
-  // User cancelled painter selection — revert mode to sort
   closePainterOverlay();
   setMode('sort');
+}
+
+// ── PAINTER BULK SEARCH ────────────────────────────────────────────────────────
+let _painterSearchTimer = null;
+function painterSearchDesign(val) {
+  clearTimeout(_painterSearchTimer);
+  const q = norm(val.trim());
+  if (q.length < 2) { painterClearResult(); return; }
+  _painterSearchTimer = setTimeout(() => _renderPainterResults(q, val), 200);
+}
+
+function painterClearResult() {
+  document.getElementById('painterSearchResults').innerHTML = '';
+}
+
+function _renderPainterResults(q, origVal) {
+  // find matching active rack items
+  const matchMap = new Map(); // quote → [rackItem, ...]
+  for (const it of rackItems) {
+    if (!norm(it.quote).includes(q) || it.dispatched) continue;
+    if (!matchMap.has(it.quote)) matchMap.set(it.quote, []);
+    matchMap.get(it.quote).push(it);
+  }
+  // also include catalog titles with no rack order
+  const catalogMatches = _designCatalog.filter(t => norm(t).includes(q) && !matchMap.has(t)).slice(0, 4);
+
+  if (!matchMap.size && !catalogMatches.length) {
+    document.getElementById('painterSearchResults').innerHTML =
+      `<div style="font-size:.8rem;color:var(--muted);padding:8px 0">No matching designs found</div>`;
+    return;
+  }
+
+  let html = '';
+  for (const [quote, items] of [...matchMap.entries()].slice(0, 8)) {
+    const active = items.filter(r => r.found < r.needed);
+    const done   = items.filter(r => r.found >= r.needed);
+    const k = _bd([quote]);
+    html += `<div style="background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px">
+      <div style="font-weight:700;font-size:.88rem;margin-bottom:8px">${esc(quote)}</div>
+      ${active.map(r => {
+        const bk = _bd([r.order_name, r.quote, r.color]);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">
+          <div style="flex:1;font-size:.78rem">
+            <span style="font-weight:700;color:var(--accent)">${esc(r.color||'—')}</span>
+            <span style="color:var(--muted);margin-left:6px">${esc(r.order_name)} · ${esc((rackItems.find(i=>i.order_name===r.order_name)||{}).customer||'')}</span>
+          </div>
+          <span style="font-size:.72rem;color:var(--ink2);white-space:nowrap">${r.found}/${r.needed}</span>
+          <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this)"
+            style="padding:5px 10px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">✓ Found</button>
+          <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
+            style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
+        </div>`;
+      }).join('')}
+      ${done.length ? `<div style="font-size:.7rem;color:var(--muted);margin-top:6px">✓ ${done.length} already done</div>` : ''}
+    </div>`;
+  }
+  for (const title of catalogMatches) {
+    html += `<div style="background:#fdf5ec;border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-bottom:6px;font-size:.82rem;color:var(--muted)">${esc(title)} <span style="font-size:.68rem">— no pending orders</span></div>`;
+  }
+  document.getElementById('painterSearchResults').innerHTML = html;
+}
+
+async function painterMarkFound(orderName, quote, color, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1 });
+    const it = rackItems.find(i => i.order_name === orderName && i.quote === quote && i.color === color);
+    if (it) it.found = r.found ?? Math.min(it.found + 1, it.needed);
+    btn.textContent = '✓ Done'; btn.style.background = '#4caf50';
+    updateSummary(); buildDateNav(); renderList();
+    // re-render results to update counts
+    const q = norm(document.getElementById('painterSearchQ')?.value || '');
+    if (q.length >= 2) _renderPainterResults(q, q);
+  } catch(e) { btn.disabled = false; btn.textContent = '✓ Found'; alert(e.message); }
+}
+
+async function painterDispatch(orderName, btn) {
+  if (!confirm(`Mark ${orderName} as dispatched?`)) return;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await apiFetch({ action: 'mark_dispatched', order_name: orderName });
+    rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, dispatched: true } : it);
+    btn.textContent = '✓'; btn.style.background = '#e8f5e9'; btn.style.color = '#388e3c';
+    updateSummary(); buildDateNav(); renderList();
+    const q = norm(document.getElementById('painterSearchQ')?.value || '');
+    if (q.length >= 2) _renderPainterResults(q, q);
+  } catch(e) { btn.disabled = false; btn.textContent = '🚚'; alert(e.message); }
 }
 
 // ── PAINTER SETTINGS ───────────────────────────────────────────────────────────
