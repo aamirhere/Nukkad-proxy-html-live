@@ -3286,13 +3286,18 @@ async function printAllQueued() {
   const orderNames = cards.map(c => c.dataset.order).filter(Boolean);
   if (!orderNames.length) return alert('No visible orders to print.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
-  if (btn) { btn.disabled = true; btn.textContent = `Fetching ${orderNames.length} slips…`; }
+  if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length} slips…`; }
   let slips = [];
+  const BATCH = 20;
   try {
-    const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: orderNames }, API, 90000);
-    const errors = (fetched || []).filter(s => s.error);
-    if (errors.length) console.warn('[PrintAll] failed slips:', errors.map(e => `${e.order_name}: ${e.error}`));
-    slips = (fetched || []).filter(s => !s.error);
+    for (let i = 0; i < orderNames.length; i += BATCH) {
+      const chunk = orderNames.slice(i, i + BATCH);
+      if (btn) btn.textContent = `Fetching ${Math.min(i + BATCH, orderNames.length)}/${orderNames.length} slips…`;
+      const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: chunk }, API, 35000);
+      const errors = (fetched || []).filter(s => s.error);
+      if (errors.length) console.warn('[PrintAll] failed slips:', errors.map(e => `${e.order_name}: ${e.error}`));
+      slips = slips.concat((fetched || []).filter(s => !s.error));
+    }
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
     return alert('Failed to fetch slips: ' + e.message);
