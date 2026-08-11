@@ -923,12 +923,18 @@ window.addEventListener('DOMContentLoaded', () => {
   init();
 });
 
+let _designCatalog = []; // all active Shopify product titles — loaded once on init
+
 async function init() {
   await loadRackStatus();
   _loadSkips().catch(() => {});
   updatePendingBadge();
   refreshPendingBadge();
   maybeAutoSync();
+  // load full product catalog in background for scan suggestions
+  apiFetch({ action: 'get_design_catalog' }).then(r => {
+    _designCatalog = (r.titles || []);
+  }).catch(() => {});
 }
 
 // Only hit Shopify if last sync was more than 30 minutes ago
@@ -1278,17 +1284,34 @@ function showQuoteSuggestions(val) {
     return bScore - aScore;
   });
 
-  if (!hits.length) { box.style.display = 'none'; return; }
-  box.innerHTML = hits.slice(0, 15).map(([quote, h]) => {
-    const isDispatchedOnly = !h.hasActive && !h.allDone;
-    const k = _bd([quote, '']);
-    return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
-      data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
-      <span style="flex:1;font-weight:600;${h.allDone||isDispatchedOnly?'color:var(--muted);text-decoration:line-through':''}">${esc(quote)}</span>
-      ${h.allDone ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
-      ${isDispatchedOnly ? '<span style="font-size:.7rem;color:var(--muted);white-space:nowrap">dispatched</span>' : ''}
-    </div>`;
-  }).join('');
+  // also search full Shopify catalog for designs not yet in any rack order
+  const rackQuotes = new Set([...hitMap.keys()].map(s => norm(s)));
+  const catalogHits = _designCatalog
+    .filter(t => norm(t).includes(q) && !rackQuotes.has(norm(t)))
+    .slice(0, 8);
+
+  if (!hits.length && !catalogHits.length) { box.style.display = 'none'; return; }
+
+  box.innerHTML = [
+    ...hits.slice(0, 12).map(([quote, h]) => {
+      const isDispatchedOnly = !h.hasActive && !h.allDone;
+      const k = _bd([quote, '']);
+      return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
+        data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
+        <span style="flex:1;font-weight:600;${h.allDone||isDispatchedOnly?'color:var(--muted);text-decoration:line-through':''}">${esc(quote)}</span>
+        ${h.allDone ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
+        ${isDispatchedOnly ? '<span style="font-size:.7rem;color:var(--muted);white-space:nowrap">dispatched</span>' : ''}
+      </div>`;
+    }),
+    ...catalogHits.map(title => {
+      const k = _bd([title, '']);
+      return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
+        data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
+        <span style="flex:1;font-weight:600">${esc(title)}</span>
+        <span style="font-size:.7rem;color:var(--muted);white-space:nowrap">catalog</span>
+      </div>`;
+    }),
+  ].join('');
   box.style.display = 'block';
 }
 function hideSuggestions() {
