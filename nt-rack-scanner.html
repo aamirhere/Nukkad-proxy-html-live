@@ -4389,14 +4389,12 @@ function painterClearResult() {
 }
 
 function _renderPainterResults(q, origVal) {
-  // find matching active rack items
   const matchMap = new Map(); // quote → [rackItem, ...]
   for (const it of rackItems) {
     if (!norm(it.quote).includes(q) || it.dispatched) continue;
     if (!matchMap.has(it.quote)) matchMap.set(it.quote, []);
     matchMap.get(it.quote).push(it);
   }
-  // also include catalog titles with no rack order
   const catalogMatches = _designCatalog.filter(t => norm(t).includes(q) && !matchMap.has(t)).slice(0, 4);
 
   if (!matchMap.size && !catalogMatches.length) {
@@ -4405,48 +4403,165 @@ function _renderPainterResults(q, origVal) {
     return;
   }
 
+  const CH = [
+    { id:'prime',   label:'🔵 Prime',   color:'#1565c0' },
+    { id:'zepto',   label:'⚡ Zepto',   color:'#6a0dad' },
+    { id:'blinkit', label:'🟡 Blinkit', color:'#d48f00' },
+    { id:'bulk',    label:'📦 Bulk',    color:'#2e7d32' },
+  ];
+
   let html = '';
   for (const [quote, items] of [...matchMap.entries()].slice(0, 8)) {
     const active = items.filter(r => r.found < r.needed);
     const done   = items.filter(r => r.found >= r.needed);
-    const k = _bd([quote]);
+    const qk = quote.replace(/[^a-z0-9]/gi,'_').slice(0,30) + '_' + Math.abs(quote.split('').reduce((a,c)=>a+c.charCodeAt(0),0));
     html += `<div style="background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px">
-      <div style="font-weight:700;font-size:.88rem;margin-bottom:8px">${esc(quote)}</div>
-      ${active.map(r => {
+      <div style="font-weight:700;font-size:.88rem;margin-bottom:8px">${esc(quote)}</div>`;
+
+    if (active.length) {
+      html += `<div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Orders</div>`;
+      html += active.map(r => {
         const bk = _bd([r.order_name, r.quote, r.color]);
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">
-          <div style="flex:1;font-size:.78rem">
-            <span style="font-weight:700;color:var(--accent)">${esc(r.color||'—')}</span>
-            <span style="color:var(--muted);margin-left:6px">${esc(r.order_name)} · ${esc((rackItems.find(i=>i.order_name===r.order_name)||{}).customer||'')}</span>
+        const rowId = 'prow_' + bk;
+        return `<div id="${rowId}" style="padding:6px 0;border-bottom:1px solid var(--line)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;font-size:.78rem">
+              <span style="font-weight:700;color:var(--accent)">${esc(r.color||'—')}</span>
+              <span style="color:var(--muted);margin-left:5px">${esc(r.order_name)}</span>
+              ${r.customer ? `<span style="color:var(--ink2);margin-left:4px">· ${esc(r.customer)}</span>` : ''}
+              <span style="color:var(--ink2);margin-left:4px;font-size:.7rem">(${r.found}/${r.needed})</span>
+            </div>
+            <button data-bd="${bk}" onclick="painterExpandOrder(this.dataset.bd,'${rowId}')"
+              style="padding:5px 10px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">✓ Found</button>
+            <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
+              style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
           </div>
-          <span style="font-size:.72rem;color:var(--ink2);white-space:nowrap">${r.found}/${r.needed}</span>
-          <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this)"
-            style="padding:5px 10px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">✓ Found</button>
-          <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
-            style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
+          <div id="${rowId}_qty" style="display:none;margin-top:8px;display:none;align-items:center;gap:8px;padding:8px 10px;background:#f1f8e9;border-radius:8px">
+            <span style="font-size:.78rem;color:var(--ink2)">Qty found:</span>
+            <input type="number" min="1" max="${r.needed - r.found}" value="${r.needed - r.found}"
+              style="width:56px;padding:4px 8px;border:1.5px solid #a5d6a7;border-radius:6px;font-size:.88rem;text-align:center"
+              id="${rowId}_qtyinp">
+            <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this,'${rowId}_qtyinp')"
+              style="padding:5px 14px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+            <button onclick="document.getElementById('${rowId}_qty').style.display='none'"
+              style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+          </div>
         </div>`;
-      }).join('')}
-      ${done.length ? `<div style="font-size:.7rem;color:var(--muted);margin-top:6px">✓ ${done.length} already done</div>` : ''}
+      }).join('');
+    }
+    if (done.length) {
+      html += `<div style="font-size:.7rem;color:var(--muted);margin-top:6px">✓ ${done.length} already done</div>`;
+    }
+
+    // Channel section
+    html += `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)">
+      <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Tag for channel</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
+        ${CH.map(ch => `<button onclick="painterExpandChannel('${qk}','${esc(quote)}','${ch.id}')"
+          style="padding:4px 10px;border-radius:20px;border:1.5px solid ${ch.color};background:#fff;color:${ch.color};font-size:.72rem;font-weight:700;cursor:pointer"
+          id="pch_${qk}_${ch.id}">${ch.label}</button>`).join('')}
+      </div>
+      <div id="pchqty_${qk}" style="display:none;align-items:center;gap:8px;padding:8px 10px;background:#e8eaf6;border-radius:8px">
+        <span style="font-size:.78rem;color:var(--ink2)" id="pchqty_${qk}_lbl">Qty:</span>
+        <input type="number" min="1" value="1"
+          style="width:56px;padding:4px 8px;border:1.5px solid #9fa8da;border-radius:6px;font-size:.88rem;text-align:center"
+          id="pchqty_${qk}_inp">
+        <button onclick="painterTagChannel('${qk}','${esc(quote)}',this)"
+          style="padding:5px 14px;border-radius:8px;border:none;background:#283593;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+        <button onclick="painterClearChannelExpand('${qk}')"
+          style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+      </div>
+    </div>
     </div>`;
   }
+
   for (const title of catalogMatches) {
-    html += `<div style="background:#fdf5ec;border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-bottom:6px;font-size:.82rem;color:var(--muted)">${esc(title)} <span style="font-size:.68rem">— no pending orders</span></div>`;
+    const qk = title.replace(/[^a-z0-9]/gi,'_').slice(0,30) + '_cat';
+    const CH_COLORS = {prime:'#1565c0',zepto:'#6a0dad',blinkit:'#d48f00',bulk:'#2e7d32'};
+    html += `<div style="background:#fdf5ec;border:1px dashed var(--line);border-radius:12px;padding:12px 14px;margin-bottom:6px">
+      <div style="font-size:.82rem;color:var(--ink2);margin-bottom:8px">${esc(title)} <span style="font-size:.68rem;color:var(--muted)">— no pending orders</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
+        ${CH.map(ch => `<button onclick="painterExpandChannel('${qk}','${esc(title)}','${ch.id}')"
+          style="padding:4px 10px;border-radius:20px;border:1.5px solid ${ch.color};background:#fff;color:${ch.color};font-size:.72rem;font-weight:700;cursor:pointer"
+          id="pch_${qk}_${ch.id}">${ch.label}</button>`).join('')}
+      </div>
+      <div id="pchqty_${qk}" style="display:none;align-items:center;gap:8px;padding:8px 10px;background:#e8eaf6;border-radius:8px">
+        <span style="font-size:.78rem;color:var(--ink2)" id="pchqty_${qk}_lbl">Qty:</span>
+        <input type="number" min="1" value="1"
+          style="width:56px;padding:4px 8px;border:1.5px solid #9fa8da;border-radius:6px;font-size:.88rem;text-align:center"
+          id="pchqty_${qk}_inp">
+        <button onclick="painterTagChannel('${qk}','${esc(title)}',this)"
+          style="padding:5px 14px;border-radius:8px;border:none;background:#283593;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+        <button onclick="painterClearChannelExpand('${qk}')"
+          style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+      </div>
+    </div>`;
   }
+
   document.getElementById('painterSearchResults').innerHTML = html;
 }
 
-async function painterMarkFound(orderName, quote, color, btn) {
+function painterExpandOrder(bk, rowId) {
+  const qtyDiv = document.getElementById(rowId + '_qty');
+  if (!qtyDiv) return;
+  qtyDiv.style.display = 'flex';
+}
+
+let _painterChCtx = {}; // qk → channelId
+function painterExpandChannel(qk, quote, channelId) {
+  _painterChCtx[qk] = { channelId, quote };
+  // highlight selected
+  ['prime','zepto','blinkit','bulk'].forEach(id => {
+    const b = document.getElementById('pch_' + qk + '_' + id);
+    if (b) b.style.fontWeight = id === channelId ? '900' : '700';
+    if (b) b.style.opacity = id === channelId ? '1' : '0.5';
+  });
+  const lbl = document.getElementById('pchqty_' + qk + '_lbl');
+  if (lbl) lbl.textContent = 'Qty for ' + channelId + ':';
+  const qtyDiv = document.getElementById('pchqty_' + qk);
+  if (qtyDiv) qtyDiv.style.display = 'flex';
+}
+
+function painterClearChannelExpand(qk) {
+  delete _painterChCtx[qk];
+  ['prime','zepto','blinkit','bulk'].forEach(id => {
+    const b = document.getElementById('pch_' + qk + '_' + id);
+    if (b) { b.style.fontWeight = '700'; b.style.opacity = '1'; }
+  });
+  const qtyDiv = document.getElementById('pchqty_' + qk);
+  if (qtyDiv) qtyDiv.style.display = 'none';
+}
+
+async function painterTagChannel(qk, quote, btn) {
+  const ctx = _painterChCtx[qk];
+  if (!ctx) return;
+  const inp = document.getElementById('pchqty_' + qk + '_inp');
+  const qty = parseInt(inp?.value) || 1;
+  const color = (_scanColor || '').trim() || '';
   btn.disabled = true; btn.textContent = '…';
   try {
-    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1 });
+    await apiFetch({ action: 'add_stock_item', quote, color, channel: ctx.channelId, qty, painter: currentPainter || null });
+    btn.textContent = '✓ Tagged';
+    btn.style.background = '#4caf50';
+    setTimeout(() => {
+      painterClearChannelExpand(qk);
+      btn.disabled = false; btn.textContent = 'Confirm'; btn.style.background = '#283593';
+    }, 1800);
+  } catch(e) { btn.disabled = false; btn.textContent = 'Confirm'; alert(e.message); }
+}
+
+async function painterMarkFound(orderName, quote, color, btn, qtyInpId) {
+  const qty = qtyInpId ? (parseInt(document.getElementById(qtyInpId)?.value) || 1) : 1;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty });
     const it = rackItems.find(i => i.order_name === orderName && i.quote === quote && i.color === color);
-    if (it) it.found = r.found ?? Math.min(it.found + 1, it.needed);
+    if (it) it.found = r.found ?? Math.min(it.found + qty, it.needed);
     btn.textContent = '✓ Done'; btn.style.background = '#4caf50';
     updateSummary(); buildDateNav(); renderList();
-    // re-render results to update counts
-    const q = norm(document.getElementById('painterSearchQ')?.value || '');
-    if (q.length >= 2) _renderPainterResults(q, q);
-  } catch(e) { btn.disabled = false; btn.textContent = '✓ Found'; alert(e.message); }
+    const qv = norm(document.getElementById('painterSearchQ')?.value || '');
+    if (qv.length >= 2) _renderPainterResults(qv, qv);
+  } catch(e) { btn.disabled = false; btn.textContent = 'Confirm'; alert(e.message); }
 }
 
 async function painterDispatch(orderName, btn) {
