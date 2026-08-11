@@ -708,15 +708,21 @@ input[type=file]{display:none}
       <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="printAllQueued()">Print All</button>
     </div>
   </div>
-  <!-- filter tabs -->
-  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+  <!-- date chips -->
+  <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+    <button id="pqDateAll"  onclick="setPqDate('all')"  style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;cursor:pointer">All</button>
+    <button id="pqDateToday" onclick="setPqDate('today')"  style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.7rem;font-weight:700;cursor:pointer">Today</button>
+    <button id="pqDateYest"  onclick="setPqDate('yesterday')" style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.7rem;font-weight:700;cursor:pointer">Yesterday</button>
+    <button id="pqDateDay2"  onclick="setPqDate('day2')"  style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.7rem;font-weight:700;cursor:pointer">2 Days Ago</button>
+    <input id="pqDatePicker" type="date" onchange="setPqDate('custom',this.value)" style="padding:2px 6px;border:1.5px solid var(--line);border-radius:20px;font-size:.7rem;font-family:var(--fb);cursor:pointer;color:var(--ink2)" title="Pick a specific date">
+  </div>
+  <!-- status tabs -->
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
     <div style="display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:.72rem;font-weight:700">
-      <button id="pqTabPending" onclick="setPqFilter('pending')" style="padding:4px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">Ready</button>
-      <button id="pqTabPartial" onclick="setPqFilter('partial')" style="padding:4px 10px;border:none;background:#fff;color:var(--ink2);cursor:pointer">Partial</button>
-      <button id="pqTabPrinted" onclick="setPqFilter('printed')" style="padding:4px 10px;border:none;background:#fff;color:var(--ink2);cursor:pointer">Printed</button>
-      <button id="pqTabAll"     onclick="setPqFilter('all')"     style="padding:4px 10px;border:none;background:#fff;color:var(--ink2);cursor:pointer">All</button>
+      <button id="pqTabReady"   onclick="setPqStatus('ready')"   style="padding:4px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">Ready to Print</button>
+      <button id="pqTabPrinted" onclick="setPqStatus('printed')" style="padding:4px 10px;border:none;background:#fff;color:var(--ink2);cursor:pointer">Printed</button>
     </div>
-    <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;min-width:120px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
+    <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;min-width:100px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
   </div>
   <div id="printQueueList"><div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div></div>
 </div>
@@ -3010,14 +3016,43 @@ function setMode(mode) {
 }
 
 let _pqOrders = [];
-let _pqFilter = 'pending'; // 'pending' | 'partial' | 'printed' | 'all'
+let _pqStatus = 'ready';  // 'ready' | 'printed'
+let _pqDate   = 'all';    // 'all' | 'today' | 'yesterday' | 'day2' | 'YYYY-MM-DD'
 
-function setPqFilter(f) {
-  _pqFilter = f;
-  ['pending','partial','printed','all'].forEach(k => {
-    const b = document.getElementById('pqTab' + k.charAt(0).toUpperCase() + k.slice(1));
-    if (b) { b.style.background = k === f ? 'var(--accent)' : '#fff'; b.style.color = k === f ? '#fff' : 'var(--ink2)'; }
+function _istDate(offsetDays = 0) {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  d.setDate(d.getDate() - offsetDays);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+function setPqDate(key, custom) {
+  _pqDate = key === 'custom' ? (custom || 'all') : key;
+  const dateIds = ['All','Today','Yest','Day2'];
+  const dateKeys = ['all','today','yesterday','day2'];
+  dateIds.forEach((id, i) => {
+    const b = document.getElementById('pqDate' + id);
+    if (!b) return;
+    const active = dateKeys[i] === key;
+    b.style.background = active ? 'var(--accent)' : '#fff';
+    b.style.color      = active ? '#fff' : 'var(--ink2)';
+    b.style.borderColor= active ? 'var(--accent)' : 'var(--line)';
   });
+  // deactivate date chips if custom date
+  if (key === 'custom') {
+    dateIds.forEach(id => {
+      const b = document.getElementById('pqDate' + id);
+      if (b) { b.style.background='#fff'; b.style.color='var(--ink2)'; b.style.borderColor='var(--line)'; }
+    });
+  }
+  renderPqList();
+}
+
+function setPqStatus(s) {
+  _pqStatus = s;
+  const rBtn = document.getElementById('pqTabReady');
+  const pBtn = document.getElementById('pqTabPrinted');
+  if (rBtn) { rBtn.style.background = s==='ready' ? 'var(--accent)' : '#fff'; rBtn.style.color = s==='ready' ? '#fff' : 'var(--ink2)'; }
+  if (pBtn) { pBtn.style.background = s==='printed' ? '#388e3c' : '#fff'; pBtn.style.color = s==='printed' ? '#fff' : 'var(--ink2)'; }
   renderPqList();
 }
 
@@ -3026,28 +3061,40 @@ function renderPqList() {
   if (!list) return;
   const q = (document.getElementById('pqSearch')?.value || '').toLowerCase().trim();
   let orders = _pqOrders;
-  // when searching, bypass tab filters so any order is findable
-  if (!q) {
-    if (_pqFilter === 'pending') orders = orders.filter(o => o.allFound && !o.printed);
-    if (_pqFilter === 'partial') orders = orders.filter(o => !o.allFound && !o.printed);
-    if (_pqFilter === 'printed') orders = orders.filter(o => o.printed);
+
+  // date filter (skip if searching)
+  if (!q && _pqDate !== 'all') {
+    let targetDate;
+    if (_pqDate === 'today')     targetDate = _istDate(0);
+    else if (_pqDate === 'yesterday') targetDate = _istDate(1);
+    else if (_pqDate === 'day2') targetDate = _istDate(2);
+    else                         targetDate = _pqDate; // custom YYYY-MM-DD
+    orders = orders.filter(o => o.order_date === targetDate);
   }
+
+  // status filter (skip if searching)
+  if (!q) {
+    if (_pqStatus === 'ready')   orders = orders.filter(o => o.allFound && !o.printed);
+    if (_pqStatus === 'printed') orders = orders.filter(o => o.printed);
+  }
+
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
+
   const cnt = document.getElementById('pqCount');
   const totalPieces = orders.reduce((s,o) => s + o.items.reduce((s2,it) => s2 + it.needed, 0), 0);
   if (cnt) cnt.textContent = `(${orders.length} orders · ${totalPieces} pcs)`;
+
   if (!orders.length) {
-    const emptyMsg = _pqFilter==='pending' ? 'No fully-matched orders to print yet.' : _pqFilter==='partial' ? 'No partially-matched orders.' : _pqFilter==='printed' ? 'No printed orders yet.' : 'No orders in queue.';
-    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${emptyMsg}</div>`;
+    const msg = _pqStatus === 'ready' ? 'No fully-matched orders to print.' : 'No printed orders yet.';
+    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${msg}</div>`;
     return;
   }
   list.innerHTML = orders.map(o => {
-    const printedBadge  = o.printed   ? `<span style="background:#e8f5e9;color:#388e3c;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.66rem;margin-left:6px">✓ Printed</span>` : '';
-    const partialBadge  = !o.allFound && !o.printed ? `<span style="background:#fff8e1;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.66rem;margin-left:6px">⚠ Partial</span>` : '';
+    const printedBadge = o.printed ? `<span style="background:#e8f5e9;color:#388e3c;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.66rem;margin-left:6px">✓ Printed</span>` : '';
     return `<div class="result-card" style="margin-bottom:0;${o.printed?'opacity:.75':''}" data-order="${esc(o.order_name)}">
       <div style="padding:11px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:.9rem">${esc(o.order_name)} · ${esc(o.customer||'')}${printedBadge}${partialBadge}</div>
+          <div style="font-weight:700;font-size:.9rem">${esc(o.order_name)} · ${esc(o.customer||'')}${printedBadge}</div>
           <div style="margin-top:3px"><span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.7rem">${fmtDate(o.order_date)}</span></div>
           <div style="margin-top:6px;display:flex;flex-direction:column;gap:2px">
             ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
