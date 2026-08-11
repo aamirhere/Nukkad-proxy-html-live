@@ -3349,29 +3349,24 @@ function setPqDate(key) {
   const picker = document.getElementById('pqDatePicker');
   if (picker && !['all','today','yesterday','day2'].includes(key)) picker.value = key;
   else if (picker) picker.value = '';
+  buildPqDateChips();
   renderPqList();
 }
 
 function buildPqDateChips() {
   const ready = _pqOrders.filter(o => o.allFound);
-  const today     = _istDateStr(0);
-  const yesterday = _istDateStr(1);
-  const day2      = _istDateStr(2);
+  const today = _istDateStr(0);
 
   function countFor(filterKey) {
     let pool = ready;
-    if (filterKey !== 'all') {
-      const target = filterKey === 'today' ? today : filterKey === 'yesterday' ? yesterday : filterKey === 'day2' ? day2 : filterKey;
-      pool = ready.filter(o => _scanDate(o) === target);
-    }
+    if (filterKey === 'today') pool = ready.filter(o => _scanDate(o) === today);
+    else if (filterKey !== 'all') pool = ready.filter(o => _scanDate(o) === filterKey);
     return { total: pool.length, unprinted: pool.filter(o => !o.printed).length };
   }
 
   const chips = [
-    { key: 'all',       label: 'All' },
-    { key: 'today',     label: 'Today' },
-    { key: 'yesterday', label: 'Yesterday' },
-    { key: 'day2',      label: '2 Days Ago' },
+    { key: 'all',   label: 'All' },
+    { key: 'today', label: 'Today' },
   ];
 
   const chipEl = document.getElementById('pqDateChips');
