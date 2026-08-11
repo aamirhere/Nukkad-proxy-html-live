@@ -3129,7 +3129,7 @@ function renderPqList() {
   if (!list) return;
   const q = (document.getElementById('pqSearch')?.value || '').toLowerCase().trim();
 
-  // only show allFound orders (matched) — both printed and unprinted
+  // only show allFound orders (matched) — both printed and unprinted, dispatched kept 3 days
   let orders = _pqOrders.filter(o => o.allFound);
 
   // date filter by scan date (when pieces were last confirmed)
@@ -3141,9 +3141,9 @@ function renderPqList() {
   // text search
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
 
-  // print status filter
-  if (_pqFilter === 'toprint') orders = orders.filter(o => !o.printed);
-  if (_pqFilter === 'printed')  orders = orders.filter(o => o.printed);
+  // print status filter (dispatched orders always show regardless of filter — they stay for 3 days for reprinting)
+  if (_pqFilter === 'toprint') orders = orders.filter(o => o.dispatched || !o.printed);
+  if (_pqFilter === 'printed')  orders = orders.filter(o => o.dispatched || o.printed);
 
   // sort by scan timestamp ascending — matches physical rack sequence
   orders = [...orders].sort((a, b) => (a.last_updated || '') < (b.last_updated || '') ? -1 : 1);
@@ -3161,14 +3161,20 @@ function renderPqList() {
   let html = '';
   let seq = 0;
   for (const o of orders) {
-    seq++;
-    const scanTime = _fmtScanTime(o.last_updated);
+    const isDispatched = o.dispatched;
     const isPrinted = o.printed;
-    html += `<div class="result-card" style="margin-bottom:0;${isPrinted ? 'opacity:.55;' : ''}" data-order="${esc(o.order_name)}">
+    if (!isDispatched) seq++;
+    const scanTime = _fmtScanTime(o.last_updated);
+    const badge = isDispatched
+      ? `<span style="font-size:.68rem;font-weight:700;color:#fff;background:#757575;border-radius:20px;padding:1px 7px;white-space:nowrap">🚚 Dispatched</span>`
+      : isPrinted
+        ? `<span style="font-size:.68rem;font-weight:700;color:#fff;background:#388e3c;border-radius:20px;padding:1px 7px;white-space:nowrap">✓ Printed</span>`
+        : `<span style="font-size:.68rem;font-weight:700;color:#fff;background:var(--accent);border-radius:20px;padding:1px 7px;white-space:nowrap">#${seq} To Print</span>`;
+    html += `<div class="result-card" style="margin-bottom:0;${(isPrinted || isDispatched) ? 'opacity:.55;' : ''}" data-order="${esc(o.order_name)}">
       <div style="padding:10px 13px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:.68rem;font-weight:700;color:#fff;background:${isPrinted?'#388e3c':'var(--accent)'};border-radius:20px;padding:1px 7px;white-space:nowrap">${isPrinted ? '✓ Printed' : `#${seq} To Print`}</span>
+            ${badge}
             <span style="font-weight:700;font-size:.88rem">${esc(o.order_name)} · ${esc(o.customer||'')}</span>
           </div>
           <div style="margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -3186,7 +3192,7 @@ function renderPqList() {
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
           <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printSlip('${esc(o.order_name)}',this)">↻ Print Slip</button>
-          <button class="act-btn" style="background:#1565c0;color:#fff;border:none;font-size:.72rem" onclick="dispatchFromQueue('${esc(o.order_name)}',this)">✓ Dispatched</button>
+          ${isDispatched ? '' : `<button class="act-btn" style="background:#1565c0;color:#fff;border:none;font-size:.72rem" onclick="dispatchFromQueue('${esc(o.order_name)}',this)">✓ Dispatched</button>`}
         </div>
       </div>
     </div>`;
@@ -3224,7 +3230,7 @@ async function dispatchFromQueue(orderName, btn) {
   try {
     await apiFetch({ action: 'mark_dispatched', order_name: orderName });
     rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, dispatched: true } : it);
-    _pqOrders = _pqOrders.filter(o => o.order_name !== orderName);
+    _pqOrders = _pqOrders.map(o => o.order_name === orderName ? { ...o, dispatched: true } : o);
     renderPqList();
   } catch(e) {
     btn.disabled = false; btn.textContent = '✓ Dispatched';
@@ -3241,8 +3247,8 @@ async function dispatchAllQueued() {
   const btn = document.querySelector('[onclick="dispatchAllQueued()"]');
   if (btn) { btn.disabled = true; btn.textContent = `Dispatching…`; }
   try {
-    await Promise.allSettled(orderNames.map(name => apiFetch({ action: 'dispatch_order', order_name: name })));
-    _pqOrders = _pqOrders.filter(o => !orderNames.includes(o.order_name));
+    await Promise.allSettled(orderNames.map(name => apiFetch({ action: 'mark_dispatched', order_name: name })));
+    _pqOrders = _pqOrders.map(o => orderNames.includes(o.order_name) ? { ...o, dispatched: true } : o);
     buildPqDateChips();
     renderPqList();
     setStatus(`✓ ${orderNames.length} orders marked dispatched`);
