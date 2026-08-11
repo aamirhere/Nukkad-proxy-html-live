@@ -3678,12 +3678,15 @@ async function dispatchAllQueued() {
 }
 
 async function printAllQueued() {
-  // print only: allFound, not dispatched, not printed — respecting current date filter
-  let toPrint = _pqOrders.filter(o => o.allFound && !o.dispatched && !o.printed);
+  // mirror renderPqList filter logic, but always exclude dispatched
+  let toPrint = _pqOrders.filter(o => o.allFound && !o.dispatched);
   if (_pqDate !== 'all') {
     const target = _pqDate === 'today' ? _istDateStr(0) : _pqDate === 'yesterday' ? _istDateStr(1) : _pqDate === 'day2' ? _istDateStr(2) : _pqDate;
     toPrint = toPrint.filter(o => _scanDate(o) === target);
   }
+  if (_pqFilter === 'toprint')   toPrint = toPrint.filter(o => !o.printed && !o.print_initiated);
+  if (_pqFilter === 'initiated') toPrint = toPrint.filter(o => o.print_initiated && !o.printed);
+  if (_pqFilter === 'printed')   toPrint = toPrint.filter(o => o.printed);
   const orderNames = toPrint.map(o => o.order_name);
   if (!orderNames.length) return alert('No visible orders to print.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
