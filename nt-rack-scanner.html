@@ -958,16 +958,6 @@ window.addEventListener('DOMContentLoaded', () => {
 let _designCatalog = []; // all Shopify product titles — loaded on init
 let _lastSuggestVal = ''; // last value typed in search — to refresh dropdown when catalog loads
 
-function _catalogSave(titles) {
-  try { localStorage.setItem('nt_catalog', JSON.stringify({ titles, ts: Date.now() })); } catch(e) {}
-}
-function _catalogLoad() {
-  try {
-    const d = JSON.parse(localStorage.getItem('nt_catalog') || 'null');
-    return (d && d.titles) ? d.titles : [];
-  } catch(e) { return []; }
-}
-
 async function init() {
   initScanColorBar();
   await loadRackStatus();
@@ -975,15 +965,20 @@ async function init() {
   updatePendingBadge();
   refreshPendingBadge();
   maybeAutoSync();
-  // 1. Load from localStorage immediately — instant, no network
-  const cached = _catalogLoad();
-  if (cached.length) { _designCatalog = cached; }
+  // 1. Read Supabase catalog immediately — fast, already stored
+  apiFetch({ action: 'get_design_catalog' }).then(r => {
+    _designCatalog = (r.titles || []);
+    if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
+  }).catch(() => {});
 
-  // 2. Sync from Shopify in background — updates catalog and saves to localStorage
+  // 2. Sync only NEW Shopify products into Supabase, then refresh catalog if anything was added
   apiFetch({ action: 'sync_design_catalog' }).then(s => {
-    if (s && s.titles && s.titles.length > 0) {
-      _designCatalog = s.titles;
-      _catalogSave(s.titles);
+    if (s && s.added > 0) {
+      return apiFetch({ action: 'get_design_catalog' });
+    }
+  }).then(r => {
+    if (r && r.titles) {
+      _designCatalog = r.titles;
       if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
     }
   }).catch(() => {});
