@@ -609,6 +609,7 @@ input[type=file]{display:none}
 
   <div class="filter-row no-print">
     <div class="ftab active" onclick="setFilter('all')" data-f="all" data-label="All">All</div>
+    <div class="ftab" onclick="setFilter('notmatched')" data-f="notmatched" data-label="Not Matched">Not Matched</div>
     <div class="ftab" onclick="setFilter('missing')" data-f="missing" data-label="Not Started">Not Started</div>
     <div class="ftab" onclick="setFilter('partial')" data-f="partial" data-label="In Progress">In Progress</div>
     <div class="ftab" onclick="setFilter('matched')" data-f="matched" data-label="Matched ✓">Matched ✓</div>
@@ -2410,11 +2411,12 @@ function updateFilterCounts() {
   }
   const all = Object.values(byOrder);
   const counts = {
-    all:       all.filter(o => !o.dispatched).length,
-    missing:   all.filter(o => !o.dispatched && o.found === 0).length,
-    partial:   all.filter(o => !o.dispatched && o.found > 0 && o.found < o.needed).length,
-    matched:   all.filter(o => !o.dispatched && o.found >= o.needed).length,
-    emergency: all.filter(o => !o.dispatched && o.is_emergency).length,
+    all:        all.filter(o => !o.dispatched).length,
+    notmatched: all.filter(o => !o.dispatched && o.found < o.needed).length,
+    missing:    all.filter(o => !o.dispatched && o.found === 0).length,
+    partial:    all.filter(o => !o.dispatched && o.found > 0 && o.found < o.needed).length,
+    matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
+    emergency:  all.filter(o => !o.dispatched && o.is_emergency).length,
   };
   document.querySelectorAll('.ftab').forEach(b => {
     const f = b.dataset.f;
@@ -2478,11 +2480,12 @@ function renderList() {
     const totalF = o.items.reduce((s,it)=>s+it.found,0);
     const complete = totalF >= totalN;
     const partial  = totalF > 0 && !complete;
-    if (activeFilter === 'all')       return !o.dispatched;
-    if (activeFilter === 'missing')   return totalF === 0 && !o.dispatched;
-    if (activeFilter === 'partial')   return partial && !o.dispatched;
-    if (activeFilter === 'matched')   return complete && !o.dispatched;
-    if (activeFilter === 'emergency') return o.is_emergency && !o.dispatched;
+    if (activeFilter === 'all')        return !o.dispatched;
+    if (activeFilter === 'notmatched') return !complete && !o.dispatched;
+    if (activeFilter === 'missing')    return totalF === 0 && !o.dispatched;
+    if (activeFilter === 'partial')    return partial && !o.dispatched;
+    if (activeFilter === 'matched')    return complete && !o.dispatched;
+    if (activeFilter === 'emergency')  return o.is_emergency && !o.dispatched;
     return true;
   });
 
