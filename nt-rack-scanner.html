@@ -955,7 +955,8 @@ window.addEventListener('DOMContentLoaded', () => {
   init();
 });
 
-let _designCatalog = []; // all active Shopify product titles — loaded once on init
+let _designCatalog = []; // all Shopify product titles — loaded on init
+let _lastSuggestVal = ''; // last value typed in search — to refresh dropdown when catalog loads
 
 async function init() {
   initScanColorBar();
@@ -964,17 +965,16 @@ async function init() {
   updatePendingBadge();
   refreshPendingBadge();
   maybeAutoSync();
-  // load catalog from DB cache immediately, then sync new products from Shopify
+  // load catalog: fast DB cache first, then Shopify sync for new/missing items
+  // both run; whichever has more titles wins, and dropdown refreshes if open
   apiFetch({ action: 'get_design_catalog' }).then(r => {
     _designCatalog = (r.titles || []);
-    // sync in background to pick up any new Shopify products
-    return apiFetch({ action: 'sync_design_catalog' });
-  }).then(s => {
-    if (s && s.added > 0) {
-      // new products were added — refresh catalog
-      apiFetch({ action: 'get_design_catalog' }).then(r => {
-        _designCatalog = (r.titles || []);
-      }).catch(() => {});
+    if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
+  }).catch(() => {});
+  apiFetch({ action: 'sync_design_catalog' }).then(s => {
+    if (s && s.titles && s.titles.length > _designCatalog.length) {
+      _designCatalog = s.titles;
+      if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
     }
   }).catch(() => {});
 }
@@ -1298,6 +1298,7 @@ function setCamState(state) {
 
 // ── MANUAL MATCH ───────────────────────────────────────────────────────────────
 function showQuoteSuggestions(val) {
+  _lastSuggestVal = val;
   const box = document.getElementById('quoteSuggest');
   const q = norm(val.trim());
   if (q.length < 2) { box.style.display = 'none'; return; }
@@ -1357,6 +1358,7 @@ function showQuoteSuggestions(val) {
   box.style.display = 'block';
 }
 function hideSuggestions() {
+  _lastSuggestVal = '';
   document.getElementById('quoteSuggest').style.display = 'none';
 }
 function pickSuggestion(quote, color) {
