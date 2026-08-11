@@ -3171,8 +3171,9 @@ async function loadPrintQueue() {
   if (!list) return;
   list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div>';
   try {
-    const { orders } = await apiFetch({ action: 'get_print_queue' });
-    _pqOrders = orders || [];
+    const res = await apiFetch({ action: 'get_print_queue' });
+    _pqOrders = res.orders || [];
+    if (res._debug) console.log('[PQ debug]', res._debug);
     buildPqDateChips();
     renderPqList();
   } catch(e) {
