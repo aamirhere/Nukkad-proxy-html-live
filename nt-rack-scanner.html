@@ -1294,52 +1294,69 @@ function showQuoteSuggestions(val) {
   const q = norm(val.trim());
   if (q.length < 2) { box.style.display = 'none'; return; }
 
-  // Build hit map from ALL rack items (including dispatched) so catalogue names always appear
-  const hitMap = new Map(); // quote → { hasActive, allDone }
+  // Build hit map: quote → { hasActive, allDone, colors: Set of active colors }
+  const hitMap = new Map();
   for (const it of rackItems) {
     if (!norm(it.quote).includes(q)) continue;
     const existing = hitMap.get(it.quote);
+    const isActive = !it.dispatched && it.found < it.needed;
     if (!existing) {
-      hitMap.set(it.quote, { hasActive: !it.dispatched && it.found < it.needed, allDone: false });
-    } else if (!it.dispatched && it.found < it.needed) {
-      existing.hasActive = true;
+      hitMap.set(it.quote, { hasActive: isActive, allDone: false, colors: isActive && it.color ? new Set([it.color]) : new Set() });
+    } else {
+      if (isActive) { existing.hasActive = true; if (it.color) existing.colors.add(it.color); }
     }
   }
-  // Mark allDone: non-dispatched items all found
   for (const [quote, h] of hitMap) {
     const nonDispatched = rackItems.filter(r => r.quote === quote && !r.dispatched);
     if (nonDispatched.length > 0 && nonDispatched.every(r => r.found >= r.needed)) h.allDone = true;
   }
 
-  // Sort: active first, then allDone, then dispatched-only
-  const hits = [...hitMap.entries()].sort((a, b) => {
-    const aScore = a[1].hasActive ? 2 : a[1].allDone ? 1 : 0;
-    const bScore = b[1].hasActive ? 2 : b[1].allDone ? 1 : 0;
-    return bScore - aScore;
-  });
+  const selColor = (_scanColor || '').toLowerCase();
 
-  // also search full Shopify catalog for designs not yet in any rack order
+  // Split: color-matched hits vs same-quote-different-color hits
+  const colorHits = [], otherColorHits = [];
+  for (const entry of hitMap.entries()) {
+    const [, h] = entry;
+    if (!selColor || !h.hasActive) {
+      colorHits.push(entry);
+    } else {
+      const hasSelColor = [...h.colors].some(c => c.toLowerCase() === selColor);
+      if (hasSelColor) colorHits.push(entry);
+      else otherColorHits.push(entry);
+    }
+  }
+
+  const scoreOf = h => h.hasActive ? 2 : h.allDone ? 1 : 0;
+  colorHits.sort((a, b) => scoreOf(b[1]) - scoreOf(a[1]));
+  otherColorHits.sort((a, b) => scoreOf(b[1]) - scoreOf(a[1]));
+
   const rackQuotes = new Set([...hitMap.keys()].map(s => norm(s)));
   const catalogHits = _designCatalog
     .filter(t => norm(t).includes(q) && !rackQuotes.has(norm(t)))
     .slice(0, 8);
 
-  if (!hits.length && !catalogHits.length) {
+  if (!colorHits.length && !otherColorHits.length && !catalogHits.length) {
     box.style.display = 'none';
     return;
   }
 
+  const renderHit = ([quote, h], crossColor) => {
+    const isDispatchedOnly = !h.hasActive && !h.allDone;
+    const k = _bd([quote, '']);
+    const otherColors = crossColor ? [...h.colors].join(', ') : '';
+    return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
+      data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
+      <span style="flex:1;font-weight:600;${h.allDone||isDispatchedOnly?'color:var(--muted);text-decoration:line-through':''}">${esc(quote)}</span>
+      ${crossColor ? `<span style="font-size:.68rem;color:#e65100;white-space:nowrap">not in ${esc(_scanColor)} · ${esc(otherColors)}</span>` : ''}
+      ${!crossColor && h.allDone ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
+      ${!crossColor && isDispatchedOnly ? '<span style="font-size:.7rem;color:var(--muted);white-space:nowrap">dispatched</span>' : ''}
+    </div>`;
+  };
+
   box.innerHTML = [
-    ...hits.slice(0, 12).map(([quote, h]) => {
-      const isDispatchedOnly = !h.hasActive && !h.allDone;
-      const k = _bd([quote, '']);
-      return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
-        data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
-        <span style="flex:1;font-weight:600;${h.allDone||isDispatchedOnly?'color:var(--muted);text-decoration:line-through':''}">${esc(quote)}</span>
-        ${h.allDone ? '<span style="font-size:.7rem;color:#4caf50;white-space:nowrap">✓ done</span>' : ''}
-        ${isDispatchedOnly ? '<span style="font-size:.7rem;color:var(--muted);white-space:nowrap">dispatched</span>' : ''}
-      </div>`;
-    }),
+    ...colorHits.slice(0, 12).map(e => renderHit(e, false)),
+    ...(otherColorHits.length ? [`<div style="padding:6px 14px;font-size:.68rem;color:var(--muted);background:#fdf5ec;border-bottom:1px solid var(--line)">Similar items — different color</div>`] : []),
+    ...otherColorHits.slice(0, 5).map(e => renderHit(e, true)),
     ...catalogHits.map(title => {
       const k = _bd([title, '']);
       return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
