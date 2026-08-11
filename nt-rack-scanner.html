@@ -722,11 +722,6 @@ input[type=file]{display:none}
   </div>
   <div style="display:none"><!-- banner spacer placeholder -->
   </div>
-  <!-- date chips: Today / Yesterday / 2 Days Ago (by scan date) + custom -->
-  <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-    <div id="pqDateChips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
-    <input id="pqDatePicker" type="date" onchange="setPqDate(this.value||'all')" title="Pick a specific scan date" style="padding:2px 6px;border:1.5px solid var(--line);border-radius:20px;font-size:.7rem;font-family:var(--fb);cursor:pointer;color:var(--ink2)">
-  </div>
   <!-- print status filter + search -->
   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
     <div style="display:flex;gap:4px">
@@ -3678,12 +3673,7 @@ async function dispatchAllQueued() {
 }
 
 async function printAllQueued() {
-  // mirror renderPqList filter logic, but always exclude dispatched
   let toPrint = _pqOrders.filter(o => o.allFound && !o.dispatched);
-  if (_pqDate !== 'all') {
-    const target = _pqDate === 'today' ? _istDateStr(0) : _pqDate === 'yesterday' ? _istDateStr(1) : _pqDate === 'day2' ? _istDateStr(2) : _pqDate;
-    toPrint = toPrint.filter(o => _scanDate(o) === target);
-  }
   if (_pqFilter === 'toprint')   toPrint = toPrint.filter(o => !o.printed && !o.print_initiated);
   if (_pqFilter === 'initiated') toPrint = toPrint.filter(o => o.print_initiated && !o.printed);
   if (_pqFilter === 'printed')   toPrint = toPrint.filter(o => o.printed);
