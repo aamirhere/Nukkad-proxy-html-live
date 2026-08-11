@@ -1338,7 +1338,17 @@ function showQuoteSuggestions(val) {
     .filter(t => norm(t).includes(q) && !rackQuotes.has(norm(t)))
     .slice(0, 8);
 
-  if (!hits.length && !catalogHits.length) { box.style.display = 'none'; return; }
+  if (!hits.length && !catalogHits.length) {
+    // No local results — search Shopify directly for this query
+    if (q.length >= 3) {
+      box.innerHTML = `<div style="padding:10px 14px;font-size:.8rem;color:var(--muted)">🔍 Searching catalog…</div>`;
+      box.style.display = 'block';
+      _liveSearchCatalog(val, q, rackQuotes);
+    } else {
+      box.style.display = 'none';
+    }
+    return;
+  }
 
   box.innerHTML = [
     ...hits.slice(0, 12).map(([quote, h]) => {
@@ -1365,6 +1375,34 @@ function showQuoteSuggestions(val) {
 function hideSuggestions() {
   _lastSuggestVal = '';
   document.getElementById('quoteSuggest').style.display = 'none';
+}
+
+let _liveSearchTimer = null;
+function _liveSearchCatalog(origVal, q, rackQuotes) {
+  clearTimeout(_liveSearchTimer);
+  _liveSearchTimer = setTimeout(async () => {
+    // abort if user has moved on
+    if (norm(document.getElementById('manualQ')?.value || '') !== q) return;
+    const box = document.getElementById('quoteSuggest');
+    try {
+      const r = await apiFetch({ action: 'search_catalog', query: origVal.trim() });
+      const titles = (r.titles || []).filter(t => !rackQuotes.has(norm(t)));
+      if (!titles.length) { box.style.display = 'none'; return; }
+      // merge into _designCatalog cache for future use
+      const existing = new Set(_designCatalog.map(norm));
+      titles.forEach(t => { if (!existing.has(norm(t))) _designCatalog.push(t); });
+      // render
+      box.innerHTML = titles.map(title => {
+        const k = _bd([title, '']);
+        return `<div style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.84rem;display:flex;align-items:center;gap:8px"
+          data-bd="${k}" onclick="var d=_btnData[this.dataset.bd];pickSuggestion(d[0],d[1])">
+          <span style="flex:1;font-weight:600">${esc(title)}</span>
+          <span style="font-size:.7rem;color:var(--muted);white-space:nowrap">shopify</span>
+        </div>`;
+      }).join('');
+      box.style.display = 'block';
+    } catch(e) { box.style.display = 'none'; }
+  }, 400);
 }
 function pickSuggestion(quote, color) {
   document.getElementById('manualQ').value = quote;
