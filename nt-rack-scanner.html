@@ -625,6 +625,7 @@ input[type=file]{display:none}
   <div class="print-btn-row no-print">
     <button class="hbtn" onclick="openPrintDialog()">🖨 Print</button>
     <button id="listSelModeBtn" class="hbtn" onclick="toggleListSelMode()">☑ Select</button>
+    <button id="listSlipSelBtn" class="hbtn" onclick="toggleSlipSelMode()">🖨 Slips</button>
   </div>
 
   <div id="listContent">
@@ -1909,6 +1910,94 @@ async function confirmListSelected() {
   if (btn) { btn.disabled = false; btn.textContent = 'Mark Found'; }
 }
 
+// ── LIST SLIP SELECT FUNCTIONS ─────────────────────────────────────────────────
+function toggleSlipSelMode() {
+  _slipSelMode = !_slipSelMode;
+  _slipSel.clear();
+  if (_listSelMode) { _listSelMode = false; _listSel.clear(); }
+  const btn = document.getElementById('listSlipSelBtn');
+  if (btn) { btn.textContent = _slipSelMode ? '✕ Cancel' : '🖨 Slips'; btn.style.background = _slipSelMode ? '#e0e0e0' : ''; }
+  updateSlipSelBar();
+  renderList();
+}
+
+function slipSelToggle(orderName) {
+  if (_slipSel.has(orderName)) _slipSel.delete(orderName);
+  else _slipSel.add(orderName);
+  updateSlipSelBar();
+  const card = document.getElementById('card-' + orderName);
+  if (card) {
+    const sel = _slipSel.has(orderName);
+    card.style.outline = sel ? '2.5px solid #1b5e20' : '';
+    card.style.background = sel ? '#f1f8e9' : '';
+    const chk = card.querySelector('.slip-sel-chk');
+    if (chk) chk.checked = sel;
+  }
+}
+
+function updateSlipSelBar() {
+  const n = _slipSel.size;
+  const bar = document.getElementById('listSlipBar');
+  if (bar) bar.style.display = (_slipSelMode && n > 0) ? 'flex' : 'none';
+  const lbl = document.getElementById('listSlipLabel');
+  if (lbl) lbl.textContent = n + ' order' + (n !== 1 ? 's' : '') + ' selected';
+}
+
+async function printListSlips() {
+  const orderNames = [..._slipSel];
+  if (!orderNames.length) return;
+  const btn = document.getElementById('listSlipPrintBtn');
+  if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length}…`; }
+  let slips = [];
+  const BATCH = 20;
+  try {
+    for (let i = 0; i < orderNames.length; i += BATCH) {
+      const chunk = orderNames.slice(i, i + BATCH);
+      if (btn) btn.textContent = `Fetching ${Math.min(i + BATCH, orderNames.length)}/${orderNames.length}…`;
+      const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: chunk }, API, 35000);
+      slips = slips.concat((fetched || []).filter(s => !s.error));
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
+    return alert('Failed to fetch slips: ' + e.message);
+  }
+  if (!slips.length) {
+    if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
+    return alert('No printable slips found.');
+  }
+  const slipHtmls = await Promise.all(slips.map(slip => buildSlipHtml(slip)));
+  const allHtml = slipHtmls.map((html, idx) =>
+    `<div class="bulk-slip-page" style="width:101.6mm;height:152.4mm;overflow:hidden;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
+  ).join('');
+  const content = document.createElement('div');
+  content.innerHTML = allHtml;
+  content.querySelectorAll('canvas[data-awb]').forEach(bc => {
+    drawCode128(bc, bc.dataset.awb, 72);
+    const img = document.createElement('img'); img.src = bc.toDataURL('image/png');
+    img.style.cssText = 'display:block;width:100%;max-width:100%';
+    bc.parentNode.replaceChild(img, bc);
+  });
+  const ov = document.getElementById('slipOverlay');
+  const sc = document.getElementById('slipContent');
+  sc.innerHTML = ''; sc.appendChild(content);
+  ov.style.display = 'flex';
+  document.body.classList.add('printing-slip');
+  requestAnimationFrame(() => { window.print(); });
+  setTimeout(() => {
+    document.body.classList.remove('printing-slip');
+    ov.style.display = 'none'; sc.innerHTML = '';
+    if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
+    // mark all selected orders as print_done
+    apiFetch({ action: 'mark_print_done', order_names: orderNames }).catch(() => {});
+    // update local rackItems so the badge shows immediately
+    rackItems.forEach(it => { if (orderNames.includes(it.order_name)) it.print_done = true; });
+    _slipSel.clear();
+    updateSlipSelBar();
+    renderList();
+    loadPrintQueue().catch(() => {});
+  }, 1500);
+}
+
 // ── SKIP-FOR-NOW — Supabase-backed ────────────────────────────────────────────
 function _todayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
@@ -1930,6 +2019,10 @@ let _scanSelSet = new Set(); // set of checked qids
 // ── LIST MULTI-SELECT STATE ───────────────────────────────────────────────────
 let _listSelMode = false;
 let _listSel = new Set(); // keys: "orderName|||quote|||color"
+
+// ── LIST SLIP SELECT STATE ─────────────────────────────────────────────────────
+let _slipSelMode = false;
+let _slipSel = new Set(); // order names
 
 async function _loadSkips() {
   if (_skipsCache !== null) return _skipsCache;
@@ -2708,20 +2801,23 @@ function renderList() {
       const safeOn = o.order_name.replace(/'/g, "\\'");
       const safeOd = (o.order_date||'').replace(/'/g, "\\'");
 
-      html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}">
-        <div class="ord-top">
+      const isSlipSel = _slipSel.has(o.order_name);
+      const slipSelStyle = _slipSelMode && isSlipSel ? 'outline:2.5px solid #1b5e20;background:#f1f8e9;' : '';
+      html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}" style="${slipSelStyle}">
+        <div class="ord-top" ${_slipSelMode ? `onclick="slipSelToggle('${safeOn}')" style="cursor:pointer"` : ''}>
           <div>
             <span class="ord-name">${esc(o.order_name)}</span>
             ${o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
             ${o.is_emergency?'<span class="tag-emg">Emergency</span>':''}
             ${(!o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
+            ${o.print_done && !o.dispatched ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-            <div class="ord-prog ${progCls}">${o.dispatched?'🚚':`${totalF}/${totalN}`}</div>
-            ${o.dispatched?'':o.fulfilled?'<span class="status-tag fulfilled">Fulf.</span>':'<span class="status-tag unfulfilled">●</span>'}
+            ${_slipSelMode ? `<input type="checkbox" class="slip-sel-chk" style="width:18px;height:18px;accent-color:#1b5e20;pointer-events:none" ${isSlipSel?'checked':''}>` : `<div class="ord-prog ${progCls}">${o.dispatched?'🚚':`${totalF}/${totalN}`}</div>`}
+            ${_slipSelMode ? '' : o.dispatched?'':o.fulfilled?'<span class="status-tag fulfilled">Fulf.</span>':'<span class="status-tag unfulfilled">●</span>'}
           </div>
         </div>
         <div class="ord-items">
@@ -4406,6 +4502,15 @@ function fmtDate(d) {
   <div style="display:flex;gap:8px">
     <button id="listSelConfirmBtn" style="background:#fff;color:#1565c0;border:none;padding:7px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="confirmListSelected()">Mark Found</button>
     <button style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="toggleListSelMode()">Cancel</button>
+  </div>
+</div>
+
+<!-- ── LIST SLIP SELECT BAR ── -->
+<div id="listSlipBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:#1b5e20;color:#fff;padding:12px 16px;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 -2px 12px rgba(0,0,0,.18)">
+  <span id="listSlipLabel" style="font-weight:700;font-size:.88rem">0 orders selected</span>
+  <div style="display:flex;gap:8px">
+    <button id="listSlipPrintBtn" style="background:#fff;color:#1b5e20;border:none;padding:7px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="printListSlips()">🖨 Print Slips</button>
+    <button style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="toggleSlipSelMode()">Cancel</button>
   </div>
 </div>
 </body>
