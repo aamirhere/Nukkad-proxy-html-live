@@ -552,6 +552,12 @@ input[type=file]{display:none}
     <div id="quoteSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:2px"></div>
   </div>
 
+  <!-- color pre-select pills -->
+  <div id="scanColorBar" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center">
+    <span style="font-size:.7rem;color:var(--muted);white-space:nowrap">Color:</span>
+    <div class="color-pills" id="scanColorPills" style="margin-top:0"></div>
+  </div>
+
   <!-- preview + batch bar strip -->
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
     <img id="previewImg" style="display:none;height:40px;border-radius:6px;object-fit:contain;background:#000">
@@ -899,6 +905,32 @@ let currentPainter = null;
 // last AI vision result — used for color override re-matching
 let currentVision = null;
 
+const SCAN_COLORS = ['Peach','Blue','White','Red','Orange','Green','Yellow','Purple','Gold'];
+let _scanColor = '';
+
+function initScanColorBar() {
+  const container = document.getElementById('scanColorPills');
+  if (!container) return;
+  container.innerHTML = SCAN_COLORS.map(c =>
+    `<button class="cpill" onclick="setScanColor('${c}')">${c}</button>`
+  ).join('');
+}
+
+function setScanColor(c) {
+  _scanColor = (_scanColor.toLowerCase() === c.toLowerCase()) ? '' : c;
+  _renderScanColorBar();
+  if (currentVision && currentVision.quote) reMatchWithColor(_scanColor);
+}
+
+function _renderScanColorBar() {
+  const container = document.getElementById('scanColorPills');
+  if (!container) return;
+  container.querySelectorAll('.cpill').forEach(btn => {
+    const active = btn.textContent.toLowerCase() === _scanColor.toLowerCase() && _scanColor;
+    btn.classList.toggle('cpill-active', !!active);
+  });
+}
+
 // packing context — session-level, what are we packing for right now
 let packingCtx = 'daily';
 function setPackingCtx(ctx, btn) {
@@ -926,6 +958,7 @@ window.addEventListener('DOMContentLoaded', () => {
 let _designCatalog = []; // all active Shopify product titles — loaded once on init
 
 async function init() {
+  initScanColorBar();
   await loadRackStatus();
   _loadSkips().catch(() => {});
   updatePendingBadge();
@@ -1325,7 +1358,7 @@ function pickSuggestion(quote, color) {
 }
 function manualMatch() {
   const q = document.getElementById('manualQ').value.trim();
-  const c = document.getElementById('manualC').value;
+  const c = document.getElementById('manualC').value || _scanColor;
   if (!q) return;
   handleVisionResult({ quote: q, color: c || '', confidence: 'manual' });
 }
@@ -1379,7 +1412,9 @@ function findMatches(quote, color) {
 
 function handleVisionResult(vision) {
   currentVision = vision;
-  reMatchWithColor(vision.color);
+  _scanColor = vision.color || _scanColor;
+  _renderScanColorBar();
+  reMatchWithColor(_scanColor);
 }
 
 function findAlreadyCounted(quote, color) {
@@ -1423,6 +1458,8 @@ function findAllCounted(quote, color) {
 }
 
 function reMatchWithColor(color) {
+  _scanColor = color || '';
+  _renderScanColorBar();
   const { quote, confidence } = currentVision;
   currentVision.color = color;
   const matches = findMatches(quote, color);
@@ -1449,12 +1486,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
     return;
   }
 
-  const COLOR_PILLS = ['Peach','Blue','White','Red','Orange','Green','Yellow','Purple','Gold'];
-  const colorPillsHtml = `<div class="color-pills">${COLOR_PILLS.map(c => {
-    const active = c.toLowerCase() === (color||'').toLowerCase();
-    return `<button class="cpill${active?' cpill-active':''}" onclick="reMatchWithColor('${c}')">${c}</button>`;
-  }).join('')}</div>`;
-  const visionHtml = `<div class="rc-vision">AI read: <strong>"${esc(quote)}"</strong>${color ? ` · <strong>${esc(color)}</strong>` : ''}${confidence ? `<span style="color:var(--muted)"> (${confidence})</span>` : ''}<div style="margin-top:6px;font-size:.72rem;color:var(--muted)">Fix color:</div>${colorPillsHtml}</div>`;
+  const visionHtml = `<div class="rc-vision">AI read: <strong>"${esc(quote)}"</strong>${color ? ` · <strong>${esc(color)}</strong>` : ''}${confidence ? `<span style="color:var(--muted)"> (${confidence})</span>` : ''}</div>`;
 
   if (type === 'no_match') {
     logScan({ quote, color, match_type: 'no_match', confidence });
