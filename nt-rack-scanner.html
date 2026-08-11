@@ -963,13 +963,11 @@ async function init() {
 
   // 2. Sync new Shopify products into Supabase on every load — runs in background, never blocks UI
   apiFetch({ action: 'sync_design_catalog' }).then(s => {
-    if (s && s.added > 0) return apiFetch({ action: 'get_design_catalog' });
-  }).then(r => {
-    if (r && r.titles) {
-      _designCatalog = r.titles;
+    if (s && s.titles && s.titles.length > _designCatalog.length) {
+      _designCatalog = s.titles;
       if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
     }
-  }).catch(() => {});
+  }).catch(e => console.warn('catalog sync failed:', e.message));
 }
 
 // Only hit Shopify if last sync was more than 30 minutes ago
