@@ -738,6 +738,7 @@ input[type=file]{display:none}
     <div style="font-weight:700;font-size:.9rem;color:var(--ink)">Print Queue <span id="pqCount" style="font-size:.75rem;font-weight:400;color:var(--muted)"></span></div>
     <div style="display:flex;gap:6px">
       <button class="act-btn go" onclick="loadPrintQueue()">↺ Refresh</button>
+      <button class="act-btn" style="background:#6a1b9a;color:#fff;border:none" onclick="openTransitChecker()">🔍 Transit Check</button>
       <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="printAllQueued()">Print All</button>
       <button class="act-btn" style="background:#388e3c;color:#fff;border:none" onclick="dispatchAllQueued()">✓ Dispatch All</button>
     </div>
@@ -4849,5 +4850,159 @@ function fmtDate(d) {
     <button style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="toggleSlipSelMode()">Cancel</button>
   </div>
 </div>
+<!-- ── TRANSIT CHECKER MODAL ── -->
+<div id="tcModal" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.6);align-items:flex-start;justify-content:center;padding:0">
+  <div style="background:#fff;width:100%;max-width:520px;height:100vh;display:flex;flex-direction:column;margin:0 auto">
+    <!-- header -->
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <div style="font-family:var(--ff);font-size:1rem;font-weight:700;color:var(--ink)">Transit Check</div>
+        <div id="tcStatus" style="font-size:.72rem;color:var(--muted);margin-top:1px">Loading transit data…</div>
+      </div>
+      <button onclick="closeTransitChecker()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+
+    <!-- input -->
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);flex-shrink:0">
+      <div style="display:flex;gap:8px">
+        <input id="tcInput" type="text" inputmode="numeric" placeholder="Type order # (e.g. 84562)" autocomplete="off"
+          style="flex:1;padding:10px 14px;border:2px solid var(--line);border-radius:10px;font-size:1rem;font-family:var(--fb);outline:none"
+          oninput="tcLookup(this.value)" onkeydown="if(event.key==='Enter'){tcConfirm();event.preventDefault()}">
+        <button onclick="tcConfirm()" style="background:#6a1b9a;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer">Check →</button>
+      </div>
+      <!-- result banner -->
+      <div id="tcResult" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;font-weight:700;font-size:.92rem"></div>
+    </div>
+
+    <!-- checked list -->
+    <div style="flex:1;overflow-y:auto;padding:10px 16px;display:flex;flex-direction:column;gap:6px" id="tcList"></div>
+
+    <!-- footer: copy not-fetched list -->
+    <div style="padding:12px 16px;border-top:1px solid var(--line);flex-shrink:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:.8rem;font-weight:700;color:var(--ink)">To Book <span id="tcToBookCount" style="color:#b71c1c">0 orders</span></div>
+        <button onclick="tcCopyList()" style="background:#b71c1c;color:#fff;border:none;padding:7px 16px;border-radius:8px;font-weight:700;font-size:.78rem;cursor:pointer">📋 Copy List</button>
+      </div>
+      <textarea id="tcCopyBox" readonly style="width:100%;height:72px;resize:none;border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.72rem;font-family:monospace;color:var(--ink);background:#fafafa;box-sizing:border-box" placeholder="No-AWB orders will appear here…"></textarea>
+    </div>
+  </div>
+</div>
+
+<script>
+let _tcMap = null; // order_name → true/false (has AWB)
+let _tcChecked = []; // [{order, hasAwb}]
+
+async function openTransitChecker() {
+  document.getElementById('tcModal').style.display = 'flex';
+  document.getElementById('tcInput').value = '';
+  document.getElementById('tcResult').style.display = 'none';
+  document.getElementById('tcList').innerHTML = '';
+  _tcChecked = [];
+  _tcRenderFooter();
+  document.getElementById('tcInput').focus();
+
+  if (_tcMap && Object.keys(_tcMap).length) {
+    const n = Object.keys(_tcMap).length;
+    const inTransit = Object.values(_tcMap).filter(Boolean).length;
+    document.getElementById('tcStatus').textContent = `${n} orders loaded · ${inTransit} in transit`;
+    return;
+  }
+  document.getElementById('tcStatus').textContent = 'Fetching transit data…';
+  try {
+    const r = await apiFetch({ action: 'get_awb_map' });
+    _tcMap = r.map || {};
+    _pqAwbMap = _tcMap; // share with main queue filter
+    const n = Object.keys(_tcMap).length;
+    const inTransit = Object.values(_tcMap).filter(Boolean).length;
+    document.getElementById('tcStatus').textContent = `${n} orders loaded · ${inTransit} in transit`;
+  } catch(e) {
+    document.getElementById('tcStatus').textContent = 'Failed to load — check connection';
+  }
+}
+
+function closeTransitChecker() {
+  document.getElementById('tcModal').style.display = 'none';
+}
+
+function tcLookup(val) {
+  const result = document.getElementById('tcResult');
+  const clean = val.replace(/[^0-9]/g, '');
+  if (clean.length < 4) { result.style.display = 'none'; return; }
+  if (!_tcMap) { result.style.display = 'none'; return; }
+  const key = '#' + clean;
+  if (!(key in _tcMap)) { result.style.display = 'none'; return; }
+  const hasAwb = _tcMap[key];
+  result.style.display = 'block';
+  if (hasAwb) {
+    result.style.background = '#e8f5e9';
+    result.style.color = '#1b5e20';
+    result.textContent = '✓ In Transit — cross this slip';
+  } else {
+    result.style.background = '#fce4ec';
+    result.style.color = '#b71c1c';
+    result.textContent = '✗ No AWB — keep this slip, needs booking';
+  }
+}
+
+function tcConfirm() {
+  const inp = document.getElementById('tcInput');
+  const clean = inp.value.replace(/[^0-9]/g, '');
+  if (clean.length < 3) return;
+  const key = '#' + clean;
+  const hasAwb = _tcMap ? (_tcMap[key] ?? null) : null;
+
+  // add to top of checked list
+  _tcChecked.unshift({ order: key, hasAwb });
+  _tcRenderList();
+  _tcRenderFooter();
+
+  inp.value = '';
+  document.getElementById('tcResult').style.display = 'none';
+  inp.focus();
+}
+
+function tcRemove(order) {
+  _tcChecked = _tcChecked.filter(c => c.order !== order);
+  _tcRenderList();
+  _tcRenderFooter();
+}
+
+function _tcRenderList() {
+  const el = document.getElementById('tcList');
+  if (!_tcChecked.length) { el.innerHTML = ''; return; }
+  el.innerHTML = _tcChecked.map(c => {
+    const unknown = c.hasAwb === null;
+    const color   = unknown ? '#888' : c.hasAwb ? '#1b5e20' : '#b71c1c';
+    const bg      = unknown ? '#f5f5f5' : c.hasAwb ? '#e8f5e9' : '#fce4ec';
+    const label   = unknown ? '? Unknown' : c.hasAwb ? '✓ In Transit' : '✗ No AWB';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;background:${bg};border-radius:8px;padding:8px 12px">
+      <div>
+        <span style="font-weight:700;font-size:.88rem;color:var(--ink)">${esc(c.order)}</span>
+        <span style="margin-left:8px;font-size:.78rem;font-weight:700;color:${color}">${label}</span>
+      </div>
+      <button onclick="tcRemove('${esc(c.order)}')" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:0 4px">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function _tcRenderFooter() {
+  const noAwb = _tcChecked.filter(c => c.hasAwb === false);
+  document.getElementById('tcToBookCount').textContent = `${noAwb.length} order${noAwb.length !== 1 ? 's' : ''}`;
+  document.getElementById('tcCopyBox').value = noAwb.map(c => c.order).join('\n');
+}
+
+function tcCopyList() {
+  const box = document.getElementById('tcCopyBox');
+  if (!box.value.trim()) return;
+  box.select();
+  navigator.clipboard?.writeText(box.value).catch(() => {});
+  document.execCommand('copy');
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✓ Copied!';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+}
+</script>
+
 </body>
 </html>
