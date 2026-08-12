@@ -1966,7 +1966,7 @@ async function printListSlips() {
   }
   const slipHtmls = await Promise.all(slips.map(slip => buildSlipHtml(slip)));
   const allHtml = slipHtmls.map((html, idx) =>
-    `<div class="bulk-slip-page" style="width:101.6mm;height:152.4mm;overflow:hidden;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
+    `<div class="bulk-slip-page" style="width:101.6mm;height:152.4mm;overflow:hidden;padding:2mm 3mm;box-sizing:border-box;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
   ).join('');
   const content = document.createElement('div');
   content.innerHTML = allHtml;
@@ -3743,7 +3743,7 @@ async function printAllQueued() {
   }
   const slipHtmls = await Promise.all(slips.map(slip => buildSlipHtml(slip)));
   const allHtml = slipHtmls.map((html, idx) =>
-    `<div class="bulk-slip-page" style="width:101.6mm;height:152.4mm;overflow:hidden;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
+    `<div class="bulk-slip-page" style="width:101.6mm;height:152.4mm;overflow:hidden;padding:2mm 3mm;box-sizing:border-box;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
   ).join('');
   const content = document.createElement('div');
   content.innerHTML = allHtml;
