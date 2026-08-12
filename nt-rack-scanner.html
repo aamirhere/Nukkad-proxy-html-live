@@ -1980,10 +1980,10 @@ async function printListSlips() {
   const sc = document.getElementById('slipContent');
   sc.innerHTML = ''; sc.appendChild(content);
   ov.style.display = 'flex';
-  document.body.classList.add('printing-slip');
+  document.body.classList.add('printing-slip','bulk-print');
   requestAnimationFrame(() => { window.print(); });
   setTimeout(() => {
-    document.body.classList.remove('printing-slip');
+    document.body.classList.remove('printing-slip','bulk-print');
     ov.style.display = 'none'; sc.innerHTML = '';
     if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
     // mark all selected orders as print_done
