@@ -758,6 +758,8 @@ input[type=file]{display:none}
   </div>
   <div style="display:none"><!-- banner spacer placeholder -->
   </div>
+  <!-- date chips -->
+  <div id="pqDateChips" style="display:flex;gap:4px;flex-wrap:wrap"></div>
   <!-- print status filter + search -->
   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
     <div style="display:flex;gap:4px">
@@ -3504,14 +3506,16 @@ function buildPqDateChips() {
 
   function countFor(filterKey) {
     let pool = ready;
-    if (filterKey === 'today') pool = ready.filter(o => _scanDate(o) === today);
+    if (filterKey === 'today')     pool = ready.filter(o => _scanDate(o) === today);
+    else if (filterKey === 'yesterday') pool = ready.filter(o => _scanDate(o) === _istDateStr(1));
     else if (filterKey !== 'all') pool = ready.filter(o => _scanDate(o) === filterKey);
     return { total: pool.length, unprinted: pool.filter(o => !o.printed).length };
   }
 
   const chips = [
-    { key: 'all',   label: 'All' },
-    { key: 'today', label: 'Today' },
+    { key: 'all',       label: 'All' },
+    { key: 'today',     label: 'Today' },
+    { key: 'yesterday', label: 'Yesterday' },
   ];
 
   const chipEl = document.getElementById('pqDateChips');
