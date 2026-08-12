@@ -514,6 +514,22 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-unit-recv-btn:hover { background: var(--red); color: #fff; }
 .emg-unit-recv-btn.recvd { background: #e8f5e9; color: #388e3c; border-color: #388e3c; }
 .emg-unit-recvd { opacity: .55; }
+.emg-unit-sent-btn {
+  margin-left: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #1565c0;
+  background: #fff;
+  color: #1565c0;
+  font-size: .72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.emg-unit-sent-btn:hover { background: #1565c0; color: #fff; }
+.emg-unit-sent-btn.sent { background: #e3f2fd; color: #1565c0; border-color: #1565c0; }
 
 /* receive stock modal */
 .recv-modal {
@@ -1718,11 +1734,16 @@ async function loadEmgDateView() {
     document.getElementById('emgList').innerHTML = Object.values(groups).map(g => {
       const unitRows = g.units.map(u => {
         const recvd = u.recv_qty > 0;
+        const sent = u.sent_qty > 0;
         const safeHandle = (g.handle||'').replace(/'/g,"\\'");
+        const safeUd = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
         return `<div class="emg-unit-row${recvd ? ' emg-unit-recvd' : ''}">
           <span class="emg-unit-order">${u.order_name || u.order_id}</span>
           <button class="emg-unit-recv-btn${recvd ? ' recvd' : ''}" onclick="event.stopPropagation();openRecvModal('${safeHandle}')" title="Mark received">
             ${recvd ? '✓ Rcvd' : '📦 Rcvd'}
+          </button>
+          <button class="emg-unit-sent-btn${sent ? ' sent' : ''}" onclick="event.stopPropagation();markEmgUnitSentDate(${safeUd})" title="Mark sent to customer">
+            ${sent ? '✓ Sent' : '🚚 Sent'}
           </button>
         </div>`;
       }).join('');
@@ -1777,11 +1798,15 @@ function renderEmgGroups() {
         : '—';
       const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
       const recvd = u.recv_qty > 0;
+      const sent = u.sent_qty > 0;
       return `<div class="emg-unit-row${recvd ? ' emg-unit-recvd' : ''}" id="emgunit-${gi}-${ui}">
         <span class="emg-unit-date">${orderDateStr}</span>
         <span class="emg-unit-order">${u.order_name || u.order_id}</span>
         <button class="emg-unit-recv-btn${recvd ? ' recvd' : ''}" onclick="event.stopPropagation();openRecvModal('${g.handle}')" title="Mark received">
           ${recvd ? '✓ Rcvd' : '📦 Rcvd'}
+        </button>
+        <button class="emg-unit-sent-btn${sent ? ' sent' : ''}" onclick="event.stopPropagation();markEmgUnitSent(${gi},${ui},${safeU})" title="Mark sent to customer">
+          ${sent ? '✓ Sent' : '🚚 Sent'}
         </button>
         <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
       </div>`;
@@ -1820,6 +1845,34 @@ function downloadEmgPDF() {
   };
   window.addEventListener('afterprint', handler);
   window.print();
+}
+
+async function markEmgUnitSent(gi, ui, u) {
+  const rowEl = document.getElementById(`emgunit-${gi}-${ui}`);
+  if (rowEl) { rowEl.style.opacity = '0.4'; rowEl.style.pointerEvents = 'none'; }
+  try {
+    await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    const g = allEmgGroups[gi];
+    if (g) {
+      g.units.splice(ui, 1);
+      if (!g.units.length) allEmgGroups.splice(gi, 1);
+    }
+    renderEmgGroups();
+    syncRecvBadges();
+    updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.length, 0));
+    toast('Marked as sent ✓');
+  } catch (e) {
+    if (rowEl) { rowEl.style.opacity = ''; rowEl.style.pointerEvents = ''; }
+    toast('Failed: ' + e.message);
+  }
+}
+
+async function markEmgUnitSentDate(u) {
+  try {
+    await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    toast('Marked as sent ✓');
+    loadEmgDateView();
+  } catch (e) { toast('Failed: ' + e.message); }
 }
 
 async function dismissEmgUnit(gi, ui, u) {
