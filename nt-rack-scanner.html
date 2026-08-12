@@ -339,7 +339,7 @@ input[type=file]{display:none}
   body.printing-slip .slip-overlay{position:static!important;background:none!important;display:block!important;padding:0}
   body.printing-slip .slip-sheet{border-radius:0;padding:0;max-height:none;box-shadow:none;max-width:100%}
   body.printing-slip .slip-header,body.printing-slip .slip-actions,body.printing-slip #slipLookupBar{display:none!important}
-  body.printing-slip #slipContent .inv{zoom:1.2}
+  body.printing-slip:not(.bulk-print) #slipContent .inv{zoom:1.2}
   @page{size:101.6mm 152.4mm;margin:1mm}
 }
 
@@ -3759,10 +3759,10 @@ async function printAllQueued() {
   sc.innerHTML = '';
   sc.appendChild(content);
   ov.style.display = 'flex';
-  document.body.classList.add('printing-slip');
+  document.body.classList.add('printing-slip','bulk-print');
   requestAnimationFrame(() => { window.print(); });
   setTimeout(() => {
-    document.body.classList.remove('printing-slip');
+    document.body.classList.remove('printing-slip','bulk-print');
     ov.style.display = 'none';
     sc.innerHTML = '';
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
