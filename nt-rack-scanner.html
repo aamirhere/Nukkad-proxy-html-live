@@ -4865,9 +4865,8 @@ function fmtDate(d) {
     <!-- input -->
     <div style="padding:14px 16px;border-bottom:1px solid var(--line);flex-shrink:0">
       <div style="display:flex;gap:8px">
-        <input id="tcInput" type="text" inputmode="numeric" placeholder="Type order # (e.g. 84562)" autocomplete="off"
-          style="flex:1;padding:10px 14px;border:2px solid var(--line);border-radius:10px;font-size:1rem;font-family:var(--fb);outline:none"
-          oninput="tcLookup(this.value)" onkeydown="if(event.key==='Enter'){tcConfirm();event.preventDefault()}">
+        <input id="tcInput" type="text" inputmode="numeric" placeholder="Scan or type order #" autocomplete="off"
+          style="flex:1;padding:10px 14px;border:2px solid var(--line);border-radius:10px;font-size:1rem;font-family:var(--fb);outline:none">
         <button onclick="tcConfirm()" style="background:#6a1b9a;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer">Check →</button>
       </div>
       <!-- result banner -->
@@ -4903,42 +4902,62 @@ const TC_STATUS = {
 
 let _tcChecked = []; // [{order, statusKey}]
 
+let _tcScanTimer = null;
+
 function openTransitChecker() {
   document.getElementById('tcModal').style.display = 'flex';
-  document.getElementById('tcInput').value = '';
+  const inp = document.getElementById('tcInput');
+  inp.value = '';
   document.getElementById('tcResult').style.display = 'none';
   document.getElementById('tcList').innerHTML = '';
   _tcChecked = [];
   _tcRenderFooter();
-  document.getElementById('tcStatus').textContent = 'Type an order number and press Enter';
-  document.getElementById('tcInput').focus();
+  document.getElementById('tcStatus').textContent = 'Scan or type an order number';
+
+  // wire input events once
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      tcConfirm();
+    }
+  };
+  inp.oninput = () => {
+    // scanner auto-submit: if digits arrive very fast (scanner), debounce 120ms then fire
+    clearTimeout(_tcScanTimer);
+    const clean = inp.value.replace(/[^0-9]/g, '');
+    if (clean.length >= 4) {
+      _tcScanTimer = setTimeout(() => {
+        // only auto-fire if input hasn't changed in 120ms (scanner finished)
+        if (inp.value.replace(/[^0-9]/g, '') === clean) tcConfirm();
+      }, 120);
+    }
+  };
+
+  inp.focus();
 }
 
 function closeTransitChecker() {
+  clearTimeout(_tcScanTimer);
   document.getElementById('tcModal').style.display = 'none';
 }
 
-function tcLookup(val) {
-  // live preview — no-op, result shown on confirm
-  const result = document.getElementById('tcResult');
-  result.style.display = 'none';
-}
-
 async function tcConfirm() {
+  clearTimeout(_tcScanTimer);
   const inp = document.getElementById('tcInput');
   const clean = inp.value.replace(/[^0-9]/g, '');
   if (clean.length < 3) return;
   const key = '#' + clean;
+
+  // clear immediately so next scan can start typing right away
+  inp.value = '';
+  inp.focus();
 
   // show loading in result banner
   const result = document.getElementById('tcResult');
   result.style.display = 'block';
   result.style.background = '#f5f5f5';
   result.style.color = '#888';
-  result.textContent = 'Checking…';
-
-  inp.value = '';
-  inp.focus();
+  result.textContent = `Checking ${key}…`;
 
   let statusKey = 'not_found';
   try {
