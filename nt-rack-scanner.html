@@ -765,7 +765,7 @@ input[type=file]{display:none}
       <button id="pqfToPrint"  onclick="setPqFilter('toprint')"   style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">To Print</button>
       <button id="pqfInitiated" onclick="setPqFilter('initiated')" style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">🖨 Initiated</button>
       <button id="pqfPrinted"  onclick="setPqFilter('printed')"   style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">Printed</button>
-
+      <button id="pqfNoAwb"   onclick="setPqFilter('noawb')"    style="padding:3px 10px;border-radius:20px;border:1.5px solid #b71c1c;font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:#b71c1c">No AWB</button>
     </div>
     <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;min-width:120px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
   </div>
@@ -3427,8 +3427,9 @@ function setMode(mode) {
 }
 
 let _pqOrders = [];
-let _pqDate   = 'all'; // 'all' | 'today' | 'yesterday' | 'day2' | 'YYYY-MM-DD'
-let _pqFilter = 'all'; // 'all' | 'toprint' | 'initiated' | 'printed'
+let _pqDate   = 'all';
+let _pqFilter = 'all'; // 'all' | 'toprint' | 'initiated' | 'printed' | 'noawb'
+let _pqAwbMap = {}; // order_name → true (has awb) | false (no awb) — loaded async
 let _pqLastPrintedNames = []; // order names from last Print All — waiting for user confirmation
 
 function _pqCounts() {
@@ -3457,6 +3458,13 @@ function setPqFilter(f) {
     const c = counts[countKeys[k]];
     btn.textContent = `${labels[k]} ${c}`;
   });
+  // No AWB button active state
+  const noAwbBtn = document.getElementById('pqfNoAwb');
+  if (noAwbBtn) {
+    noAwbBtn.style.background  = f === 'noawb' ? '#b71c1c' : '#fff';
+    noAwbBtn.style.color       = f === 'noawb' ? '#fff' : '#b71c1c';
+    noAwbBtn.style.borderColor = '#b71c1c';
+  }
   // show/hide the initiated bulk-mark bar
   const iBar = document.getElementById('pqInitiatedBar');
   if (iBar) iBar.style.display = f === 'initiated' ? 'flex' : 'none';
@@ -3595,6 +3603,7 @@ function renderPqList() {
   if (_pqFilter === 'toprint')   orders = orders.filter(o => o.dispatched || (!o.printed && !o.print_initiated));
   if (_pqFilter === 'initiated') orders = orders.filter(o => o.dispatched || o.print_initiated);
   if (_pqFilter === 'printed')   orders = orders.filter(o => o.dispatched || o.printed);
+  if (_pqFilter === 'noawb')     orders = orders.filter(o => !o.dispatched && !_pqAwbMap[o.order_name]);
 
   // sort by scan timestamp ascending — matches physical rack sequence
   orders = [...orders].sort((a, b) => (a.last_updated || '') < (b.last_updated || '') ? -1 : 1);
@@ -3666,6 +3675,11 @@ async function loadPrintQueue() {
     if (res._debug) console.log('[PQ debug]', res._debug);
     buildPqDateChips();
     setPqFilter(_pqFilter); // rebuilds counts + renders list
+    // load AWB map in background — used by No AWB filter
+    apiFetch({ action: 'get_awb_map' }).then(r => {
+      _pqAwbMap = r.map || {};
+      if (_pqFilter === 'noawb') renderPqList();
+    }).catch(() => {});
   } catch(e) {
     list.innerHTML = `<div style="text-align:center;color:var(--red);padding:18px;font-size:.82rem">Error: ${esc(e.message)}</div>`;
   }
