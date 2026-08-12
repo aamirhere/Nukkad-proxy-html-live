@@ -4889,35 +4889,29 @@ function fmtDate(d) {
 </div>
 
 <script>
-let _tcMap = null; // order_name → true/false (has AWB)
-let _tcChecked = []; // [{order, hasAwb}]
+// status → {label, color, bg, keep}
+// keep=true = slip needs booking; keep=false = courier has it, cross the slip
+const TC_STATUS = {
+  in_transit:          { label: '📦 In transit',          color: '#1b5e20', bg: '#e8f5e9', keep: false },
+  out_for_delivery:    { label: '🛵 Out for delivery',     color: '#1b5e20', bg: '#e8f5e9', keep: false },
+  delivered:           { label: '✓ Delivered',             color: '#388e3c', bg: '#e8f5e9', keep: false },
+  attempted_delivery:  { label: '⚠ Attempted delivery',   color: '#e65100', bg: '#fff3e0', keep: false },
+  tracking_added:      { label: '🏷 Tracking added — not dispatched', color: '#b71c1c', bg: '#fce4ec', keep: true },
+  no_awb:              { label: '✗ No AWB — needs booking',           color: '#b71c1c', bg: '#fce4ec', keep: true },
+  not_found:           { label: '? Not found in Shopify',             color: '#888',    bg: '#f5f5f5', keep: false },
+};
 
-async function openTransitChecker() {
+let _tcChecked = []; // [{order, statusKey}]
+
+function openTransitChecker() {
   document.getElementById('tcModal').style.display = 'flex';
   document.getElementById('tcInput').value = '';
   document.getElementById('tcResult').style.display = 'none';
   document.getElementById('tcList').innerHTML = '';
   _tcChecked = [];
   _tcRenderFooter();
+  document.getElementById('tcStatus').textContent = 'Type an order number and press Enter';
   document.getElementById('tcInput').focus();
-
-  if (_tcMap && Object.keys(_tcMap).length) {
-    const n = Object.keys(_tcMap).length;
-    const inTransit = Object.values(_tcMap).filter(Boolean).length;
-    document.getElementById('tcStatus').textContent = `${n} orders loaded · ${inTransit} in transit`;
-    return;
-  }
-  document.getElementById('tcStatus').textContent = 'Fetching transit data…';
-  try {
-    const r = await apiFetch({ action: 'get_awb_map' });
-    _tcMap = r.map || {};
-    _pqAwbMap = _tcMap; // share with main queue filter
-    const n = Object.keys(_tcMap).length;
-    const inTransit = Object.values(_tcMap).filter(Boolean).length;
-    document.getElementById('tcStatus').textContent = `${n} orders loaded · ${inTransit} in transit`;
-  } catch(e) {
-    document.getElementById('tcStatus').textContent = 'Failed to load — check connection';
-  }
 }
 
 function closeTransitChecker() {
@@ -4925,40 +4919,54 @@ function closeTransitChecker() {
 }
 
 function tcLookup(val) {
+  // live preview — no-op, result shown on confirm
   const result = document.getElementById('tcResult');
-  const clean = val.replace(/[^0-9]/g, '');
-  if (clean.length < 4) { result.style.display = 'none'; return; }
-  if (!_tcMap) { result.style.display = 'none'; return; }
-  const key = '#' + clean;
-  if (!(key in _tcMap)) { result.style.display = 'none'; return; }
-  const hasAwb = _tcMap[key];
-  result.style.display = 'block';
-  if (hasAwb) {
-    result.style.background = '#e8f5e9';
-    result.style.color = '#1b5e20';
-    result.textContent = '✓ In Transit — cross this slip';
-  } else {
-    result.style.background = '#fce4ec';
-    result.style.color = '#b71c1c';
-    result.textContent = '✗ No AWB — keep this slip, needs booking';
-  }
+  result.style.display = 'none';
 }
 
-function tcConfirm() {
+async function tcConfirm() {
   const inp = document.getElementById('tcInput');
   const clean = inp.value.replace(/[^0-9]/g, '');
   if (clean.length < 3) return;
   const key = '#' + clean;
-  const hasAwb = _tcMap ? (_tcMap[key] ?? null) : null;
 
-  // add to top of checked list
-  _tcChecked.unshift({ order: key, hasAwb });
-  _tcRenderList();
-  _tcRenderFooter();
+  // show loading in result banner
+  const result = document.getElementById('tcResult');
+  result.style.display = 'block';
+  result.style.background = '#f5f5f5';
+  result.style.color = '#888';
+  result.textContent = 'Checking…';
 
   inp.value = '';
-  document.getElementById('tcResult').style.display = 'none';
   inp.focus();
+
+  let statusKey = 'not_found';
+  try {
+    const r = await apiFetch({ action: 'check_order_transit', order_name: key });
+    if (!r.found) {
+      statusKey = 'not_found';
+    } else if (r.inTransit) {
+      statusKey = r.status; // in_transit / out_for_delivery / delivered / attempted_delivery
+    } else if (r.hasTracking) {
+      statusKey = 'tracking_added';
+    } else {
+      statusKey = 'no_awb';
+    }
+  } catch(e) {
+    statusKey = 'not_found';
+  }
+
+  const s = TC_STATUS[statusKey] || TC_STATUS.not_found;
+  result.style.background = s.bg;
+  result.style.color = s.color;
+  result.textContent = s.label;
+
+  // already checked? update in place
+  const existing = _tcChecked.findIndex(c => c.order === key);
+  if (existing >= 0) _tcChecked.splice(existing, 1);
+  _tcChecked.unshift({ order: key, statusKey });
+  _tcRenderList();
+  _tcRenderFooter();
 }
 
 function tcRemove(order) {
@@ -4971,14 +4979,11 @@ function _tcRenderList() {
   const el = document.getElementById('tcList');
   if (!_tcChecked.length) { el.innerHTML = ''; return; }
   el.innerHTML = _tcChecked.map(c => {
-    const unknown = c.hasAwb === null;
-    const color   = unknown ? '#888' : c.hasAwb ? '#1b5e20' : '#b71c1c';
-    const bg      = unknown ? '#f5f5f5' : c.hasAwb ? '#e8f5e9' : '#fce4ec';
-    const label   = unknown ? '? Unknown' : c.hasAwb ? '✓ In Transit' : '✗ No AWB';
-    return `<div style="display:flex;align-items:center;justify-content:space-between;background:${bg};border-radius:8px;padding:8px 12px">
+    const s = TC_STATUS[c.statusKey] || TC_STATUS.not_found;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;background:${s.bg};border-radius:8px;padding:8px 12px">
       <div>
         <span style="font-weight:700;font-size:.88rem;color:var(--ink)">${esc(c.order)}</span>
-        <span style="margin-left:8px;font-size:.78rem;font-weight:700;color:${color}">${label}</span>
+        <span style="margin-left:8px;font-size:.78rem;font-weight:700;color:${s.color}">${s.label}</span>
       </div>
       <button onclick="tcRemove('${esc(c.order)}')" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:0 4px">✕</button>
     </div>`;
@@ -4986,9 +4991,9 @@ function _tcRenderList() {
 }
 
 function _tcRenderFooter() {
-  const noAwb = _tcChecked.filter(c => c.hasAwb === false);
-  document.getElementById('tcToBookCount').textContent = `${noAwb.length} order${noAwb.length !== 1 ? 's' : ''}`;
-  document.getElementById('tcCopyBox').value = noAwb.map(c => c.order).join('\n');
+  const toBook = _tcChecked.filter(c => (TC_STATUS[c.statusKey]||{}).keep);
+  document.getElementById('tcToBookCount').textContent = `${toBook.length} order${toBook.length !== 1 ? 's' : ''}`;
+  document.getElementById('tcCopyBox').value = toBook.map(c => c.order).join('\n');
 }
 
 function tcCopyList() {
