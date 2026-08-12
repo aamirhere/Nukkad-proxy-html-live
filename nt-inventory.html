@@ -493,10 +493,27 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-unit-color { background: var(--bg2); border-radius: 10px; padding: 2px 8px; font-size: .72rem; color: var(--ink2); flex-shrink: 0; }
 .emg-unit-days  { margin-left: auto; font-size: .72rem; color: var(--red); font-weight: 700; white-space: nowrap; }
 .emg-dismiss-btn {
-  margin-left: auto; background: none; border: none; color: var(--muted);
+  background: none; border: none; color: var(--muted);
   font-size: .8rem; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;
 }
 .emg-dismiss-btn:hover { color: var(--red); background: #fff0ee; }
+.emg-unit-recv-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--red);
+  background: #fff;
+  color: var(--red);
+  font-size: .72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.emg-unit-recv-btn:hover { background: var(--red); color: #fff; }
+.emg-unit-recv-btn.recvd { background: #e8f5e9; color: #388e3c; border-color: #388e3c; }
+.emg-unit-recvd { opacity: .55; }
 
 /* receive stock modal */
 .recv-modal {
@@ -1667,6 +1684,10 @@ function buildEmgTabs() {
     const label = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : iso;
     tabs.push(`<button class="emg-tab${iso === emgDate ? ' active' : ''}" onclick="loadEmgDate('${iso}')">${label}</button>`);
   }
+  const isCustom = !['Today','Yesterday'].includes(emgDate) && !Array.from({length:5},(_,i)=>{const d=new Date(Date.now()+5.5*3600000-i*86400000);return d.toISOString().slice(0,10);}).includes(emgDate) ? false : true;
+  tabs.push(`<input type="date" id="emgCustomDate" value="${emgDate}" max="${new Date(Date.now()+5.5*3600000).toISOString().slice(0,10)}"
+    onchange="loadEmgDate(this.value)"
+    style="padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);font-size:.82rem;font-family:inherit;cursor:pointer;background:#fff;color:var(--text-2);outline:none">`);
   document.getElementById('emgTabs').innerHTML = tabs.join('');
 }
 
@@ -1695,13 +1716,23 @@ async function loadEmgDateView() {
       groups[k].units.push(u);
     }
     document.getElementById('emgList').innerHTML = Object.values(groups).map(g => {
-      const orders = g.units.map(u => u.order_name || u.order_id).join(', ');
-      return `<div class="emg-group">
+      const unitRows = g.units.map(u => {
+        const recvd = u.recv_qty > 0;
+        const safeHandle = (g.handle||'').replace(/'/g,"\\'");
+        return `<div class="emg-unit-row${recvd ? ' emg-unit-recvd' : ''}">
+          <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+          <button class="emg-unit-recv-btn${recvd ? ' recvd' : ''}" onclick="event.stopPropagation();openRecvModal('${safeHandle}')" title="Mark received">
+            ${recvd ? '✓ Rcvd' : '📦 Rcvd'}
+          </button>
+        </div>`;
+      }).join('');
+      return `<div class="emg-group open">
         <div class="emg-group-head" style="cursor:default">
           <span class="emg-count-pill">${g.units.length}</span>
           <span style="flex:1;font-weight:700;font-size:.9rem">${g.title}</span>
-          <span style="font-size:.75rem;color:var(--muted)">${orders}</span>
+          <button class="emg-fulfil-btn" onclick="event.stopPropagation();openRecvModal('${(g.handle||'').replace(/'/g,"\\'")}')">📦 Received</button>
         </div>
+        <div class="emg-group-body">${unitRows}</div>
       </div>`;
     }).join('');
   } catch (e) { toast('Failed to load emergency: ' + e.message); }
@@ -1745,9 +1776,13 @@ function renderEmgGroups() {
         ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
         : '—';
       const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
-      return `<div class="emg-unit-row" id="emgunit-${gi}-${ui}">
+      const recvd = u.recv_qty > 0;
+      return `<div class="emg-unit-row${recvd ? ' emg-unit-recvd' : ''}" id="emgunit-${gi}-${ui}">
         <span class="emg-unit-date">${orderDateStr}</span>
         <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+        <button class="emg-unit-recv-btn${recvd ? ' recvd' : ''}" onclick="event.stopPropagation();openRecvModal('${g.handle}')" title="Mark received">
+          ${recvd ? '✓ Rcvd' : '📦 Rcvd'}
+        </button>
         <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
       </div>`;
     }).join('');
