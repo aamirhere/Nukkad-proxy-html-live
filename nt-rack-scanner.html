@@ -5003,8 +5003,18 @@ function fmtDate(d) {
 </div>
 
 <script>
-// status → {label, color, bg, keep}
-// keep=true = slip needs booking; keep=false = courier has it, cross the slip
+// ── DUPLICATE TRACKING ─────────────────────────────────────────────────────────
+const TC_DUP_KEY = 'nt_tc_dups';
+function _tcDupLoad() { try { return JSON.parse(localStorage.getItem(TC_DUP_KEY) || '[]'); } catch { return []; } }
+function _tcDupSave(awb, orderName) {
+  const list = _tcDupLoad();
+  const idx = list.findIndex(d => d.awb === awb);
+  const now = new Date().toISOString();
+  if (idx >= 0) { list[idx].count++; list[idx].last_seen = now; }
+  else list.push({ awb, order_name: orderName || awb, count: 2, first_seen: now, last_seen: now });
+  localStorage.setItem(TC_DUP_KEY, JSON.stringify(list.slice(-200)));
+}
+
 const IN_TRANSIT_STATUSES = new Set(['in_transit','out_for_delivery','delivered','attempted_delivery']);
 const TC_STATUS = {
   in_transit:          { label: '📦 In transit',          color: '#1b5e20', bg: '#e8f5e9', keep: false },
@@ -5064,6 +5074,25 @@ async function tcConfirm() {
   inp.focus();
 
   const result = document.getElementById('tcResult');
+
+  // ── duplicate detection ────────────────────────────────────
+  const dupIdx = _tcChecked.findIndex(c => c.awb === awb);
+  if (dupIdx >= 0) {
+    const dup = _tcChecked[dupIdx];
+    dup.scanCount = (dup.scanCount || 1) + 1;
+    _tcChecked.splice(dupIdx, 1);
+    _tcChecked.unshift(dup);
+    _tcDupSave(awb, dup.order !== dup.awb ? dup.order : null);
+    result.style.display = 'block';
+    result.style.background = '#fff3e0';
+    result.style.color = '#e65100';
+    result.innerHTML = `⚠ ALREADY SCANNED — <strong>${esc(awb)}</strong>${dup.order !== dup.awb ? ` · ${esc(dup.order)}` : ''}<br><span style="font-weight:400;font-size:.82rem">Scanned ${dup.scanCount}× — check for duplicates in your stack</span>`;
+    _tcRenderList();
+    _tcRenderFooter();
+    return;
+  }
+  // ──────────────────────────────────────────────────────────
+
   result.style.display = 'block';
   result.style.background = '#f5f5f5';
   result.style.color = '#888';
@@ -5101,9 +5130,7 @@ async function tcConfirm() {
     ? `<span style="opacity:.7;font-weight:400;font-size:.8rem">${esc(awb)}</span> · <span style="font-size:.88rem">${esc(orderName)}</span><br>${s.label}`
     : `<span style="opacity:.7;font-weight:400;font-size:.8rem">${esc(awb)}</span><br>${s.label}`;
 
-  const existing = _tcChecked.findIndex(c => c.awb === awb);
-  if (existing >= 0) _tcChecked.splice(existing, 1);
-  _tcChecked.unshift({ awb, order: orderName || awb, statusKey });
+  _tcChecked.unshift({ awb, order: orderName || awb, statusKey, scanCount: 1 });
   _tcRenderList();
   _tcRenderFooter();
 }
@@ -5125,6 +5152,7 @@ function _tcRenderList() {
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <span style="font-weight:700;font-size:.88rem;color:var(--ink)">${c.order !== c.awb ? esc(c.order) : ''}</span>
           <span style="font-size:.72rem;color:var(--muted)">${esc(c.awb)}</span>
+          ${(c.scanCount || 1) > 1 ? `<span style="background:#e65100;color:#fff;font-size:.68rem;font-weight:800;padding:1px 6px;border-radius:20px">×${c.scanCount} DUPLICATE</span>` : ''}
         </div>
         <span style="font-size:.78rem;font-weight:700;color:${s.color}">${s.label}</span>
       </div>
