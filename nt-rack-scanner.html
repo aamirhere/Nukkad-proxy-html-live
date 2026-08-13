@@ -4989,13 +4989,15 @@ function fmtDate(d) {
     <!-- checked list -->
     <div style="flex:1;overflow-y:auto;padding:10px 16px;display:flex;flex-direction:column;gap:6px" id="tcList"></div>
 
-    <!-- footer: copy not-fetched list -->
+    <!-- footer: summary + copy in-transit -->
     <div style="padding:12px 16px;border-top:1px solid var(--line);flex-shrink:0">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="font-size:.8rem;font-weight:700;color:var(--ink)">To Book <span id="tcToBookCount" style="color:#b71c1c">0 orders</span></div>
-        <button onclick="tcCopyList()" style="background:#b71c1c;color:#fff;border:none;padding:7px 16px;border-radius:8px;font-weight:700;font-size:.78rem;cursor:pointer">📋 Copy List</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-size:.8rem;font-weight:700;color:#1b5e20">✓ <span id="tcInTransitCount">0</span> in transit</span>
+        <span style="font-size:.8rem;color:var(--muted)">·</span>
+        <span style="font-size:.8rem;font-weight:700;color:#b71c1c">⚠ <span id="tcNotMovingCount">0</span> not moving</span>
+        <button onclick="tcCopyInTransit()" id="tcCopyTransitBtn" style="margin-left:auto;background:#1b5e20;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:.75rem;cursor:pointer;display:none">📋 Copy in-transit orders</button>
       </div>
-      <textarea id="tcCopyBox" readonly style="width:100%;height:72px;resize:none;border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.72rem;font-family:monospace;color:var(--ink);background:#fafafa;box-sizing:border-box" placeholder="No-AWB orders will appear here…"></textarea>
+      <textarea id="tcCopyBox" readonly style="width:100%;height:60px;resize:none;border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.72rem;font-family:monospace;color:var(--ink);background:#fafafa;box-sizing:border-box;display:none" placeholder=""></textarea>
     </div>
   </div>
 </div>
@@ -5132,18 +5134,29 @@ function _tcRenderList() {
 }
 
 function _tcRenderFooter() {
-  const toBook = _tcChecked.filter(c => (TC_STATUS[c.statusKey]||{}).keep);
-  document.getElementById('tcToBookCount').textContent = `${toBook.length} order${toBook.length !== 1 ? 's' : ''}`;
-  document.getElementById('tcCopyBox').value = toBook.map(c => c.order).join('\n');
+  const inTransit = _tcChecked.filter(c => IN_TRANSIT_STATUSES.has(c.statusKey));
+  const notMoving = _tcChecked.filter(c => c.statusKey === 'tracking_added');
+  document.getElementById('tcInTransitCount').textContent = inTransit.length;
+  document.getElementById('tcNotMovingCount').textContent = notMoving.length;
+  const btn = document.getElementById('tcCopyTransitBtn');
+  const box = document.getElementById('tcCopyBox');
+  if (inTransit.length) {
+    btn.style.display = '';
+    box.style.display = '';
+    box.value = inTransit.map(c => c.order).join('\n');
+  } else {
+    btn.style.display = 'none';
+    box.style.display = 'none';
+    box.value = '';
+  }
 }
 
-function tcCopyList() {
+function tcCopyInTransit() {
   const box = document.getElementById('tcCopyBox');
   if (!box.value.trim()) return;
-  box.select();
   navigator.clipboard?.writeText(box.value).catch(() => {});
-  document.execCommand('copy');
-  const btn = event.target;
+  box.select(); document.execCommand('copy');
+  const btn = document.getElementById('tcCopyTransitBtn');
   const orig = btn.textContent;
   btn.textContent = '✓ Copied!';
   setTimeout(() => { btn.textContent = orig; }, 1500);
