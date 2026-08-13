@@ -3453,6 +3453,7 @@ let _pqOrders = [];
 let _pqDate   = 'all';
 let _pqFilter = 'all'; // 'all' | 'toprint' | 'initiated' | 'printed' | 'noawb'
 let _pqAwbMap = {}; // order_name → true (has awb) | false (no awb) — loaded async
+let _tcTrackingMap = {}; // awb → { order_name, status } — built from AWB map load
 let _pqLastPrintedNames = []; // order names from last Print All — waiting for user confirmation
 let _pqBatchId = null; // active batch history filter (id string or null = all)
 
@@ -3780,6 +3781,7 @@ async function loadPrintQueue() {
     // load AWB map in background — used by No AWB filter + auto-dispatch in-transit
     apiFetch({ action: 'get_awb_map' }).then(async r => {
       _pqAwbMap = r.map || {};
+      _tcTrackingMap = r.tracking_map || {};
       // auto-dispatch orders confirmed in-transit by Shopify
       const toDispatch = _pqOrders.filter(o => !o.dispatched && _pqAwbMap[o.order_name]);
       if (toDispatch.length) {
@@ -5001,6 +5003,7 @@ function fmtDate(d) {
 <script>
 // status → {label, color, bg, keep}
 // keep=true = slip needs booking; keep=false = courier has it, cross the slip
+const IN_TRANSIT_STATUSES = new Set(['in_transit','out_for_delivery','delivered','attempted_delivery']);
 const TC_STATUS = {
   in_transit:          { label: '📦 In transit',          color: '#1b5e20', bg: '#e8f5e9', keep: false },
   out_for_delivery:    { label: '🛵 Out for delivery',     color: '#1b5e20', bg: '#e8f5e9', keep: false },
@@ -5067,17 +5070,24 @@ async function tcConfirm() {
   let statusKey = 'not_found';
   let orderName = null;
   try {
-    const r = await apiFetch({ action: 'check_awb_transit', awb });
-    orderName = r.order_name || null;
-    if (!r.found) {
-      statusKey = 'not_found';
-    } else if (r.inTransit) {
-      statusKey = r.status;
-    } else if (r.hasTracking) {
-      statusKey = 'tracking_added';
+    // fast path: use pre-loaded tracking map (built when AWB map loads)
+    const cached = _tcTrackingMap[awb];
+    let found, status, inTransit, hasTracking;
+    if (cached) {
+      found = true; orderName = cached.order_name; status = cached.status;
+      inTransit = IN_TRANSIT_STATUSES.has(status); hasTracking = true;
     } else {
-      statusKey = 'no_awb';
+      // fallback: live scan (slower — 30-day REST fetch)
+      const r = await apiFetch({ action: 'check_awb_transit', awb }, API, 40000);
+      found = r.found; orderName = r.order_name; status = r.status;
+      inTransit = r.inTransit; hasTracking = r.hasTracking;
+      // update local map so future scans of same AWB are instant
+      if (found) _tcTrackingMap[awb] = { order_name: orderName, status };
     }
+    if (!found) statusKey = 'not_found';
+    else if (inTransit) statusKey = status;
+    else if (hasTracking) statusKey = 'tracking_added';
+    else statusKey = 'no_awb';
   } catch(e) {
     statusKey = 'not_found';
   }
