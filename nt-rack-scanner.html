@@ -901,6 +901,7 @@ const VISION_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/funct
 let rackItems    = [];
 let scanLog      = [];
 let activeFilter = 'all';
+let _liveEmgOrders = new Set(); // order_names with active emergencies (from nt_order_units)
 let activeTab    = 'scan';
 let selectedDate = 'all';   // 'all' or 'YYYY-MM-DD'
 let searchQuery  = '';
@@ -1119,6 +1120,20 @@ async function fixRackQuotes() {
   }
 }
 
+async function loadLiveEmergencies() {
+  try {
+    const res = await apiFetch({ action: 'load_all_emergencies' });
+    const names = new Set();
+    for (const g of (res.groups || [])) {
+      for (const u of (g.units || [])) { if (u.order_name) names.add(u.order_name); }
+    }
+    _liveEmgOrders = names;
+    updateSummary();
+    if (activeTab === 'list') renderList();
+    if (activeTab === 'dispatch') renderDispatch();
+  } catch(e) { /* non-critical */ }
+}
+
 async function loadRackStatus() {
   try {
     rackItems = await apiFetch({ action: 'get_rack_status' });
@@ -1131,6 +1146,8 @@ async function loadRackStatus() {
       setStatus(`${orderCount} orders loaded · refreshed ${t}`);
     }
     else setStatus('No data yet — tap Sync New Orders.');
+    // fetch live emergency state in background (driven by nt_order_units, not nt_rack_items)
+    loadLiveEmergencies();
   } catch(e) {
     setStatus('Load error: ' + e.message);
   }
@@ -2687,7 +2704,7 @@ function updateFilterCounts() {
     missing:    all.filter(o => !o.dispatched && o.found === 0).length,
     partial:    all.filter(o => !o.dispatched && o.found > 0 && o.found < o.needed).length,
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
-    emergency:  all.filter(o => !o.dispatched && o.is_emergency).length,
+    emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
   };
   document.querySelectorAll('.ftab').forEach(b => {
     const f = b.dataset.f;
@@ -2756,7 +2773,7 @@ function renderList() {
     if (activeFilter === 'missing')    return totalF === 0 && !o.dispatched;
     if (activeFilter === 'partial')    return partial && !o.dispatched;
     if (activeFilter === 'matched')    return complete && !o.dispatched;
-    if (activeFilter === 'emergency')  return o.is_emergency && !o.dispatched;
+    if (activeFilter === 'emergency')  return _liveEmgOrders.has(o.order_name) && !o.dispatched;
     return true;
   });
 
@@ -2800,7 +2817,8 @@ function renderList() {
       const totalF = o.items.reduce((s,it)=>s+it.found,0);
       const complete = totalF >= totalN;
       const partial  = totalF > 0 && !complete;
-      const cardCls  = o.is_emergency ? 'emergency' : o.dispatched ? 'dispatched' : complete ? 'complete' : partial ? 'partial' : 'missing';
+      const isLiveEmg = _liveEmgOrders.has(o.order_name);
+      const cardCls  = isLiveEmg ? 'emergency' : o.dispatched ? 'dispatched' : complete ? 'complete' : partial ? 'partial' : 'missing';
       const progCls  = complete||o.dispatched ? 'prog-done' : partial ? 'prog-partial' : 'prog-none';
       const safeOn = o.order_name.replace(/'/g, "\\'");
       const safeOd = (o.order_date||'').replace(/'/g, "\\'");
@@ -2812,7 +2830,7 @@ function renderList() {
           <div>
             <span class="ord-name">${esc(o.order_name)}</span>
             ${o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
-            ${o.is_emergency?'<span class="tag-emg">Emergency</span>':''}
+            ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':''}
             ${(!o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
             ${o.print_done && !o.dispatched ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
@@ -3706,6 +3724,7 @@ function renderPqList() {
     if (!isDispatched) seq++;
     const scanTime = _fmtScanTime(o.last_updated);
     const batchLabel = _batchLabelMap[o.order_name];
+    const isNoStock  = _liveEmgOrders.has(o.order_name);
     const badge = isDispatched
       ? `<span style="font-size:.68rem;font-weight:700;color:#fff;background:#757575;border-radius:20px;padding:1px 7px;white-space:nowrap">🚚 Dispatched</span>`
       : isPrinted
@@ -3724,6 +3743,7 @@ function renderPqList() {
             <span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.68rem">${fmtDate(o.order_date)}</span>
             ${scanTime ? `<span style="font-size:.68rem;color:var(--muted)">sorted ${scanTime}</span>` : ''}
             ${batchLabel ? `<span style="font-size:.65rem;color:#6a1b9a;background:#f3e5f5;padding:1px 6px;border-radius:10px;white-space:nowrap">🖨 ${batchLabel}</span>` : ''}
+            ${isNoStock ? `<span style="font-size:.65rem;font-weight:700;color:#b71c1c;background:#fce4ec;padding:1px 6px;border-radius:10px;white-space:nowrap">⚠ No Stock</span>` : ''}
           </div>
           <div style="margin-top:5px;display:flex;flex-direction:column;gap:2px">
             ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
