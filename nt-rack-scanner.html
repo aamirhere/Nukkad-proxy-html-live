@@ -759,6 +759,8 @@ input[type=file]{display:none}
   </div>
   <div style="display:none"><!-- banner spacer placeholder -->
   </div>
+  <!-- print history batch chips -->
+  <div id="pqBatchChips" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></div>
   <!-- date chips -->
   <div id="pqDateChips" style="display:flex;gap:4px;flex-wrap:wrap"></div>
   <!-- print status filter + search -->
@@ -3434,6 +3436,68 @@ let _pqDate   = 'all';
 let _pqFilter = 'all'; // 'all' | 'toprint' | 'initiated' | 'printed' | 'noawb'
 let _pqAwbMap = {}; // order_name → true (has awb) | false (no awb) — loaded async
 let _pqLastPrintedNames = []; // order names from last Print All — waiting for user confirmation
+let _pqBatchId = null; // active batch history filter (id string or null = all)
+
+// ── PRINT HISTORY (localStorage) ──────────────────────────────────────────────
+const PH_KEY = 'nt_print_history';
+function _phLoad() {
+  try { return JSON.parse(localStorage.getItem(PH_KEY) || '[]'); } catch { return []; }
+}
+function _phSave(list) {
+  // keep last 30 batches
+  localStorage.setItem(PH_KEY, JSON.stringify(list.slice(-30)));
+}
+function _phAdd(orderNames) {
+  const list = _phLoad();
+  const ist = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  const id = 'B' + Date.now();
+  list.push({ id, label: ist.replace(',', ''), count: orderNames.length, names: orderNames });
+  _phSave(list);
+  return id;
+}
+function _phLabel(b) { return `🖨 ${b.label} (${b.count})`; }
+
+function buildPqBatchChips() {
+  const el = document.getElementById('pqBatchChips');
+  if (!el) return;
+  const list = _phLoad();
+  if (!list.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  // "History:" label + Clear chip + one chip per batch (newest first)
+  let html = `<span style="font-size:.68rem;font-weight:700;color:var(--muted);white-space:nowrap">History:</span>`;
+  [...list].reverse().forEach(b => {
+    const active = _pqBatchId === b.id;
+    html += `<button onclick="setPqBatch('${b.id}')"
+      style="padding:3px 10px;border-radius:20px;border:1.5px solid ${active ? '#6a1b9a' : 'var(--line)'};
+             background:${active ? '#6a1b9a' : '#fff'};color:${active ? '#fff' : 'var(--ink2)'};
+             font-size:.68rem;font-weight:700;cursor:pointer;white-space:nowrap">${_phLabel(b)}</button>`;
+  });
+  if (_pqBatchId) {
+    html += `<button onclick="setPqBatch(null)" style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);background:#f5f5f5;color:var(--muted);font-size:.68rem;cursor:pointer;white-space:nowrap">✕ Clear</button>`;
+  }
+  html += `<button onclick="clearPrintHistory()" style="padding:3px 8px;border-radius:20px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:.65rem;cursor:pointer;white-space:nowrap;margin-left:2px">Clear all</button>`;
+  el.innerHTML = html;
+}
+
+function setPqBatch(id) {
+  _pqBatchId = id || null;
+  buildPqBatchChips();
+  renderPqList();
+}
+
+function clearPrintHistory() {
+  if (!confirm('Clear all print history?')) return;
+  localStorage.removeItem(PH_KEY);
+  _pqBatchId = null;
+  buildPqBatchChips();
+  renderPqList();
+}
+
+function _istNowStr() {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}`;
+}
 
 function _pqCounts() {
   const ready = _pqOrders.filter(o => o.allFound);
@@ -3604,6 +3668,12 @@ function renderPqList() {
   // text search
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
 
+  // batch history filter
+  if (_pqBatchId) {
+    const batch = _phLoad().find(b => b.id === _pqBatchId);
+    if (batch) { const s = new Set(batch.names); orders = orders.filter(o => s.has(o.order_name)); }
+  }
+
   // print status filter (dispatched always show in all filters — 3-day retention)
   if (_pqFilter === 'toprint')   orders = orders.filter(o => o.dispatched || (!o.printed && !o.print_initiated));
   if (_pqFilter === 'initiated') orders = orders.filter(o => o.dispatched || o.print_initiated);
@@ -3623,6 +3693,10 @@ function renderPqList() {
     return;
   }
 
+  // build order → batch label map for display
+  const _batchLabelMap = {};
+  _phLoad().forEach(b => b.names.forEach(n => { if (!_batchLabelMap[n]) _batchLabelMap[n] = b.label; }));
+
   let html = '';
   let seq = 0;
   for (const o of orders) {
@@ -3631,6 +3705,7 @@ function renderPqList() {
     const isInitiated   = o.print_initiated && !o.printed;
     if (!isDispatched) seq++;
     const scanTime = _fmtScanTime(o.last_updated);
+    const batchLabel = _batchLabelMap[o.order_name];
     const badge = isDispatched
       ? `<span style="font-size:.68rem;font-weight:700;color:#fff;background:#757575;border-radius:20px;padding:1px 7px;white-space:nowrap">🚚 Dispatched</span>`
       : isPrinted
@@ -3648,6 +3723,7 @@ function renderPqList() {
           <div style="margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span style="background:#fff3e0;color:#e65100;padding:1px 7px;border-radius:20px;font-weight:700;font-size:.68rem">${fmtDate(o.order_date)}</span>
             ${scanTime ? `<span style="font-size:.68rem;color:var(--muted)">sorted ${scanTime}</span>` : ''}
+            ${batchLabel ? `<span style="font-size:.65rem;color:#6a1b9a;background:#f3e5f5;padding:1px 6px;border-radius:10px;white-space:nowrap">🖨 ${batchLabel}</span>` : ''}
           </div>
           <div style="margin-top:5px;display:flex;flex-direction:column;gap:2px">
             ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
@@ -3678,12 +3754,21 @@ async function loadPrintQueue() {
     const res = await apiFetch({ action: 'get_print_queue' });
     _pqOrders = res.orders || [];
     if (res._debug) console.log('[PQ debug]', res._debug);
+    buildPqBatchChips();
     buildPqDateChips();
     setPqFilter(_pqFilter); // rebuilds counts + renders list
-    // load AWB map in background — used by No AWB filter
-    apiFetch({ action: 'get_awb_map' }).then(r => {
+    // load AWB map in background — used by No AWB filter + auto-dispatch in-transit
+    apiFetch({ action: 'get_awb_map' }).then(async r => {
       _pqAwbMap = r.map || {};
-      if (_pqFilter === 'noawb') renderPqList();
+      // auto-dispatch orders confirmed in-transit by Shopify
+      const toDispatch = _pqOrders.filter(o => !o.dispatched && _pqAwbMap[o.order_name]);
+      if (toDispatch.length) {
+        await Promise.allSettled(toDispatch.map(o => apiFetch({ action: 'mark_dispatched', order_name: o.order_name })));
+        const names = new Set(toDispatch.map(o => o.order_name));
+        _pqOrders = _pqOrders.map(o => names.has(o.order_name) ? { ...o, dispatched: true } : o);
+        toast(`Auto-dispatched ${toDispatch.length} in-transit order${toDispatch.length !== 1 ? 's' : ''} ✓`);
+      }
+      if (_pqFilter === 'noawb' || toDispatch.length) renderPqList();
     }).catch(() => {});
   } catch(e) {
     list.innerHTML = `<div style="text-align:center;color:var(--red);padding:18px;font-size:.82rem">Error: ${esc(e.message)}</div>`;
@@ -3785,13 +3870,19 @@ async function printAllQueued() {
   sc.appendChild(content);
   ov.style.display = 'flex';
   document.body.classList.add('printing-slip','bulk-print');
+  // set title for PDF filename: NukkadSlips_YYYY-MM-DD_HH-MM_Nslips
+  const _origTitle = document.title;
+  document.title = `NukkadSlips_${_istNowStr()}_${slips.length}slips`;
   requestAnimationFrame(() => { window.print(); });
   setTimeout(() => {
+    document.title = _origTitle;
     document.body.classList.remove('printing-slip','bulk-print');
     ov.style.display = 'none';
     sc.innerHTML = '';
     if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
-    // mark as initiated in local state + DB; show banner for quick confirm
+    // save to print history + mark as initiated
+    _phAdd(orderNames);
+    buildPqBatchChips();
     _pqLastPrintedNames = orderNames;
     _pqOrders = _pqOrders.map(o => orderNames.includes(o.order_name) ? { ...o, print_initiated: true } : o);
     apiFetch({ action: 'mark_print_initiated', order_names: orderNames }).catch(() => {});
