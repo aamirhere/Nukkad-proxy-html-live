@@ -4972,7 +4972,10 @@ function fmtDate(d) {
         <div style="font-family:var(--ff);font-size:1rem;font-weight:700;color:var(--ink)">Transit Check</div>
         <div id="tcStatus" style="font-size:.72rem;color:var(--muted);margin-top:1px">Loading transit data…</div>
       </div>
-      <button onclick="closeTransitChecker()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onclick="tcClearAll()" style="background:none;border:1px solid var(--line);color:var(--muted);font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;cursor:pointer">Clear all</button>
+        <button onclick="closeTransitChecker()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+      </div>
     </div>
 
     <!-- input -->
@@ -5029,6 +5032,8 @@ const TC_STATUS = {
 let _tcChecked = []; // [{order, statusKey}]
 
 let _tcScanTimer = null;
+let _tcLastAwb = null;
+let _tcLastAwbTs = 0;
 
 function openTransitChecker() {
   document.getElementById('tcModal').style.display = 'flex';
@@ -5037,6 +5042,7 @@ function openTransitChecker() {
   document.getElementById('tcResult').style.display = 'none';
   document.getElementById('tcList').innerHTML = '';
   _tcChecked = [];
+  _tcLastAwb = null; _tcLastAwbTs = 0;
   _tcRenderFooter();
   document.getElementById('tcStatus').textContent = 'Scan AWB barcode from slip';
 
@@ -5064,11 +5070,24 @@ function closeTransitChecker() {
   document.getElementById('tcModal').style.display = 'none';
 }
 
+function tcClearAll() {
+  _tcChecked = [];
+  _tcLastAwb = null; _tcLastAwbTs = 0;
+  document.getElementById('tcList').innerHTML = '';
+  document.getElementById('tcResult').style.display = 'none';
+  _tcRenderFooter();
+}
+
 async function tcConfirm() {
   clearTimeout(_tcScanTimer);
   const inp = document.getElementById('tcInput');
   const awb = inp.value.trim();
   if (awb.length < 4) return;
+
+  // guard against scanner double-firing same AWB within 1.5s
+  const now = Date.now();
+  if (awb === _tcLastAwb && now - _tcLastAwbTs < 1500) { inp.value = ''; return; }
+  _tcLastAwb = awb; _tcLastAwbTs = now;
 
   inp.value = '';
   inp.focus();
