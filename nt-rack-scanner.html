@@ -431,6 +431,7 @@ input[type=file]{display:none}
         <button class="hmenu-item" onclick="openPainterDropOff();closeHMenu()">Painter Drop-off</button>
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
         <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
+        <button class="hmenu-item" onclick="openReconcile();closeHMenu()">🔁 Reconcile Prints</button>
         <button class="hmenu-item" onclick="fixRackQuotes();closeHMenu()">🔧 Fix Design Names</button>
         <button class="hmenu-item" onclick="toggleLegacyPanel();closeHMenu()">📥 Legacy Orders</button>
         <button class="hmenu-item" onclick="toggleResyncPanel();closeHMenu()">Sync until date</button>
@@ -5222,25 +5223,40 @@ function _rcUpdate() {
     return;
   }
 
-  // find which of these are currently in "To Print" (wrongly reset)
-  const inToPrint = _pqOrders.filter(o =>
+  // split: orders in selected batches that are now back in To Print
+  const unprinted = _pqOrders.filter(o =>
     !o.dispatched && !o.printed && !o.print_initiated && combined.has(o.order_name)
   );
+  // those that now have AWB → need fresh reprint (leave in To Print, don't mark printed)
+  const needsReprint = unprinted.filter(o => _pqAwbMapLoaded && _pqHasAwbMap[o.order_name]);
+  // those still without AWB → mark as printed (old no-AWB slip, already in the pack)
+  const markPrinted = unprinted.filter(o => !(_pqAwbMapLoaded && _pqHasAwbMap[o.order_name]));
 
   resultEl.style.display = 'block';
-  if (!inToPrint.length) {
-    resultEl.innerHTML = `<div style="font-size:.84rem;color:#388e3c;font-weight:700">✓ No mismatches — all ${combined.size} selected orders are already marked correctly.</div>`;
-    applyBtn.style.display = 'none';
-    return;
+  let html = '';
+
+  if (needsReprint.length) {
+    html += `<div style="font-size:.78rem;font-weight:700;color:#1565c0;margin-bottom:6px">🖨 ${needsReprint.length} order${needsReprint.length !== 1 ? 's' : ''} now have AWB — need a fresh reprint (will stay in To Print):</div>
+    <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;margin-bottom:12px">
+      ${needsReprint.map(o => `<div style="font-size:.76rem;padding:4px 8px;background:#e3f2fd;border-radius:6px;color:var(--ink)">${esc(o.order_name)} · ${esc(o.customer||'')}</div>`).join('')}
+    </div>`;
   }
 
-  resultEl.innerHTML = `
-    <div style="font-size:.82rem;font-weight:700;color:#e65100;margin-bottom:8px">${inToPrint.length} order${inToPrint.length !== 1 ? 's' : ''} found in "To Print" that should be marked Printed:</div>
-    <div style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto">
-      ${inToPrint.map(o => `<div style="font-size:.76rem;padding:4px 8px;background:#fff8e1;border-radius:6px;color:var(--ink)">${esc(o.order_name)} · ${esc(o.customer||'')}</div>`).join('')}
+  if (markPrinted.length) {
+    html += `<div style="font-size:.78rem;font-weight:700;color:#e65100;margin-bottom:6px">⚠ ${markPrinted.length} order${markPrinted.length !== 1 ? 's' : ''} were printed (no AWB yet) — mark as printed:</div>
+    <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto">
+      ${markPrinted.map(o => `<div style="font-size:.76rem;padding:4px 8px;background:#fff8e1;border-radius:6px;color:var(--ink)">${esc(o.order_name)} · ${esc(o.customer||'')}</div>`).join('')}
     </div>`;
-  applyBtn.style.display = 'block';
-  applyBtn.dataset.names = JSON.stringify(inToPrint.map(o => o.order_name));
+  }
+
+  if (!unprinted.length) {
+    html = `<div style="font-size:.84rem;color:#388e3c;font-weight:700">✓ All ${combined.size} selected orders are already marked correctly.</div>`;
+  }
+
+  resultEl.innerHTML = html;
+  applyBtn.style.display = markPrinted.length ? 'block' : 'none';
+  applyBtn.textContent = `✓ Mark ${markPrinted.length} as Printed`;
+  applyBtn.dataset.names = JSON.stringify(markPrinted.map(o => o.order_name));
 }
 
 async function rcApply() {
