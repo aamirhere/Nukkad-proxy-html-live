@@ -5216,13 +5216,18 @@ async function rcLoadPdfs(input) {
 }
 
 function _rcUpdate() {
-  // combine: all order names from selected history batches + PDF extraction
-  const combined = new Set(_rcPdfOrders);
   const histBatches = _phLoad();
+
+  // build per-batch name sets for overlap analysis
+  const selectedBatches = [];
   for (const id of _rcSelected) {
     const b = histBatches.find(x => x.id === id);
-    if (b) b.names.forEach(n => combined.add(n));
+    if (b) selectedBatches.push({ id: b.id, label: b.label, names: new Set(b.names) });
   }
+
+  // combined unique orders from selected batches + PDFs
+  const combined = new Set(_rcPdfOrders);
+  selectedBatches.forEach(b => b.names.forEach(n => combined.add(n)));
 
   const resultEl = document.getElementById('rcResult');
   const applyBtn = document.getElementById('rcApplyBtn');
@@ -5233,7 +5238,28 @@ function _rcUpdate() {
     return;
   }
 
-  // split: orders in selected batches that are now back in To Print
+  resultEl.style.display = 'block';
+  let html = '';
+
+  // overlap analysis when ≥2 batches selected
+  if (selectedBatches.length >= 2) {
+    const orderBatchCount = {};
+    selectedBatches.forEach(b => b.names.forEach(n => { orderBatchCount[n] = (orderBatchCount[n] || 0) + 1; }));
+    const inMultiple = Object.entries(orderBatchCount).filter(([, c]) => c > 1).map(([n]) => n);
+    const totalRaw = selectedBatches.reduce((s, b) => s + b.names.size, 0) + _rcPdfOrders.size;
+
+    html += `<div style="background:#f3e5f5;border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6a1b9a;margin-bottom:6px">Batch Overlap Analysis</div>
+      <div style="font-size:.78rem;color:var(--ink);margin-bottom:4px">Total across batches (with dupes): <strong>${totalRaw}</strong></div>
+      <div style="font-size:.78rem;color:var(--ink);margin-bottom:4px">Unique orders after dedup: <strong>${combined.size}</strong></div>
+      ${inMultiple.length ? `<div style="font-size:.78rem;color:#c62828;margin-bottom:6px">Initiated twice (appear in multiple batches): <strong>${inMultiple.length}</strong></div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:120px;overflow-y:auto">
+        ${inMultiple.map(n => `<span style="font-size:.72rem;padding:2px 8px;background:#fce4ec;border-radius:10px;color:#c62828">${esc(n)}</span>`).join('')}
+      </div>` : `<div style="font-size:.78rem;color:#388e3c">No duplicates across selected batches.</div>`}
+    </div>`;
+  }
+
+  // split: orders in combined that are now back in To Print
   const unprinted = _pqOrders.filter(o =>
     !o.dispatched && !o.printed && !o.print_initiated && combined.has(o.order_name)
   );
@@ -5241,9 +5267,6 @@ function _rcUpdate() {
   const needsReprint = unprinted.filter(o => _pqAwbMapLoaded && _pqHasAwbMap[o.order_name]);
   // those still without AWB → mark as printed (old no-AWB slip, already in the pack)
   const markPrinted = unprinted.filter(o => !(_pqAwbMapLoaded && _pqHasAwbMap[o.order_name]));
-
-  resultEl.style.display = 'block';
-  let html = '';
 
   if (needsReprint.length) {
     html += `<div style="font-size:.78rem;font-weight:700;color:#1565c0;margin-bottom:6px">🖨 ${needsReprint.length} order${needsReprint.length !== 1 ? 's' : ''} now have AWB — need a fresh reprint (will stay in To Print):</div>
@@ -5260,7 +5283,7 @@ function _rcUpdate() {
   }
 
   if (!unprinted.length) {
-    html = `<div style="font-size:.84rem;color:#388e3c;font-weight:700">✓ All ${combined.size} selected orders are already marked correctly.</div>`;
+    html += `<div style="font-size:.84rem;color:#388e3c;font-weight:700">✓ All ${combined.size} unique orders are already marked correctly.</div>`;
   }
 
   resultEl.innerHTML = html;
