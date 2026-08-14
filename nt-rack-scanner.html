@@ -745,6 +745,10 @@ input[type=file]{display:none}
     </div>
   </div>
   <!-- bulk mark initiated as printed — shown only on Initiated filter -->
+  <div id="pqToPrintBar" style="display:none;background:#e8f5e9;border:1.5px solid #388e3c;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div style="font-size:.82rem;font-weight:700;color:#1b5e20">Already printed these slips? Mark them all.</div>
+    <button onclick="pqMarkAllPrinted()" style="background:#388e3c;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All as Printed</button>
+  </div>
   <div id="pqInitiatedBar" style="display:none;background:#fff8e1;border:1.5px solid #f9a825;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
     <div style="font-size:.82rem;font-weight:700;color:#e65100" id="pqInitiatedBarMsg">Orders sent to printer — confirm when done</div>
     <button onclick="markInitiatedAsPrinted()" style="background:#388e3c;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All as Printed</button>
@@ -3556,7 +3560,8 @@ function setPqFilter(f) {
     noAwbBtn.style.borderColor = '#b71c1c';
     noAwbBtn.textContent = `No AWB${counts.noawb ? ' ' + counts.noawb : ''}`;
   }
-  // show/hide the initiated bulk-mark bar
+  const tpBar = document.getElementById('pqToPrintBar');
+  if (tpBar) tpBar.style.display = f === 'toprint' ? 'flex' : 'none';
   const iBar = document.getElementById('pqInitiatedBar');
   if (iBar) iBar.style.display = f === 'initiated' ? 'flex' : 'none';
   renderPqList();
@@ -3766,6 +3771,7 @@ function renderPqList() {
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
           <button class="act-btn" style="background:var(--accent);color:#fff;border:none;font-size:.78rem" onclick="printSlip('${esc(o.order_name)}',this)">↻ Print Slip</button>
           ${isDispatched ? '' : `<button class="act-btn" style="background:#1565c0;color:#fff;border:none;font-size:.72rem" onclick="dispatchFromQueue('${esc(o.order_name)}',this)">✓ Dispatched</button>`}
+          ${!isDispatched && !isPrinted ? `<button class="act-btn" style="background:#388e3c;color:#fff;border:none;font-size:.72rem" onclick="pqMarkPrinted('${esc(o.order_name)}',this)" title="Already printed — mark without reprinting">✓ Mark Printed</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -3946,6 +3952,22 @@ function dismissPrintConfirm() {
   // switch to Initiated filter so user can see the pending batch
   if (_pqLastPrintedNames.length) setPqFilter('initiated');
   else renderPqList();
+}
+
+async function pqMarkPrinted(orderName, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  await apiFetch({ action: 'mark_print_done', order_names: [orderName] }).catch(() => {});
+  _pqOrders = _pqOrders.map(o => o.order_name === orderName ? { ...o, printed: true, print_initiated: false } : o);
+  setPqFilter(_pqFilter);
+}
+
+async function pqMarkAllPrinted() {
+  const names = _pqOrders.filter(o => !o.dispatched && !o.printed && !o.print_initiated && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name])).map(o => o.order_name);
+  if (!names.length) return;
+  if (!confirm(`Mark ${names.length} orders as printed without reprinting?`)) return;
+  await apiFetch({ action: 'mark_print_done', order_names: names }).catch(() => {});
+  _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: true, print_initiated: false } : o);
+  setPqFilter(_pqFilter);
 }
 
 async function markInitiatedAsPrinted() {
