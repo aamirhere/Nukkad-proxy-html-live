@@ -746,8 +746,11 @@ input[type=file]{display:none}
   </div>
   <!-- bulk mark initiated as printed — shown only on Initiated filter -->
   <div id="pqToPrintBar" style="display:none;background:#e8f5e9;border:1.5px solid #388e3c;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-    <div style="font-size:.82rem;font-weight:700;color:#1b5e20">Already printed these slips? Mark them all.</div>
-    <button onclick="pqMarkAllPrinted()" style="background:#388e3c;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All as Printed</button>
+    <div style="font-size:.82rem;font-weight:700;color:#1b5e20">Already printed these slips?</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button onclick="openReconcile()" style="background:#fff;border:1.5px solid #388e3c;color:#388e3c;padding:7px 14px;border-radius:8px;font-weight:700;font-size:.78rem;cursor:pointer">📋 Reconcile from history / PDF</button>
+      <button onclick="pqMarkAllPrinted()" style="background:#388e3c;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All Printed</button>
+    </div>
   </div>
   <div id="pqInitiatedBar" style="display:none;background:#fff8e1;border:1.5px solid #f9a825;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
     <div style="font-size:.82rem;font-weight:700;color:#e65100" id="pqInitiatedBarMsg">Orders sent to printer — confirm when done</div>
@@ -5000,6 +5003,45 @@ function fmtDate(d) {
     <button style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="toggleSlipSelMode()">Cancel</button>
   </div>
 </div>
+<!-- ── RECONCILE MODAL ── -->
+<div id="rcModal" style="display:none;position:fixed;inset:0;z-index:910;background:rgba(0,0,0,.6);align-items:flex-start;justify-content:center;padding:0">
+  <div style="background:#fff;width:100%;max-width:540px;height:100vh;display:flex;flex-direction:column;margin:0 auto">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <div style="font-family:var(--ff);font-size:1rem;font-weight:700;color:var(--ink)">Reconcile Printed Orders</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:1px">Select batches already printed → mark them in the DB</div>
+      </div>
+      <button onclick="closeReconcile()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:14px">
+
+      <!-- section: history batches -->
+      <div>
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px">From print history (select batches you already printed)</div>
+        <div id="rcBatchList" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- section: PDF upload -->
+      <div style="border-top:1px solid var(--line);padding-top:14px">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">Or upload PDFs (if history was lost)</div>
+        <div style="font-size:.74rem;color:var(--ink2);margin-bottom:8px">Upload the NukkadSlips PDF files — order numbers will be extracted automatically.</div>
+        <label style="display:block;border:2px dashed var(--line);border-radius:10px;padding:14px;text-align:center;cursor:pointer;font-size:.82rem;color:var(--muted)">
+          <input type="file" accept=".pdf" multiple onchange="rcLoadPdfs(this)" style="display:none">
+          📄 Tap to select PDF files (multiple allowed)
+        </label>
+        <div id="rcPdfStatus" style="margin-top:8px;font-size:.76rem;color:var(--ink2)"></div>
+      </div>
+
+      <!-- combined result -->
+      <div id="rcResult" style="display:none;border-top:1px solid var(--line);padding-top:14px"></div>
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid var(--line);flex-shrink:0;display:flex;gap:8px">
+      <button id="rcApplyBtn" onclick="rcApply()" style="flex:1;background:#388e3c;color:#fff;border:none;padding:11px;border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer;display:none">✓ Mark These as Printed</button>
+      <button onclick="closeReconcile()" style="background:#f5f5f5;border:1.5px solid var(--line);padding:11px 18px;border-radius:10px;font-size:.82rem;cursor:pointer;color:var(--muted)">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── EXTRA STOCK MODAL ── -->
 <div id="esModal" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.6);align-items:flex-start;justify-content:center;padding:0">
   <div style="background:#fff;width:100%;max-width:520px;height:100vh;display:flex;flex-direction:column;margin:0 auto">
@@ -5094,6 +5136,125 @@ function fmtDate(d) {
 </div>
 
 <script>
+// ── RECONCILE MODAL ────────────────────────────────────────────────────────────
+let _rcSelected = new Set(); // selected batch ids from history
+let _rcPdfOrders = new Set(); // order names extracted from uploaded PDFs
+
+function openReconcile() {
+  _rcSelected = new Set();
+  _rcPdfOrders = new Set();
+  document.getElementById('rcModal').style.display = 'flex';
+  document.getElementById('rcResult').style.display = 'none';
+  document.getElementById('rcApplyBtn').style.display = 'none';
+  document.getElementById('rcPdfStatus').textContent = '';
+  _rcRenderBatches();
+}
+
+function closeReconcile() {
+  document.getElementById('rcModal').style.display = 'none';
+}
+
+function _rcRenderBatches() {
+  const list = _phLoad().slice().reverse(); // newest first
+  const el = document.getElementById('rcBatchList');
+  if (!list.length) {
+    el.innerHTML = '<div style="font-size:.78rem;color:var(--muted)">No print history saved in this browser.</div>';
+    return;
+  }
+  el.innerHTML = list.map(b => {
+    const sel = _rcSelected.has(b.id);
+    return `<div onclick="rcToggleBatch('${b.id}')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid ${sel ? '#388e3c' : 'var(--line)'};background:${sel ? '#e8f5e9' : '#fff'};border-radius:10px;cursor:pointer">
+      <div style="width:18px;height:18px;border-radius:4px;border:2px solid ${sel ? '#388e3c' : 'var(--line)'};background:${sel ? '#388e3c' : '#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        ${sel ? '<span style="color:#fff;font-size:.7rem;font-weight:900">✓</span>' : ''}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.84rem;color:var(--ink)">${esc(b.label)}</div>
+        <div style="font-size:.72rem;color:var(--muted)">${b.count} orders</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function rcToggleBatch(id) {
+  if (_rcSelected.has(id)) _rcSelected.delete(id); else _rcSelected.add(id);
+  _rcRenderBatches();
+  _rcUpdate();
+}
+
+async function rcLoadPdfs(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  const statusEl = document.getElementById('rcPdfStatus');
+  statusEl.textContent = `Reading ${files.length} PDF${files.length > 1 ? 's' : ''}…`;
+  _rcPdfOrders = new Set();
+  let found = 0;
+  for (const f of files) {
+    try {
+      const buf = await f.arrayBuffer();
+      // decode as latin1 to preserve raw bytes, then search for order numbers
+      const raw = new Uint8Array(buf);
+      let txt = '';
+      for (let i = 0; i < raw.length; i++) txt += String.fromCharCode(raw[i]);
+      // order numbers appear as #NNNNN in the PDF text streams
+      const matches = txt.match(/#\d{4,6}/g) || [];
+      matches.forEach(m => { _rcPdfOrders.add(m); found++; });
+    } catch(e) { /* skip unreadable */ }
+  }
+  statusEl.innerHTML = `Found <strong>${_rcPdfOrders.size}</strong> unique order numbers across ${files.length} PDF${files.length > 1 ? 's' : ''}.`;
+  _rcUpdate();
+}
+
+function _rcUpdate() {
+  // combine: all order names from selected history batches + PDF extraction
+  const combined = new Set(_rcPdfOrders);
+  const histBatches = _phLoad();
+  for (const id of _rcSelected) {
+    const b = histBatches.find(x => x.id === id);
+    if (b) b.names.forEach(n => combined.add(n));
+  }
+
+  const resultEl = document.getElementById('rcResult');
+  const applyBtn = document.getElementById('rcApplyBtn');
+
+  if (!combined.size) {
+    resultEl.style.display = 'none';
+    applyBtn.style.display = 'none';
+    return;
+  }
+
+  // find which of these are currently in "To Print" (wrongly reset)
+  const inToPrint = _pqOrders.filter(o =>
+    !o.dispatched && !o.printed && !o.print_initiated && combined.has(o.order_name)
+  );
+
+  resultEl.style.display = 'block';
+  if (!inToPrint.length) {
+    resultEl.innerHTML = `<div style="font-size:.84rem;color:#388e3c;font-weight:700">✓ No mismatches — all ${combined.size} selected orders are already marked correctly.</div>`;
+    applyBtn.style.display = 'none';
+    return;
+  }
+
+  resultEl.innerHTML = `
+    <div style="font-size:.82rem;font-weight:700;color:#e65100;margin-bottom:8px">${inToPrint.length} order${inToPrint.length !== 1 ? 's' : ''} found in "To Print" that should be marked Printed:</div>
+    <div style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto">
+      ${inToPrint.map(o => `<div style="font-size:.76rem;padding:4px 8px;background:#fff8e1;border-radius:6px;color:var(--ink)">${esc(o.order_name)} · ${esc(o.customer||'')}</div>`).join('')}
+    </div>`;
+  applyBtn.style.display = 'block';
+  applyBtn.dataset.names = JSON.stringify(inToPrint.map(o => o.order_name));
+}
+
+async function rcApply() {
+  const btn = document.getElementById('rcApplyBtn');
+  const names = JSON.parse(btn.dataset.names || '[]');
+  if (!names.length) return;
+  btn.disabled = true; btn.textContent = 'Marking…';
+  await apiFetch({ action: 'mark_print_done', order_names: names }).catch(() => {});
+  _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: true, print_initiated: false } : o);
+  setPqFilter(_pqFilter);
+  closeReconcile();
+  toast(`${names.length} orders marked as printed ✓`);
+}
+
 // ── EXTRA STOCK MODAL ──────────────────────────────────────────────────────────
 let _esItems = []; // raw rows from nt_stock_items
 
