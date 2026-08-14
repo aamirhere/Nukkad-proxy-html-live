@@ -3453,7 +3453,8 @@ function setMode(mode) {
 let _pqOrders = [];
 let _pqDate   = 'all';
 let _pqFilter = 'all'; // 'all' | 'toprint' | 'initiated' | 'printed' | 'noawb'
-let _pqAwbMap = {}; // order_name → true (has awb) | false (no awb) — loaded async
+let _pqAwbMap = {}; // order_name → true = in transit
+let _pqHasAwbMap = {}; // order_name → true = has ANY tracking number
 let _tcTrackingMap = {}; // awb → { order_name, status } — built from AWB map load
 let _pqLastPrintedNames = []; // order names from last Print All — waiting for user confirmation
 let _pqBatchId = null; // active batch history filter (id string or null = all)
@@ -3695,10 +3696,12 @@ function renderPqList() {
   }
 
   // print status filter (dispatched always show in all filters — 3-day retention)
-  if (_pqFilter === 'toprint')   orders = orders.filter(o => o.dispatched || (!o.printed && !o.print_initiated));
+  // no-AWB = undispatched + AWB map loaded + no tracking number found
+  const _awbLoaded = Object.keys(_pqHasAwbMap).length > 0;
+  if (_pqFilter === 'toprint')   orders = orders.filter(o => o.dispatched || ((!o.printed && !o.print_initiated) && (!_awbLoaded || _pqHasAwbMap[o.order_name])));
   if (_pqFilter === 'initiated') orders = orders.filter(o => o.dispatched || o.print_initiated);
   if (_pqFilter === 'printed')   orders = orders.filter(o => o.dispatched || o.printed);
-  if (_pqFilter === 'noawb')     orders = orders.filter(o => !o.dispatched && !_pqAwbMap[o.order_name]);
+  if (_pqFilter === 'noawb')     orders = orders.filter(o => !o.dispatched && _awbLoaded && !_pqHasAwbMap[o.order_name]);
 
   // sort by scan timestamp ascending — matches physical rack sequence
   orders = [...orders].sort((a, b) => (a.last_updated || '') < (b.last_updated || '') ? -1 : 1);
@@ -3746,6 +3749,7 @@ function renderPqList() {
             ${scanTime ? `<span style="font-size:.68rem;color:var(--muted)">sorted ${scanTime}</span>` : ''}
             ${batchLabel ? `<span style="font-size:.65rem;color:#6a1b9a;background:#f3e5f5;padding:1px 6px;border-radius:10px;white-space:nowrap">🖨 ${batchLabel}</span>` : ''}
             ${isNoStock ? `<span style="font-size:.65rem;font-weight:700;color:#b71c1c;background:#fce4ec;padding:1px 6px;border-radius:10px;white-space:nowrap">⚠ No Stock</span>` : ''}
+            ${!isDispatched && Object.keys(_pqHasAwbMap).length && !_pqHasAwbMap[o.order_name] ? `<span style="font-size:.65rem;font-weight:700;color:#b71c1c;background:#fce4ec;padding:1px 6px;border-radius:10px;white-space:nowrap">No AWB</span>` : ''}
           </div>
           <div style="margin-top:5px;display:flex;flex-direction:column;gap:2px">
             ${o.items.map(it => `<div style="font-size:.74rem;color:var(--ink2);display:flex;gap:6px;align-items:center">
@@ -3782,6 +3786,7 @@ async function loadPrintQueue() {
     // load AWB map in background — used by No AWB filter + auto-dispatch in-transit
     apiFetch({ action: 'get_awb_map' }).then(async r => {
       _pqAwbMap = r.map || {};
+      _pqHasAwbMap = r.has_awb_map || {};
       _tcTrackingMap = r.tracking_map || {};
       // auto-dispatch orders confirmed in-transit by Shopify
       const toDispatch = _pqOrders.filter(o => !o.dispatched && _pqAwbMap[o.order_name]);
@@ -3850,10 +3855,11 @@ async function printAllQueued() {
     const batch = _phLoad().find(b => b.id === _pqBatchId);
     if (batch) { const s = new Set(batch.names); toPrint = toPrint.filter(o => s.has(o.order_name)); }
   }
-  if (_pqFilter === 'toprint')   toPrint = toPrint.filter(o => !o.printed && !o.print_initiated);
+  const _awbLoadedP = Object.keys(_pqHasAwbMap).length > 0;
+  if (_pqFilter === 'toprint')   toPrint = toPrint.filter(o => (!o.printed && !o.print_initiated) && (!_awbLoadedP || _pqHasAwbMap[o.order_name]));
   if (_pqFilter === 'initiated') toPrint = toPrint.filter(o => o.print_initiated && !o.printed);
   if (_pqFilter === 'printed')   toPrint = toPrint.filter(o => o.printed);
-  if (_pqFilter === 'noawb')     toPrint = toPrint.filter(o => !_pqAwbMap[o.order_name]);
+  if (_pqFilter === 'noawb')     toPrint = toPrint.filter(o => _awbLoadedP && !_pqHasAwbMap[o.order_name]);
   const orderNames = toPrint.map(o => o.order_name);
   console.log('[PrintAll] filter:', _pqFilter, '| orders to print:', orderNames.length, '| names:', orderNames.slice(0,5));
   if (!orderNames.length) return alert('No visible orders to print.');
