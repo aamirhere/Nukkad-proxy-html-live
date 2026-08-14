@@ -3524,10 +3524,11 @@ function _istNowStr() {
 function _pqCounts() {
   const ready = _pqOrders.filter(o => o.allFound);
   return {
-    all:       ready.filter(o => !o.dispatched || true).length, // all matched (incl dispatched shown for 3d)
-    toprint:   ready.filter(o => !o.dispatched && !o.printed && !o.print_initiated).length,
+    all:       ready.length,
+    toprint:   ready.filter(o => !o.dispatched && !o.printed && !o.print_initiated && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name])).length,
     initiated: ready.filter(o => !o.dispatched && o.print_initiated && !o.printed).length,
     printed:   ready.filter(o => !o.dispatched && o.printed).length,
+    noawb:     _pqAwbMapLoaded ? ready.filter(o => !o.dispatched && !_pqHasAwbMap[o.order_name]).length : 0,
   };
 }
 
@@ -3547,12 +3548,13 @@ function setPqFilter(f) {
     const c = counts[countKeys[k]];
     btn.textContent = `${labels[k]} ${c}`;
   });
-  // No AWB button active state
+  // No AWB button active state + count
   const noAwbBtn = document.getElementById('pqfNoAwb');
   if (noAwbBtn) {
     noAwbBtn.style.background  = f === 'noawb' ? '#b71c1c' : '#fff';
     noAwbBtn.style.color       = f === 'noawb' ? '#fff' : '#b71c1c';
     noAwbBtn.style.borderColor = '#b71c1c';
+    noAwbBtn.textContent = `No AWB${counts.noawb ? ' ' + counts.noawb : ''}`;
   }
   // show/hide the initiated bulk-mark bar
   const iBar = document.getElementById('pqInitiatedBar');
@@ -3703,8 +3705,9 @@ function renderPqList() {
   if (_pqFilter === 'printed')   orders = orders.filter(o => o.dispatched || o.printed);
   if (_pqFilter === 'noawb')     orders = orders.filter(o => !o.dispatched && _pqAwbMapLoaded && !_pqHasAwbMap[o.order_name]);
 
-  // sort by scan timestamp ascending — matches physical rack sequence
-  orders = [...orders].sort((a, b) => (a.last_updated || '') < (b.last_updated || '') ? -1 : 1);
+  // No AWB: oldest order date first so oldest unbooked orders surface at top
+  if (_pqFilter === 'noawb') orders = [...orders].sort((a, b) => (a.order_date || '') < (b.order_date || '') ? -1 : 1);
+  else orders = [...orders].sort((a, b) => (a.last_updated || '') < (b.last_updated || '') ? -1 : 1);
 
   const unprinted   = orders.filter(o => !o.printed).length;
   const totalPieces = orders.reduce((s,o) => s + o.items.reduce((s2,it) => s2 + it.needed, 0), 0);
@@ -3798,7 +3801,22 @@ async function loadPrintQueue() {
         _pqOrders = _pqOrders.map(o => names.has(o.order_name) ? { ...o, dispatched: true } : o);
         toast(`Auto-dispatched ${toDispatch.length} in-transit order${toDispatch.length !== 1 ? 's' : ''} ✓`);
       }
-      if (_pqFilter === 'noawb' || toDispatch.length) renderPqList();
+      // reset print status for printed orders that still have no AWB (slip was useless without barcode)
+      const noAwbPrinted = _pqOrders.filter(o => !o.dispatched && !_pqHasAwbMap[o.order_name] && (o.printed || o.print_initiated));
+      if (noAwbPrinted.length) {
+        const names = noAwbPrinted.map(o => o.order_name);
+        apiFetch({ action: 'reset_print_status', order_names: names }).catch(() => {});
+        _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: false, print_initiated: false } : o);
+      }
+      // reset print status for orders that NOW have AWB but were printed before AWB was added — need fresh slip
+      const needReprint = _pqOrders.filter(o => !o.dispatched && _pqHasAwbMap[o.order_name] && !_pqAwbMap[o.order_name] && (o.printed || o.print_initiated));
+      if (needReprint.length) {
+        const names = needReprint.map(o => o.order_name);
+        apiFetch({ action: 'reset_print_status', order_names: names }).catch(() => {});
+        _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: false, print_initiated: false } : o);
+        toast(`${needReprint.length} order${needReprint.length !== 1 ? 's' : ''} need re-print — AWB added ✓`);
+      }
+      setPqFilter(_pqFilter); // recount + re-render with AWB data
     }).catch(() => {});
   } catch(e) {
     list.innerHTML = `<div style="text-align:center;color:var(--red);padding:18px;font-size:.82rem">Error: ${esc(e.message)}</div>`;
