@@ -3801,21 +3801,6 @@ async function loadPrintQueue() {
         _pqOrders = _pqOrders.map(o => names.has(o.order_name) ? { ...o, dispatched: true } : o);
         toast(`Auto-dispatched ${toDispatch.length} in-transit order${toDispatch.length !== 1 ? 's' : ''} ✓`);
       }
-      // reset print status for printed orders that still have no AWB (slip was useless without barcode)
-      const noAwbPrinted = _pqOrders.filter(o => !o.dispatched && !_pqHasAwbMap[o.order_name] && (o.printed || o.print_initiated));
-      if (noAwbPrinted.length) {
-        const names = noAwbPrinted.map(o => o.order_name);
-        apiFetch({ action: 'reset_print_status', order_names: names }).catch(() => {});
-        _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: false, print_initiated: false } : o);
-      }
-      // reset print status for orders that NOW have AWB but were printed before AWB was added — need fresh slip
-      const needReprint = _pqOrders.filter(o => !o.dispatched && _pqHasAwbMap[o.order_name] && !_pqAwbMap[o.order_name] && (o.printed || o.print_initiated));
-      if (needReprint.length) {
-        const names = needReprint.map(o => o.order_name);
-        apiFetch({ action: 'reset_print_status', order_names: names }).catch(() => {});
-        _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: false, print_initiated: false } : o);
-        toast(`${needReprint.length} order${needReprint.length !== 1 ? 's' : ''} need re-print — AWB added ✓`);
-      }
       setPqFilter(_pqFilter); // recount + re-render with AWB data
     }).catch(() => {});
   } catch(e) {
@@ -5258,15 +5243,11 @@ async function tcConfirm() {
   const awb = inp.value.trim();
   if (awb.length < 4) return;
 
-  // guard against scanner double-firing same AWB within 1.5s
-  const now = Date.now();
-  if (awb === _tcLastAwb && now - _tcLastAwbTs < 1500) { inp.value = ''; return; }
-  _tcLastAwb = awb; _tcLastAwbTs = now;
-
   inp.value = '';
   inp.focus();
 
   const result = document.getElementById('tcResult');
+  const now = Date.now();
 
   // ── duplicate detection ────────────────────────────────────
   const dupIdx = _tcChecked.findIndex(c => c.awb === awb);
@@ -5285,6 +5266,10 @@ async function tcConfirm() {
     return;
   }
   // ──────────────────────────────────────────────────────────
+
+  // guard against scanner hardware double-firing same AWB within 800ms (only for new, non-duplicate scans)
+  if (awb === _tcLastAwb && now - _tcLastAwbTs < 800) return;
+  _tcLastAwb = awb; _tcLastAwbTs = now;
 
   result.style.display = 'block';
   result.style.background = '#f5f5f5';
