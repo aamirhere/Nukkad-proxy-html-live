@@ -3700,8 +3700,8 @@ function renderPqList() {
 
   // print status filter (dispatched always show in all filters — 3-day retention)
   // no-AWB = undispatched + AWB map loaded + no tracking number found
-  if (_pqFilter === 'toprint')   orders = orders.filter(o => o.dispatched || ((!o.printed && !o.print_initiated) && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name])));
-  if (_pqFilter === 'initiated') orders = orders.filter(o => o.dispatched || o.print_initiated);
+  if (_pqFilter === 'toprint')   orders = orders.filter(o => !o.dispatched && !o.printed && !o.print_initiated && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name]));
+  if (_pqFilter === 'initiated') orders = orders.filter(o => !o.dispatched && o.print_initiated);
   if (_pqFilter === 'printed')   orders = orders.filter(o => o.dispatched || o.printed);
   if (_pqFilter === 'noawb')     orders = orders.filter(o => !o.dispatched && _pqAwbMapLoaded && !_pqHasAwbMap[o.order_name]);
 
