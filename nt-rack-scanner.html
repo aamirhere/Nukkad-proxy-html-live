@@ -430,6 +430,7 @@ input[type=file]{display:none}
         <button class="hmenu-item" onclick="openTplOverlay();closeHMenu()">Slip Template</button>
         <button class="hmenu-item" onclick="openPainterDropOff();closeHMenu()">Painter Drop-off</button>
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
+        <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
         <button class="hmenu-item" onclick="fixRackQuotes();closeHMenu()">🔧 Fix Design Names</button>
         <button class="hmenu-item" onclick="toggleLegacyPanel();closeHMenu()">📥 Legacy Orders</button>
         <button class="hmenu-item" onclick="toggleResyncPanel();closeHMenu()">Sync until date</button>
@@ -4967,6 +4968,57 @@ function fmtDate(d) {
     <button style="background:rgba(255,255,255,.2);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer" onclick="toggleSlipSelMode()">Cancel</button>
   </div>
 </div>
+<!-- ── EXTRA STOCK MODAL ── -->
+<div id="esModal" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.6);align-items:flex-start;justify-content:center;padding:0">
+  <div style="background:#fff;width:100%;max-width:520px;height:100vh;display:flex;flex-direction:column;margin:0 auto">
+    <!-- header -->
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <div style="font-family:var(--ff);font-size:1rem;font-weight:700;color:var(--ink)">Extra Stock</div>
+        <div id="esStatus" style="font-size:.72rem;color:var(--muted);margin-top:1px">Loading…</div>
+      </div>
+      <button onclick="closeExtraStock()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <!-- search -->
+    <div style="padding:10px 14px;border-bottom:1px solid var(--line);flex-shrink:0">
+      <input id="esSearch" type="text" placeholder="Search design or color…" autocomplete="off" autocorrect="off" spellcheck="false"
+        oninput="_esRender()"
+        style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.88rem;font-family:var(--fb);outline:none">
+    </div>
+    <!-- add row -->
+    <div id="esAddRow" style="padding:10px 14px;border-bottom:1px solid var(--line);background:#fdf5ec;flex-shrink:0;display:none;flex-direction:column;gap:8px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Add extra piece</div>
+      <input id="esAddQuote" type="text" placeholder="Design name…" style="width:100%;box-sizing:border-box;padding:8px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:.84rem;font-family:var(--fb);outline:none">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="esAddColor" style="flex:1;min-width:110px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;font-family:var(--fb);background:#fff;outline:none">
+          <option value="">Color (optional)</option>
+          <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
+          <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
+        </select>
+        <input id="esAddQty" type="number" min="1" value="1" style="width:64px;padding:7px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:.84rem;font-family:var(--fb);outline:none;text-align:center">
+        <select id="esAddChannel" style="flex:1;min-width:100px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;font-family:var(--fb);background:#fff;outline:none">
+          <option value="extra">🗂 Extra</option>
+          <option value="prime">🔵 Prime</option>
+          <option value="zepto">⚡ Zepto</option>
+          <option value="blinkit">Blinkit</option>
+          <option value="bulk">Bulk</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="_esAddSave()" style="flex:1;background:var(--accent);color:#fff;border:none;padding:9px;border-radius:8px;font-weight:700;font-size:.84rem;cursor:pointer">+ Save</button>
+        <button onclick="document.getElementById('esAddRow').style.display='none'" style="background:none;border:1.5px solid var(--line);padding:9px 14px;border-radius:8px;font-size:.82rem;cursor:pointer;color:var(--muted)">Cancel</button>
+      </div>
+    </div>
+    <!-- list -->
+    <div id="esList" style="flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px"></div>
+    <!-- footer -->
+    <div style="padding:10px 14px;border-top:1px solid var(--line);flex-shrink:0;display:flex;gap:8px;align-items:center">
+      <button onclick="_esToggleAdd()" style="flex:1;background:#e65100;color:#fff;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:.84rem;cursor:pointer">+ Add Extra Piece</button>
+      <button onclick="openExtraStock()" style="background:#f5f5f5;border:1.5px solid var(--line);padding:10px 14px;border-radius:10px;font-size:.82rem;cursor:pointer;color:var(--ink2)">↺ Refresh</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TRANSIT CHECKER MODAL ── -->
 <div id="tcModal" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.6);align-items:flex-start;justify-content:center;padding:0">
   <div style="background:#fff;width:100%;max-width:520px;height:100vh;display:flex;flex-direction:column;margin:0 auto">
@@ -5010,6 +5062,99 @@ function fmtDate(d) {
 </div>
 
 <script>
+// ── EXTRA STOCK MODAL ──────────────────────────────────────────────────────────
+let _esItems = []; // raw rows from nt_stock_items
+
+const ES_CHANNEL_LABEL = { prime:'🔵 Prime', zepto:'⚡ Zepto', blinkit:'Blinkit', bulk:'Bulk', extra:'🗂 Extra' };
+const ES_COLORS = { Peach:'#f4a261', Blue:'#1565c0', White:'#ccc', Red:'#c62828', Orange:'#e65100', Green:'#388e3c', Yellow:'#f9a825', Purple:'#6a1b9a', Gold:'#b8860b' };
+
+async function openExtraStock() {
+  document.getElementById('esModal').style.display = 'flex';
+  document.getElementById('esSearch').value = '';
+  document.getElementById('esAddRow').style.display = 'none';
+  document.getElementById('esStatus').textContent = 'Loading…';
+  document.getElementById('esList').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">Loading…</div>';
+  try {
+    const r = await apiFetch({ action: 'get_stock_items' });
+    _esItems = r.items || [];
+    document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
+    _esRender();
+  } catch(e) {
+    document.getElementById('esStatus').textContent = 'Error loading';
+    document.getElementById('esList').innerHTML = `<div style="text-align:center;padding:30px;color:var(--red);font-size:.84rem">${esc(e.message)}</div>`;
+  }
+}
+
+function closeExtraStock() {
+  document.getElementById('esModal').style.display = 'none';
+}
+
+function _esToggleAdd() {
+  const row = document.getElementById('esAddRow');
+  const vis = row.style.display !== 'none';
+  row.style.display = vis ? 'none' : 'flex';
+  if (!vis) document.getElementById('esAddQuote').focus();
+}
+
+function _esRender() {
+  const q = (document.getElementById('esSearch').value || '').toLowerCase().trim();
+  // group by quote+color, sum qty
+  const groups = {};
+  for (const item of _esItems) {
+    const key = (item.quote || '') + '|||' + (item.color || '');
+    if (!groups[key]) groups[key] = { quote: item.quote || '', color: item.color || '', qty: 0, channels: {}, latest: item.created_at };
+    groups[key].qty += (item.qty || 1);
+    groups[key].channels[item.channel] = (groups[key].channels[item.channel] || 0) + (item.qty || 1);
+    if (item.created_at > groups[key].latest) groups[key].latest = item.created_at;
+  }
+  let rows = Object.values(groups).sort((a, b) => b.latest.localeCompare(a.latest));
+  if (q) rows = rows.filter(r => r.quote.toLowerCase().includes(q) || r.color.toLowerCase().includes(q));
+
+  const el = document.getElementById('esList');
+  if (!rows.length) {
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">${q ? 'No matches' : 'No extra stock logged yet'}</div>`;
+    return;
+  }
+  el.innerHTML = rows.map(r => {
+    const colorDot = ES_COLORS[r.color] ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ES_COLORS[r.color]};border:1px solid rgba(0,0,0,.15);flex-shrink:0"></span>` : '';
+    const channelChips = Object.entries(r.channels).map(([ch, n]) =>
+      `<span style="font-size:.65rem;padding:2px 7px;border-radius:12px;background:#f0f0f0;color:var(--ink2);font-weight:700">${ES_CHANNEL_LABEL[ch] || ch} ×${n}</span>`
+    ).join('');
+    return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+      <div style="background:#fdf5ec;border-radius:8px;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;color:var(--accent);flex-shrink:0">${r.qty}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.86rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.quote)}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:wrap">
+          ${colorDot}<span style="font-size:.74rem;color:var(--muted)">${esc(r.color || '—')}</span>
+          ${channelChips}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function _esAddSave() {
+  const quote = document.getElementById('esAddQuote').value.trim();
+  const color = document.getElementById('esAddColor').value;
+  const qty   = parseInt(document.getElementById('esAddQty').value) || 1;
+  const channel = document.getElementById('esAddChannel').value || 'extra';
+  if (!quote) { document.getElementById('esAddQuote').focus(); return; }
+  const btn = document.querySelector('#esAddRow button');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await apiFetch({ action: 'add_stock_item', quote, color, qty, channel });
+    document.getElementById('esAddQuote').value = '';
+    document.getElementById('esAddQty').value = '1';
+    document.getElementById('esAddRow').style.display = 'none';
+    // reload
+    const r = await apiFetch({ action: 'get_stock_items' });
+    _esItems = r.items || [];
+    document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
+    _esRender();
+  } catch(e) { alert('Error: ' + e.message); }
+  btn.disabled = false; btn.textContent = '+ Save';
+}
+
 // ── DUPLICATE TRACKING ─────────────────────────────────────────────────────────
 const TC_DUP_KEY = 'nt_tc_dups';
 function _tcDupLoad() { try { return JSON.parse(localStorage.getItem(TC_DUP_KEY) || '[]'); } catch { return []; } }
