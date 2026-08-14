@@ -1185,10 +1185,18 @@ function buildDateNav() {
     const overdue  = missing > 0 && isOverdue(d);
     const dt = new Date(d + 'T00:00:00+05:30');
     const label = dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-    html += `<div class="d-chip${selectedDate===d?' active':''}${overdue?' overdue':''}" onclick="selectDate('${d}')">
+
+    // count unmatched orders for this date (found=0, not dispatched)
+    const byOrdDay = {};
+    dayItems.forEach(it => { if(!byOrdDay[it.order_name]) byOrdDay[it.order_name]={n:0,f:0}; byOrdDay[it.order_name].n+=it.needed; byOrdDay[it.order_name].f+=it.found; });
+    const unmatchedCnt = Object.values(byOrdDay).filter(o => o.f === 0).length;
+
+    const isActive = selectedDate === d;
+    html += `<div class="d-chip${isActive?' active':''}${overdue?' overdue':''}" onclick="selectDate('${d}')">
       <span class="d-day">${label}${overdue?' !':''}</span>
       <span class="d-count">${missing > 0 ? missing + ' missing' : 'done'}</span>
       <span class="d-orders">${orders} orders</span>
+      ${unmatchedCnt > 0 ? `<span onclick="event.stopPropagation();selectDateUnmatched('${d}')" style="display:block;margin-top:4px;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(0,0,0,.12);color:inherit;cursor:pointer;white-space:nowrap">Unmatched ${unmatchedCnt}</span>` : ''}
     </div>`;
   }
 
@@ -1203,6 +1211,14 @@ function buildDateNav() {
 
 function selectDate(d) {
   selectedDate = d;
+  buildDateNav();
+  renderList();
+}
+
+function selectDateUnmatched(d) {
+  selectedDate = d;
+  activeFilter = 'missing';
+  document.querySelectorAll('.ftab').forEach(b => b.classList.toggle('active', b.dataset.f === 'missing'));
   buildDateNav();
   renderList();
 }
