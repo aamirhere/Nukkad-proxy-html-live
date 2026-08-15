@@ -2928,7 +2928,7 @@ function renderList() {
           <input class="meta-inp" placeholder="📍 Rack location" value="${esc(o.rack_location||'')}" id="loc-${esc(o.order_name)}">
           <input class="meta-inp" placeholder="📝 Note…" value="${esc(o.notes||'')}" id="note-${esc(o.order_name)}" style="max-width:200px;flex:2">
           <button class="meta-save-btn" onclick="saveOrderMeta('${safeOn}')">Save</button>
-          ${!o.dispatched && o.print_done ? `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safeOn}')">🚚 Dispatch Now</button>` : !o.dispatched ? `<button class="meta-dispatch-btn" onclick="manualDispatch('${safeOn}')">🚚 Mark Dispatched</button>` : ''}
+          ${o.dispatched ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.72rem;padding:4px 9px" onclick="undoDispatch('${safeOn}')">↩ Undo Dispatch</button>` : o.print_done ? `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safeOn}')">🚚 Dispatch Now</button>` : `<button class="meta-dispatch-btn" onclick="manualDispatch('${safeOn}')">🚚 Mark Dispatched</button>`}
         </div>
       </div>`;
     }
@@ -4131,9 +4131,11 @@ async function checkBluedartStatus() {
       if (!r.ok) { notFoundAwbs.push(r.awb); return false; }
       const code = (r.statusCode || '').toUpperCase();
       const desc = (r.statusDesc || '').toLowerCase();
-      const isTransit = BD_PICKED_CODES.has(code) ||
+      // Exclude "Out for Pickup" — means Bluedart is scheduled to collect but hasn't yet
+      const isOutForPickup = desc.includes('out for pickup') || desc.includes('awaiting pickup') || code === 'OFP';
+      const isTransit = !isOutForPickup && (BD_PICKED_CODES.has(code) ||
         desc.includes('picked up') || desc.includes('in transit') ||
-        desc.includes('out for delivery') || desc.includes('delivered');
+        desc.includes('out for delivery') || desc.includes('delivered'));
       if (!isTransit) notPickedAwbs.push({ awb: r.awb, code, desc: r.statusDesc });
       return isTransit;
     });
@@ -4757,6 +4759,17 @@ async function saveOrderMeta(orderName) {
 }
 
 // ── MANUAL DISPATCH ───────────────────────────────────────────────────────────
+async function undoDispatch(orderName) {
+  if (!confirm(`Undo dispatch for ${orderName}? It will move back to the active queue.`)) return;
+  try {
+    await apiFetch({ action: 'mark_undispatched', order_name: orderName });
+    rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, dispatched: false } : it);
+    _pqOrders = _pqOrders.map(o => o.order_name === orderName ? { ...o, dispatched: false } : o);
+    buildDateNav(); renderList(); updateSummary();
+    toast(`${orderName} moved back to active`);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 async function manualDispatch(orderName) {
   if (!confirm(`Mark ${orderName} as dispatched?`)) return;
   try {
