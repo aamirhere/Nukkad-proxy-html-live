@@ -271,7 +271,7 @@ input[type=file]{display:none}
 .status-tag.dispatched{background:#e8f5e9;color:#388e3c}
 .status-tag.fulfilled{background:#fff8e1;color:#f57f17}
 .status-tag.unfulfilled{background:#fce4ec;color:#c62828}
-.carrier-tag{font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#e3f2fd;color:#1565c0;margin-left:4px;cursor:default}
+.carrier-tag{display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#e3f2fd;color:#1565c0;margin-top:2px;cursor:default}
 
 /* ── SLIP OVERLAY ── */
 .slip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -2909,12 +2909,12 @@ function renderList() {
             ${o.print_done && !o.dispatched ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
+            ${_getCarrierTag(o.order_name)}
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             ${_slipSelMode ? `<input type="checkbox" class="slip-sel-chk" style="width:18px;height:18px;accent-color:#1b5e20;pointer-events:none" ${isSlipSel?'checked':''}>` : `<div class="ord-prog ${progCls}">${o.dispatched?'🚚':`${totalF}/${totalN}`}</div>`}
             ${_slipSelMode ? '' : o.dispatched?'':o.fulfilled?'<span class="status-tag fulfilled">Fulf.</span>':'<span class="status-tag unfulfilled">●</span>'}
-            ${_slipSelMode ? '' : _getCarrierTag(o.order_name)}
           </div>
         </div>
         <div class="ord-items">
