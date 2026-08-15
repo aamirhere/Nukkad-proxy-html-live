@@ -4090,7 +4090,12 @@ function _getCarrierTag(orderName, rackItem) {
   const awb     = rackItem?.tracking        || _awbCache[orderName]?.awb     || null;
   const label   = _carrierLabel(company, awb);
   if (!label) return '';
-  return `<span class="carrier-tag" title="${company||''} · ${awb||'no AWB'}">${label}</span>`;
+  const awbText = awb ? `<span style="font-size:.58rem;color:var(--muted);margin-left:4px;font-weight:400;font-family:monospace">${awb}</span>` : '';
+  if (awb) {
+    const url = `https://app-v1.shipway.com/tracking/forward/${encodeURIComponent(awb)}/`;
+    return `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;gap:0;margin-top:2px" class="no-print"><span class="carrier-tag">${label}</span>${awbText}</a>`;
+  }
+  return `<span class="carrier-tag" style="margin-top:2px">${label}</span>`;
 }
 const BD_DATE_FROM = '2026-07-29';
 
