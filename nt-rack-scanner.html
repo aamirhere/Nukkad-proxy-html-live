@@ -4039,13 +4039,13 @@ async function resetAllFound() {
 }
 
 async function resetAndReprintAll() {
-  const nonDispatched = _pqOrders.filter(o => !o.dispatched);
-  if (!nonDispatched.length) { toast('No non-dispatched orders found'); return; }
-  if (!confirm(`Full reset for ALL ${nonDispatched.length} non-dispatched orders?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Auto-dispatch anything in-transit on Shopify\n\nDispatched orders are NOT affected.`)) return;
+  // use rackItems (always loaded) — don't depend on _pqOrders which needs Print Queue tab open
+  const nonDispNames = [...new Set(rackItems.filter(it => !it.dispatched).map(it => it.order_name))];
+  if (!nonDispNames.length) { toast('No non-dispatched orders found'); return; }
+  if (!confirm(`Full reset for ALL ${nonDispNames.length} non-dispatched orders?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Auto-dispatch anything in-transit on Shopify\n\nDispatched orders are NOT affected.`)) return;
   toast('Resetting… please wait');
-  const names = nonDispatched.map(o => o.order_name);
   await Promise.allSettled([
-    apiFetch({ action: 'reset_print_status', order_names: names }),
+    apiFetch({ action: 'reset_print_status', order_names: nonDispNames }),
     apiFetch({ action: 'reset_found' }),
   ]);
   rackItems = rackItems.map(it => it.dispatched ? it : { ...it, found: 0 });
