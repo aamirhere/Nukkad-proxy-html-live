@@ -4013,23 +4013,30 @@ async function checkBluedartStatus() {
     });
     const d = await r.json();
     shopifyOrders = d.orders || [];
+    console.log('[BD Sync] load_orders:', d.shopify_total, 'shopify total,', shopifyOrders.length, 'returned');
+    if (shopifyOrders[0]) console.log('[BD Sync] sample order keys:', Object.keys(shopifyOrders[0]), '| known_awb:', shopifyOrders[0].known_awb, '| tracking:', shopifyOrders[0].tracking);
   } catch(e) {
     toast('⚠ Failed to load orders from Shopify: ' + (e.message || 'network error'));
+    console.error('[BD Sync] load_orders failed:', e);
     return;
   }
 
   // Step 2: build AWB → order_name map, only for non-dispatched orders with AWB
   const nonDispatchedNames = new Set(rackItems.filter(it => !it.dispatched).map(it => it.order_name));
+  console.log('[BD Sync] non-dispatched in rack:', nonDispatchedNames.size);
   const awbToOrder = {};
+  let _withAwb = 0, _noAwb = 0, _notInRack = 0;
   for (const o of shopifyOrders) {
-    if (!nonDispatchedNames.has(o.order_name)) continue;
+    if (!nonDispatchedNames.has(o.order_name)) { _notInRack++; continue; }
     const awb = o.known_awb || o.awb || o.tracking;
-    if (awb) awbToOrder[awb] = o.order_name;
+    if (awb) { awbToOrder[awb] = o.order_name; _withAwb++; }
+    else _noAwb++;
   }
+  console.log('[BD Sync] matched to rack — with AWB:', _withAwb, '| no AWB:', _noAwb, '| not in rack:', _notInRack);
 
   const awbs = Object.keys(awbToOrder);
   if (!awbs.length) {
-    toast('No non-dispatched orders with AWB found in 29 Jul – 12 Aug');
+    toast(`No AWBs found — ${shopifyOrders.length} Shopify orders, ${_withAwb + _noAwb} matched rack, ${_noAwb} had no AWB. See console.`);
     return;
   }
 
@@ -4062,8 +4069,10 @@ async function checkBluedartStatus() {
       desc.includes('out for delivery') || desc.includes('delivered');
   });
 
+  console.log('[BD Sync] fetch_tracking results:', allResults.length, '| picked/transit:', toDispatch.length);
+  console.log('[BD Sync] status codes seen:', [...new Set(allResults.map(r => r.statusCode || 'none'))]);
   if (!toDispatch.length) {
-    toast('No new pickups found on Bluedart');
+    toast('No new pickups found on Bluedart — ' + allResults.length + ' checked. See console for codes.');
     return;
   }
 
@@ -4128,14 +4137,19 @@ async function resetAndReprintAll() {
   const DATE_FROM = '2026-07-29';
   const DATE_TO   = '2026-08-12';
   const inRange = it => !it.dispatched && it.order_date >= DATE_FROM && it.order_date <= DATE_TO;
-  const cnt = new Set(rackItems.filter(inRange).map(it => it.order_name)).size;
+  const inRangeItems = rackItems.filter(inRange);
+  const cnt = new Set(inRangeItems.map(it => it.order_name)).size;
+  console.log('[Reset] rackItems total:', rackItems.length, '| in-range non-dispatched:', inRangeItems.length, '| unique orders:', cnt);
   if (!cnt) { toast('No orders in range to reset'); return; }
   if (!confirm(`Full reset for ${cnt} orders (29 Jul – 12 Aug)?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Dispatched orders are NOT affected.`)) return;
   toast('Resetting… please wait');
+  console.log('[Reset] Sending reset_all_print_status + reset_found with', { date_from: DATE_FROM, date_to: DATE_TO });
   const [r1, r2] = await Promise.allSettled([
     apiFetch({ action: 'reset_all_print_status', date_from: DATE_FROM, date_to: DATE_TO }),
     apiFetch({ action: 'reset_found',            date_from: DATE_FROM, date_to: DATE_TO }),
   ]);
+  console.log('[Reset] r1 (print_status):', r1.status, r1.value || r1.reason?.message);
+  console.log('[Reset] r2 (found):', r2.status, r2.value || r2.reason?.message);
   if (r1.status === 'rejected') { toast('⚠ Print reset failed: ' + (r1.reason?.message || 'unknown')); return; }
   if (r2.status === 'rejected') { toast('⚠ Found reset failed: ' + (r2.reason?.message || 'unknown')); return; }
   toast('Reset done — reloading…');
