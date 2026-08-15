@@ -2751,6 +2751,7 @@ function updateFilterCounts() {
     partial:    all.filter(o => !o.dispatched && o.found > 0 && o.found < o.needed).length,
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
+    dispatched: all.filter(o => o.dispatched).length,
   };
   document.querySelectorAll('.ftab').forEach(b => {
     const f = b.dataset.f;
