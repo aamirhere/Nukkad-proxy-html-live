@@ -1689,7 +1689,13 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
   const topLabel = allCounted
     ? `All orders matched — ${matches.length} order${matches.length>1?'s':''} done`
     : `Best match${matches.length>1?' — scroll for more':''}`;
-  let html = `<div class="result-card"><div class="rc-top">${topLabel}</div>${visionHtml}`;
+  const firstMatch = matches[0]?.it;
+  const extraBtnHtml = allCounted && firstMatch
+    ? `<div style="padding:10px 0 4px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <div style="font-size:.74rem;color:var(--ink2);width:100%;text-align:center;margin-bottom:4px">All orders for this design are matched. Is this piece extra?</div>
+        <button class="m-btn extra-btn" data-bd="${_bd([firstMatch.order_name, firstMatch.quote, firstMatch.color])}" onclick="var d=_btnData[this.dataset.bd];showChannelPicker(d[0],d[1],d[2])">📦 Tag as Extra Stock</button>
+      </div>` : '';
+  let html = `<div class="result-card"><div class="rc-top">${topLabel}</div>${visionHtml}${extraBtnHtml}`;
 
   matches.forEach((m, idx) => {
     const { it } = m;
