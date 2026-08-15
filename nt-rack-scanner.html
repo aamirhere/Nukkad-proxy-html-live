@@ -4113,7 +4113,8 @@ function _getCarrierTag(orderName, rackItem) {
   if (!label) return rackItem?.fulfilled ? `<span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#fce4ec;color:#c62828;margin-top:2px">No AWB</span>` : '';
   if (awb) {
     const url = _trackingUrl(company, awb);
-    return `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:2px" class="no-print">
+    const safeAwb = awb.replace(/'/g, "\\'");
+    return `<a href="${url}" target="_blank" rel="noopener" onclick="navigator.clipboard&&navigator.clipboard.writeText('${safeAwb}').catch(()=>{})" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:2px" class="no-print">
       <span class="carrier-tag">${label}</span>
       <span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#e8eaf6;color:#3949ab;font-family:monospace;letter-spacing:.02em">${awb}</span>
     </a>`;
