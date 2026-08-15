@@ -5842,19 +5842,20 @@ function _esRender() {
     }
     matches.sort((a, b) => a.quote.localeCompare(b.quote));
 
-    if (matches.length) {
-      prodEl.style.display = 'block';
-      prodEl.innerHTML = matches.map(m => {
-        const extra = m.existingQty > 0 ? `<span style="font-size:.68rem;background:#e8f5e9;color:#2e7d32;padding:2px 7px;border-radius:10px;font-weight:700">${m.existingQty} in stock</span>` : `<span style="font-size:.68rem;color:var(--muted)">No stock</span>`;
-        return `<div onclick="_esSelectQuote(${JSON.stringify(m.quote)})" style="padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;active:background:#fdf5ec">
-          <div style="font-size:.86rem;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.quote)}</div>
-          ${extra}
-        </div>`;
-      }).join('');
-    } else {
-      prodEl.style.display = 'block';
-      prodEl.innerHTML = `<div style="padding:12px 14px;font-size:.82rem;color:var(--muted)">No designs match "${esc(q)}"</div>`;
-    }
+    // Raw search text from input (preserve case for display and saving)
+    const rawQ = (document.getElementById('esSearch').value || '').trim();
+    const exactInList = matches.some(m => m.quote.toLowerCase() === q);
+    const addNewRow = `<div onclick="_esSelectQuote(${JSON.stringify(rawQ)})" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fdf5ec">
+      <div style="font-size:.86rem;font-weight:600;color:var(--accent);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">➕ Add "${esc(rawQ)}" as new</div>
+    </div>`;
+    prodEl.style.display = 'block';
+    prodEl.innerHTML = matches.map(m => {
+      const extra = m.existingQty > 0 ? `<span style="font-size:.68rem;background:#e8f5e9;color:#2e7d32;padding:2px 7px;border-radius:10px;font-weight:700">${m.existingQty} in stock</span>` : `<span style="font-size:.68rem;color:var(--muted)">No stock</span>`;
+      return `<div onclick="_esSelectQuote(${JSON.stringify(m.quote)})" style="padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="font-size:.86rem;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.quote)}</div>
+        ${extra}
+      </div>`;
+    }).join('') + (!exactInList ? addNewRow : '');
     document.getElementById('esList').innerHTML = '';
     return;
   }
