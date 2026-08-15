@@ -4022,22 +4022,35 @@ async function checkBluedartStatus() {
   const BATCH = 20;
   const MAX_RETRY = 2;
 
-  toast('Loading orders from Shopify…');
-
-  let shopifyOrders = [];
-  try {
-    const r = await fetch(BD_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'load_orders', date_from: DATE_FROM, date_to: DATE_TO }),
-    });
-    const d = await r.json();
-    shopifyOrders = d.orders || [];
-    console.log('[Sync] Shopify load:', d.shopify_total, 'total,', shopifyOrders.length, 'returned');
-  } catch(e) {
-    toast('⚠ Failed to load from Shopify: ' + (e.message || 'network error'));
-    return;
+  // Build list of days in range
+  const days = [];
+  for (let d = new Date(DATE_FROM); d <= new Date(DATE_TO); d.setDate(d.getDate() + 1)) {
+    days.push(d.toISOString().slice(0, 10));
   }
+
+  toast(`Loading Shopify orders day by day (${days.length} days)…`);
+
+  // Fetch one day at a time to avoid Netlify timeout
+  let shopifyOrders = [];
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
+    toast(`Loading ${day} (${i + 1}/${days.length})…`);
+    try {
+      const r = await fetch(BD_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'load_orders', date_from: day, date_to: day }),
+      });
+      const d = await r.json();
+      if (d.error) { console.warn('[Sync] load_orders error for', day, ':', d.error); continue; }
+      const dayOrders = d.orders || [];
+      shopifyOrders.push(...dayOrders);
+      console.log('[Sync]', day, ':', dayOrders.length, 'orders (total so far:', shopifyOrders.length, ')');
+    } catch(e) {
+      console.warn('[Sync] load_orders failed for', day, ':', e.message);
+    }
+  }
+  console.log('[Sync] Total Shopify orders loaded:', shopifyOrders.length);
 
   const nonDispatchedNames = new Set(rackItems.filter(it => !it.dispatched).map(it => it.order_name));
 
