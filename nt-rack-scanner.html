@@ -2832,18 +2832,23 @@ function renderList() {
       order_name: it.order_name, order_date: it.order_date,
       customer: it.customer, dispatched: it.dispatched,
       fulfilled: it.fulfilled, is_emergency: it.is_emergency,
+      cancelled: it.cancelled,
       notes: it.notes, rack_location: it.rack_location, painter: it.painter,
+      tracking: it.tracking, tracking_company: it.tracking_company,
       items: []
     };
     byOrder[it.order_name].items.push(it);
     if (it.dispatched)    byOrder[it.order_name].dispatched    = true;
     if (it.fulfilled)     byOrder[it.order_name].fulfilled     = true;
     if (it.is_emergency)  byOrder[it.order_name].is_emergency  = true;
+    if (it.cancelled)     byOrder[it.order_name].cancelled     = true;
     if (it.print_done)    byOrder[it.order_name].print_done    = true;
     // take first non-null value for order-level meta
-    if (it.notes && !byOrder[it.order_name].notes)             byOrder[it.order_name].notes         = it.notes;
-    if (it.rack_location && !byOrder[it.order_name].rack_location) byOrder[it.order_name].rack_location = it.rack_location;
-    if (it.painter && !byOrder[it.order_name].painter)         byOrder[it.order_name].painter       = it.painter;
+    if (it.notes && !byOrder[it.order_name].notes)                         byOrder[it.order_name].notes            = it.notes;
+    if (it.rack_location && !byOrder[it.order_name].rack_location)         byOrder[it.order_name].rack_location    = it.rack_location;
+    if (it.painter && !byOrder[it.order_name].painter)                     byOrder[it.order_name].painter          = it.painter;
+    if (it.tracking && !byOrder[it.order_name].tracking)                   byOrder[it.order_name].tracking         = it.tracking;
+    if (it.tracking_company && !byOrder[it.order_name].tracking_company)   byOrder[it.order_name].tracking_company = it.tracking_company;
   }
 
   const orders = Object.values(byOrder).filter(o => {
