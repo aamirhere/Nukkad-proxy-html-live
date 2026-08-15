@@ -423,6 +423,7 @@ input[type=file]{display:none}
     <h1>Rack Scanner</h1>
     <button class="hbtn accent" onclick="syncAll()" id="syncBtn" style="padding:6px 14px">⟳ Sync</button>
     <button class="hbtn" onclick="loadRackStatus()" id="refreshBtn" style="padding:6px 10px">↺</button>
+    <span id="lastRefreshedAt" style="font-size:.68rem;color:var(--muted);margin-left:2px;white-space:nowrap"></span>
     <button class="hbtn" onclick="openBlankSlip()" style="padding:6px 10px;font-size:.72rem">Slip</button>
     <div class="hmenu-wrap">
       <button class="hmenu-btn" onclick="toggleHMenu()" id="hmenuBtn">⋮</button>
@@ -1177,6 +1178,8 @@ async function loadRackStatus() {
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
     const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    const el = document.getElementById('lastRefreshedAt');
+    if (el) el.textContent = t;
     if (rackItems.length) {
       const orderCount = new Set(rackItems.map(i => i.order_name)).size;
       setStatus(`${orderCount} orders loaded · refreshed ${t}`);
