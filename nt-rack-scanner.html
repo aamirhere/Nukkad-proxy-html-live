@@ -432,7 +432,8 @@ input[type=file]{display:none}
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
         <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
         <button class="hmenu-item" onclick="openNd();closeHMenu()">🚚 Newly Dispatched</button>
-        <button class="hmenu-item" onclick="checkBluedartStatus();closeHMenu()">📦 Sync Bluedart Status</button>
+        <button class="hmenu-item" onclick="checkBluedartStatus();closeHMenu()">📦 Sync Bluedart (Active Orders)</button>
+        <button class="hmenu-item" onclick="checkDispatchedBluedart();closeHMenu()">🔍 Verify Dispatched via Bluedart</button>
         <button class="hmenu-item" onclick="openReconcile();closeHMenu()">🔁 Reconcile Prints</button>
         <button class="hmenu-item" style="color:#c62828" onclick="resetAndReprintAll();closeHMenu()">🔄 Full Reset (Reprint + Unmatch)</button>
         <button class="hmenu-item" onclick="fillRackGaps();closeHMenu()">🔍 Fill Missing Items (Gap Check)</button>
@@ -1126,7 +1127,7 @@ async function fillRackGaps() {
   if (btn) { btn.textContent = '🔍 Checking…'; btn.disabled = true; }
   toast('Scanning Shopify for missing items…');
   try {
-    const res = await apiFetch({ action: 'fill_rack_gaps', date_from: '2026-07-29', date_to: '2026-08-12' });
+    const res = await apiFetch({ action: 'fill_rack_gaps', date_from: '2026-07-29' });
     if (res.new_rows > 0) {
       await loadRackStatus();
       const orderList = res.affected_orders.slice(0, 8).join(', ') + (res.affected_orders.length > 8 ? ` +${res.affected_orders.length - 8} more` : '');
@@ -4036,42 +4037,80 @@ async function pqMarkAllPrinted() {
 
 // Bluedart status codes that confirm courier physically has the parcel
 const BD_PICKED_CODES = new Set(['PU','PKP','IT','INT','OFD','OD','DL','DEL','OAD','CR','UD']);
+const BD_DATE_FROM = '2026-07-29';
 
-async function checkBluedartStatus() {
-  const DATE_FROM = '2026-07-29';
-  const DATE_TO   = '2026-08-12';
-  const BATCH = 20;
-  const MAX_RETRY = 2;
+function _bdDateTo() { return _istDateStr(0); }
 
-  // Build list of days in range
+function _isBdTransit(r) {
+  if (!r.ok) return false;
+  const code = (r.statusCode || '').toUpperCase();
+  const desc = (r.statusDesc || '').toLowerCase();
+  const isOutForPickup = desc.includes('out for pickup') || desc.includes('awaiting pickup') || code === 'OFP';
+  return !isOutForPickup && (BD_PICKED_CODES.has(code) ||
+    desc.includes('picked up') || desc.includes('in transit') ||
+    desc.includes('out for delivery') || desc.includes('delivered'));
+}
+
+// Shared: load Shopify orders day by day for the full active window
+async function _bdLoadShopifyOrders() {
+  const DATE_TO = _bdDateTo();
   const days = [];
-  for (let d = new Date(DATE_FROM); d <= new Date(DATE_TO); d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(BD_DATE_FROM); d <= new Date(DATE_TO); d.setDate(d.getDate() + 1))
     days.push(d.toISOString().slice(0, 10));
-  }
 
-  toast(`Loading Shopify orders day by day (${days.length} days)…`);
-
-  // Fetch one day at a time to avoid Netlify timeout
-  let shopifyOrders = [];
+  toast(`Loading Shopify orders (${days.length} days)…`);
+  const orders = [];
   for (let i = 0; i < days.length; i++) {
     const day = days[i];
     toast(`Loading ${day} (${i + 1}/${days.length})…`);
     try {
-      const r = await fetch(BD_API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'load_orders', date_from: day, date_to: day }),
-      });
+      const r = await fetch(BD_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'load_orders', date_from: day, date_to: day }) });
       const d = await r.json();
-      if (d.error) { console.warn('[Sync] load_orders error for', day, ':', d.error); continue; }
+      if (d.error) { console.warn('[BD] load_orders error', day, d.error); continue; }
       const dayOrders = d.orders || [];
-      shopifyOrders.push(...dayOrders);
-      console.log('[Sync]', day, ':', dayOrders.length, 'orders (total so far:', shopifyOrders.length, ')');
-    } catch(e) {
-      console.warn('[Sync] load_orders failed for', day, ':', e.message);
+      orders.push(...dayOrders);
+      console.log('[BD]', day, ':', dayOrders.length, 'orders (total:', orders.length, ')');
+    } catch(e) { console.warn('[BD] load_orders failed', day, e.message); }
+  }
+  console.log('[BD] Total Shopify orders loaded:', orders.length);
+  return orders;
+}
+
+// Shared: call Bluedart in batches of 20, with retry
+async function _bdFetchAwbs(awbToOrder) {
+  const BATCH = 20, MAX_RETRY = 2;
+  const awbs = Object.keys(awbToOrder);
+  const allResults = [];
+  const noResponse = [];
+
+  for (let i = 0; i < awbs.length; i += BATCH) {
+    const batch = awbs.slice(i, i + BATCH);
+    let results = null;
+    for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+      try {
+        const r = await fetch(BD_API, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'fetch_tracking', awbs: batch }) });
+        const d = await r.json();
+        if (d.results && d.results.length > 0) { results = d.results; break; }
+        if (attempt < MAX_RETRY) await new Promise(res => setTimeout(res, 1500));
+      } catch(e) { if (attempt < MAX_RETRY) await new Promise(res => setTimeout(res, 1500)); }
+    }
+    if (results) {
+      allResults.push(...results);
+      toast(`Bluedart: ${Math.min(i + BATCH, awbs.length)}/${awbs.length} AWBs checked…`);
+      console.log(`[BD] batch ${i/BATCH+1}: ${results.length} results, codes:`, results.map(r => r.statusCode || 'none').join(', '));
+    } else {
+      batch.forEach(awb => noResponse.push(awb));
+      toast(`⚠ Bluedart no response for batch ${i/BATCH+1}`);
     }
   }
-  console.log('[Sync] Total Shopify orders loaded:', shopifyOrders.length);
+  return { allResults, noResponse };
+}
+
+// ── ACTIVE SYNC: non-dispatched orders → mark picked-up ones as dispatched ───
+async function checkBluedartStatus() {
+  const shopifyOrders = await _bdLoadShopifyOrders();
 
   const nonDispatchedNames = new Set(rackItems.filter(it => !it.dispatched).map(it => it.order_name));
 
@@ -4079,20 +4118,17 @@ async function checkBluedartStatus() {
   const shopifyTransit = [];
   const awbToOrder = {};
   let _withAwb = 0, _noAwb = 0;
-
   for (const o of shopifyOrders) {
     if (!nonDispatchedNames.has(o.order_name)) continue;
     if (o.fulfillment_status === 'in_transit') shopifyTransit.push(o.order_name);
     const awb = o.known_awb || o.tracking;
-    if (awb) { awbToOrder[awb] = o.order_name; _withAwb++; }
-    else _noAwb++;
+    if (awb) { awbToOrder[awb] = o.order_name; _withAwb++; } else _noAwb++;
   }
-
   console.log('[Sync P1] Shopify in-transit:', shopifyTransit.length, '| with AWB:', _withAwb, '| no AWB:', _noAwb);
 
   let shopifyDispatched = 0;
   if (shopifyTransit.length) {
-    toast(`Phase 1: dispatching ${shopifyTransit.length} orders confirmed in-transit by Shopify…`);
+    toast(`Phase 1: dispatching ${shopifyTransit.length} via Shopify…`);
     await Promise.allSettled(shopifyTransit.map(n => apiFetch({ action: 'mark_dispatched', order_name: n })));
     const s = new Set(shopifyTransit);
     rackItems = rackItems.map(it => s.has(it.order_name) ? { ...it, dispatched: true } : it);
@@ -4100,71 +4136,30 @@ async function checkBluedartStatus() {
     shopifyDispatched = shopifyTransit.length;
     for (const [awb, name] of Object.entries(awbToOrder)) { if (s.has(name)) delete awbToOrder[awb]; }
     buildDateNav(); renderList();
-    toast(`Phase 1 done: ${shopifyDispatched} dispatched via Shopify ✓`);
+    toast(`Phase 1: ${shopifyDispatched} dispatched via Shopify ✓`);
   }
 
-  // Phase 2: Bluedart for remaining non-dispatched with AWB
+  // Phase 2: Bluedart for remaining with AWB
   const awbs = Object.keys(awbToOrder);
-  console.log('[Sync P2] AWBs to check via Bluedart:', awbs.length);
-
   let bdDispatched = 0;
-  const notFoundAwbs = [];
-  const notPickedAwbs = [];
+  const notFoundAwbs = [], notPickedAwbs = [];
 
   if (awbs.length) {
     toast(`Phase 2: checking ${awbs.length} AWBs via Bluedart…`);
-    const allResults = [];
-
-    for (let i = 0; i < awbs.length; i += BATCH) {
-      const batch = awbs.slice(i, i + BATCH);
-      let results = null;
-
-      for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
-        try {
-          const r = await fetch(BD_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'fetch_tracking', awbs: batch }),
-          });
-          const d = await r.json();
-          if (d.results && d.results.length > 0) { results = d.results; break; }
-          console.warn(`[Sync P2] batch ${i/BATCH+1} attempt ${attempt}: empty response, retrying…`);
-          if (attempt < MAX_RETRY) await new Promise(res => setTimeout(res, 1500));
-        } catch(e) {
-          console.warn(`[Sync P2] batch ${i/BATCH+1} attempt ${attempt} error:`, e.message);
-          if (attempt < MAX_RETRY) await new Promise(res => setTimeout(res, 1500));
-        }
-      }
-
-      if (results) {
-        allResults.push(...results);
-        const done = Math.min(i + BATCH, awbs.length);
-        toast(`Bluedart: ${done}/${awbs.length} AWBs checked…`);
-        console.log(`[Sync P2] batch ${i/BATCH+1}: ${results.length} results, codes:`, results.map(r => r.statusCode || 'none').join(', '));
-      } else {
-        console.warn(`[Sync P2] batch ${i/BATCH+1}: no results after ${MAX_RETRY} attempts — AWBs:`, batch);
-        batch.forEach(awb => notFoundAwbs.push(awb));
-        toast(`⚠ Bluedart no response for batch ${i/BATCH+1} (${batch.length} AWBs)`);
-      }
-    }
+    const { allResults, noResponse } = await _bdFetchAwbs(awbToOrder);
+    noResponse.forEach(awb => notFoundAwbs.push(awb));
 
     const bdTransit = allResults.filter(r => {
       if (!r.ok) { notFoundAwbs.push(r.awb); return false; }
-      const code = (r.statusCode || '').toUpperCase();
-      const desc = (r.statusDesc || '').toLowerCase();
-      // Exclude "Out for Pickup" — means Bluedart is scheduled to collect but hasn't yet
-      const isOutForPickup = desc.includes('out for pickup') || desc.includes('awaiting pickup') || code === 'OFP';
-      const isTransit = !isOutForPickup && (BD_PICKED_CODES.has(code) ||
-        desc.includes('picked up') || desc.includes('in transit') ||
-        desc.includes('out for delivery') || desc.includes('delivered'));
-      if (!isTransit) notPickedAwbs.push({ awb: r.awb, code, desc: r.statusDesc });
-      return isTransit;
+      const ok = _isBdTransit(r);
+      if (!ok) notPickedAwbs.push({ awb: r.awb, code: (r.statusCode||'').toUpperCase(), desc: r.statusDesc });
+      return ok;
     });
 
     console.log('[Sync P2] results:', allResults.length, '| transit:', bdTransit.length, '| not picked:', notPickedAwbs.length, '| not found:', notFoundAwbs.length);
-    console.log('[Sync P2] all codes seen:', [...new Set(allResults.map(r => r.statusCode || 'none'))]);
+    console.log('[Sync P2] codes seen:', [...new Set(allResults.map(r => r.statusCode || 'none'))]);
     if (notPickedAwbs.length) console.table(notPickedAwbs.map(x => ({ order: awbToOrder[x.awb], awb: x.awb, code: x.code, status: x.desc })));
-    if (notFoundAwbs.length) console.log('[Sync P2] not found AWBs:', notFoundAwbs.map(awb => `${awb} (${awbToOrder[awb] || '?'})`));
+    if (notFoundAwbs.length) console.log('[Sync P2] not found:', notFoundAwbs.map(awb => `${awb} (${awbToOrder[awb]||'?'})`));
 
     if (bdTransit.length) {
       const bdNames = [...new Set(bdTransit.map(r => awbToOrder[r.awb]).filter(Boolean))];
@@ -4177,18 +4172,79 @@ async function checkBluedartStatus() {
   }
 
   buildDateNav(); renderList(); setPqFilter(_pqFilter);
-
   const total = shopifyDispatched + bdDispatched;
-  const notFoundMsg = notFoundAwbs.length ? ` · ${notFoundAwbs.length} AWB not found on Bluedart` : '';
+  const notFoundMsg = notFoundAwbs.length ? ` · ${notFoundAwbs.length} AWB not found` : '';
   const notPickedMsg = notPickedAwbs.length ? ` · ${notPickedAwbs.length} not yet picked up` : '';
+  if (total)        toast(`✓ ${total} dispatched — ${shopifyDispatched} Shopify, ${bdDispatched} Bluedart${notFoundMsg}${notPickedMsg}`);
+  else if (awbs.length) toast(`No new pickups — ${_withAwb} AWBs checked${notFoundMsg}${notPickedMsg}`);
+  else              toast(`No AWBs found — ${shopifyOrders.length} orders loaded, ${_noAwb} with no tracking`);
+}
 
-  if (total) {
-    toast(`✓ ${total} dispatched — ${shopifyDispatched} via Shopify, ${bdDispatched} via Bluedart${notFoundMsg}${notPickedMsg}`);
-  } else if (awbs.length) {
-    toast(`No new pickups — ${_withAwb} AWBs checked${notFoundMsg}${notPickedMsg}. See console for details.`);
-  } else {
-    toast(`No AWBs found — ${shopifyOrders.length} Shopify orders loaded, ${_noAwb} with no tracking number`);
+// ── DISPATCHED SCAN: find wrongly dispatched (Out for Pickup) and undo them ──
+async function checkDispatchedBluedart() {
+  const shopifyOrders = await _bdLoadShopifyOrders();
+
+  const dispatchedNames = new Set(rackItems.filter(it => it.dispatched).map(it => it.order_name));
+
+  const awbToOrder = {};
+  for (const o of shopifyOrders) {
+    if (!dispatchedNames.has(o.order_name)) continue;
+    const awb = o.known_awb || o.tracking;
+    if (awb) awbToOrder[awb] = o.order_name;
   }
+
+  const awbs = Object.keys(awbToOrder);
+  console.log('[DispScan] dispatched orders:', dispatchedNames.size, '| with AWB:', awbs.length);
+
+  if (!awbs.length) {
+    toast('No AWBs found for dispatched orders');
+    return;
+  }
+
+  toast(`Checking ${awbs.length} AWBs for dispatched orders…`);
+  const { allResults, noResponse } = await _bdFetchAwbs(awbToOrder);
+
+  // Orders that are NOT actually picked up → wrongly dispatched
+  const wrongOrders = [];
+  for (const r of allResults) {
+    if (_isBdTransit(r)) continue;  // truly in transit — keep dispatched
+    const name = awbToOrder[r.awb];
+    if (name) wrongOrders.push({ order_name: name, awb: r.awb, code: (r.statusCode||'none').toUpperCase(), desc: r.statusDesc || '—' });
+  }
+  // AWBs with no Bluedart response — can't confirm pickup
+  for (const awb of noResponse) {
+    const name = awbToOrder[awb];
+    if (name) wrongOrders.push({ order_name: name, awb, code: 'NO_RESPONSE', desc: 'Bluedart did not respond' });
+  }
+
+  console.log('[DispScan] codes seen:', [...new Set(allResults.map(r => r.statusCode || 'none'))]);
+  if (wrongOrders.length) console.table(wrongOrders);
+
+  if (!wrongOrders.length) {
+    buildDateNav(); renderList();
+    toast(`✓ All ${awbs.length} dispatched AWBs confirmed in-transit — nothing to undo`);
+    return;
+  }
+
+  const uniqueWrong = [...new Set(wrongOrders.map(o => o.order_name))];
+  console.log('[DispScan] wrongly dispatched orders:', uniqueWrong);
+
+  const confirmed = confirm(
+    `Found ${uniqueWrong.length} dispatched order(s) NOT yet picked up by Bluedart:\n\n` +
+    wrongOrders.slice(0, 10).map(o => `${o.order_name} — ${o.code}: ${o.desc}`).join('\n') +
+    (wrongOrders.length > 10 ? `\n…and ${wrongOrders.length - 10} more` : '') +
+    `\n\nUndo dispatch for these ${uniqueWrong.length} order(s)?`
+  );
+
+  if (!confirmed) { toast('Cancelled — nothing changed'); return; }
+
+  await Promise.allSettled(uniqueWrong.map(n => apiFetch({ action: 'mark_undispatched', order_name: n })));
+  const undoSet = new Set(uniqueWrong);
+  rackItems = rackItems.map(it => undoSet.has(it.order_name) ? { ...it, dispatched: false } : it);
+  _pqOrders = _pqOrders.map(o => undoSet.has(o.order_name) ? { ...o, dispatched: false } : o);
+
+  buildDateNav(); renderList(); setPqFilter(_pqFilter);
+  toast(`↩ Undid dispatch for ${uniqueWrong.length} order(s) — moved back to active queue`);
 }
 
 async function openNd() {
@@ -4239,13 +4295,13 @@ async function resetAllFound() {
 
 async function resetAndReprintAll() {
   const DATE_FROM = '2026-07-29';
-  const DATE_TO   = '2026-08-12';
+  const DATE_TO   = _istDateStr(0);
   const inRange = it => !it.dispatched && it.order_date >= DATE_FROM && it.order_date <= DATE_TO;
   const inRangeItems = rackItems.filter(inRange);
   const cnt = new Set(inRangeItems.map(it => it.order_name)).size;
   console.log('[Reset] rackItems total:', rackItems.length, '| in-range non-dispatched:', inRangeItems.length, '| unique orders:', cnt);
   if (!cnt) { toast('No orders in range to reset'); return; }
-  if (!confirm(`Full reset for ${cnt} orders (29 Jul – 12 Aug)?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Dispatched orders are NOT affected.`)) return;
+  if (!confirm(`Full reset for ${cnt} orders (29 Jul – today)?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Dispatched orders are NOT affected.`)) return;
   toast('Resetting… please wait');
   console.log('[Reset] Sending reset_all_print_status + reset_found with', { date_from: DATE_FROM, date_to: DATE_TO });
   const [r1, r2] = await Promise.allSettled([
