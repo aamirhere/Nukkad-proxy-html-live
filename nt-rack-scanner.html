@@ -2909,7 +2909,7 @@ function renderList() {
             ${o.print_done && !o.dispatched ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
-            ${_getCarrierTag(o.order_name)}
+            ${_getCarrierTag(o.order_name, o)}
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
@@ -4052,10 +4052,8 @@ function _cacheAwb(orderName, awb, company) {
   _awbCache[orderName] = { awb: awb || null, company: company || null };
   try { localStorage.setItem('nt_awb_cache', JSON.stringify(_awbCache)); } catch {}
 }
-function _getCarrierTag(orderName) {
-  const c = _awbCache[orderName];
-  if (!c) return '';
-  const co = (c.company || '').toLowerCase();
+function _carrierLabel(company, awb) {
+  const co = (company || '').toLowerCase();
   const label = co.includes('bluedart') || co.includes('blue dart') ? 'Bluedart'
     : co.includes('delhivery') ? 'Delhivery'
     : co.includes('dtdc') ? 'DTDC'
@@ -4063,9 +4061,17 @@ function _getCarrierTag(orderName) {
     : co.includes('xpressbees') ? 'Xpressbees'
     : co.includes('shadowfax') ? 'Shadowfax'
     : co.includes('ekart') ? 'Ekart'
-    : co ? c.company
-    : c.awb ? 'Unknown' : '';
-  return label ? `<span class="carrier-tag" title="${c.company||''} · ${c.awb||'no AWB'}">${label}</span>` : '';
+    : company ? company
+    : awb ? 'Unknown courier' : '';
+  return label;
+}
+function _getCarrierTag(orderName, rackItem) {
+  // Prefer live data from rackItem (Supabase), fall back to scan cache (localStorage)
+  const company = rackItem?.tracking_company || _awbCache[orderName]?.company || null;
+  const awb     = rackItem?.tracking        || _awbCache[orderName]?.awb     || null;
+  const label   = _carrierLabel(company, awb);
+  if (!label) return '';
+  return `<span class="carrier-tag" title="${company||''} · ${awb||'no AWB'}">${label}</span>`;
 }
 const BD_DATE_FROM = '2026-07-29';
 
