@@ -4121,17 +4121,21 @@ async function checkBluedartStatus() {
 
   const nonDispatchedNames = new Set(rackItems.filter(it => !it.dispatched).map(it => it.order_name));
 
-  // Phase 1: Shopify in-transit → dispatch immediately
+  // Phase 1: Shopify confirmed pickup → dispatch immediately (no Bluedart needed)
+  // fulfilled + has AWB = Shopify knows courier has it; in_transit = same
   const shopifyTransit = [];
   const awbToOrder = {};
   let _withAwb = 0, _noAwb = 0;
   for (const o of shopifyOrders) {
     if (!nonDispatchedNames.has(o.order_name)) continue;
-    if (o.fulfillment_status === 'in_transit') shopifyTransit.push(o.order_name);
     const awb = o.known_awb || o.tracking;
-    if (awb) { awbToOrder[awb] = o.order_name; _withAwb++; } else _noAwb++;
+    const shopifyConfirmed = o.fulfillment_status === 'in_transit' ||
+      (o.fulfillment_status === 'fulfilled' && awb);
+    if (shopifyConfirmed) shopifyTransit.push(o.order_name);
+    if (awb && !shopifyConfirmed) { awbToOrder[awb] = o.order_name; _withAwb++; }
+    else if (!awb && !shopifyConfirmed) _noAwb++;
   }
-  console.log('[Sync P1] Shopify in-transit:', shopifyTransit.length, '| with AWB:', _withAwb, '| no AWB:', _noAwb);
+  console.log('[Sync P1] Shopify confirmed:', shopifyTransit.length, '| Bluedart queue:', _withAwb, '| no AWB:', _noAwb);
 
   let shopifyDispatched = 0;
   if (shopifyTransit.length) {
