@@ -4023,7 +4023,8 @@ async function checkBluedartStatus() {
   const awbToOrder = {};
   for (const o of shopifyOrders) {
     if (!nonDispatchedNames.has(o.order_name)) continue;
-    if (o.awb) awbToOrder[o.awb] = o.order_name;
+    const awb = o.known_awb || o.awb || o.tracking;
+    if (awb) awbToOrder[awb] = o.order_name;
   }
 
   const awbs = Object.keys(awbToOrder);
@@ -4125,11 +4126,11 @@ async function resetAllFound() {
 
 async function resetAndReprintAll() {
   const DATE_FROM = '2026-07-29';
-  const DATE_TO   = '2026-08-06';
+  const DATE_TO   = '2026-08-12';
   const inRange = it => !it.dispatched && it.order_date >= DATE_FROM && it.order_date <= DATE_TO;
   const cnt = new Set(rackItems.filter(inRange).map(it => it.order_name)).size;
   if (!cnt) { toast('No orders in range to reset'); return; }
-  if (!confirm(`Full reset for ${cnt} orders (29 Jul – 6 Aug)?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Auto-dispatch anything in-transit on Shopify\n\nOrders outside this range and dispatched orders are NOT affected.`)) return;
+  if (!confirm(`Full reset for ${cnt} orders (29 Jul – 12 Aug)?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Dispatched orders are NOT affected.`)) return;
   toast('Resetting… please wait');
   const [r1, r2] = await Promise.allSettled([
     apiFetch({ action: 'reset_all_print_status', date_from: DATE_FROM, date_to: DATE_TO }),
