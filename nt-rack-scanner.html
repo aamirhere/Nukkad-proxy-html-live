@@ -367,6 +367,8 @@ input[type=file]{display:none}
 
 /* ── ORDER META INLINE EDIT ── */
 .ord-meta-row{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;align-items:center}
+.ord-meta-edit{display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center}
+.meta-edit-btn{padding:3px 7px;border-radius:6px;border:1px solid var(--line);background:none;font-size:.75rem;cursor:pointer;color:var(--muted)}
 .meta-inp{padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.72rem;font-family:var(--fb);color:var(--ink);background:var(--bg);flex:1;min-width:70px;max-width:150px;outline:none}
 .meta-inp:focus{border-color:var(--accent);background:#fff}
 .meta-save-btn{padding:4px 9px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
@@ -2952,10 +2954,13 @@ function renderList() {
           }).join('')}
         </div>
         <div class="ord-meta-row no-print">
+          <button class="meta-edit-btn" onclick="toggleMetaEdit('${safeOn}')" title="Edit rack location / note">✏️</button>
+          ${o.dispatched ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.72rem;padding:4px 9px" onclick="undoDispatch('${safeOn}')">↩ Undo Dispatch</button>` : o.print_done ? `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safeOn}')">🚚 Dispatch Now</button>` : `<button class="meta-dispatch-btn" onclick="manualDispatch('${safeOn}')">🚚 Mark Dispatched</button>`}
+        </div>
+        <div class="ord-meta-edit no-print" id="meta-edit-${esc(o.order_name)}" style="display:none">
           <input class="meta-inp" placeholder="📍 Rack location" value="${esc(o.rack_location||'')}" id="loc-${esc(o.order_name)}">
           <input class="meta-inp" placeholder="📝 Note…" value="${esc(o.notes||'')}" id="note-${esc(o.order_name)}" style="max-width:200px;flex:2">
           <button class="meta-save-btn" onclick="saveOrderMeta('${safeOn}')">Save</button>
-          ${o.dispatched ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.72rem;padding:4px 9px" onclick="undoDispatch('${safeOn}')">↩ Undo Dispatch</button>` : o.print_done ? `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safeOn}')">🚚 Dispatch Now</button>` : `<button class="meta-dispatch-btn" onclick="manualDispatch('${safeOn}')">🚚 Mark Dispatched</button>`}
         </div>
       </div>`;
     }
@@ -4858,6 +4863,11 @@ async function fetchLegacyOrders() {
   } catch(e) {
     statusEl.textContent = 'Error: ' + e.message;
   }
+}
+
+function toggleMetaEdit(orderName) {
+  const el = document.getElementById('meta-edit-' + orderName);
+  if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
 }
 
 // ── ORDER META SAVE ───────────────────────────────────────────────────────────
