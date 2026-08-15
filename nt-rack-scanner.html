@@ -2227,6 +2227,22 @@ async function uncheckItem(orderName, quote, color) {
   } catch(e) { alert('Uncheck failed: ' + e.message); }
 }
 
+let _toastTimer = null;
+function toast(msg) {
+  let el = document.getElementById('_globalToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_globalToast';
+    el.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#3a2b1d;color:#fff;padding:9px 20px;border-radius:20px;font-size:.82rem;z-index:10000;box-shadow:0 4px 16px rgba(0,0,0,.3);white-space:nowrap;pointer-events:none;transition:opacity .2s';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  el.style.display = 'block';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.style.opacity = '0'; setTimeout(() => { el.style.display = 'none'; }, 200); }, 3000);
+}
+
 function showUndoToast(orderName, quote, color, prevFound) {
   let toast = document.getElementById('undoToast');
   if (!toast) {
