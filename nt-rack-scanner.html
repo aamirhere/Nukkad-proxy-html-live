@@ -271,6 +271,7 @@ input[type=file]{display:none}
 .status-tag.dispatched{background:#e8f5e9;color:#388e3c}
 .status-tag.fulfilled{background:#fff8e1;color:#f57f17}
 .status-tag.unfulfilled{background:#fce4ec;color:#c62828}
+.carrier-tag{font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#e3f2fd;color:#1565c0;margin-left:4px;cursor:default}
 
 /* ── SLIP OVERLAY ── */
 .slip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -2913,6 +2914,7 @@ function renderList() {
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             ${_slipSelMode ? `<input type="checkbox" class="slip-sel-chk" style="width:18px;height:18px;accent-color:#1b5e20;pointer-events:none" ${isSlipSel?'checked':''}>` : `<div class="ord-prog ${progCls}">${o.dispatched?'🚚':`${totalF}/${totalN}`}</div>`}
             ${_slipSelMode ? '' : o.dispatched?'':o.fulfilled?'<span class="status-tag fulfilled">Fulf.</span>':'<span class="status-tag unfulfilled">●</span>'}
+            ${_slipSelMode ? '' : _getCarrierTag(o.order_name)}
           </div>
         </div>
         <div class="ord-items">
@@ -4042,6 +4044,26 @@ async function pqMarkAllPrinted() {
 // PU = "Pickup Employee is Out to P/U Shipment" — employee en route, NOT collected yet → excluded
 // RD = "Shipment Redirected on Same AWB" — in courier possession, has PickUpDate → included
 const BD_PICKED_CODES = new Set(['PKP','IT','INT','OFD','OD','DL','DEL','OAD','CR','UD','RD']);
+
+// AWB cache: order_name → {awb, company} — populated during any Shopify/Bluedart scan
+let _awbCache = (() => { try { return JSON.parse(localStorage.getItem('nt_awb_cache') || '{}'); } catch { return {}; } })();
+function _cacheAwb(orderName, awb, company) {
+  if (!orderName || (!awb && !company)) return;
+  _awbCache[orderName] = { awb: awb || null, company: company || null };
+  try { localStorage.setItem('nt_awb_cache', JSON.stringify(_awbCache)); } catch {}
+}
+function _getCarrierTag(orderName) {
+  const c = _awbCache[orderName];
+  if (!c) return '';
+  const co = (c.company || '').toLowerCase();
+  const label = co.includes('bluedart') || co.includes('blue dart') ? 'BD'
+    : co.includes('delhivery') ? 'Dlv'
+    : co.includes('dtdc') ? 'DTDC'
+    : co.includes('ecom') ? 'Ecom'
+    : co ? co.slice(0, 4).toUpperCase()
+    : c.awb ? 'AWB' : '';
+  return label ? `<span class="carrier-tag" title="${c.company||''} · ${c.awb||'no AWB'}">${label}</span>` : '';
+}
 const BD_DATE_FROM = '2026-07-29';
 
 function _bdDateTo() { return _istDateStr(0); }
@@ -4124,21 +4146,20 @@ async function checkBluedartStatus() {
 
   const nonDispatchedNames = new Set(rackItems.filter(it => !it.dispatched).map(it => it.order_name));
 
-  // Phase 1: Shopify confirmed pickup → dispatch immediately (no Bluedart needed)
-  // fulfilled + has AWB = Shopify knows courier has it; in_transit = same
+  // Phase 1: Shopify in_transit (Shipway-confirmed) → dispatch immediately
+  // NOTE: 'fulfilled' alone is NOT enough — Shopify sets that when AWB is generated,
+  // before Bluedart physically collects. Must verify via Bluedart in Phase 2.
   const shopifyTransit = [];
   const awbToOrder = {};
   let _withAwb = 0, _noAwb = 0;
   for (const o of shopifyOrders) {
     if (!nonDispatchedNames.has(o.order_name)) continue;
+    if (o.fulfillment_status === 'in_transit') shopifyTransit.push(o.order_name);
     const awb = o.known_awb || o.tracking;
-    const shopifyConfirmed = o.fulfillment_status === 'in_transit' ||
-      (o.fulfillment_status === 'fulfilled' && awb);
-    if (shopifyConfirmed) shopifyTransit.push(o.order_name);
-    if (awb && !shopifyConfirmed) { awbToOrder[awb] = o.order_name; _withAwb++; }
-    else if (!awb && !shopifyConfirmed) _noAwb++;
+    if (awb) { awbToOrder[awb] = o.order_name; _withAwb++; } else _noAwb++;
+    _cacheAwb(o.order_name, awb, o.tracking_company);
   }
-  console.log('[Sync P1] Shopify confirmed:', shopifyTransit.length, '| Bluedart queue:', _withAwb, '| no AWB:', _noAwb);
+  console.log('[Sync P1] Shopify in-transit:', shopifyTransit.length, '| with AWB:', _withAwb, '| no AWB:', _noAwb);
 
   let shopifyDispatched = 0;
   if (shopifyTransit.length) {
@@ -4205,6 +4226,7 @@ async function checkDispatchedBluedart() {
     if (!dispatchedNames.has(o.order_name)) continue;
     const awb = o.known_awb || o.tracking;
     if (awb) awbToOrder[awb] = o.order_name;
+    _cacheAwb(o.order_name, awb, o.tracking_company);
   }
 
   const awbs = Object.keys(awbToOrder);
