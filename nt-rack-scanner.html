@@ -4089,13 +4089,20 @@ function _getCarrierTag(orderName, rackItem) {
   const company = rackItem?.tracking_company || _awbCache[orderName]?.company || null;
   const awb     = rackItem?.tracking        || _awbCache[orderName]?.awb     || null;
   const label   = _carrierLabel(company, awb);
-  if (!label) return '';
-  const awbText = awb ? `<span style="font-size:.58rem;color:var(--muted);margin-left:4px;font-weight:400;font-family:monospace">${awb}</span>` : '';
+  // Fulfilled order with no tracking data at all — show "No AWB" nudge
+  if (!label) return rackItem?.fulfilled ? `<span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#fce4ec;color:#c62828;margin-top:2px">No AWB</span>` : '';
   if (awb) {
     const url = `https://app-v1.shipway.com/tracking/forward/${encodeURIComponent(awb)}/`;
-    return `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;gap:0;margin-top:2px" class="no-print"><span class="carrier-tag">${label}</span>${awbText}</a>`;
+    return `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:2px" class="no-print">
+      <span class="carrier-tag">${label}</span>
+      <span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#e8eaf6;color:#3949ab;font-family:monospace;letter-spacing:.02em">${awb}</span>
+    </a>`;
   }
-  return `<span class="carrier-tag" style="margin-top:2px">${label}</span>`;
+  // Has carrier name resolved but no AWB — show "No AWB" warning pill
+  return `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:2px">
+    <span class="carrier-tag">${label}</span>
+    <span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#fce4ec;color:#c62828">No AWB</span>
+  </span>`;
 }
 const BD_DATE_FROM = '2026-07-29';
 
