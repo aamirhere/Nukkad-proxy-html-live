@@ -4238,13 +4238,13 @@ async function checkDispatchedBluedart() {
 
   if (!confirmed) { toast('Cancelled — nothing changed'); return; }
 
-  await Promise.allSettled(uniqueWrong.map(n => apiFetch({ action: 'mark_undispatched', order_name: n })));
-  const undoSet = new Set(uniqueWrong);
-  rackItems = rackItems.map(it => undoSet.has(it.order_name) ? { ...it, dispatched: false } : it);
-  _pqOrders = _pqOrders.map(o => undoSet.has(o.order_name) ? { ...o, dispatched: false } : o);
+  toast(`Undoing dispatch for ${uniqueWrong.length} order(s)…`);
+  const results = await Promise.allSettled(uniqueWrong.map(n => apiFetch({ action: 'mark_undispatched', order_name: n })));
+  const failed = results.filter(r => r.status === 'rejected').length;
+  if (failed) console.warn('[DispScan] undo failed for', failed, 'orders');
 
-  buildDateNav(); renderList(); setPqFilter(_pqFilter);
-  toast(`↩ Undid dispatch for ${uniqueWrong.length} order(s) — moved back to active queue`);
+  await loadRackStatus();
+  toast(`↩ Undid dispatch for ${uniqueWrong.length - failed} order(s) — moved back to active queue${failed ? ` (${failed} failed)` : ''}`);
 }
 
 async function openNd() {
