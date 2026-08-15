@@ -433,8 +433,7 @@ input[type=file]{display:none}
         <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
         <button class="hmenu-item" onclick="openNd();closeHMenu()">🚚 Newly Dispatched</button>
         <button class="hmenu-item" onclick="openReconcile();closeHMenu()">🔁 Reconcile Prints</button>
-        <button class="hmenu-item" style="color:#c62828" onclick="resetAndReprintAll();closeHMenu()">🔄 Reset &amp; Reprint All</button>
-        <button class="hmenu-item" style="color:#c62828" onclick="resetAllFound();closeHMenu()">↩ Unmatch All Items</button>
+        <button class="hmenu-item" style="color:#c62828" onclick="resetAndReprintAll();closeHMenu()">🔄 Full Reset (Reprint + Unmatch)</button>
         <button class="hmenu-item" onclick="fixRackQuotes();closeHMenu()">🔧 Fix Design Names</button>
         <button class="hmenu-item" onclick="toggleLegacyPanel();closeHMenu()">📥 Legacy Orders</button>
         <button class="hmenu-item" onclick="toggleResyncPanel();closeHMenu()">Sync until date</button>
@@ -4032,25 +4031,27 @@ function closeNd() {
 }
 
 async function resetAllFound() {
-  const nonDisp = rackItems.filter(it => !it.dispatched).length;
-  if (!nonDisp) { toast('Nothing to reset'); return; }
-  if (!confirm(`Reset found=0 for ALL ${nonDisp} non-dispatched rack items?\n\nDispatched (in-transit) orders stay matched. Everything else goes back to Unmatched so you can re-scan from scratch.`)) return;
-  toast('Resetting… please wait');
+  // kept for standalone use if needed; resetAndReprintAll now calls this too
   await apiFetch({ action: 'reset_found' }).catch(() => {});
   rackItems = rackItems.map(it => it.dispatched ? it : { ...it, found: 0 });
   buildDateNav();
   renderList();
-  toast('Done — all non-dispatched items reset to Unmatched ✓');
 }
 
 async function resetAndReprintAll() {
   const nonDispatched = _pqOrders.filter(o => !o.dispatched);
   if (!nonDispatched.length) { toast('No non-dispatched orders found'); return; }
-  if (!confirm(`Reset print status for ALL ${nonDispatched.length} non-dispatched orders?\n\nThis will:\n• Clear printed/initiated flags for all of them\n• Auto-dispatch anything that is in transit on Shopify\n• Leave the rest in To Print ready to print tomorrow`)) return;
+  if (!confirm(`Full reset for ALL ${nonDispatched.length} non-dispatched orders?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Auto-dispatch anything in-transit on Shopify\n\nDispatched orders are NOT affected.`)) return;
   toast('Resetting… please wait');
   const names = nonDispatched.map(o => o.order_name);
-  await apiFetch({ action: 'reset_print_status', order_names: names }).catch(() => {});
-  toast('Reset done — reloading queue…');
+  await Promise.allSettled([
+    apiFetch({ action: 'reset_print_status', order_names: names }),
+    apiFetch({ action: 'reset_found' }),
+  ]);
+  rackItems = rackItems.map(it => it.dispatched ? it : { ...it, found: 0 });
+  buildDateNav();
+  renderList();
+  toast('Reset done — reloading print queue…');
   loadPrintQueue();
 }
 
