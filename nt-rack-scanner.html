@@ -2680,15 +2680,17 @@ const CHANNELS = [
 
 function channelPickerHtml(quote, color) {
   const qe = esc(quote), ce = esc(color);
-  return `<div class="ch-picker" id="chPicker_${qe.replace(/\W/g,'_')}">
+  // Use raw quote for ID suffix so selectChannel (which also uses raw quote) finds the element
+  const suffix = quote.replace(/\W/g,'_');
+  return `<div class="ch-picker" id="chPicker_${suffix}">
     <div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:7px;text-transform:uppercase;letter-spacing:.05em">Tag for channel</div>
     <div class="ch-btns">
       ${CHANNELS.map(ch => `<button class="ch-btn" style="--chc:${ch.color}" onclick="selectChannel(this,'${qe}','${ce}','${ch.id}')">${ch.label}</button>`).join('')}
     </div>
-    <div class="ch-qty-row" id="chQty_${qe.replace(/\W/g,'_')}" style="display:none">
+    <div class="ch-qty-row" id="chQty_${suffix}" style="display:none">
       <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
       <button class="qty-btn" onclick="adjQty(this,-1)">−</button>
-      <input class="qty-inp" id="qtyVal_${qe.replace(/\W/g,'_')}" value="1" type="number" min="1" max="999">
+      <input class="qty-inp" id="qtyVal_${suffix}" value="1" type="number" min="1" max="999">
       <button class="qty-btn" onclick="adjQty(this,1)">+</button>
       <button class="act-btn go" style="margin-left:4px;padding:5px 14px;font-size:.76rem" onclick="confirmChannel(this,'${qe}','${ce}')">✓ Save</button>
     </div>
