@@ -4056,12 +4056,15 @@ function _getCarrierTag(orderName) {
   const c = _awbCache[orderName];
   if (!c) return '';
   const co = (c.company || '').toLowerCase();
-  const label = co.includes('bluedart') || co.includes('blue dart') ? 'BD'
-    : co.includes('delhivery') ? 'Dlv'
+  const label = co.includes('bluedart') || co.includes('blue dart') ? 'Bluedart'
+    : co.includes('delhivery') ? 'Delhivery'
     : co.includes('dtdc') ? 'DTDC'
-    : co.includes('ecom') ? 'Ecom'
-    : co ? co.slice(0, 4).toUpperCase()
-    : c.awb ? 'AWB' : '';
+    : co.includes('ecom') ? 'Ecom Express'
+    : co.includes('xpressbees') ? 'Xpressbees'
+    : co.includes('shadowfax') ? 'Shadowfax'
+    : co.includes('ekart') ? 'Ekart'
+    : co ? c.company
+    : c.awb ? 'Unknown' : '';
   return label ? `<span class="carrier-tag" title="${c.company||''} · ${c.awb||'no AWB'}">${label}</span>` : '';
 }
 const BD_DATE_FROM = '2026-07-29';
