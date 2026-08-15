@@ -4039,14 +4039,16 @@ async function resetAllFound() {
 }
 
 async function resetAndReprintAll() {
-  // use rackItems (always loaded) — don't depend on _pqOrders which needs Print Queue tab open
-  const nonDispNames = [...new Set(rackItems.filter(it => !it.dispatched).map(it => it.order_name))];
-  if (!nonDispNames.length) { toast('No non-dispatched orders found'); return; }
-  if (!confirm(`Full reset for ALL ${nonDispNames.length} non-dispatched orders?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Auto-dispatch anything in-transit on Shopify\n\nDispatched orders are NOT affected.`)) return;
+  const DATE_FROM = '2026-07-29';
+  const DATE_TO   = '2026-08-06';
+  const inRange = it => !it.dispatched && it.order_date >= DATE_FROM && it.order_date <= DATE_TO;
+  const cnt = new Set(rackItems.filter(inRange).map(it => it.order_name)).size;
+  if (!cnt) { toast('No orders in range to reset'); return; }
+  if (!confirm(`Full reset for ${cnt} orders (29 Jul – 6 Aug)?\n\nThis will:\n• Clear printed/initiated flags (reprint from scratch)\n• Reset all rack scans to Unmatched\n• Auto-dispatch anything in-transit on Shopify\n\nOrders outside this range and dispatched orders are NOT affected.`)) return;
   toast('Resetting… please wait');
   const [r1, r2] = await Promise.allSettled([
-    apiFetch({ action: 'reset_all_print_status' }),
-    apiFetch({ action: 'reset_found' }),
+    apiFetch({ action: 'reset_all_print_status', date_from: DATE_FROM, date_to: DATE_TO }),
+    apiFetch({ action: 'reset_found',            date_from: DATE_FROM, date_to: DATE_TO }),
   ]);
   if (r1.status === 'rejected') { toast('⚠ Print reset failed: ' + (r1.reason?.message || 'unknown')); return; }
   if (r2.status === 'rejected') { toast('⚠ Found reset failed: ' + (r2.reason?.message || 'unknown')); return; }
