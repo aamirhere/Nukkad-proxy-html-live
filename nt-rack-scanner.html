@@ -4036,7 +4036,8 @@ async function pqMarkAllPrinted() {
 }
 
 // Bluedart status codes that confirm courier physically has the parcel
-const BD_PICKED_CODES = new Set(['PU','PKP','IT','INT','OFD','OD','DL','DEL','OAD','CR','UD']);
+// PU = "Pickup Employee is Out to P/U Shipment" — employee en route, NOT collected yet → excluded
+const BD_PICKED_CODES = new Set(['PKP','IT','INT','OFD','OD','DL','DEL','OAD','CR','UD']);
 const BD_DATE_FROM = '2026-07-29';
 
 function _bdDateTo() { return _istDateStr(0); }
@@ -4045,7 +4046,10 @@ function _isBdTransit(r) {
   if (!r.ok) return false;
   const code = (r.statusCode || '').toUpperCase();
   const desc = (r.statusDesc || '').toLowerCase();
-  const isOutForPickup = desc.includes('out for pickup') || desc.includes('awaiting pickup') || code === 'OFP';
+  // PU / OFP / "out for pickup" / "out to p/u" = employee dispatched but parcel not collected yet
+  const isOutForPickup = code === 'PU' || code === 'OFP' ||
+    desc.includes('out for pickup') || desc.includes('awaiting pickup') ||
+    desc.includes('out to p/u') || desc.includes('employee is out');
   return !isOutForPickup && (BD_PICKED_CODES.has(code) ||
     desc.includes('picked up') || desc.includes('in transit') ||
     desc.includes('out for delivery') || desc.includes('delivered'));
