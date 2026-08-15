@@ -432,6 +432,7 @@ input[type=file]{display:none}
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
         <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
         <button class="hmenu-item" onclick="openNd();closeHMenu()">🚚 Newly Dispatched</button>
+        <button class="hmenu-item" onclick="checkBluedartStatus();closeHMenu()">📦 Sync Bluedart Status</button>
         <button class="hmenu-item" onclick="openReconcile();closeHMenu()">🔁 Reconcile Prints</button>
         <button class="hmenu-item" style="color:#c62828" onclick="resetAndReprintAll();closeHMenu()">🔄 Full Reset (Reprint + Unmatch)</button>
         <button class="hmenu-item" onclick="fixRackQuotes();closeHMenu()">🔧 Fix Design Names</button>
@@ -907,6 +908,7 @@ input[type=file]{display:none}
 <script>
 const API        = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-inventory';
 const VISION_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-haiku';
+const BD_API     = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bluedart';
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let rackItems    = [];
@@ -3990,6 +3992,63 @@ async function pqMarkAllPrinted() {
   await apiFetch({ action: 'mark_print_done', order_names: names }).catch(() => {});
   _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: true, print_initiated: false } : o);
   setPqFilter(_pqFilter);
+}
+
+// Bluedart status codes that confirm courier physically has the parcel
+const BD_PICKED_CODES = new Set(['PU','PKP','IT','INT','OFD','OD','DL','DEL','OAD','CR','UD']);
+
+async function checkBluedartStatus() {
+  // collect AWBs for non-dispatched orders that have tracking
+  const awbToOrder = {}; // awb → order_name
+  for (const [awb, info] of Object.entries(_tcTrackingMap)) {
+    const order = rackItems.find(it => it.order_name === info.order_name && !it.dispatched);
+    if (order) awbToOrder[awb] = info.order_name;
+  }
+  const awbs = Object.keys(awbToOrder);
+  if (!awbs.length) { toast('No fulfilled non-dispatched orders with AWB found'); return; }
+
+  toast(`Checking ${awbs.length} AWBs with Bluedart…`);
+
+  // call nt-bluedart in batches of 20 (Bluedart limit)
+  const BATCH = 20;
+  const allResults = [];
+  for (let i = 0; i < awbs.length; i += BATCH) {
+    const batch = awbs.slice(i, i + BATCH);
+    try {
+      const r = await fetch(BD_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'fetch_tracking', awbs: batch }),
+      });
+      const d = await r.json();
+      allResults.push(...(d.results || []));
+    } catch(e) { console.warn('Bluedart batch error', e); }
+  }
+
+  // find picked-up / in-transit ones
+  const toDispatch = allResults.filter(r => {
+    if (!r.ok) return false;
+    const code = (r.statusCode || '').toUpperCase();
+    const desc = (r.statusDesc || '').toLowerCase();
+    return BD_PICKED_CODES.has(code) ||
+      desc.includes('picked up') || desc.includes('in transit') ||
+      desc.includes('out for delivery') || desc.includes('delivered');
+  });
+
+  if (!toDispatch.length) {
+    toast('No new pickups found on Bluedart');
+    return;
+  }
+
+  // auto-dispatch those orders
+  const orderNames = [...new Set(toDispatch.map(r => awbToOrder[r.awb]).filter(Boolean))];
+  await Promise.allSettled(orderNames.map(n => apiFetch({ action: 'mark_dispatched', order_name: n })));
+  rackItems = rackItems.map(it => orderNames.includes(it.order_name) ? { ...it, dispatched: true } : it);
+  _pqOrders = _pqOrders.map(o => orderNames.includes(o.order_name) ? { ...o, dispatched: true } : o);
+  buildDateNav();
+  renderList();
+  setPqFilter(_pqFilter);
+  toast(`✓ ${orderNames.length} order${orderNames.length !== 1 ? 's' : ''} auto-dispatched from Bluedart status`);
 }
 
 async function openNd() {
