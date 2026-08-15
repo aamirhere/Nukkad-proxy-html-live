@@ -2902,29 +2902,30 @@ function renderList() {
       const complete = totalF >= totalN;
       const partial  = totalF > 0 && !complete;
       const isLiveEmg = _liveEmgOrders.has(o.order_name);
-      const cardCls  = isLiveEmg ? 'emergency' : o.dispatched ? 'dispatched' : complete ? 'complete' : partial ? 'partial' : 'missing';
+      const cardCls  = isLiveEmg ? 'emergency' : o.cancelled ? 'dispatched' : o.dispatched ? 'dispatched' : complete ? 'complete' : partial ? 'partial' : 'missing';
       const progCls  = complete||o.dispatched ? 'prog-done' : partial ? 'prog-partial' : 'prog-none';
       const safeOn = o.order_name.replace(/'/g, "\\'");
       const safeOd = (o.order_date||'').replace(/'/g, "\\'");
 
       const isSlipSel = _slipSel.has(o.order_name);
       const slipSelStyle = _slipSelMode && isSlipSel ? 'outline:2.5px solid #1b5e20;background:#f1f8e9;' : '';
-      html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}" style="${slipSelStyle}">
+      html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}" style="${slipSelStyle}${o.cancelled?'opacity:.6;':''}" >
         <div class="ord-top" ${_slipSelMode ? `onclick="slipSelToggle('${safeOn}')" style="cursor:pointer"` : ''}>
           <div>
             <span class="ord-name">${esc(o.order_name)}</span>
-            ${o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
+            ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
+            ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
             ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':''}
-            ${(!o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
-            ${o.print_done && !o.dispatched ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
+            ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
+            ${o.print_done && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
             ${_getCarrierTag(o.order_name, o)}
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-            ${_slipSelMode ? `<input type="checkbox" class="slip-sel-chk" style="width:18px;height:18px;accent-color:#1b5e20;pointer-events:none" ${isSlipSel?'checked':''}>` : `<div class="ord-prog ${progCls}">${o.dispatched?'🚚':`${totalF}/${totalN}`}</div>`}
-            ${_slipSelMode ? '' : o.dispatched?'':o.fulfilled?'<span class="status-tag fulfilled">Fulf.</span>':'<span class="status-tag unfulfilled">●</span>'}
+            ${_slipSelMode ? `<input type="checkbox" class="slip-sel-chk" style="width:18px;height:18px;accent-color:#1b5e20;pointer-events:none" ${isSlipSel?'checked':''}>` : `<div class="ord-prog ${progCls}">${o.cancelled?'✕':o.dispatched?'🚚':`${totalF}/${totalN}`}</div>`}
+            ${_slipSelMode ? '' : o.cancelled?'':o.dispatched?'':o.fulfilled?'<span class="status-tag fulfilled">Fulf.</span>':'<span class="status-tag unfulfilled">●</span>'}
           </div>
         </div>
         <div class="ord-items">
@@ -5490,17 +5491,24 @@ function fmtDate(d) {
       </div>
       <button onclick="closeExtraStock()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
     </div>
-    <!-- search -->
+    <!-- search / product lookup -->
     <div style="padding:10px 14px;border-bottom:1px solid var(--line);flex-shrink:0">
-      <input id="esSearch" type="text" placeholder="Search design or color…" autocomplete="off" autocorrect="off" spellcheck="false"
+      <input id="esSearch" type="text" placeholder="Search design to add or filter stock…" autocomplete="off" autocorrect="off" spellcheck="false"
         oninput="_esRender()"
         style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.88rem;font-family:var(--fb);outline:none">
     </div>
-    <!-- add row -->
+    <!-- product search results (shown when typing) -->
+    <div id="esProductResults" style="display:none;flex-shrink:0;max-height:220px;overflow-y:auto;border-bottom:1px solid var(--line)"></div>
+    <!-- add form (shown after selecting a product) -->
     <div id="esAddRow" style="padding:10px 14px;border-bottom:1px solid var(--line);background:#fdf5ec;flex-shrink:0;display:none;flex-direction:column;gap:8px">
-      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Add extra piece</div>
-      <input id="esAddQuote" type="text" placeholder="Design name…" style="width:100%;box-sizing:border-box;padding:8px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:.84rem;font-family:var(--fb);outline:none">
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+        <div style="flex:1;font-size:.82rem;font-weight:700;color:var(--ink)" id="esAddQuoteLabel">—</div>
+        <button onclick="_esClearAdd()" style="background:none;border:none;font-size:.8rem;color:var(--muted);cursor:pointer;padding:0">✕ Clear</button>
+      </div>
+      <input id="esAddQuote" type="hidden">
+      <!-- existing extras for this design (if any) -->
+      <div id="esAddExisting" style="display:none;padding:7px 10px;background:#fff;border-radius:8px;border:1.5px solid var(--line);font-size:.78rem;color:var(--ink2)"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <select id="esAddColor" style="flex:1;min-width:110px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;font-family:var(--fb);background:#fff;outline:none">
           <option value="">Color (optional)</option>
           <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
@@ -5515,16 +5523,12 @@ function fmtDate(d) {
           <option value="bulk">Bulk</option>
         </select>
       </div>
-      <div style="display:flex;gap:8px">
-        <button onclick="_esAddSave()" style="flex:1;background:var(--accent);color:#fff;border:none;padding:9px;border-radius:8px;font-weight:700;font-size:.84rem;cursor:pointer">+ Save</button>
-        <button onclick="document.getElementById('esAddRow').style.display='none'" style="background:none;border:1.5px solid var(--line);padding:9px 14px;border-radius:8px;font-size:.82rem;cursor:pointer;color:var(--muted)">Cancel</button>
-      </div>
+      <button onclick="_esAddSave()" style="background:var(--accent);color:#fff;border:none;padding:9px;border-radius:8px;font-weight:700;font-size:.84rem;cursor:pointer">+ Add to Stock</button>
     </div>
     <!-- list -->
     <div id="esList" style="flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px"></div>
     <!-- footer -->
     <div style="padding:10px 14px;border-top:1px solid var(--line);flex-shrink:0;display:flex;gap:8px;align-items:center">
-      <button onclick="_esToggleAdd()" style="flex:1;background:#e65100;color:#fff;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:.84rem;cursor:pointer">+ Add Extra Piece</button>
       <button onclick="openExtraStock()" style="background:#f5f5f5;border:1.5px solid var(--line);padding:10px 14px;border-radius:10px;font-size:.82rem;cursor:pointer;color:var(--ink2)">↺ Refresh</button>
     </div>
   </div>
@@ -5764,16 +5768,100 @@ function closeExtraStock() {
   document.getElementById('esModal').style.display = 'none';
 }
 
-function _esToggleAdd() {
-  const row = document.getElementById('esAddRow');
-  const vis = row.style.display !== 'none';
-  row.style.display = vis ? 'none' : 'flex';
-  if (!vis) document.getElementById('esAddQuote').focus();
+function _esToggleAdd() { /* no-op — add is now triggered via product search */ }
+
+function _esClearAdd() {
+  document.getElementById('esAddRow').style.display = 'none';
+  document.getElementById('esSearch').value = '';
+  document.getElementById('esProductResults').style.display = 'none';
+  _esRender();
+}
+
+// Returns existing extra stock groups keyed by quote (lowercased)
+function _esGroupsByQuote() {
+  const groups = {};
+  for (const item of _esItems) {
+    const key = (item.quote || '').toLowerCase();
+    if (!groups[key]) groups[key] = { quote: item.quote || '', total: 0, channels: {} };
+    groups[key].total += (item.qty || 1);
+    groups[key].channels[item.channel] = (groups[key].channels[item.channel] || 0) + (item.qty || 1);
+  }
+  return groups;
+}
+
+function _esSelectQuote(quote) {
+  document.getElementById('esSearch').value = '';
+  document.getElementById('esProductResults').style.display = 'none';
+
+  const esGroups = _esGroupsByQuote();
+  const existing = esGroups[(quote || '').toLowerCase()];
+
+  document.getElementById('esAddQuote').value = quote;
+  document.getElementById('esAddQuoteLabel').textContent = quote;
+  document.getElementById('esAddColor').value = '';
+  document.getElementById('esAddQty').value = '1';
+  document.getElementById('esAddChannel').value = 'extra';
+
+  const existEl = document.getElementById('esAddExisting');
+  if (existing) {
+    const chips = Object.entries(existing.channels).map(([ch, n]) =>
+      `<span style="background:#f0f0f0;border-radius:10px;padding:2px 8px;font-weight:700">${ES_CHANNEL_LABEL[ch]||ch} ×${n}</span>`
+    ).join(' ');
+    existEl.innerHTML = `Already in stock: <strong>${existing.total}</strong> pcs — ${chips}`;
+    existEl.style.display = 'block';
+  } else {
+    existEl.style.display = 'none';
+  }
+
+  document.getElementById('esAddRow').style.display = 'flex';
+  document.getElementById('esList').innerHTML = '';
 }
 
 function _esRender() {
   const q = (document.getElementById('esSearch').value || '').toLowerCase().trim();
-  // group by quote+color, sum qty
+
+  // While typing: show matching quotes from rackItems as product search results
+  const prodEl = document.getElementById('esProductResults');
+  if (q.length >= 2) {
+    const esGroups = _esGroupsByQuote();
+    // Unique quotes from all rack items matching the query
+    const seen = new Set();
+    const matches = [];
+    for (const o of rackItems) {
+      for (const it of (o.items || [])) {
+        const qlo = (it.quote || '').toLowerCase();
+        if (qlo.includes(q) && !seen.has(qlo)) {
+          seen.add(qlo);
+          matches.push({ quote: it.quote, existingQty: esGroups[qlo]?.total || 0 });
+        }
+      }
+    }
+    // Also match existing extra stock entries not in rackItems
+    for (const [k, g] of Object.entries(esGroups)) {
+      if (k.includes(q) && !seen.has(k)) { seen.add(k); matches.push({ quote: g.quote, existingQty: g.total }); }
+    }
+    matches.sort((a, b) => a.quote.localeCompare(b.quote));
+
+    if (matches.length) {
+      prodEl.style.display = 'block';
+      prodEl.innerHTML = matches.map(m => {
+        const extra = m.existingQty > 0 ? `<span style="font-size:.68rem;background:#e8f5e9;color:#2e7d32;padding:2px 7px;border-radius:10px;font-weight:700">${m.existingQty} in stock</span>` : `<span style="font-size:.68rem;color:var(--muted)">No stock</span>`;
+        return `<div onclick="_esSelectQuote(${JSON.stringify(m.quote)})" style="padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;active:background:#fdf5ec">
+          <div style="font-size:.86rem;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.quote)}</div>
+          ${extra}
+        </div>`;
+      }).join('');
+    } else {
+      prodEl.style.display = 'block';
+      prodEl.innerHTML = `<div style="padding:12px 14px;font-size:.82rem;color:var(--muted)">No designs match "${esc(q)}"</div>`;
+    }
+    document.getElementById('esList').innerHTML = '';
+    return;
+  }
+
+  prodEl.style.display = 'none';
+
+  // No query — show existing extra stock list
   const groups = {};
   for (const item of _esItems) {
     const key = (item.quote || '') + '|||' + (item.color || '');
@@ -5782,12 +5870,11 @@ function _esRender() {
     groups[key].channels[item.channel] = (groups[key].channels[item.channel] || 0) + (item.qty || 1);
     if (item.created_at > groups[key].latest) groups[key].latest = item.created_at;
   }
-  let rows = Object.values(groups).sort((a, b) => b.latest.localeCompare(a.latest));
-  if (q) rows = rows.filter(r => r.quote.toLowerCase().includes(q) || r.color.toLowerCase().includes(q));
+  const rows = Object.values(groups).sort((a, b) => b.latest.localeCompare(a.latest));
 
   const el = document.getElementById('esList');
   if (!rows.length) {
-    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">${q ? 'No matches' : 'No extra stock logged yet'}</div>`;
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">No extra stock logged yet.<br><span style="font-size:.76rem">Search a design name above to add.</span></div>`;
     return;
   }
   el.innerHTML = rows.map(r => {
@@ -5795,7 +5882,7 @@ function _esRender() {
     const channelChips = Object.entries(r.channels).map(([ch, n]) =>
       `<span style="font-size:.65rem;padding:2px 7px;border-radius:12px;background:#f0f0f0;color:var(--ink2);font-weight:700">${ES_CHANNEL_LABEL[ch] || ch} ×${n}</span>`
     ).join('');
-    return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+    return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px" onclick="_esSelectQuote(${JSON.stringify(r.quote)})" style="cursor:pointer">
       <div style="background:#fdf5ec;border-radius:8px;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;color:var(--accent);flex-shrink:0">${r.qty}</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:.86rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.quote)}</div>
@@ -5804,6 +5891,7 @@ function _esRender() {
           ${channelChips}
         </div>
       </div>
+      <div style="font-size:.72rem;color:var(--muted);flex-shrink:0">+ Add</div>
     </div>`;
   }).join('');
 }
@@ -5813,21 +5901,19 @@ async function _esAddSave() {
   const color = document.getElementById('esAddColor').value;
   const qty   = parseInt(document.getElementById('esAddQty').value) || 1;
   const channel = document.getElementById('esAddChannel').value || 'extra';
-  if (!quote) { document.getElementById('esAddQuote').focus(); return; }
+  if (!quote) return;
   const btn = document.querySelector('#esAddRow button');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     await apiFetch({ action: 'add_stock_item', quote, color, qty, channel });
-    document.getElementById('esAddQuote').value = '';
-    document.getElementById('esAddQty').value = '1';
     document.getElementById('esAddRow').style.display = 'none';
-    // reload
+    document.getElementById('esSearch').value = '';
     const r = await apiFetch({ action: 'get_stock_items' });
     _esItems = r.items || [];
     document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
     _esRender();
   } catch(e) { alert('Error: ' + e.message); }
-  btn.disabled = false; btn.textContent = '+ Save';
+  btn.disabled = false; btn.textContent = '+ Add to Stock';
 }
 
 // ── DUPLICATE TRACKING ─────────────────────────────────────────────────────────
