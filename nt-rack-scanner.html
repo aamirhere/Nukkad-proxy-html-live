@@ -2922,6 +2922,7 @@ function renderList() {
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
             ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':''}
             ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
+            ${complete && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">✓ Matched</span>' : ''}
             ${o.print_done && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
