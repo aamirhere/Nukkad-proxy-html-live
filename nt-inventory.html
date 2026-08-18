@@ -1783,13 +1783,17 @@ async function loadPrintedView() {
     }
     const html = Object.values(byDesign).map(g => {
       const rows = g.units.map(u => {
-        const dateStr = u.downloaded_at
+        const orderDateStr = u.date
+          ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+          : '—';
+        const printedDateStr = u.downloaded_at
           ? new Date(u.downloaded_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
           : '—';
         const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
         return `<div class="emg-unit-row">
-          <span class="emg-unit-date">${dateStr}</span>
+          <span class="emg-unit-date" title="Order date">📅 ${orderDateStr}</span>
           <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+          <span class="emg-unit-date" style="margin-left:auto;margin-right:8px" title="Printed on">🖨 ${printedDateStr}</span>
           <button onclick="undoPrinted(${safeU},this)" style="margin-left:auto;padding:3px 10px;border-radius:20px;border:1.5px solid var(--muted);background:none;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer">↩ Undo</button>
         </div>`;
       }).join('');
@@ -2206,8 +2210,16 @@ async function markUnitPrinted(gi, ui, u) {
       const unit = g.units.find(x => x.order_id === u.order_id && x.line_item_id === u.line_item_id && x.unit_index === u.unit_index);
       if (unit) unit.downloaded_at = new Date().toISOString();
     }
-    renderEmgGroups();
-    if (emgView === 'date') renderEmgByDate();
+    // remove just this row without collapsing the group
+    if (rowEl) rowEl.remove();
+    // update count pill
+    const groupEl = document.getElementById(`emg-group-${containerId}-${gi}`);
+    if (groupEl && g) {
+      const remaining = g.units.filter(x => !x.downloaded_at).length;
+      const pill = groupEl.querySelector('.emg-count-pill');
+      if (pill) pill.textContent = `${remaining} unit${remaining !== 1 ? 's' : ''}`;
+      if (!remaining) groupEl.remove();
+    }
     updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.filter(u2 => !u2.downloaded_at).length, 0));
     toast('Marked as printed ✓');
   } catch (e) {
