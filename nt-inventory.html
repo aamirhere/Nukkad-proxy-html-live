@@ -1809,50 +1809,18 @@ async function loadEmgDate(date) {
   loadEmgDateView();
 }
 
+function renderEmgByDate() {
+  const filtered = allEmgGroups.map(g => ({
+    ...g,
+    units: g.units.filter(u => !u.downloaded_at && u.date === emgDate),
+  })).filter(g => g.units.length > 0);
+  const html = filtered.map((g, gi) => emgGroupHTML(g, gi, 'date')).join('');
+  document.getElementById('emgList').innerHTML = html ||
+    '<div class="empty-state"><div class="icon">✅</div><p>No emergency units for this date</p></div>';
+}
+
 async function loadEmgDateView() {
-  document.getElementById('emgList').innerHTML =
-    [...Array(3)].map(() => '<div class="loading-row" style="height:68px;border-radius:10px"></div>').join('');
-  try {
-    const res = await api({ action: 'load_emergency', date: emgDate });
-    const units = res.units || [];
-    if (!units.length) {
-      document.getElementById('emgList').innerHTML =
-        '<div class="empty-state"><div class="icon">✅</div><p>No emergency units for this date</p></div>';
-      return;
-    }
-    // Group by design title
-    const groups = {};
-    for (const u of units) {
-      const k = u.title || u.handle || 'unknown';
-      if (!groups[k]) groups[k] = { title: u.title, units: [] };
-      groups[k].units.push(u);
-    }
-    document.getElementById('emgList').innerHTML = Object.values(groups).map(g => {
-      const unitRows = g.units.map(u => {
-        const recvd = u.recv_qty > 0;
-        const sent = u.sent_qty > 0;
-        const safeHandle = (g.handle||'').replace(/'/g,"\\'");
-        const safeUd = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
-        return `<div class="emg-unit-row${recvd ? ' emg-unit-recvd' : ''}">
-          <span class="emg-unit-order">${u.order_name || u.order_id}</span>
-          <button class="emg-unit-recv-btn${recvd ? ' recvd' : ''}" onclick="event.stopPropagation();openRecvModal('${safeHandle}')" title="Mark received">
-            ${recvd ? '✓ Rcvd' : '📦 Rcvd'}
-          </button>
-          <button class="emg-unit-sent-btn${sent ? ' sent' : ''}" onclick="event.stopPropagation();markEmgUnitSentDate(${safeUd})" title="Mark sent to customer">
-            ${sent ? '✓ Sent' : '🚚 Sent'}
-          </button>
-        </div>`;
-      }).join('');
-      return `<div class="emg-group open">
-        <div class="emg-group-head" style="cursor:default">
-          <span class="emg-count-pill">${g.units.length}</span>
-          <span style="flex:1;font-weight:700;font-size:.9rem">${g.title}</span>
-          <button class="emg-fulfil-btn" onclick="event.stopPropagation();openRecvModal('${(g.handle||'').replace(/'/g,"\\'")}')">📦 Received</button>
-        </div>
-        <div class="emg-group-body">${unitRows}</div>
-      </div>`;
-    }).join('');
-  } catch (e) { toast('Failed to load emergency: ' + e.message); }
+  renderEmgByDate();
 }
 
 const PRINTS_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-production-prints';
@@ -2102,55 +2070,70 @@ function daysSince(isoStr) {
   return Math.floor(diff / 86400000);
 }
 
-function renderEmgGroups() {
-  // All open = only units NOT yet downloaded
-  const visibleGroups = allEmgGroups.map(g => ({
-    ...g, units: g.units.filter(u => !u.downloaded_at)
-  })).filter(g => g.units.length);
+function emgGroupHTML(g, gi, containerId) {
+  const visibleUnits = g.units.filter(u => !u.downloaded_at);
+  if (!visibleUnits.length) return '';
+  const oldest = visibleUnits[0]?.emergency_at;
+  const days = daysSince(oldest);
+  const daysLabel = days !== null ? (days === 0 ? 'today' : `${days}d ago`) : '';
+  const link = _printLinks[g.handle] || {};
+  const imgSrc = link.image_url || (link.drive_id ? `https://drive.google.com/thumbnail?id=${link.drive_id}&sz=w300` : '') || link.thumbnail_link || '';
+  const hasSizes = link.size_h_mm && link.size_w_mm;
+  const sizeLabel = hasSizes ? `${(link.size_h_mm/25.4).toFixed(1)}" × ${(link.size_w_mm/25.4).toFixed(1)}"` : '';
+  const safeHandle = (g.handle||'').replace(/'/g,"\\'");
+  const idPfx = `${containerId}-${gi}`;
 
-  if (!visibleGroups.length) {
-    document.getElementById('emgGroups').innerHTML =
-      '<div class="empty-state"><div class="icon">✅</div><p>No outstanding emergencies — all fulfilled or downloaded</p></div>';
-    return;
-  }
-  document.getElementById('emgGroups').innerHTML = visibleGroups.map((g, gi) => {
-    const oldest = g.units[0]?.emergency_at;
-    const days = daysSince(oldest);
-    const daysLabel = days !== null ? (days === 0 ? 'today' : `${days}d ago`) : '';
-    const link = _printLinks[g.handle] || {};
-    const imgSrc = link.image_url || (link.drive_id ? `https://drive.google.com/thumbnail?id=${link.drive_id}&sz=w160` : '') || link.thumbnail_link || '';
-    const hasImg = !!imgSrc;
-    const hasSizes = link.size_h_mm && link.size_w_mm;
-    const sizeLabel = hasSizes ? `${(link.size_h_mm/25.4).toFixed(1)}" × ${(link.size_w_mm/25.4).toFixed(1)}"` : '';
-    const safeHandle = (g.handle||'').replace(/'/g,"\\'");
-
-    const unitRows = g.units.map((u, ui) => {
-      const orderDateStr = u.date
-        ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-        : '—';
-      const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
-      return `<div class="emg-unit-row" id="emgunit-${gi}-${ui}">
-        <span class="emg-unit-date">${orderDateStr}</span>
-        <span class="emg-unit-order">${u.order_name || u.order_id}</span>
-        <button class="emg-unit-sent-btn" onclick="event.stopPropagation();downloadEmgUnit(${gi},${ui},${safeU},'${safeHandle}')" title="Download design for production">⬇ Download</button>
-        <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
-      </div>`;
-    }).join('');
-
-    return `<div class="emg-group" id="emg-group-${gi}">
-      <div class="emg-group-head" onclick="toggleEmgGroup(${gi})">
-        ${hasImg ? `<img src="${imgSrc}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;border:1px solid #e9ddca" onerror="this.style.display='none'">` : '<span class="emg-group-icon">⚠</span>'}
-        <div class="emg-group-info" style="flex:1;min-width:0">
-          <div class="emg-group-title">${g.title}</div>
-          <div class="emg-group-meta">${daysLabel ? `Oldest: ${daysLabel}` : ''}${sizeLabel ? ` · 📐 ${sizeLabel}` : ''}</div>
-        </div>
-        <span class="emg-count-pill">${g.units.length} unit${g.units.length !== 1 ? 's' : ''}</span>
-        ${hasImg ? `<button class="emg-fulfil-btn" style="background:#1565c0;color:#fff" onclick="event.stopPropagation();genEmgPDF('${safeHandle}')">⬇ PDF</button>` : ''}
-        <span class="emg-group-chevron">▼</span>
-      </div>
-      <div class="emg-group-body">${unitRows}</div>
+  const unitRows = visibleUnits.map((u, ui) => {
+    const orderDateStr = u.date
+      ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+      : '—';
+    const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
+    return `<div class="emg-unit-row" id="${idPfx}-u${ui}">
+      <span class="emg-unit-date">${orderDateStr}</span>
+      <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+      <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
     </div>`;
   }).join('');
+
+  return `<div class="emg-group" id="emg-group-${idPfx}">
+    <div class="emg-group-head" onclick="this.closest('.emg-group').classList.toggle('open')">
+      <div style="position:relative;flex-shrink:0;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid #e9ddca;background:#f5f0e8;display:flex;align-items:center;justify-content:center">
+        ${imgSrc
+          ? `<img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+          : ''}
+        <span style="font-size:1.6rem;display:${imgSrc?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%">⚠</span>
+        <button onclick="event.stopPropagation();downloadEmgGroup('${safeHandle}')" style="position:absolute;bottom:0;left:0;right:0;padding:4px;border:none;background:rgba(21,101,192,.88);color:#fff;font-size:.7rem;font-weight:700;cursor:pointer;letter-spacing:.3px">⬇ PDF</button>
+      </div>
+      <div class="emg-group-info" style="flex:1;min-width:0">
+        <div class="emg-group-title">${g.title}</div>
+        <div class="emg-group-meta">${daysLabel ? `Oldest: ${daysLabel}` : ''}${sizeLabel ? ` · 📐 ${sizeLabel}` : ''}</div>
+      </div>
+      <span class="emg-count-pill">${visibleUnits.length} unit${visibleUnits.length !== 1 ? 's' : ''}</span>
+      <span class="emg-group-chevron">▼</span>
+    </div>
+    <div class="emg-group-body">${unitRows}</div>
+  </div>`;
+}
+
+function renderEmgGroups() {
+  const html = allEmgGroups.map((g, gi) => emgGroupHTML(g, gi, 'all')).join('');
+  document.getElementById('emgGroups').innerHTML = html ||
+    '<div class="empty-state"><div class="icon">✅</div><p>No outstanding emergencies</p></div>';
+}
+
+async function downloadEmgGroup(handle) {
+  const g = allEmgGroups.find(x => x.handle === handle);
+  if (!g) return;
+  const undownloaded = g.units.filter(u => !u.downloaded_at);
+  // mark all undownloaded units for this group
+  await Promise.allSettled(undownloaded.map(u =>
+    api({ action: 'mark_downloaded', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date })
+  ));
+  const now = new Date().toISOString();
+  undownloaded.forEach(u => { u.downloaded_at = now; });
+  renderEmgGroups();
+  if (emgView === 'date') renderEmgByDate();
+  genEmgPDF(handle);
 }
 
 function toggleEmgGroup(gi) {
@@ -2201,19 +2184,20 @@ async function markEmgUnitSentDate(u) {
 }
 
 async function dismissEmgUnit(gi, ui, u) {
-  const rowEl = document.getElementById(`emgunit-${gi}-${ui}`);
+  const containerId = emgView === 'date' ? 'date' : 'all';
+  const rowEl = document.getElementById(`${containerId}-${gi}-u${ui}`);
   if (rowEl) { rowEl.style.opacity = '0.4'; rowEl.style.pointerEvents = 'none'; }
   try {
     await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
-    // remove from local state
     const g = allEmgGroups[gi];
     if (g) {
       g.units.splice(ui, 1);
-      if (!g.units.length) allEmgGroups.splice(gi, 1);
+      if (!g.units.filter(x => !x.downloaded_at).length && emgView !== 'date') allEmgGroups.splice(gi, 1);
     }
     renderEmgGroups();
+    if (emgView === 'date') renderEmgByDate();
     syncRecvBadges();
-    updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.length, 0));
+    updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.filter(u2 => !u2.downloaded_at).length, 0));
   } catch (e) {
     if (rowEl) { rowEl.style.opacity = ''; rowEl.style.pointerEvents = ''; }
     toast('Dismiss failed: ' + e.message);
