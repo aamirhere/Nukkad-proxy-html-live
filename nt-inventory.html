@@ -864,7 +864,6 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   <div class="emg-toolbar">
     <div class="emg-view-tabs">
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
-      <button class="emg-tab" id="emgTabDownloaded" onclick="setEmgView('downloaded')">Downloaded</button>
       <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
       <button class="emg-tab" id="emgTabSent" onclick="setEmgView('sent')">Sent</button>
     </div>
@@ -885,11 +884,6 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <div class="emg-list" id="emgList">
       <div class="empty-state"><div class="icon">✅</div><p>No emergency units today</p></div>
     </div>
-  </div>
-
-  <!-- downloaded view -->
-  <div id="emgDownloaded" style="display:none">
-    <div id="emgDownloadedList"><div class="empty-state"><div class="icon">⬇</div><p>Loading…</p></div></div>
   </div>
 
   <!-- sent / received view -->
@@ -1745,72 +1739,13 @@ async function sendTgUpdate(btn) {
 function setEmgView(v) {
   emgView = v;
   document.getElementById('emgTabAll').classList.toggle('active', v === 'all');
-  document.getElementById('emgTabDownloaded').classList.toggle('active', v === 'downloaded');
   document.getElementById('emgTabDate').classList.toggle('active', v === 'date');
   document.getElementById('emgTabSent').classList.toggle('active', v === 'sent');
-  document.getElementById('emgGrouped').style.display    = v === 'all' ? '' : 'none';
-  document.getElementById('emgDownloaded').style.display = v === 'downloaded' ? '' : 'none';
-  document.getElementById('emgByDate').style.display     = v === 'date' ? '' : 'none';
-  document.getElementById('emgSent').style.display       = v === 'sent' ? '' : 'none';
-  if (v === 'date')       { buildEmgTabs(); loadEmgDateView(); }
-  if (v === 'sent')       { loadSentView(); }
-  if (v === 'downloaded') { loadDownloadedView(); }
-}
-
-async function loadDownloadedView() {
-  const el = document.getElementById('emgDownloadedList');
-  el.innerHTML = [...Array(3)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px;margin-bottom:8px"></div>').join('');
-  try {
-    const res = await api({ action: 'load_downloaded_emergencies', days: 30 });
-    const units = res.units || [];
-    if (!units.length) { el.innerHTML = '<div class="empty-state"><div class="icon">⬇</div><p>No downloaded units in the last 30 days</p></div>'; return; }
-    // group by date
-    const byDate = {};
-    for (const u of units) {
-      const d = u.date || u.downloaded_at?.slice(0,10) || '—';
-      if (!byDate[d]) byDate[d] = [];
-      byDate[d].push(u);
-    }
-    el.innerHTML = Object.keys(byDate).sort().reverse().map(d => {
-      const dateStr = d !== '—' ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
-      const rows = byDate[d].map(u => {
-        const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
-        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #f5f0e8">
-          <span style="font-size:.84rem;flex:1;font-weight:500">${u.title || u.handle}</span>
-          <span style="font-size:.78rem;color:#9c8a76">${u.order_name || u.order_id}</span>
-          <button onclick="markReceivedFromDownloaded(this,${safeU})" style="font-size:.75rem;padding:4px 10px;border-radius:8px;border:none;background:#2d7a4f;color:#fff;font-weight:600;cursor:pointer">✓ Received</button>
-          <button onclick="undownloadUnit(this,${safeU})" style="font-size:.75rem;padding:4px 10px;border-radius:8px;border:1.5px solid #e9ddca;background:none;color:#9c8a76;font-weight:600;cursor:pointer">↩ Not rcvd</button>
-        </div>`;
-      }).join('');
-      return `<div style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:12px 16px;margin-bottom:10px">
-        <div style="font-weight:700;font-size:.88rem;margin-bottom:6px">${dateStr} <span style="font-weight:400;color:#9c8a76;font-size:.78rem">(${byDate[d].length} unit${byDate[d].length!==1?'s':''})</span></div>
-        ${rows}
-      </div>`;
-    }).join('');
-  } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
-}
-
-async function markReceivedFromDownloaded(btn, u) {
-  btn.disabled = true; btn.textContent = '…';
-  try {
-    await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
-    toast('✓ Marked received');
-    loadDownloadedView();
-    loadAllEmergencies();
-  } catch(e) { toast('Failed: ' + e.message); btn.disabled = false; btn.textContent = '✓ Received'; }
-}
-
-async function undownloadUnit(btn, u) {
-  btn.disabled = true; btn.textContent = '…';
-  try {
-    await api({ action: 'undownload_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
-    // move back in local state
-    const g = allEmgGroups.find(x => x.units.some(x2 => x2.order_id === u.order_id && x2.line_item_id === u.line_item_id && x2.unit_index === u.unit_index));
-    if (g) { const unit = g.units.find(x => x.order_id === u.order_id && x.line_item_id === u.line_item_id && x.unit_index === u.unit_index); if (unit) unit.downloaded_at = null; }
-    toast('↩ Moved back to All open');
-    loadDownloadedView();
-    renderEmgGroups();
-  } catch(e) { toast('Failed: ' + e.message); btn.disabled = false; btn.textContent = '↩ Not rcvd'; }
+  document.getElementById('emgGrouped').style.display = v === 'all' ? '' : 'none';
+  document.getElementById('emgByDate').style.display  = v === 'date' ? '' : 'none';
+  document.getElementById('emgSent').style.display    = v === 'sent' ? '' : 'none';
+  if (v === 'date') { buildEmgTabs(); loadEmgDateView(); }
+  if (v === 'sent') { loadSentView(); }
 }
 
 async function loadSentView() {
