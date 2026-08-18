@@ -900,7 +900,7 @@ input[type=file]{display:none}
     <div id="slipContent"></div>
     <div class="slip-actions">
       <button class="slip-cancel-btn" onclick="closeSlip()">Close</button>
-      <button class="slip-print-btn" onclick="document.body.classList.add('printing-slip');window.print();setTimeout(()=>document.body.classList.remove('printing-slip'),500)">Print</button>
+      <button class="slip-print-btn" onclick="printCurrentSlip()">Print</button>
     </div>
   </div>
 </div>
@@ -930,6 +930,7 @@ let rackItems    = [];
 let scanLog      = [];
 let activeFilter = 'all';
 let activeTrackFilter = 'all';
+let _currentSlipOrder = null;
 let _liveEmgOrders = new Set(); // order_names with active emergencies (from nt_order_units)
 let activeTab    = 'scan';
 let selectedDate = 'all';   // 'all' or 'YYYY-MM-DD'
@@ -3142,6 +3143,7 @@ function renderDispatch() {
 
 // ── SHIPPING SLIP ──────────────────────────────────────────────────────────────
 async function openSlip(orderName) {
+  _currentSlipOrder = orderName;
   const overlay = document.getElementById('slipOverlay');
   const content = document.getElementById('slipContent');
   overlay.style.display = 'flex';
@@ -3157,6 +3159,18 @@ async function openSlip(orderName) {
 function closeSlip() {
   document.getElementById('slipOverlay').style.display = 'none';
   if (slipEditMode) { slipEditMode = false; document.getElementById('slipEditBtn').textContent = 'Edit'; }
+}
+function printCurrentSlip() {
+  document.body.classList.add('printing-slip');
+  window.print();
+  setTimeout(() => {
+    document.body.classList.remove('printing-slip');
+    if (_currentSlipOrder) {
+      apiFetch({ action: 'mark_print_done', order_names: [_currentSlipOrder] }).catch(() => {});
+      rackItems.forEach(it => { if (it.order_name === _currentSlipOrder) it.print_done = true; });
+      renderList();
+    }
+  }, 500);
 }
 
 // ── SLIP TEMPLATE SETTINGS ───────────────────────────────────────────────────
