@@ -1012,6 +1012,19 @@ async function init() {
   updatePendingBadge();
   refreshPendingBadge();
   maybeAutoSync();
+  // Run tracking sync on load (independent of sync_rack so it works even if sync_rack times out)
+  const _lastTrkSync = parseInt(localStorage.getItem('nt_last_trk_sync') || '0', 10);
+  if (Date.now() - _lastTrkSync > 30 * 60 * 1000) {
+    apiFetch({ action: 'sync_tracking' }).then(tr => {
+      if (tr.updated > 0) {
+        localStorage.setItem('nt_last_trk_sync', Date.now());
+        loadRackStatus();
+        setStatus(`↑ ${tr.updated} tracking${tr.updated !== 1 ? 's' : ''} updated`);
+      } else {
+        localStorage.setItem('nt_last_trk_sync', Date.now());
+      }
+    }).catch(() => {});
+  }
   // 1. Read Supabase catalog immediately — fast
   apiFetch({ action: 'get_design_catalog' }).then(r => {
     _designCatalog = (r.titles || []);
