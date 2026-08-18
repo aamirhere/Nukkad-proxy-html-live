@@ -2854,6 +2854,7 @@ function renderList() {
       cancelled: it.cancelled,
       notes: it.notes, rack_location: it.rack_location, painter: it.painter,
       tracking: it.tracking, tracking_company: it.tracking_company,
+      prev_tracking_company: it.prev_tracking_company,
       items: []
     };
     byOrder[it.order_name].items.push(it);
@@ -2863,11 +2864,12 @@ function renderList() {
     if (it.cancelled)     byOrder[it.order_name].cancelled     = true;
     if (it.print_done)    byOrder[it.order_name].print_done    = true;
     // take first non-null value for order-level meta
-    if (it.notes && !byOrder[it.order_name].notes)                         byOrder[it.order_name].notes            = it.notes;
-    if (it.rack_location && !byOrder[it.order_name].rack_location)         byOrder[it.order_name].rack_location    = it.rack_location;
-    if (it.painter && !byOrder[it.order_name].painter)                     byOrder[it.order_name].painter          = it.painter;
-    if (it.tracking && !byOrder[it.order_name].tracking)                   byOrder[it.order_name].tracking         = it.tracking;
-    if (it.tracking_company && !byOrder[it.order_name].tracking_company)   byOrder[it.order_name].tracking_company = it.tracking_company;
+    if (it.notes && !byOrder[it.order_name].notes)                                         byOrder[it.order_name].notes                  = it.notes;
+    if (it.rack_location && !byOrder[it.order_name].rack_location)                         byOrder[it.order_name].rack_location          = it.rack_location;
+    if (it.painter && !byOrder[it.order_name].painter)                                     byOrder[it.order_name].painter                = it.painter;
+    if (it.tracking && !byOrder[it.order_name].tracking)                                   byOrder[it.order_name].tracking               = it.tracking;
+    if (it.tracking_company && !byOrder[it.order_name].tracking_company)                   byOrder[it.order_name].tracking_company       = it.tracking_company;
+    if (it.prev_tracking_company && !byOrder[it.order_name].prev_tracking_company)         byOrder[it.order_name].prev_tracking_company  = it.prev_tracking_company;
   }
 
   const orders = Object.values(byOrder).filter(o => {
@@ -2946,6 +2948,7 @@ function renderList() {
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
             ${_getCarrierTag(o.order_name, o)}
+            ${o.prev_tracking_company && o.tracking_company && o.prev_tracking_company !== o.tracking_company ? `<div style="font-size:.6rem;color:#e65100;margin-top:1px" class="no-print">↑ was ${esc(o.prev_tracking_company)}</div>` : ''}
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
