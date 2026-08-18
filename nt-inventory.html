@@ -1886,7 +1886,7 @@ async function fetchEmgProxiedImage(driveId) {
     });
     const d = await r.json();
     if (d.data) return d.data;
-    if (d.fallback_url) return d.fallback_url;
+    // too_large or error → fall back to high-res Drive thumbnail
     return `https://drive.google.com/thumbnail?id=${driveId}&sz=w2000`;
   } catch { return `https://drive.google.com/thumbnail?id=${driveId}&sz=w2000`; }
 }
@@ -1895,11 +1895,14 @@ async function genEmgPDF(handle) {
   const link = _printLinks[handle];
   if (!link) { toast('No image linked for this design'); return; }
   let imgSrc;
-  if (link.drive_id) {
+  if (link.image_url) {
+    // Supabase URL — reliable, CORS-safe
+    imgSrc = link.image_url;
+  } else if (link.drive_id) {
     toast('Loading image…');
     imgSrc = await fetchEmgProxiedImage(link.drive_id);
   } else {
-    imgSrc = link.image_url || link.thumbnail_link || '';
+    imgSrc = link.thumbnail_link || '';
   }
   if (!imgSrc) { toast('No image found for this design'); return; }
   toast('Generating PDF…');
