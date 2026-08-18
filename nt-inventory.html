@@ -2124,7 +2124,7 @@ async function loadDispatchView() {
             <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
             <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
             <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
-            <span></span>
+            <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove this item">✕</button>
           </div>`).join('');
         return `<div style="border-top:1px dashed #e9ddca;margin-top:8px;padding-top:8px">
           <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
@@ -2156,6 +2156,20 @@ async function deleteDispatch(id) {
   try {
     await api({ action: 'delete_dispatch', id });
     toast('Deleted ✓');
+    loadDispatchView();
+  } catch(e) { toast('Failed: ' + e.message); }
+}
+
+async function deleteDispatchItem(id, idx, items) {
+  const updated = items.filter((_, i) => i !== idx);
+  try {
+    if (!updated.length) {
+      if (!confirm('No items left — delete the entire entry?')) return;
+      await api({ action: 'delete_dispatch', id });
+    } else {
+      await api({ action: 'update_dispatch', id, items: updated });
+    }
+    toast('Item removed ✓');
     loadDispatchView();
   } catch(e) { toast('Failed: ' + e.message); }
 }
