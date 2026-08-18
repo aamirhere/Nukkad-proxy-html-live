@@ -1119,6 +1119,8 @@ function switchView(view) {
   }
   if (view === 'dispatch') {
     if (!Object.keys(_printLinks).length) loadPrintData();
+    if (!allEmgGroups.length) loadAllEmergencies();
+    if (!allProducts.length) api({ action: 'load_products' }).then(r => { allProducts = r.products || []; }).catch(() => {});
     loadDispatchView();
   }
 }
@@ -1969,35 +1971,17 @@ function closeAddEmgModal(e) {
   document.getElementById('addEmgModal').style.display = 'none';
 }
 function addEmgSearch(inp) {
-  const q = inp.value.trim();
+  const q = inp.value.trim().toLowerCase();
   const dd = document.getElementById('addEmgDropdown');
-  if (q.length < 2) { dd.style.display = 'none'; return; }
-  // search local data first
-  const localSrc = _printProducts.length
-    ? _printProducts
+  if (q.length < 1) { dd.style.display = 'none'; return; }
+  const src = allProducts.length ? allProducts
     : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-  if (localSrc.length) {
-    const matches = localSrc.filter(p => p.title && p.title.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
-    if (matches.length) {
-      dd.innerHTML = matches.map(p =>
-        `<div style="padding:9px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--line)" onmousedown="addEmgSelect('${p.handle.replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');event.preventDefault()">${p.title}</div>`
-      ).join('');
-      dd.style.display = '';
-      return;
-    }
-  }
-  clearTimeout(_addEmgSearchTimers.t);
-  _addEmgSearchTimers.t = setTimeout(async () => {
-    try {
-      const res = await api({ action: 'search_shopify', query: q });
-      const products = res.products || [];
-      if (!products.length) { dd.style.display = 'none'; return; }
-      dd.innerHTML = products.map(p =>
-        `<div style="padding:9px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--line)" onmousedown="addEmgSelect('${p.handle.replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');event.preventDefault()">${p.title}</div>`
-      ).join('');
-      dd.style.display = '';
-    } catch {}
-  }, 300);
+  const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 10);
+  if (!matches.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = matches.map(p =>
+    `<div style="padding:9px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--line)" onmousedown="addEmgSelect('${p.handle.replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');event.preventDefault()">${p.title}</div>`
+  ).join('');
+  dd.style.display = '';
 }
 function addEmgSelect(handle, title) {
   document.getElementById('addEmgHandle').value = handle;
@@ -2229,39 +2213,23 @@ function renderDispatchRows() {
 
 const _dSearchTimers = {};
 function dSearch(i, inp) {
-  const q = inp.value.trim();
+  const q = inp.value.trim().toLowerCase();
   const dd = document.getElementById(`ddd-${i}`);
-  // use local data if available
-  const localSrc = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-  if (localSrc.length) {
-    const filtered = q.length < 1 ? localSrc : localSrc.filter(p => p.title.toLowerCase().includes(q.toLowerCase()));
-    if (!filtered.length) { dd.style.display = 'none'; return; }
-    dd.innerHTML = filtered.slice(0, 25).map(p =>
+  if (q.length < 1) { dd.style.display = 'none'; return; }
+  // allProducts has the full design list — use it directly
+  const src = allProducts.length ? allProducts
+    : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  if (src.length) {
+    const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 25);
+    if (!matches.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = matches.map(p =>
       `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
         style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8"
         onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
       >${p.title}</div>`
     ).join('');
     dd.style.display = 'block';
-    return;
   }
-  // no local data — search Shopify live
-  if (q.length < 2) { dd.style.display = 'none'; return; }
-  clearTimeout(_dSearchTimers[i]);
-  _dSearchTimers[i] = setTimeout(async () => {
-    try {
-      const res = await api({ action: 'search_shopify', query: q });
-      const products = res.products || [];
-      if (!products.length) { dd.style.display = 'none'; return; }
-      dd.innerHTML = products.map(p =>
-        `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${(p.handle||'').replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
-          style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8"
-          onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
-        >${p.title}</div>`
-      ).join('');
-      dd.style.display = 'block';
-    } catch {}
-  }, 300);
 }
 
 function dSelect(i, handle, title) {
