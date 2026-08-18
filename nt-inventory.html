@@ -1041,7 +1041,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <p>Production dispatched to production — by date</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-ghost" onclick="openIncomingModal()" style="font-size:.82rem;padding:8px 16px">📦 Incoming Carton</button>
+      <!-- <button class="btn btn-ghost" onclick="openIncomingModal()" style="font-size:.82rem;padding:8px 16px">📦 Incoming Carton</button> -->
       <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.82rem;padding:8px 16px">📤 Record Dispatch</button>
     </div>
   </div>
@@ -2087,7 +2087,33 @@ async function loadAllEmergencies() {
       ? `${res.total} unit${res.total !== 1 ? 's' : ''} outstanding across ${allEmgGroups.length} design${allEmgGroups.length !== 1 ? 's' : ''}`
       : 'All emergencies resolved';
     document.getElementById('emgSubtitle').textContent = subtitle;
+    updateEmgTabCounts();
   } catch (e) { toast('Load failed: ' + e.message); }
+}
+
+async function updateEmgTabCounts() {
+  // All open count — units not yet printed
+  const allCount = allEmgGroups.reduce((s, g) => s + g.units.filter(u => !u.downloaded_at && !u.picked_at).length, 0);
+  setEmgTabCount('All', allCount);
+  // Fetch printed + sent counts in parallel
+  try {
+    const [pr, se] = await Promise.all([
+      api({ action: 'load_downloaded_emergencies', days: 60 }),
+      api({ action: 'load_sent_emergencies', days: 30 }),
+    ]);
+    const printedCount = (pr.units || []).length;
+    const sentCount = Object.values(se.byDesign || {}).reduce((s, g) => s + g.units.length, 0);
+    setEmgTabCount('Printed', printedCount);
+    setEmgTabCount('Sent', sentCount);
+  } catch {}
+}
+
+function setEmgTabCount(label, count) {
+  const map = { All: 'emgTabAll', Printed: 'emgTabPrinted', Sent: 'emgTabSent' };
+  const el = document.getElementById(map[label]);
+  if (!el) return;
+  const base = label === 'All' ? 'All open' : label;
+  el.textContent = count > 0 ? `${base} ${count}` : base;
 }
 
 // ── EMERGENCY PDF (same logic as nt-production-prints genPDF) ────────────────
