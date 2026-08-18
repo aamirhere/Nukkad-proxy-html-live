@@ -1902,10 +1902,9 @@ let _printProducts = []; // [{ handle, title, shopify_image }]
 
 async function loadPrintData() {
   try {
-    const r = await fetch(PRINTS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'load' }) });
+    const r = await fetch(PRINTS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'load_links_only' }) });
     const d = await r.json();
     _printLinks = d.links || {};
-    _printProducts = d.products || [];
   } catch(e) { console.warn('Could not load print links:', e.message); }
 }
 
