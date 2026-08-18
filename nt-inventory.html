@@ -867,6 +867,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
       <button class="emg-tab" id="emgTabSent" onclick="setEmgView('sent')">Sent</button>
     </div>
+    <button class="btn btn-ghost" onclick="sendTgUpdate(this)">📲 Send Update</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
   </div>
 
@@ -1725,6 +1726,15 @@ async function markEmergency(u) {
 let emgDate = todayIST();
 let emgView = 'all'; // 'all' | 'date'
 let allEmgGroups = []; // cached from last load
+
+async function sendTgUpdate(btn) {
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const res = await api({ action: 'send_tg_now' });
+    toast(res.sent === 0 ? '✅ Sent — all clear!' : `📲 Sent — ${res.sent} open unit${res.sent !== 1 ? 's' : ''}`);
+  } catch(e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '📲 Send Update'; }
+}
 
 function setEmgView(v) {
   emgView = v;
