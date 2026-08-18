@@ -2985,7 +2985,7 @@ function renderList() {
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
             ${_getCarrierTag(o.order_name, o)}
-            ${o.prev_tracking_company && o.tracking_company && o.prev_tracking_company !== o.tracking_company ? `<div style="font-size:.6rem;color:#e65100;margin-top:1px" class="no-print">↑ was ${esc(o.prev_tracking_company)}</div>` : ''}
+            ${o.prev_tracking_company && o.tracking_company && o.prev_tracking_company !== o.tracking_company ? `<span class="no-print" style="display:inline-flex;align-items:center;gap:3px;margin-top:2px"><span style="font-size:.58rem;font-weight:600;padding:1px 6px;border-radius:8px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80;white-space:nowrap">was ${esc(o.prev_tracking_company)}</span></span>` : ''}
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
