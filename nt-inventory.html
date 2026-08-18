@@ -865,8 +865,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
       <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
       <button class="emg-tab" id="emgTabSent" onclick="setEmgView('sent')">Sent</button>
+      <button class="emg-tab" id="emgTabDispatches" onclick="setEmgView('dispatches')">Dispatches</button>
     </div>
-    <button class="btn btn-ghost" onclick="downloadEmgPDF()">⬇ PDF</button>
+    <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.78rem;padding:6px 12px">📤 Record Dispatch</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
   </div>
 
@@ -888,6 +889,32 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   <!-- sent / received view -->
   <div id="emgSent" style="display:none">
     <div id="emgSentList"><div class="empty-state"><div class="icon">📦</div><p>Loading…</p></div></div>
+  </div>
+
+  <!-- dispatch history view -->
+  <div id="emgDispatches" style="display:none">
+    <div id="emgDispatchList"><div class="empty-state"><div class="icon">📋</div><p>Loading…</p></div></div>
+  </div>
+</div>
+
+<!-- ── DISPATCH MODAL ──────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="dispatchModal" onclick="closeDispatchModal(event)" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.55);align-items:flex-end;justify-content:center">
+  <div onclick="event.stopPropagation()" style="background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:20px 18px 32px;max-height:90vh;overflow-y:auto;box-shadow:0 -4px 32px rgba(0,0,0,.18)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:1rem;font-weight:700">📤 Record Dispatch</div>
+      <button onclick="closeDispatchModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9c8a76">✕</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <label style="font-size:.8rem;font-weight:600;color:#6f5b46;white-space:nowrap">Dispatch date</label>
+      <input type="date" id="dispatchDate" style="flex:1;border:1.5px solid #e9ddca;border-radius:8px;padding:7px 10px;font-size:.84rem">
+    </div>
+    <div id="dispatchRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
+    <button onclick="addDispatchRow()" style="width:100%;padding:9px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">+ Add another design</button>
+    <textarea id="dispatchNotes" placeholder="Notes (optional)" style="width:100%;margin-top:12px;border:1.5px solid #e9ddca;border-radius:8px;padding:9px 10px;font-size:.82rem;resize:vertical;min-height:56px;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="closeDispatchModal()" style="flex:1;padding:11px;border:1.5px solid #e9ddca;border-radius:10px;background:none;font-weight:700;cursor:pointer">Cancel</button>
+      <button onclick="submitDispatch(this)" style="flex:2;padding:11px;border:none;border-radius:10px;background:#d4541f;color:#fff;font-weight:700;font-size:.9rem;cursor:pointer">Save Dispatch</button>
+    </div>
   </div>
 </div>
 
@@ -1694,11 +1721,14 @@ function setEmgView(v) {
   document.getElementById('emgTabAll').classList.toggle('active', v === 'all');
   document.getElementById('emgTabDate').classList.toggle('active', v === 'date');
   document.getElementById('emgTabSent').classList.toggle('active', v === 'sent');
-  document.getElementById('emgGrouped').style.display = v === 'all' ? '' : 'none';
-  document.getElementById('emgByDate').style.display  = v === 'date' ? '' : 'none';
-  document.getElementById('emgSent').style.display    = v === 'sent' ? '' : 'none';
-  if (v === 'date') { buildEmgTabs(); loadEmgDateView(); }
-  if (v === 'sent') { loadSentView(); }
+  document.getElementById('emgTabDispatches').classList.toggle('active', v === 'dispatches');
+  document.getElementById('emgGrouped').style.display    = v === 'all' ? '' : 'none';
+  document.getElementById('emgByDate').style.display     = v === 'date' ? '' : 'none';
+  document.getElementById('emgSent').style.display       = v === 'sent' ? '' : 'none';
+  document.getElementById('emgDispatches').style.display = v === 'dispatches' ? '' : 'none';
+  if (v === 'date')       { buildEmgTabs(); loadEmgDateView(); }
+  if (v === 'sent')       { loadSentView(); }
+  if (v === 'dispatches') { loadDispatchesView(); }
 }
 
 async function loadSentView() {
@@ -1808,11 +1838,27 @@ async function loadEmgDateView() {
   } catch (e) { toast('Failed to load emergency: ' + e.message); }
 }
 
+const PRINTS_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-production-prints';
+let _printLinks = {};   // handle → { image_url, drive_id, thumbnail_link, size_h_mm, size_w_mm }
+let _printProducts = []; // [{ handle, title, shopify_image }]
+
+async function loadPrintData() {
+  try {
+    const r = await fetch(PRINTS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'load' }) });
+    const d = await r.json();
+    _printLinks = d.links || {};
+    _printProducts = d.products || [];
+  } catch(e) { console.warn('Could not load print links:', e.message); }
+}
+
 async function loadAllEmergencies() {
   document.getElementById('emgGroups').innerHTML =
     [...Array(3)].map(() => '<div class="loading-row" style="height:68px;border-radius:10px"></div>').join('');
   try {
-    const res = await api({ action: 'load_all_emergencies' });
+    const [res] = await Promise.all([
+      api({ action: 'load_all_emergencies' }),
+      Object.keys(_printLinks).length ? Promise.resolve() : loadPrintData(),
+    ]);
     allEmgGroups = res.groups || [];
     renderEmgGroups();
     syncRecvBadges();
@@ -1822,6 +1868,148 @@ async function loadAllEmergencies() {
       : 'All emergencies resolved';
     document.getElementById('emgSubtitle').textContent = subtitle;
   } catch (e) { toast('Load failed: ' + e.message); }
+}
+
+// ── EMERGENCY PDF (same logic as nt-production-prints genPDF) ────────────────
+async function genEmgPDF(handle) {
+  const link = _printLinks[handle];
+  if (!link) { toast('No image linked for this design'); return; }
+  const imgSrc = link.image_url || (link.drive_id ? `https://drive.google.com/thumbnail?id=${link.drive_id}&sz=w2000` : '') || link.thumbnail_link || '';
+  if (!imgSrc) { toast('No image found for this design'); return; }
+  toast('Generating PDF…');
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const DPI = 300, MM_PER_IN = 25.4;
+    const A4W = 2480, A4H = 3508, MARGIN = 118;
+    const ph = link.size_h_mm ? Math.round(link.size_h_mm / MM_PER_IN * DPI) : null;
+    const pw = link.size_w_mm ? Math.round(link.size_w_mm / MM_PER_IN * DPI) : null;
+    const landscape = img.width > img.height;
+    const cw = landscape ? A4H : A4W, ch = landscape ? A4W : A4H;
+    const canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+    let iw, ih;
+    if (ph && pw) {
+      iw = pw; ih = ph;
+    } else {
+      const maxW = cw - MARGIN * 2, maxH = ch - MARGIN * 2;
+      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+      iw = Math.round(img.width * scale); ih = Math.round(img.height * scale);
+    }
+    const x = Math.round((cw - iw) / 2), y = Math.round((ch - ih) / 2);
+    ctx.drawImage(img, x, y, iw, ih);
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${handle}-single.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }, 'image/png');
+  };
+  img.onerror = () => toast('Image failed to load — try again');
+  img.src = imgSrc;
+}
+
+async function downloadEmgUnit(gi, ui, u, handle) {
+  await api({ action: 'mark_downloaded', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).catch(() => {});
+  const g = allEmgGroups[gi];
+  if (g && g.units[ui]) g.units[ui].downloaded_at = new Date().toISOString();
+  renderEmgGroups();
+  genEmgPDF(handle);
+}
+
+// ── DISPATCH MODAL ────────────────────────────────────────────────────────────
+let _dispatchRows = []; // [{ handle, title, qty }]
+
+function openDispatchModal() {
+  if (!Object.keys(_printLinks).length) loadPrintData();
+  _dispatchRows = [{}];
+  document.getElementById('dispatchDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('dispatchNotes').value = '';
+  renderDispatchRows();
+  document.getElementById('dispatchModal').style.display = 'flex';
+}
+
+function closeDispatchModal(e) {
+  if (e && e.target !== document.getElementById('dispatchModal')) return;
+  document.getElementById('dispatchModal').style.display = 'none';
+}
+
+function renderDispatchRows() {
+  document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
+    const allDesigns = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+    const opts = allDesigns.map(p => `<option value="${p.handle}" ${row.handle === p.handle ? 'selected' : ''}>${p.title}</option>`).join('');
+    return `<div style="display:flex;gap:8px;align-items:center">
+      <select onchange="_dispatchRows[${i}].handle=this.value;_dispatchRows[${i}].title=this.options[this.selectedIndex].text" style="flex:1;border:1.5px solid #e9ddca;border-radius:8px;padding:8px 10px;font-size:.82rem;background:#fff">
+        <option value="">Select design…</option>${opts}
+      </select>
+      <input type="number" min="1" value="${row.qty||''}" placeholder="Qty" onchange="_dispatchRows[${i}].qty=parseInt(this.value)||0" style="width:64px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center">
+      ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:2px 4px">✕</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function addDispatchRow() {
+  _dispatchRows.push({});
+  renderDispatchRows();
+}
+
+async function submitDispatch(btn) {
+  const items = _dispatchRows.filter(r => r.handle && r.qty > 0);
+  if (!items.length) { toast('Add at least one design with qty'); return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await api({
+      action: 'record_dispatch',
+      dispatch_date: document.getElementById('dispatchDate').value,
+      items,
+      notes: document.getElementById('dispatchNotes').value.trim() || null,
+    });
+    document.getElementById('dispatchModal').style.display = 'none';
+    const fulfilled = res.results.reduce((s, r) => s + (r.fulfilled_emergency || 0), 0);
+    const stocked = res.results.reduce((s, r) => s + (r.added_to_stock || 0), 0);
+    toast(`✓ Dispatch saved · ${fulfilled} emergency fulfilled · ${stocked} added to stock`);
+    loadAllEmergencies();
+  } catch(e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Save Dispatch'; }
+}
+
+// ── DISPATCH HISTORY ──────────────────────────────────────────────────────────
+async function loadDispatchesView() {
+  const el = document.getElementById('emgDispatchList');
+  el.innerHTML = [...Array(3)].map(() => '<div class="loading-row" style="height:60px;border-radius:10px;margin-bottom:8px"></div>').join('');
+  try {
+    const res = await api({ action: 'load_dispatches', days: 90 });
+    const dispatches = res.dispatches || [];
+    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches in the last 90 days</p></div>'; return; }
+    el.innerHTML = dispatches.map(d => {
+      const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
+      const dateStr = new Date(d.dispatch_date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+      const total = items.reduce((s, i) => s + (i.qty || 0), 0);
+      return `<div style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-weight:700;font-size:.9rem">${dateStr}</div>
+          <span style="font-size:.74rem;color:#9c8a76;background:#f5f0e8;padding:2px 8px;border-radius:10px">${total} piece${total!==1?'s':''}</span>
+        </div>
+        ${items.map((it, ii) => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f0ebe0">
+            <span style="flex:1;font-size:.84rem">${it.title || it.handle}</span>
+            <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${JSON.stringify(items).replace(/"/g,'&quot;')})" style="width:60px;border:1.5px solid #e9ddca;border-radius:6px;padding:4px 6px;font-size:.82rem;text-align:center">
+          </div>`).join('')}
+        ${d.notes ? `<div style="font-size:.76rem;color:#9c8a76;margin-top:8px;padding-top:8px;border-top:1px solid #f0ebe0">📝 ${d.notes}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+}
+
+async function updateDispatchItemQty(id, idx, newQty, items) {
+  items[idx].qty = newQty;
+  try {
+    await api({ action: 'update_dispatch', id, items });
+    toast('✓ Updated');
+  } catch(e) { toast('Failed: ' + e.message); }
 }
 
 function daysSince(isoStr) {
@@ -1840,22 +2028,25 @@ function renderEmgGroups() {
     const oldest = g.units[0]?.emergency_at;
     const days = daysSince(oldest);
     const daysLabel = days !== null ? (days === 0 ? 'today' : `${days}d ago`) : '';
+    const link = _printLinks[g.handle] || {};
+    const imgSrc = link.image_url || (link.drive_id ? `https://drive.google.com/thumbnail?id=${link.drive_id}&sz=w160` : '') || link.thumbnail_link || '';
+    const hasImg = !!imgSrc;
+    const hasSizes = link.size_h_mm && link.size_w_mm;
+    const sizeLabel = hasSizes ? `${(link.size_h_mm/25.4).toFixed(1)}" × ${(link.size_w_mm/25.4).toFixed(1)}"` : '';
+    const safeHandle = (g.handle||'').replace(/'/g,"\\'");
+
     const unitRows = g.units.map((u, ui) => {
-      // show order date (u.date = YYYY-MM-DD IST), not emergency_at
       const orderDateStr = u.date
         ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
         : '—';
       const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
-      const recvd = u.recv_qty > 0;
-      const sent = u.sent_qty > 0;
-      return `<div class="emg-unit-row${recvd ? ' emg-unit-recvd' : ''}" id="emgunit-${gi}-${ui}">
+      const dlAt = u.downloaded_at;
+      return `<div class="emg-unit-row" id="emgunit-${gi}-${ui}">
         <span class="emg-unit-date">${orderDateStr}</span>
         <span class="emg-unit-order">${u.order_name || u.order_id}</span>
-        <button class="emg-unit-recv-btn${recvd ? ' recvd' : ''}" onclick="event.stopPropagation();openRecvModal('${g.handle}')" title="Mark received">
-          ${recvd ? '✓ Rcvd' : '📦 Rcvd'}
-        </button>
-        <button class="emg-unit-sent-btn${sent ? ' sent' : ''}" onclick="event.stopPropagation();markEmgUnitSent(${gi},${ui},${safeU})" title="Mark sent to customer">
-          ${sent ? '✓ Sent' : '🚚 Sent'}
+        <button class="emg-unit-recv-btn" onclick="event.stopPropagation();openRecvModal('${safeHandle}')" title="Mark received">📦 Rcvd</button>
+        <button class="emg-unit-sent-btn${dlAt?' sent':''}" onclick="event.stopPropagation();downloadEmgUnit(${gi},${ui},${safeU},'${safeHandle}')" title="${dlAt?'Downloaded '+new Date(dlAt).toLocaleDateString('en-IN'):'Download design for production'}">
+          ${dlAt?'✓ Downloaded':'⬇ Download'}
         </button>
         <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
       </div>`;
@@ -1863,13 +2054,14 @@ function renderEmgGroups() {
 
     return `<div class="emg-group" id="emg-group-${gi}">
       <div class="emg-group-head" onclick="toggleEmgGroup(${gi})">
-        <span class="emg-group-icon">⚠</span>
-        <div class="emg-group-info">
+        ${hasImg ? `<img src="${imgSrc}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;border:1px solid #e9ddca" onerror="this.style.display='none'">` : '<span class="emg-group-icon">⚠</span>'}
+        <div class="emg-group-info" style="flex:1;min-width:0">
           <div class="emg-group-title">${g.title}</div>
-          <div class="emg-group-meta">Oldest: ${daysLabel}</div>
+          <div class="emg-group-meta">${daysLabel ? `Oldest: ${daysLabel}` : ''}${sizeLabel ? ` · 📐 ${sizeLabel}` : ''}</div>
         </div>
         <span class="emg-count-pill">${g.units.length} unit${g.units.length !== 1 ? 's' : ''}</span>
-        <button class="emg-fulfil-btn" onclick="event.stopPropagation();openRecvModal('${g.handle}')">📦 Received</button>
+        ${hasImg ? `<button class="emg-fulfil-btn" style="background:#1565c0;color:#fff" onclick="event.stopPropagation();genEmgPDF('${safeHandle}')">⬇ PDF</button>` : ''}
+        <button class="emg-fulfil-btn" onclick="event.stopPropagation();openRecvModal('${safeHandle}')">📦 Received</button>
         <span class="emg-group-chevron">▼</span>
       </div>
       <div class="emg-group-body">${unitRows}</div>
