@@ -769,6 +769,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <span class="nav-badge hidden" id="emergencyCountBadge"></span>
     </button>
     <button class="nav-btn" onclick="switchView('cutlist')">✂ Cut List</button>
+    <button class="nav-btn" onclick="switchView('dispatch')">📤 Dispatch</button>
   </nav>
   <a class="nav-sales" href="nt-tracking.html">📦 Tracking ↗</a>
   <a class="nav-sales" href="nt-pool-stock.html">💰 Sales ↗</a>
@@ -865,9 +866,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
       <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
       <button class="emg-tab" id="emgTabSent" onclick="setEmgView('sent')">Sent</button>
-      <button class="emg-tab" id="emgTabDispatches" onclick="setEmgView('dispatches')">Dispatches</button>
     </div>
-    <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.78rem;padding:6px 12px">📤 Record Dispatch</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
   </div>
 
@@ -891,15 +890,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <div id="emgSentList"><div class="empty-state"><div class="icon">📦</div><p>Loading…</p></div></div>
   </div>
 
-  <!-- dispatch history view -->
-  <div id="emgDispatches" style="display:none">
-    <div id="emgDispatchList"><div class="empty-state"><div class="icon">📋</div><p>Loading…</p></div></div>
-  </div>
 </div>
 
 <!-- ── DISPATCH MODAL ──────────────────────────────────────────────────────── -->
-<div class="modal-backdrop" id="dispatchModal" onclick="closeDispatchModal(event)" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.55);align-items:flex-end;justify-content:center">
-  <div onclick="event.stopPropagation()" style="background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:20px 18px 32px;max-height:90vh;overflow-y:auto;box-shadow:0 -4px 32px rgba(0,0,0,.18)">
+<div class="modal-backdrop" id="dispatchModal" onclick="closeDispatchModal(event)" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+  <div onclick="event.stopPropagation()" style="background:#fff;width:90%;max-width:520px;border-radius:16px;padding:22px 20px 24px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.22)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div style="font-size:1rem;font-weight:700">📤 Record Dispatch</div>
       <button onclick="closeDispatchModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9c8a76">✕</button>
@@ -910,7 +905,6 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     </div>
     <div id="dispatchRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
     <button onclick="addDispatchRow()" style="width:100%;padding:9px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">+ Add another design</button>
-    <textarea id="dispatchNotes" placeholder="Notes (optional)" style="width:100%;margin-top:12px;border:1.5px solid #e9ddca;border-radius:8px;padding:9px 10px;font-size:.82rem;resize:vertical;min-height:56px;box-sizing:border-box"></textarea>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button onclick="closeDispatchModal()" style="flex:1;padding:11px;border:1.5px solid #e9ddca;border-radius:10px;background:none;font-weight:700;cursor:pointer">Cancel</button>
       <button onclick="submitDispatch(this)" style="flex:2;padding:11px;border:none;border-radius:10px;background:#d4541f;color:#fff;font-weight:700;font-size:.9rem;cursor:pointer">Save Dispatch</button>
@@ -968,6 +962,18 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <a class="prod-link" href="nt-production-prints.html?mode=cutlist" id="prodPrintsLink">🖨 Open Production Prints</a>
     <a class="prod-link ghost" href="nt-production-queue.html" target="_blank">📋 Production Queue</a>
   </div>
+</div>
+
+<!-- ── DISPATCH HISTORY ───────────────────────────────────────────────────── -->
+<div class="view" id="view-dispatch">
+  <div class="page-hd" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2>Dispatch Log</h2>
+      <p>Production dispatched to production — by date</p>
+    </div>
+    <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.82rem;padding:8px 16px">📤 Record Dispatch</button>
+  </div>
+  <div id="dispatchView"><div class="empty-state"><div class="icon">📋</div><p>Loading…</p></div></div>
 </div>
 
 <div id="toast"></div>
@@ -1038,6 +1044,10 @@ function switchView(view) {
     } else {
       renderCutList();
     }
+  }
+  if (view === 'dispatch') {
+    if (!Object.keys(_printLinks).length) loadPrintData();
+    loadDispatchView();
   }
 }
 
@@ -1721,14 +1731,11 @@ function setEmgView(v) {
   document.getElementById('emgTabAll').classList.toggle('active', v === 'all');
   document.getElementById('emgTabDate').classList.toggle('active', v === 'date');
   document.getElementById('emgTabSent').classList.toggle('active', v === 'sent');
-  document.getElementById('emgTabDispatches').classList.toggle('active', v === 'dispatches');
-  document.getElementById('emgGrouped').style.display    = v === 'all' ? '' : 'none';
-  document.getElementById('emgByDate').style.display     = v === 'date' ? '' : 'none';
-  document.getElementById('emgSent').style.display       = v === 'sent' ? '' : 'none';
-  document.getElementById('emgDispatches').style.display = v === 'dispatches' ? '' : 'none';
-  if (v === 'date')       { buildEmgTabs(); loadEmgDateView(); }
-  if (v === 'sent')       { loadSentView(); }
-  if (v === 'dispatches') { loadDispatchesView(); }
+  document.getElementById('emgGrouped').style.display = v === 'all' ? '' : 'none';
+  document.getElementById('emgByDate').style.display  = v === 'date' ? '' : 'none';
+  document.getElementById('emgSent').style.display    = v === 'sent' ? '' : 'none';
+  if (v === 'date') { buildEmgTabs(); loadEmgDateView(); }
+  if (v === 'sent') { loadSentView(); }
 }
 
 async function loadSentView() {
@@ -1871,10 +1878,29 @@ async function loadAllEmergencies() {
 }
 
 // ── EMERGENCY PDF (same logic as nt-production-prints genPDF) ────────────────
+async function fetchEmgProxiedImage(driveId) {
+  try {
+    const r = await fetch(PRINTS_API, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'proxy_image', url: `https://drive.google.com/uc?export=download&id=${driveId}` }),
+    });
+    const d = await r.json();
+    if (d.data) return d.data;
+    if (d.fallback_url) return d.fallback_url;
+    return `https://drive.google.com/thumbnail?id=${driveId}&sz=w2000`;
+  } catch { return `https://drive.google.com/thumbnail?id=${driveId}&sz=w2000`; }
+}
+
 async function genEmgPDF(handle) {
   const link = _printLinks[handle];
   if (!link) { toast('No image linked for this design'); return; }
-  const imgSrc = link.image_url || (link.drive_id ? `https://drive.google.com/thumbnail?id=${link.drive_id}&sz=w2000` : '') || link.thumbnail_link || '';
+  let imgSrc;
+  if (link.drive_id) {
+    toast('Loading image…');
+    imgSrc = await fetchEmgProxiedImage(link.drive_id);
+  } else {
+    imgSrc = link.image_url || link.thumbnail_link || '';
+  }
   if (!imgSrc) { toast('No image found for this design'); return; }
   toast('Generating PDF…');
   const img = new Image();
@@ -1927,7 +1953,6 @@ function openDispatchModal() {
   if (!Object.keys(_printLinks).length) loadPrintData();
   _dispatchRows = [{}];
   document.getElementById('dispatchDate').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('dispatchNotes').value = '';
   renderDispatchRows();
   document.getElementById('dispatchModal').style.display = 'flex';
 }
@@ -1938,17 +1963,47 @@ function closeDispatchModal(e) {
 }
 
 function renderDispatchRows() {
-  document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
-    const allDesigns = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-    const opts = allDesigns.map(p => `<option value="${p.handle}" ${row.handle === p.handle ? 'selected' : ''}>${p.title}</option>`).join('');
-    return `<div style="display:flex;gap:8px;align-items:center">
-      <select onchange="_dispatchRows[${i}].handle=this.value;_dispatchRows[${i}].title=this.options[this.selectedIndex].text" style="flex:1;border:1.5px solid #e9ddca;border-radius:8px;padding:8px 10px;font-size:.82rem;background:#fff">
-        <option value="">Select design…</option>${opts}
-      </select>
-      <input type="number" min="1" value="${row.qty||''}" placeholder="Qty" onchange="_dispatchRows[${i}].qty=parseInt(this.value)||0" style="width:64px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center">
-      ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:2px 4px">✕</button>` : ''}
-    </div>`;
-  }).join('');
+  document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => `
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      <div style="position:relative;flex:1">
+        <input type="text" data-di="${i}" class="disp-search" autocomplete="off"
+          placeholder="Search design…"
+          value="${(row.title || '').replace(/"/g, '&quot;')}"
+          oninput="dSearch(${i},this)"
+          onfocus="dSearch(${i},this)"
+          style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:8px 10px;font-size:.82rem">
+        <div class="disp-dd" id="ddd-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e9ddca;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.14)"></div>
+      </div>
+      <input type="number" min="1" value="${row.qty || ''}" placeholder="Qty"
+        oninput="_dispatchRows[${i}].qty=parseInt(this.value)||0"
+        style="width:64px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center">
+      ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:7px 4px">✕</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function dSearch(i, inp) {
+  const q = inp.value.toLowerCase();
+  const src = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  const filtered = q.length < 1 ? src : src.filter(p => p.title.toLowerCase().includes(q));
+  const dd = document.getElementById(`ddd-${i}`);
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = filtered.slice(0, 25).map(p =>
+    `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
+      style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8;transition:background .1s"
+      onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
+    >${p.title}</div>`
+  ).join('');
+  dd.style.display = 'block';
+}
+
+function dSelect(i, handle, title) {
+  _dispatchRows[i].handle = handle;
+  _dispatchRows[i].title = title;
+  const inp = document.querySelector(`.disp-search[data-di="${i}"]`);
+  if (inp) inp.value = title;
+  const dd = document.getElementById(`ddd-${i}`);
+  if (dd) dd.style.display = 'none';
 }
 
 function addDispatchRow() {
@@ -1965,40 +2020,51 @@ async function submitDispatch(btn) {
       action: 'record_dispatch',
       dispatch_date: document.getElementById('dispatchDate').value,
       items,
-      notes: document.getElementById('dispatchNotes').value.trim() || null,
     });
     document.getElementById('dispatchModal').style.display = 'none';
     const fulfilled = res.results.reduce((s, r) => s + (r.fulfilled_emergency || 0), 0);
     const stocked = res.results.reduce((s, r) => s + (r.added_to_stock || 0), 0);
     toast(`✓ Dispatch saved · ${fulfilled} emergency fulfilled · ${stocked} added to stock`);
     loadAllEmergencies();
+    if (document.getElementById('view-dispatch').classList.contains('active')) loadDispatchView();
   } catch(e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = 'Save Dispatch'; }
 }
 
 // ── DISPATCH HISTORY ──────────────────────────────────────────────────────────
-async function loadDispatchesView() {
-  const el = document.getElementById('emgDispatchList');
-  el.innerHTML = [...Array(3)].map(() => '<div class="loading-row" style="height:60px;border-radius:10px;margin-bottom:8px"></div>').join('');
+async function loadDispatchView() {
+  const el = document.getElementById('dispatchView');
+  el.innerHTML = [...Array(3)].map(() => '<div class="loading-row" style="height:70px;border-radius:10px;margin-bottom:10px"></div>').join('');
   try {
     const res = await api({ action: 'load_dispatches', days: 90 });
     const dispatches = res.dispatches || [];
-    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches in the last 90 days</p></div>'; return; }
+    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>'; return; }
     el.innerHTML = dispatches.map(d => {
       const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
       const dateStr = new Date(d.dispatch_date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-      const total = items.reduce((s, i) => s + (i.qty || 0), 0);
+      const total = items.reduce((s, it) => s + (it.qty || 0), 0);
+      const totalEmg = items.reduce((s, it) => s + (it.emergency || 0), 0);
+      const totalStk = items.reduce((s, it) => s + (it.stock || 0), 0);
+      const safeItems = JSON.stringify(items).replace(/"/g, '&quot;');
       return `<div style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div style="font-weight:700;font-size:.9rem">${dateStr}</div>
-          <span style="font-size:.74rem;color:#9c8a76;background:#f5f0e8;padding:2px 8px;border-radius:10px">${total} piece${total!==1?'s':''}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div style="font-weight:700;font-size:.92rem">${dateStr}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span style="font-size:.74rem;background:#f5f0e8;color:#6f5b46;padding:2px 9px;border-radius:10px;font-weight:600">${total} piece${total!==1?'s':''}</span>
+            ${totalEmg ? `<span style="font-size:.74rem;background:#fff3e0;color:#e65100;padding:2px 9px;border-radius:10px;font-weight:600">🚨 ${totalEmg} emg</span>` : ''}
+            ${totalStk ? `<span style="font-size:.74rem;background:#e8f5e9;color:#2d7a4f;padding:2px 9px;border-radius:10px;font-weight:600">📦 ${totalStk} stock</span>` : ''}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 10px;align-items:center;font-size:.79rem;color:#9c8a76;font-weight:600;padding:0 0 4px;border-bottom:1px solid #f0ebe0;margin-bottom:4px">
+          <span>Design</span><span style="text-align:center">Qty</span><span style="text-align:center">Emg</span><span style="text-align:center">Stock</span>
         </div>
         ${items.map((it, ii) => `
-          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f0ebe0">
-            <span style="flex:1;font-size:.84rem">${it.title || it.handle}</span>
-            <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${JSON.stringify(items).replace(/"/g,'&quot;')})" style="width:60px;border:1.5px solid #e9ddca;border-radius:6px;padding:4px 6px;font-size:.82rem;text-align:center">
+          <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid #faf6f0">
+            <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
+            <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
+            <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
+            <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
           </div>`).join('')}
-        ${d.notes ? `<div style="font-size:.76rem;color:#9c8a76;margin-top:8px;padding-top:8px;border-top:1px solid #f0ebe0">📝 ${d.notes}</div>` : ''}
       </div>`;
     }).join('');
   } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
