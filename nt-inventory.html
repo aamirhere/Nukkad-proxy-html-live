@@ -83,6 +83,27 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 .nav-sales:hover { color: var(--accent); background: var(--bg2); }
 
+/* ── overflow menu (mobile) ── */
+.nav-more { position: relative; display: none; }
+.nav-more-btn {
+  background: none; border: none; font-size: 1.3rem; cursor: pointer;
+  color: var(--ink2); padding: 4px 8px; border-radius: 8px; line-height: 1;
+}
+.nav-more-btn:hover { background: var(--bg2); }
+.nav-menu {
+  display: none; position: absolute; right: 0; top: calc(100% + 6px);
+  background: #fff; border: 1.5px solid var(--line); border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.12); z-index: 200; min-width: 160px;
+  padding: 6px 0;
+}
+.nav-menu.open { display: block; }
+.nav-menu button, .nav-menu a {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  padding: 10px 16px; font-family: var(--fb); font-size: .85rem; font-weight: 600;
+  color: var(--ink); cursor: pointer; text-decoration: none;
+}
+.nav-menu button:hover, .nav-menu a:hover { background: var(--bg2); color: var(--accent); }
+
 /* ── views ── */
 .view { display: none; max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
 .view.active { display: block; }
@@ -716,11 +737,13 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
 /* ── mobile ── */
 @media (max-width: 600px) {
-  .app-header { gap: 10px; padding: 0 10px; }
-  .app-logo   { font-size: .82rem; }
+  .app-header { gap: 8px; padding: 0 10px; }
+  .app-logo   { font-size: .8rem; }
   .app-nav    { gap: 2px; }
-  .nav-btn    { padding: 5px 8px; font-size: .73rem; gap: 3px; }
-  .nav-sales  { padding: 5px 6px; font-size: .73rem; }
+  .nav-btn    { padding: 5px 7px; font-size: .72rem; gap: 3px; }
+  .nav-sales  { display: none; }
+  .nav-desktop { display: none !important; }
+  .nav-more   { display: block; }
 
   .view { padding: 14px 10px 60px; }
 
@@ -765,6 +788,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 <header class="app-header">
   <span class="app-logo">🪵 Nukkad Ops</span>
   <nav class="app-nav">
+    <!-- always visible on mobile + desktop -->
     <button class="nav-btn active" onclick="switchView('inventory')">📦 Inventory</button>
     <button class="nav-btn" onclick="switchView('orders')">
       📋 Orders
@@ -774,11 +798,24 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       🚨 Emergency
       <span class="nav-badge hidden" id="emergencyCountBadge"></span>
     </button>
-    <button class="nav-btn" onclick="switchView('cutlist')">✂ Cut List</button>
     <button class="nav-btn" onclick="switchView('dispatch')">📤 Dispatch</button>
+    <!-- desktop-only -->
+    <button class="nav-btn nav-desktop" onclick="switchView('cutlist')">✂ Cut List</button>
+    <a class="nav-btn nav-desktop" href="nt-production-prints.html" style="text-decoration:none">🖨 Print</a>
   </nav>
-  <a class="nav-sales" href="nt-tracking.html">📦 Tracking ↗</a>
-  <a class="nav-sales" href="nt-pool-stock.html">💰 Sales ↗</a>
+  <!-- desktop-only external links -->
+  <a class="nav-sales nav-desktop" href="nt-tracking.html">📦 Tracking ↗</a>
+  <a class="nav-sales nav-desktop" href="nt-pool-stock.html">💰 Sales ↗</a>
+  <!-- mobile overflow menu -->
+  <div class="nav-more" id="navMore">
+    <button class="nav-more-btn" onclick="toggleNavMenu()" aria-label="More">⋯</button>
+    <div class="nav-menu" id="navMenu">
+      <button onclick="switchView('cutlist');closeNavMenu()">✂ Cut List</button>
+      <a href="nt-production-prints.html">🖨 Print</a>
+      <a href="nt-tracking.html">📦 Tracking ↗</a>
+      <a href="nt-pool-stock.html">💰 Sales ↗</a>
+    </div>
+  </div>
 </header>
 
 <!-- ── INVENTORY ─────────────────────────────────────────────────────────── -->
@@ -2813,6 +2850,16 @@ function todayIST() {
   const d = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
   return d.toISOString().slice(0, 10);
 }
+
+function toggleNavMenu() {
+  document.getElementById('navMenu').classList.toggle('open');
+}
+function closeNavMenu() {
+  document.getElementById('navMenu').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('navMore').contains(e.target)) closeNavMenu();
+});
 
 let toastTimer;
 function toast(msg) {
