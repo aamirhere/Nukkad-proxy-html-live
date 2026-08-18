@@ -1946,6 +1946,7 @@ async function fetchEmgProxiedImage(driveId) {
 }
 
 async function genEmgPDF(handle) {
+  if (!_printLinks[handle]) await loadPrintData();
   const link = _printLinks[handle];
   if (!link) { toast('No image linked for this design'); return; }
   let imgSrc;
@@ -2098,13 +2099,44 @@ async function loadDispatchView() {
     const res = await api({ action: 'load_dispatches', days: 90 });
     const dispatches = res.dispatches || [];
     if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>'; return; }
-    el.innerHTML = dispatches.map(d => {
-      const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
-      const dateStr = new Date(d.dispatch_date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-      const total = items.reduce((s, it) => s + (it.qty || 0), 0);
-      const totalEmg = items.reduce((s, it) => s + (it.emergency || 0), 0);
-      const totalStk = items.reduce((s, it) => s + (it.stock || 0), 0);
-      const safeItems = JSON.stringify(items).replace(/"/g, '&quot;');
+    // merge same-day dispatches into one card
+    const byDate = {};
+    for (const d of dispatches) {
+      if (!byDate[d.dispatch_date]) byDate[d.dispatch_date] = [];
+      byDate[d.dispatch_date].push(d);
+    }
+    el.innerHTML = Object.entries(byDate).map(([date, dayDispatches]) => {
+      const dateStr = new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+      // flatten all items across same-day dispatches
+      const allItems = dayDispatches.flatMap(d => {
+        const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
+        return items.map(it => ({ ...it, _dispatchId: d.id }));
+      });
+      const total = allItems.reduce((s, it) => s + (it.qty || 0), 0);
+      const totalEmg = allItems.reduce((s, it) => s + (it.emergency || 0), 0);
+      const totalStk = allItems.reduce((s, it) => s + (it.stock || 0), 0);
+      // group by dispatch id for delete buttons
+      const dispatchBlocks = dayDispatches.map(d => {
+        const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
+        const safeItems = JSON.stringify(items).replace(/"/g, '&quot;');
+        const rows = items.map((it, ii) => `
+          <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid #faf6f0">
+            <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
+            <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
+            <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
+            <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
+            <span></span>
+          </div>`).join('');
+        return `<div style="border-top:1px dashed #e9ddca;margin-top:8px;padding-top:8px">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+            <button onclick="deleteDispatch('${d.id}')" style="background:none;border:none;color:#9c8a76;font-size:.72rem;cursor:pointer;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='#c62828';this.style.background='#fff0ee'" onmouseout="this.style.color='#9c8a76';this.style.background='none'">🗑 Delete entry</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center;font-size:.79rem;color:#9c8a76;font-weight:600;padding:0 0 4px;border-bottom:1px solid #f0ebe0;margin-bottom:4px">
+            <span>Design</span><span style="text-align:center">Qty</span><span style="text-align:center">Emg</span><span style="text-align:center">Stock</span><span></span>
+          </div>
+          ${rows}
+        </div>`;
+      }).join('');
       return `<div style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <div style="font-weight:700;font-size:.92rem">${dateStr}</div>
@@ -2114,19 +2146,19 @@ async function loadDispatchView() {
             ${totalStk ? `<span style="font-size:.74rem;background:#e8f5e9;color:#2d7a4f;padding:2px 9px;border-radius:10px;font-weight:600">📦 ${totalStk} stock</span>` : ''}
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 10px;align-items:center;font-size:.79rem;color:#9c8a76;font-weight:600;padding:0 0 4px;border-bottom:1px solid #f0ebe0;margin-bottom:4px">
-          <span>Design</span><span style="text-align:center">Qty</span><span style="text-align:center">Emg</span><span style="text-align:center">Stock</span>
-        </div>
-        ${items.map((it, ii) => `
-          <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid #faf6f0">
-            <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
-            <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
-            <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
-            <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
-          </div>`).join('')}
+        ${dispatchBlocks}
       </div>`;
     }).join('');
   } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+}
+
+async function deleteDispatch(id) {
+  if (!confirm('Delete this dispatch entry?')) return;
+  try {
+    await api({ action: 'delete_dispatch', id });
+    toast('Deleted ✓');
+    loadDispatchView();
+  } catch(e) { toast('Failed: ' + e.message); }
 }
 
 async function updateDispatchItemQty(id, idx, newQty, items) {
@@ -2282,12 +2314,16 @@ async function dismissEmgUnit(gi, ui, u) {
   try {
     await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
     const g = allEmgGroups[gi];
-    if (g) {
-      g.units.splice(ui, 1);
-      if (!g.units.filter(x => !x.downloaded_at).length && emgView !== 'date') allEmgGroups.splice(gi, 1);
+    if (g) g.units.splice(ui, 1);
+    // remove just this row in place — don't collapse the group
+    if (rowEl) rowEl.remove();
+    const groupEl = document.getElementById(`emg-group-${containerId}-${gi}`);
+    if (groupEl && g) {
+      const remaining = g.units.filter(x => !x.downloaded_at).length;
+      const pill = groupEl.querySelector('.emg-count-pill');
+      if (pill) pill.textContent = `${remaining} unit${remaining !== 1 ? 's' : ''}`;
+      if (!remaining) groupEl.remove();
     }
-    renderEmgGroups();
-    if (emgView === 'date') renderEmgByDate();
     syncRecvBadges();
     updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.filter(u2 => !u2.downloaded_at).length, 0));
   } catch (e) {
