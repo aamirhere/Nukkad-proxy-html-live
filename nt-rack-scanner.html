@@ -659,6 +659,14 @@ input[type=file]{display:none}
     <div class="ftab" onclick="setFilter('dispatched')" data-f="dispatched" data-label="Dispatched">Dispatched</div>
   </div>
 
+  <div class="filter-row no-print" id="trackFilterRow" style="padding-top:0;gap:6px">
+    <div class="ftab active" onclick="setTrackFilter('all')" data-tf="all">All carriers</div>
+    <div class="ftab" onclick="setTrackFilter('delhivery')" data-tf="delhivery">Delhivery</div>
+    <div class="ftab" onclick="setTrackFilter('bluedart')" data-tf="bluedart">Bluedart</div>
+    <div class="ftab" onclick="setTrackFilter('noawb')" data-tf="noawb">No AWB</div>
+    <div class="ftab" onclick="setTrackFilter('changed')" data-tf="changed">Changed</div>
+  </div>
+
   <div class="print-btn-row no-print">
     <button class="hbtn" onclick="openPrintDialog()">🖨 Print</button>
     <button id="listSelModeBtn" class="hbtn" onclick="toggleListSelMode()">☑ Select</button>
@@ -921,6 +929,7 @@ const BD_API     = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/funct
 let rackItems    = [];
 let scanLog      = [];
 let activeFilter = 'all';
+let activeTrackFilter = 'all';
 let _liveEmgOrders = new Set(); // order_names with active emergencies (from nt_order_units)
 let activeTab    = 'scan';
 let selectedDate = 'all';   // 'all' or 'YYYY-MM-DD'
@@ -1275,6 +1284,8 @@ function buildDateNav() {
 
 function selectDate(d) {
   selectedDate = d;
+  activeTrackFilter = 'all';
+  document.querySelectorAll('.ftab[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === 'all'));
   buildDateNav();
   renderList();
 }
@@ -2797,7 +2808,12 @@ function clearSearch() {
 // ── LIST VIEW ──────────────────────────────────────────────────────────────────
 function setFilter(f) {
   activeFilter = f;
-  document.querySelectorAll('.ftab').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  document.querySelectorAll('.ftab[data-f]').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  renderList();
+}
+function setTrackFilter(f) {
+  activeTrackFilter = f;
+  document.querySelectorAll('.ftab[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === f));
   renderList();
 }
 
@@ -2897,6 +2913,14 @@ function renderList() {
     if (activeFilter === 'partial')    return partial && !o.dispatched;
     if (activeFilter === 'matched')    return complete && !o.dispatched;
     if (activeFilter === 'emergency')  return _liveEmgOrders.has(o.order_name) && !o.dispatched;
+    return true;
+  }).filter(o => {
+    if (activeTrackFilter === 'all') return true;
+    const co = (o.tracking_company || '').toLowerCase();
+    if (activeTrackFilter === 'delhivery') return co.includes('delhivery');
+    if (activeTrackFilter === 'bluedart')  return co.includes('blue') || co.includes('dart');
+    if (activeTrackFilter === 'noawb')     return o.fulfilled && !o.tracking;
+    if (activeTrackFilter === 'changed')   return o.prev_tracking_company && o.prev_tracking_company !== o.tracking_company;
     return true;
   });
 
