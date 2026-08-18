@@ -2069,19 +2069,41 @@ function renderDispatchRows() {
   `).join('');
 }
 
+const _dSearchTimers = {};
 function dSearch(i, inp) {
-  const q = inp.value.toLowerCase();
-  const src = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-  const filtered = q.length < 1 ? src : src.filter(p => p.title.toLowerCase().includes(q));
+  const q = inp.value.trim();
   const dd = document.getElementById(`ddd-${i}`);
-  if (!filtered.length) { dd.style.display = 'none'; return; }
-  dd.innerHTML = filtered.slice(0, 25).map(p =>
-    `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
-      style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8;transition:background .1s"
-      onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
-    >${p.title}</div>`
-  ).join('');
-  dd.style.display = 'block';
+  // use local data if available
+  const localSrc = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  if (localSrc.length) {
+    const filtered = q.length < 1 ? localSrc : localSrc.filter(p => p.title.toLowerCase().includes(q.toLowerCase()));
+    if (!filtered.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = filtered.slice(0, 25).map(p =>
+      `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
+        style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8"
+        onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
+      >${p.title}</div>`
+    ).join('');
+    dd.style.display = 'block';
+    return;
+  }
+  // no local data — search Shopify live
+  if (q.length < 2) { dd.style.display = 'none'; return; }
+  clearTimeout(_dSearchTimers[i]);
+  _dSearchTimers[i] = setTimeout(async () => {
+    try {
+      const res = await api({ action: 'search_shopify', query: q });
+      const products = res.products || [];
+      if (!products.length) { dd.style.display = 'none'; return; }
+      dd.innerHTML = products.map(p =>
+        `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${(p.handle||'').replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
+          style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8"
+          onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
+        >${p.title}</div>`
+      ).join('');
+      dd.style.display = 'block';
+    } catch {}
+  }, 300);
 }
 
 function dSelect(i, handle, title) {
@@ -2239,20 +2261,36 @@ function renderIncomingRows() {
   `).join('');
 }
 
+const _iSearchTimers = {};
 function iSearch(i, inp) {
-  const q = inp.value.toLowerCase();
-  const src = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-  const filtered = q.length < 1 ? src : src.filter(p => p.title.toLowerCase().includes(q));
+  const q = inp.value.trim();
   const dd = document.getElementById(`idd-${i}`);
   if (!dd) return;
-  if (!filtered.length) { dd.style.display = 'none'; return; }
-  dd.innerHTML = filtered.slice(0, 20).map(p =>
-    `<div onmousedown="event.preventDefault()" onclick="iSelect(${i},'${(p.handle||'').replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');document.getElementById('idd-${i}').style.display='none'"
-      style="padding:8px 12px;cursor:pointer;font-size:.84rem;border-bottom:1px solid #f5f0e8" onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''">
-      ${p.title}
-    </div>`
-  ).join('');
-  dd.style.display = '';
+  const localSrc = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  if (localSrc.length) {
+    const filtered = q.length < 1 ? localSrc : localSrc.filter(p => p.title.toLowerCase().includes(q.toLowerCase()));
+    if (!filtered.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = filtered.slice(0, 20).map(p =>
+      `<div onmousedown="event.preventDefault()" onclick="iSelect(${i},'${(p.handle||'').replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');document.getElementById('idd-${i}').style.display='none'"
+        style="padding:8px 12px;cursor:pointer;font-size:.84rem;border-bottom:1px solid #f5f0e8" onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''">${p.title}</div>`
+    ).join('');
+    dd.style.display = '';
+    return;
+  }
+  if (q.length < 2) { dd.style.display = 'none'; return; }
+  clearTimeout(_iSearchTimers[i]);
+  _iSearchTimers[i] = setTimeout(async () => {
+    try {
+      const res = await api({ action: 'search_shopify', query: q });
+      const products = res.products || [];
+      if (!products.length) { dd.style.display = 'none'; return; }
+      dd.innerHTML = products.map(p =>
+        `<div onmousedown="event.preventDefault()" onclick="iSelect(${i},'${(p.handle||'').replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');document.getElementById('idd-${i}').style.display='none'"
+          style="padding:8px 12px;cursor:pointer;font-size:.84rem;border-bottom:1px solid #f5f0e8" onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''">${p.title}</div>`
+      ).join('');
+      dd.style.display = '';
+    } catch {}
+  }, 300);
 }
 
 function iSelect(i, handle, title) {
