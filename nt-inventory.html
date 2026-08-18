@@ -864,6 +864,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <div class="emg-view-tabs">
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
       <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
+      <button class="emg-tab" id="emgTabSent" onclick="setEmgView('sent')">Sent</button>
     </div>
     <button class="btn btn-ghost" onclick="downloadEmgPDF()">⬇ PDF</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
@@ -882,6 +883,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <div class="emg-list" id="emgList">
       <div class="empty-state"><div class="icon">✅</div><p>No emergency units today</p></div>
     </div>
+  </div>
+
+  <!-- sent / received view -->
+  <div id="emgSent" style="display:none">
+    <div id="emgSentList"><div class="empty-state"><div class="icon">📦</div><p>Loading…</p></div></div>
   </div>
 </div>
 
@@ -1687,9 +1693,52 @@ function setEmgView(v) {
   emgView = v;
   document.getElementById('emgTabAll').classList.toggle('active', v === 'all');
   document.getElementById('emgTabDate').classList.toggle('active', v === 'date');
+  document.getElementById('emgTabSent').classList.toggle('active', v === 'sent');
   document.getElementById('emgGrouped').style.display = v === 'all' ? '' : 'none';
   document.getElementById('emgByDate').style.display  = v === 'date' ? '' : 'none';
+  document.getElementById('emgSent').style.display    = v === 'sent' ? '' : 'none';
   if (v === 'date') { buildEmgTabs(); loadEmgDateView(); }
+  if (v === 'sent') { loadSentView(); }
+}
+
+async function loadSentView() {
+  document.getElementById('emgSentList').innerHTML =
+    [...Array(3)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px;margin-bottom:8px"></div>').join('');
+  try {
+    const res = await api({ action: 'load_sent_emergencies', days: 30 });
+    const byDate = res.byDate || {};
+    const dates = Object.keys(byDate).sort().reverse();
+    if (!dates.length) {
+      document.getElementById('emgSentList').innerHTML =
+        '<div class="empty-state"><div class="icon">📭</div><p>No sent emergencies in the last 30 days</p></div>';
+      return;
+    }
+    const todayISO = todayIST();
+    const html = dates.map(d => {
+      const label = d === todayISO ? 'Today' :
+        d === new Date(Date.now() - 86400000 + 5.5*3600000).toISOString().slice(0,10) ? 'Yesterday' :
+        new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      const units = byDate[d];
+      // group by design title within date
+      const byTitle = {};
+      for (const u of units) {
+        const t = u.title || u.handle || '—';
+        if (!byTitle[t]) byTitle[t] = 0;
+        byTitle[t]++;
+      }
+      const rows = Object.entries(byTitle).map(([title, cnt]) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bg2)">
+          <span style="font-size:.84rem;color:var(--text)">${title}</span>
+          <span style="font-size:.78rem;font-weight:700;background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:20px">${cnt} unit${cnt!==1?'s':''}</span>
+        </div>`
+      ).join('');
+      return `<div style="margin-bottom:16px">
+        <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${label} · ${units.length} unit${units.length!==1?'s':''}</div>
+        <div style="background:#fff;border-radius:10px;padding:0 12px;border:1.5px solid var(--border)">${rows}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('emgSentList').innerHTML = html;
+  } catch (e) { document.getElementById('emgSentList').innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
 }
 
 function buildEmgTabs() {
