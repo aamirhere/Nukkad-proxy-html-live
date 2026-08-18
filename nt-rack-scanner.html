@@ -1050,8 +1050,15 @@ async function autoSync() {
     setStatus('Syncing latest orders…');
     const r = await apiFetch({ action: 'sync_rack' });
     const resolvedMsg = r.pending_resolved > 0 ? ` · ✓ ${r.pending_resolved} pending applied` : '';
-    setStatus(`✓ Up to date · ${r.orders} orders · ${r.synced} items${resolvedMsg}`);
     if (r.synced > 0) await loadRackStatus();
+    try {
+      const tr = await apiFetch({ action: 'sync_tracking', days: 15 });
+      const trackMsg = tr.updated > 0 ? ` · ${tr.updated} tracking updated` : '';
+      setStatus(`✓ Up to date · ${r.orders} orders · ${r.synced} items${resolvedMsg}${trackMsg}`);
+      if (tr.updated > 0) await loadRackStatus();
+    } catch(_) {
+      setStatus(`✓ Up to date · ${r.orders} orders · ${r.synced} items${resolvedMsg}`);
+    }
   } catch(e) {
     setStatus(`Auto-sync failed: ${e.message} — tap ⟳ Sync to retry`);
   }
@@ -1114,9 +1121,21 @@ async function syncAll() {
   try {
     const r = await apiFetch({ action: 'sync_rack' });
     const resolvedMsg = r.pending_resolved > 0 ? ` · ✓ ${r.pending_resolved} pending applied` : '';
-    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} items (${fmtDate(r.from)} → ${fmtDate(r.to)})${resolvedMsg}`);
+    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} items (${fmtDate(r.from)} → ${fmtDate(r.to)})${resolvedMsg} — refreshing tracking…`);
     await loadRackStatus();
     updatePendingBadge();
+    // Refresh tracking for last 15 days separately to avoid timeout in main sync
+    try {
+      const tr = await apiFetch({ action: 'sync_tracking', days: 15 });
+      if (tr.updated > 0) {
+        setStatus(`✓ Orders up to date · ${tr.updated} tracking${tr.updated !== 1 ? 's' : ''} updated`);
+        await loadRackStatus();
+      } else {
+        setStatus(`✓ Orders up to date - synced just now`);
+      }
+    } catch(_) {
+      setStatus(`✓ Orders up to date - synced just now`);
+    }
   } catch(e) {
     setStatus('Sync error: ' + e.message);
   } finally {
