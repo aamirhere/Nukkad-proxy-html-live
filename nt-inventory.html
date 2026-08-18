@@ -1077,6 +1077,7 @@ const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
 let allProducts   = [];
+let _designIndex  = []; // handle+title from nt_order_units — canonical for search
 let orderStats    = {}; // handle → order qty for selected period
 let currentUnits  = []; // orders view
 let activeColor   = '';
@@ -1120,6 +1121,7 @@ function switchView(view) {
   if (view === 'dispatch') {
     if (!Object.keys(_printLinks).length) loadPrintData();
     if (!allEmgGroups.length) loadAllEmergencies();
+    if (!_designIndex.length) api({ action: 'load_design_index' }).then(r => { _designIndex = r.designs || []; }).catch(() => {});
     if (!allProducts.length) api({ action: 'load_products' }).then(r => { allProducts = r.products || []; }).catch(() => {});
     loadDispatchView();
   }
@@ -1957,6 +1959,7 @@ async function undoSent(u, btn) {
 // ── Add Emergency Modal ──────────────────────────────────────────────────────
 const _addEmgSearchTimers = {};
 function openAddEmgModal() {
+  if (!_designIndex.length) api({ action: 'load_design_index' }).then(r => { _designIndex = r.designs || []; }).catch(() => {});
   document.getElementById('addEmgSearch').value = '';
   document.getElementById('addEmgHandle').value = '';
   document.getElementById('addEmgTitle').value = '';
@@ -1974,7 +1977,8 @@ function addEmgSearch(inp) {
   const q = inp.value.trim().toLowerCase();
   const dd = document.getElementById('addEmgDropdown');
   if (q.length < 1) { dd.style.display = 'none'; return; }
-  const src = allProducts.length ? allProducts
+  const src = _designIndex.length ? _designIndex
+    : allProducts.length ? allProducts
     : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
   const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 10);
   if (!matches.length) { dd.style.display = 'none'; return; }
@@ -2216,20 +2220,19 @@ function dSearch(i, inp) {
   const q = inp.value.trim().toLowerCase();
   const dd = document.getElementById(`ddd-${i}`);
   if (q.length < 1) { dd.style.display = 'none'; return; }
-  // allProducts has the full design list — use it directly
-  const src = allProducts.length ? allProducts
+  // _designIndex uses order-line-item titles (same source as nt_order_units handles)
+  const src = _designIndex.length ? _designIndex
+    : allProducts.length ? allProducts
     : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-  if (src.length) {
-    const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 25);
-    if (!matches.length) { dd.style.display = 'none'; return; }
-    dd.innerHTML = matches.map(p =>
-      `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
-        style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8"
-        onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
-      >${p.title}</div>`
-    ).join('');
-    dd.style.display = 'block';
-  }
+  const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 25);
+  if (!matches.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = matches.map(p =>
+    `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
+      style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8"
+      onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
+    >${p.title}</div>`
+  ).join('');
+  dd.style.display = 'block';
 }
 
 function dSelect(i, handle, title) {
