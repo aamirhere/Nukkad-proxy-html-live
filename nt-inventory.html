@@ -2340,13 +2340,13 @@ async function deleteDispatch(id) {
 }
 
 async function deleteDispatchItem(id, idx, items) {
-  const updated = items.filter((_, i) => i !== idx);
   try {
-    if (!updated.length) {
+    if (items.length === 1) {
       if (!confirm('No items left — delete the entire entry?')) return;
-      await api({ action: 'delete_dispatch', id });
+      await api({ action: 'delete_dispatch', id }); // backend undoes emergencies+stock
     } else {
-      await api({ action: 'update_dispatch', id, items: updated });
+      // undo just this item's effects, then remove from list
+      await api({ action: 'update_dispatch_item', id, item_index: idx, new_qty: 0 });
     }
     toast('Item removed ✓');
     loadDispatchView();
@@ -2495,10 +2495,12 @@ async function recordIncoming(btn) {
 }
 
 async function updateDispatchItemQty(id, idx, newQty, items) {
-  items[idx].qty = newQty;
+  if (newQty === items[idx].qty) return; // no change
   try {
-    await api({ action: 'update_dispatch', id, items });
+    // backend undoes old qty, redoes with new qty, updates emg+stock counts
+    await api({ action: 'update_dispatch_item', id, item_index: idx, new_qty: newQty });
     toast('✓ Updated');
+    loadDispatchView();
   } catch(e) { toast('Failed: ' + e.message); }
 }
 
