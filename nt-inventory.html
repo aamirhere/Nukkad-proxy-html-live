@@ -977,6 +977,31 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   </div>
 </div>
 
+<!-- ── INCOMING CARTON MODAL ─────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="incomingModal" onclick="closeIncomingModal(event)" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+  <div onclick="event.stopPropagation()" style="background:#fff;width:92%;max-width:560px;border-radius:16px;padding:22px 20px 24px;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.22)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="font-size:1rem;font-weight:700">📦 Incoming Carton</div>
+      <button onclick="closeIncomingModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9c8a76">✕</button>
+    </div>
+    <p style="font-size:.78rem;color:#9c8a76;margin:0 0 16px">Enter what arrived today — see which emergency orders get fulfilled and what goes to stock</p>
+
+    <!-- Step 1: entry form -->
+    <div id="incomingStep1">
+      <div id="incomingRows"></div>
+      <button onclick="addIncomingRow()" style="margin-top:8px;background:none;border:1.5px dashed #e9ddca;border-radius:8px;padding:6px 14px;font-size:.82rem;color:#9c8a76;cursor:pointer;width:100%">+ Add design</button>
+      <button onclick="previewIncoming(this)" style="margin-top:14px;width:100%;padding:10px;background:#d4541f;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer">Preview breakdown →</button>
+    </div>
+
+    <!-- Step 2: preview -->
+    <div id="incomingStep2" style="display:none">
+      <button onclick="document.getElementById('incomingStep2').style.display='none';document.getElementById('incomingStep1').style.display=''" style="background:none;border:none;color:#9c8a76;font-size:.8rem;cursor:pointer;margin-bottom:12px">← Back</button>
+      <div id="incomingPreview"></div>
+      <button onclick="recordIncoming(this)" style="margin-top:16px;width:100%;padding:10px;background:#2e7d32;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer">✓ Record & Save to Dispatch Log</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── DISPATCH HISTORY ───────────────────────────────────────────────────── -->
 <div class="view" id="view-dispatch">
   <div class="page-hd" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -984,7 +1009,10 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <h2>Dispatch Log</h2>
       <p>Production dispatched to production — by date</p>
     </div>
-    <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.82rem;padding:8px 16px">📤 Record Dispatch</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="openIncomingModal()" style="font-size:.82rem;padding:8px 16px">📦 Incoming Carton</button>
+      <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.82rem;padding:8px 16px">📤 Record Dispatch</button>
+    </div>
   </div>
   <div id="dispatchView"><div class="empty-state"><div class="icon">📋</div><p>Loading…</p></div></div>
 </div>
@@ -2172,6 +2200,131 @@ async function deleteDispatchItem(id, idx, items) {
     toast('Item removed ✓');
     loadDispatchView();
   } catch(e) { toast('Failed: ' + e.message); }
+}
+
+// ── INCOMING CARTON ───────────────────────────────────────────────────────────
+
+let _incomingRows = [{}];
+let _incomingPreviewData = null;
+
+function openIncomingModal() {
+  if (!Object.keys(_printLinks).length) loadPrintData();
+  _incomingRows = [{}];
+  _incomingPreviewData = null;
+  document.getElementById('incomingStep1').style.display = '';
+  document.getElementById('incomingStep2').style.display = 'none';
+  renderIncomingRows();
+  document.getElementById('incomingModal').style.display = 'flex';
+}
+
+function closeIncomingModal(e) {
+  if (e && e.target !== document.getElementById('incomingModal')) return;
+  document.getElementById('incomingModal').style.display = 'none';
+}
+
+function renderIncomingRows() {
+  document.getElementById('incomingRows').innerHTML = _incomingRows.map((row, i) => `
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px">
+      <div style="position:relative;flex:1">
+        <input type="text" placeholder="Search design…" value="${row.title || ''}"
+          oninput="iSearch(${i},this)" onfocus="iSearch(${i},this)" onblur="setTimeout(()=>{ const d=document.getElementById('idd-${i}'); if(d) d.style.display='none'; },180)"
+          style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;box-sizing:border-box">
+        <div id="idd-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e9ddca;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:900;max-height:180px;overflow-y:auto"></div>
+      </div>
+      <input type="number" min="1" value="${row.qty || ''}" placeholder="Qty"
+        oninput="_incomingRows[${i}].qty=parseInt(this.value)||0"
+        style="width:64px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center">
+      ${_incomingRows.length > 1 ? `<button onclick="_incomingRows.splice(${i},1);renderIncomingRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:7px 4px">✕</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function iSearch(i, inp) {
+  const q = inp.value.toLowerCase();
+  const src = _printProducts.length ? _printProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  const filtered = q.length < 1 ? src : src.filter(p => p.title.toLowerCase().includes(q));
+  const dd = document.getElementById(`idd-${i}`);
+  if (!dd) return;
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = filtered.slice(0, 20).map(p =>
+    `<div onmousedown="event.preventDefault()" onclick="iSelect(${i},'${(p.handle||'').replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');document.getElementById('idd-${i}').style.display='none'"
+      style="padding:8px 12px;cursor:pointer;font-size:.84rem;border-bottom:1px solid #f5f0e8" onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''">
+      ${p.title}
+    </div>`
+  ).join('');
+  dd.style.display = '';
+}
+
+function iSelect(i, handle, title) {
+  _incomingRows[i].handle = handle;
+  _incomingRows[i].title = title;
+  const inputs = document.getElementById('incomingRows').querySelectorAll('input[type=text]');
+  if (inputs[i]) inputs[i].value = title;
+}
+
+function addIncomingRow() {
+  _incomingRows.push({});
+  renderIncomingRows();
+}
+
+async function previewIncoming(btn) {
+  const valid = _incomingRows.filter(r => r.handle && r.qty > 0);
+  if (!valid.length) { toast('Add at least one design with qty'); return; }
+  btn.disabled = true; btn.textContent = 'Loading…';
+  try {
+    const res = await api({ action: 'preview_incoming', items: valid });
+    _incomingPreviewData = res.results || [];
+    renderIncomingPreview();
+    document.getElementById('incomingStep1').style.display = 'none';
+    document.getElementById('incomingStep2').style.display = '';
+  } catch(e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Preview breakdown →'; }
+}
+
+function renderIncomingPreview() {
+  if (!_incomingPreviewData) return;
+  document.getElementById('incomingPreview').innerHTML = _incomingPreviewData.map(item => {
+    const emgBlock = item.emergency_units.length ? `
+      <div style="margin-top:8px">
+        <div style="font-size:.74rem;color:#e65100;font-weight:700;margin-bottom:4px">🚨 ${item.emergency_units.length} emergency order${item.emergency_units.length !== 1 ? 's' : ''} — paint these first:</div>
+        ${item.emergency_units.map(u => {
+          const dateStr = u.date ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+          const colorChip = u.color ? `<span style="background:#fff3e0;color:#e65100;padding:1px 8px;border-radius:10px;font-size:.72rem;font-weight:700">${u.color}</span>` : '';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid #fdf5ec;font-size:.8rem">
+            <span style="color:#9c8a76;flex-shrink:0">${dateStr}</span>
+            <span style="font-weight:600">${u.order_name || u.order_id}</span>
+            ${colorChip}
+          </div>`;
+        }).join('')}
+      </div>` : '';
+    const stockBlock = item.stock_qty > 0 ? `
+      <div style="margin-top:8px;padding:6px 10px;background:#e8f5e9;border-radius:8px;font-size:.8rem;color:#2d7a4f;font-weight:600">
+        📦 ${item.stock_qty} piece${item.stock_qty !== 1 ? 's' : ''} → stock
+      </div>` : '';
+    return `<div style="background:#fff;border:1.5px solid #e9ddca;border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;font-size:.9rem">${item.title}</span>
+        <span style="font-size:.74rem;background:#f5f0e8;color:#6f5b46;padding:2px 9px;border-radius:10px;font-weight:600">${item.qty} piece${item.qty !== 1 ? 's' : ''}</span>
+      </div>
+      ${emgBlock}${stockBlock}
+      ${!item.emergency_units.length && !item.stock_qty ? '<div style="font-size:.78rem;color:#9c8a76;margin-top:6px">No emergency orders — all to stock</div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+async function recordIncoming(btn) {
+  if (!_incomingPreviewData) return;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const items = _incomingPreviewData.map(r => ({ handle: r.handle, title: r.title, qty: r.qty }));
+    const today = new Date().toISOString().slice(0, 10);
+    await api({ action: 'record_dispatch', dispatch_date: today, items });
+    toast('✓ Recorded in Dispatch Log');
+    closeIncomingModal();
+    loadDispatchView();
+    loadAllEmergencies();
+  } catch(e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '✓ Record & Save to Dispatch Log'; }
 }
 
 async function updateDispatchItemQty(id, idx, newQty, items) {
