@@ -497,6 +497,12 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   font-size: .8rem; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;
 }
 .emg-dismiss-btn:hover { color: var(--red); background: #fff0ee; }
+.btn-mark-printed {
+  margin-left: auto; padding: 3px 10px; border-radius: 20px;
+  border: 1.5px solid #2e7d32; background: none; color: #2e7d32;
+  font-size: .72rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.btn-mark-printed:hover { background: #e8f5e9; }
 .emg-unit-recv-btn {
   margin-left: auto;
   padding: 3px 10px;
@@ -684,7 +690,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 @media print {
   .app-header, .toolbar, .date-bar, .color-chips, .unit-btn,
   .nav-btn, .csv-bar, .dg-chevron, .dg-actions-row,
-  .emg-toolbar, .emg-dismiss-btn, .emg-fulfil-btn { display: none !important; }
+  .emg-toolbar, .emg-dismiss-btn, .emg-fulfil-btn, .btn-mark-printed { display: none !important; }
   .emg-group-body { display: block !important; }
   .emg-group { break-inside: avoid; }
   body { background: #fff; }
@@ -2091,6 +2097,7 @@ function emgGroupHTML(g, gi, containerId) {
     return `<div class="emg-unit-row" id="${idPfx}-u${ui}">
       <span class="emg-unit-date">${orderDateStr}</span>
       <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+      <button class="btn-mark-printed" onclick="markUnitPrinted(${gi},${ui},${safeU})" title="Mark this order as printed">Printed ✓</button>
       <button class="emg-dismiss-btn" onclick="dismissEmgUnit(${gi},${ui},${safeU})" title="Dismiss — not a real emergency">✕</button>
     </div>`;
   }).join('');
@@ -2122,18 +2129,28 @@ function renderEmgGroups() {
 }
 
 async function downloadEmgGroup(handle) {
-  const g = allEmgGroups.find(x => x.handle === handle);
-  if (!g) return;
-  const undownloaded = g.units.filter(u => !u.downloaded_at);
-  // mark all undownloaded units for this group
-  await Promise.allSettled(undownloaded.map(u =>
-    api({ action: 'mark_downloaded', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date })
-  ));
-  const now = new Date().toISOString();
-  undownloaded.forEach(u => { u.downloaded_at = now; });
-  renderEmgGroups();
-  if (emgView === 'date') renderEmgByDate();
   genEmgPDF(handle);
+}
+
+async function markUnitPrinted(gi, ui, u) {
+  const containerId = emgView === 'date' ? 'date' : 'all';
+  const rowEl = document.getElementById(`${containerId}-${gi}-u${ui}`);
+  if (rowEl) { rowEl.style.opacity = '0.4'; rowEl.style.pointerEvents = 'none'; }
+  try {
+    await api({ action: 'mark_downloaded', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    const g = allEmgGroups[gi];
+    if (g) {
+      const unit = g.units.find(x => x.order_id === u.order_id && x.line_item_id === u.line_item_id && x.unit_index === u.unit_index);
+      if (unit) unit.downloaded_at = new Date().toISOString();
+    }
+    renderEmgGroups();
+    if (emgView === 'date') renderEmgByDate();
+    updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.filter(u2 => !u2.downloaded_at).length, 0));
+    toast('Marked as printed ✓');
+  } catch (e) {
+    if (rowEl) { rowEl.style.opacity = ''; rowEl.style.pointerEvents = ''; }
+    toast('Failed: ' + e.message);
+  }
 }
 
 function toggleEmgGroup(gi) {
