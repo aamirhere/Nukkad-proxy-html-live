@@ -1884,6 +1884,21 @@ function clearEmgDateFilter() {
   renderEmgGroups();
 }
 
+function emgPendingCount(handle) {
+  const g = allEmgGroups.find(g => g.handle === handle);
+  if (!g) return 0;
+  return g.units.filter(u => !u.picked_at && !u.downloaded_at).length;
+}
+
+function toggleEmgGroup(id) {
+  const body = document.getElementById(id);
+  if (!body) return;
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  const chevron = document.getElementById('chev-' + id);
+  if (chevron) chevron.textContent = isHidden ? '▾' : '▸';
+}
+
 async function loadPrintedView() {
   document.getElementById('emgPrintedList').innerHTML =
     [...Array(3)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px;margin-bottom:8px"></div>').join('');
@@ -1903,6 +1918,8 @@ async function loadPrintedView() {
     }
     const html = Object.values(byDesign).map(g => {
       const safeHandle = JSON.stringify(g.handle).replace(/"/g, '&quot;');
+      const bodyId = `prowlist-${g.handle}`;
+      const pending = emgPendingCount(g.handle);
       const rows = g.units.map(u => {
         const orderDateStr = u.date
           ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -1918,12 +1935,15 @@ async function loadPrintedView() {
           <button onclick="markUnitSent(${safeU},this)" style="margin-left:auto;padding:4px 12px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;cursor:pointer">Sent →</button>
         </div>`;
       }).join('');
-      return `<div style="margin-bottom:14px" id="pgroup-${g.handle}">
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px">
-          <span style="font-weight:700;font-size:.85rem;color:var(--ink);flex:1">${g.title} <span style="color:var(--muted);font-weight:400" id="pcnt-${g.handle}">(${g.units.length})</span></span>
-          <button onclick="markAllSent(${safeHandle},this)" style="padding:4px 12px;border-radius:20px;border:1.5px solid var(--accent);background:none;color:var(--accent);font-size:.72rem;font-weight:700;cursor:pointer">Send All →</button>
+      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="pgroup-${g.handle}">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="toggleEmgGroup('${bodyId}')">
+          <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▾</span>
+          <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
+          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="pcnt-${g.handle}">${g.units.length} printed</span>
+          ${pending ? `<span style="font-size:.72rem;color:#e65100;background:#fff3e0;padding:2px 7px;border-radius:10px;font-weight:600">+${pending} queued</span>` : ''}
+          <button onclick="event.stopPropagation();markAllSent(${safeHandle},this)" style="padding:4px 12px;border-radius:20px;border:1.5px solid var(--accent);background:none;color:var(--accent);font-size:.72rem;font-weight:700;cursor:pointer">Send All →</button>
         </div>
-        <div style="background:#fff;border-radius:10px;border:1.5px solid var(--line)" id="prowlist-${g.handle}">${rows}</div>
+        <div id="${bodyId}" style="border-top:1px solid var(--line)">${rows}</div>
       </div>`;
     }).join('');
     document.getElementById('emgPrintedList').innerHTML = html;
@@ -1942,7 +1962,7 @@ async function markUnitSent(u, btn) {
       const list = groupEl.querySelector('[id^="prowlist-"]');
       const remaining = list ? list.querySelectorAll('.emg-unit-row').length : 0;
       const cnt = groupEl.querySelector('[id^="pcnt-"]');
-      if (cnt) cnt.textContent = `(${remaining})`;
+      if (cnt) cnt.textContent = `${remaining} printed`;
       if (!remaining) groupEl.remove();
     }
     toast('Moved to Sent ✓');
@@ -1972,6 +1992,7 @@ async function loadSentView() {
       return;
     }
     const html = groups.map(g => {
+      const bodyId = `srowlist-${g.handle}`;
       const rows = g.units.map(u => {
         const orderDateStr = u.date
           ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -1987,9 +2008,13 @@ async function loadSentView() {
           <button onclick="undoSent(${safeU},this)" style="margin-left:auto;padding:3px 10px;border-radius:20px;border:1.5px solid var(--muted);background:none;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer">↩ Undo</button>
         </div>`;
       }).join('');
-      return `<div style="margin-bottom:14px" id="sgroup-${g.handle}">
-        <div style="font-weight:700;font-size:.85rem;color:var(--ink);padding:8px 12px 4px">${g.title} <span style="color:var(--muted);font-weight:400" id="scnt-${g.handle}">(${g.units.length})</span></div>
-        <div style="background:#fff;border-radius:10px;border:1.5px solid var(--line)" id="srowlist-${g.handle}">${rows}</div>
+      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="sgroup-${g.handle}">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="toggleEmgGroup('${bodyId}')">
+          <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▾</span>
+          <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
+          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="scnt-${g.handle}">${g.units.length} sent</span>
+        </div>
+        <div id="${bodyId}" style="border-top:1px solid var(--line)">${rows}</div>
       </div>`;
     }).join('');
     document.getElementById('emgSentList').innerHTML = html;
@@ -2007,7 +2032,7 @@ async function undoSent(u, btn) {
       const list = groupEl.querySelector('[id^="srowlist-"]');
       const remaining = list ? list.querySelectorAll('.emg-unit-row').length : 0;
       const cnt = groupEl.querySelector('[id^="scnt-"]');
-      if (cnt) cnt.textContent = `(${remaining})`;
+      if (cnt) cnt.textContent = `${remaining} sent`;
       if (!remaining) groupEl.remove();
     }
     toast('Moved back to Printed ✓');
@@ -2253,24 +2278,42 @@ function closeDispatchModal(e) {
   document.getElementById('dispatchModal').style.display = 'none';
 }
 
+const DISPATCH_TYPES = [
+  { value: 'emg',   label: '🚨 Emergency', color: '#e65100' },
+  { value: 'prod',  label: '🏭 Production', color: '#1565c0' },
+  { value: 'prime', label: '⚡ Prime',      color: '#6a1a8a' },
+  { value: 'stock', label: '📦 Stock',      color: '#2d7a4f' },
+];
+
 function renderDispatchRows() {
-  document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => `
-    <div style="display:flex;gap:8px;align-items:flex-start">
-      <div style="position:relative;flex:1">
-        <input type="text" data-di="${i}" class="disp-search" autocomplete="off"
-          placeholder="Search design…"
-          value="${(row.title || '').replace(/"/g, '&quot;')}"
-          oninput="dSearch(${i},this)"
-          onfocus="dSearch(${i},this)"
-          style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:8px 10px;font-size:.82rem">
-        <div class="disp-dd" id="ddd-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e9ddca;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.14)"></div>
+  document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
+    const pending = row.handle ? emgPendingCount(row.handle) : 0;
+    const typeOpts = DISPATCH_TYPES.map(t =>
+      `<option value="${t.value}" ${(row.type||'emg')===t.value?'selected':''}>${t.label}</option>`
+    ).join('');
+    return `
+    <div style="margin-bottom:10px;padding:10px;background:#fdf5ec;border-radius:10px;border:1.5px solid #e9ddca">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="position:relative;flex:1">
+          <input type="text" data-di="${i}" class="disp-search" autocomplete="off"
+            placeholder="Search design…"
+            value="${(row.title || '').replace(/"/g, '&quot;')}"
+            oninput="dSearch(${i},this)"
+            onfocus="dSearch(${i},this)"
+            style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:8px 10px;font-size:.82rem;background:#fff">
+          <div class="disp-dd" id="ddd-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e9ddca;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.14)"></div>
+        </div>
+        <input type="number" min="1" value="${row.qty || ''}" placeholder="Qty"
+          oninput="_dispatchRows[${i}].qty=parseInt(this.value)||0"
+          style="width:58px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center;background:#fff">
+        ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:7px 4px">✕</button>` : ''}
       </div>
-      <input type="number" min="1" value="${row.qty || ''}" placeholder="Qty"
-        oninput="_dispatchRows[${i}].qty=parseInt(this.value)||0"
-        style="width:64px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center">
-      ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:7px 4px">✕</button>` : ''}
-    </div>
-  `).join('');
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <select onchange="_dispatchRows[${i}].type=this.value" style="border:1.5px solid #e9ddca;border-radius:8px;padding:4px 8px;font-size:.78rem;font-family:inherit;background:#fff;color:#3a2b1d;flex:1">${typeOpts}</select>
+        <span id="dpending-${i}" style="font-size:.72rem;color:#e65100;font-weight:600">${pending ? `🚨 ${pending} still pending` : ''}</span>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 const _dSearchTimers = {};
@@ -2300,6 +2343,9 @@ function dSelect(i, handle, title) {
   if (inp) inp.value = title;
   const dd = document.getElementById(`ddd-${i}`);
   if (dd) dd.style.display = 'none';
+  const pending = emgPendingCount(handle);
+  const pendingEl = document.getElementById(`dpending-${i}`);
+  if (pendingEl) pendingEl.textContent = pending ? `🚨 ${pending} still pending` : '';
 }
 
 function addDispatchRow() {
@@ -2355,14 +2401,24 @@ async function loadDispatchView() {
       const dispatchBlocks = dayDispatches.map(d => {
         const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
         const safeItems = JSON.stringify(items).replace(/"/g, '&quot;');
-        const rows = items.map((it, ii) => `
-          <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid #faf6f0">
-            <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
-            <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
-            <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
-            <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
-            <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove this item">✕</button>
-          </div>`).join('');
+        const rows = items.map((it, ii) => {
+          const typeInfo = DISPATCH_TYPES.find(t => t.value === (it.type || 'emg')) || DISPATCH_TYPES[0];
+          const itPending = emgPendingCount(it.handle);
+          return `
+          <div style="padding:6px 0;border-bottom:1px solid #faf6f0">
+            <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center">
+              <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
+              <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
+              <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
+              <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
+              <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove this item">✕</button>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:3px;align-items:center">
+              <span style="font-size:.7rem;padding:1px 7px;border-radius:8px;font-weight:600;background:${typeInfo.color}18;color:${typeInfo.color}">${typeInfo.label}</span>
+              ${itPending ? `<span style="font-size:.7rem;color:#e65100;font-weight:600">🚨 ${itPending} still pending</span>` : `<span style="font-size:.7rem;color:#2d7a4f;font-weight:600">✓ all fulfilled</span>`}
+            </div>
+          </div>`;
+        }).join('');
         return `<div style="border-top:1px dashed #e9ddca;margin-top:8px;padding-top:8px">
           <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
             <button onclick="deleteDispatch('${d.id}')" style="background:none;border:none;color:#9c8a76;font-size:.72rem;cursor:pointer;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='#c62828';this.style.background='#fff0ee'" onmouseout="this.style.color='#9c8a76';this.style.background='none'">🗑 Delete entry</button>
