@@ -906,6 +906,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <h2>Emergency Units</h2>
     <p id="emgSubtitle">Items that couldn't be fulfilled from stock</p>
   </div>
+  <div style="margin-bottom:10px">
+    <input id="emgSearch" type="search" placeholder="Search designs across all tabs…" oninput="filterEmgSearch(this.value)" style="width:100%;padding:9px 14px;border:1.5px solid #e9ddca;border-radius:10px;font-size:.88rem;font-family:inherit;box-sizing:border-box;background:#fff">
+  </div>
   <div class="emg-toolbar">
     <div class="emg-view-tabs">
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
@@ -1091,9 +1094,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <p>Production dispatched to production — by date</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <!-- <button class="btn btn-ghost" onclick="openIncomingModal()" style="font-size:.82rem;padding:8px 16px">📦 Incoming Carton</button> -->
       <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.82rem;padding:8px 16px">📤 Record Dispatch</button>
     </div>
+  </div>
+  <div style="margin-bottom:12px">
+    <input id="dispatchSearch" type="search" placeholder="Search designs in dispatch log…" oninput="filterDispatchLog(this.value)" style="width:100%;padding:9px 14px;border:1.5px solid #e9ddca;border-radius:10px;font-size:.88rem;font-family:inherit;box-sizing:border-box;background:#fff">
   </div>
   <div id="dispatchView"><div class="empty-state"><div class="icon">📋</div><p>Loading…</p></div></div>
 </div>
@@ -1912,8 +1917,8 @@ function setEmgView(v) {
   document.getElementById('emgSent').style.display     = v === 'sent' ? '' : 'none';
   const filterRow = document.getElementById('emgDateFilterRow');
   if (filterRow) filterRow.style.display = v === 'all' ? 'flex' : 'none';
-  if (v === 'printed') { loadPrintedView(); }
-  if (v === 'sent') { loadSentView(); }
+  if (v === 'printed') { loadPrintedView().then(() => filterEmgSearch(document.getElementById('emgSearch')?.value)); }
+  if (v === 'sent') { loadSentView().then(() => filterEmgSearch(document.getElementById('emgSearch')?.value)); }
 }
 
 function applyEmgDateFilter() {
@@ -2559,9 +2564,12 @@ async function loadDispatchView() {
       if (!byDate[d.dispatch_date]) byDate[d.dispatch_date] = [];
       byDate[d.dispatch_date].push(d);
     }
-    el.innerHTML = Object.entries(byDate).map(([date, dayDispatches]) => {
+    const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+    const latestDate = sortedDates[0];
+    el.innerHTML = sortedDates.map((date, di) => {
+      const dayDispatches = byDate[date];
+      const isOpen = date === latestDate;
       const dateStr = new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-      // flatten all items across same-day dispatches
       const allItems = dayDispatches.flatMap(d => {
         const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
         return items.map(it => ({ ...it, _dispatchId: d.id }));
@@ -2569,48 +2577,75 @@ async function loadDispatchView() {
       const total = allItems.reduce((s, it) => s + (it.qty || 0), 0);
       const totalEmg = allItems.reduce((s, it) => s + (it.emergency || 0), 0);
       const totalStk = allItems.reduce((s, it) => s + (it.stock || 0), 0);
-      // flatten all items with their dispatch id for individual delete
       const flatRows = dayDispatches.flatMap(d => {
         const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
         return items.map((it, ii) => ({ it, ii, d, safeItems: JSON.stringify(items).replace(/"/g, '&quot;') }));
       });
+      const rowsHTML = flatRows.map(({ it, ii, d, safeItems }) => {
+        const itPending = emgPendingCount(it.handle, it.title);
+        const statusLine = itPending > 0 ? `<span style="color:#c62828;font-weight:700">🚨 ${itPending} pending</span>` : '';
+        return `<div class="dl-row" data-title="${(it.title || it.handle || '').toLowerCase()}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #faf6f0">
+            <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+              <span style="font-size:.85rem;font-weight:600;color:#3a2b1d;white-space:nowrap">${it.title || it.handle}</span>
+              <span style="font-size:.72rem">${statusLine}</span>
+            </div>
+            <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center;flex-shrink:0">
+            <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
+        </div>`;
+      }).join('');
       const dispatchBlocks = `
-        <div style="border-top:1px solid #f0ebe0;margin-top:8px;padding-top:8px">
+        <div class="dl-body" style="${isOpen ? '' : 'display:none;'}border-top:1px solid #f0ebe0;margin-top:8px;padding-top:8px">
           <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
             <button onclick="if(confirm('Delete all entries for this day?'))Promise.all([${dayDispatches.map(d=>`deleteDispatch('${d.id}',true)`).join(',')}]).then(()=>loadDispatchView())" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.7rem;cursor:pointer;padding:2px 8px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑 Delete all</button>
           </div>
-          ${flatRows.map(({ it, ii, d, safeItems }) => {
-            const typeInfo = DISPATCH_TYPES.find(t => t.value === (it.type || 'emg')) || DISPATCH_TYPES[0];
-            const itPending = emgPendingCount(it.handle, it.title);
-            const emg = it.emergency || 0;
-            const stk = it.stock || 0;
-            const parts = [];
-            if (itPending > 0) parts.push(`<span style="color:#c62828;font-weight:700">🚨 ${itPending} pending</span>`);
-            const statusLine = parts.join('');
-            return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #faf6f0">
-                <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-                  <span style="font-size:.85rem;font-weight:600;color:#3a2b1d;white-space:nowrap">${it.title || it.handle}</span>
-                  <span style="font-size:.72rem">${statusLine}</span>
-                </div>
-                <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center;flex-shrink:0">
-                <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
-            </div>`;
-          }).join('')}
+          ${rowsHTML}
         </div>`;
-      return `<div style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      return `<div class="dl-card" data-date="${date}" style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
+        <div onclick="toggleDispatchCard(this.closest('.dl-card'))" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:${isOpen?'10px':'0'};cursor:pointer;user-select:none">
           <div style="font-weight:700;font-size:.92rem">${dateStr}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <span style="font-size:.74rem;background:#f5f0e8;color:#6f5b46;padding:2px 9px;border-radius:10px;font-weight:600">${total} piece${total!==1?'s':''}</span>
             ${totalEmg ? `<span style="font-size:.74rem;background:#fff3e0;color:#e65100;padding:2px 9px;border-radius:10px;font-weight:600">🚨 ${totalEmg} emg</span>` : ''}
             ${totalStk ? `<span style="font-size:.74rem;background:#e8f5e9;color:#2d7a4f;padding:2px 9px;border-radius:10px;font-weight:600">📦 ${totalStk} stock</span>` : ''}
-            <button onclick="openDispatchModalForDate('${date}')" style="font-size:.72rem;padding:2px 10px;border-radius:10px;border:1.5px solid #e9ddca;background:#fdf5ec;color:#d4541f;font-weight:700;cursor:pointer;font-family:inherit">+ Add items</button>
+            <button onclick="event.stopPropagation();openDispatchModalForDate('${date}')" style="font-size:.72rem;padding:2px 10px;border-radius:10px;border:1.5px solid #e9ddca;background:#fdf5ec;color:#d4541f;font-weight:700;cursor:pointer;font-family:inherit">+ Add items</button>
+            <span style="color:#9c8a76;font-size:.8rem">${isOpen ? '▲' : '▼'}</span>
           </div>
         </div>
         ${dispatchBlocks}
       </div>`;
     }).join('');
   } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+}
+
+function toggleDispatchCard(card) {
+  const body = card.querySelector('.dl-body');
+  const chevron = card.querySelector('.dl-card-chevron') || card.querySelector('span[style*="▲"], span[style*="▼"]');
+  if (!body) return;
+  const opening = body.style.display === 'none';
+  body.style.display = opening ? '' : 'none';
+  const hd = card.querySelector('[onclick*="toggleDispatchCard"]');
+  if (hd) hd.style.marginBottom = opening ? '10px' : '0';
+  if (chevron) chevron.textContent = opening ? '▲' : '▼';
+}
+
+function filterDispatchLog(q) {
+  q = (q || '').toLowerCase().trim();
+  document.querySelectorAll('#dispatchView .dl-card').forEach(card => {
+    if (!q) { card.style.display = ''; return; }
+    const rows = card.querySelectorAll('.dl-row');
+    let anyMatch = false;
+    rows.forEach(row => {
+      const title = row.dataset.title || '';
+      const show = title.includes(q);
+      row.style.display = show ? '' : 'none';
+      if (show) anyMatch = true;
+    });
+    card.style.display = anyMatch ? '' : 'none';
+    if (anyMatch) {
+      const body = card.querySelector('.dl-body');
+      if (body) body.style.display = '';
+    }
+  });
 }
 
 async function deleteDispatch(id, silent = false) {
@@ -2839,9 +2874,28 @@ function emgGroupHTML(g, gi, containerId) {
 }
 
 function renderEmgGroups() {
-  const html = allEmgGroups.map((g, gi) => emgGroupHTML(g, gi, 'all')).join('');
+  const q = (document.getElementById('emgSearch')?.value || '').toLowerCase().trim();
+  const groups = q ? allEmgGroups.filter(g => g.title && g.title.toLowerCase().includes(q)) : allEmgGroups;
+  const html = groups.map((g, gi) => emgGroupHTML(g, allEmgGroups.indexOf(g), 'all')).join('');
   document.getElementById('emgGroups').innerHTML = html ||
     '<div class="empty-state"><div class="icon">✅</div><p>No outstanding emergencies</p></div>';
+}
+
+function filterEmgSearch(q) {
+  q = (q || '').toLowerCase().trim();
+  if (emgView === 'all') {
+    renderEmgGroups();
+  } else {
+    const listId = emgView === 'printed' ? 'emgPrintedList' : 'emgSentList';
+    const container = document.getElementById(listId);
+    if (!container) return;
+    container.querySelectorAll('[id^="pgroup-"],[id^="sgroup-"]').forEach(card => {
+      if (!q) { card.style.display = ''; return; }
+      const titleEl = card.querySelector('[style*="font-weight:700"]');
+      const title = (titleEl?.textContent || '').toLowerCase();
+      card.style.display = title.includes(q) ? '' : 'none';
+    });
+  }
 }
 
 async function downloadEmgGroup(handle) {
