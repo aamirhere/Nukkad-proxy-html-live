@@ -6033,13 +6033,7 @@ function _esRender() {
     }
     matches.sort((a, b) => a.quote.localeCompare(b.quote));
 
-    const rawQ = (document.getElementById('esSearch').value || '').trim();
-    const exactInList = matches.some(m => m.quote.toLowerCase() === q);
-    const addNewRow = `<div onclick="_esSelectQuote(${JSON.stringify(rawQ).replace(/"/g,'&quot;')})" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;background:#fdf5ec">
-      <div style="font-size:.86rem;font-weight:600;color:var(--accent)">➕ Add "${esc(rawQ)}" as new</div>
-    </div>`;
-
-    prodEl.style.display = 'block';
+    prodEl.style.display = matches.length ? 'block' : 'none';
     prodEl.innerHTML = matches.slice(0, 30).map(m => {
       const badge = m.existingQty > 0
         ? `<span style="font-size:.68rem;background:#e8f5e9;color:#2e7d32;padding:2px 7px;border-radius:10px;font-weight:700">${m.existingQty} in stock</span>`
@@ -6048,7 +6042,7 @@ function _esRender() {
         <div style="font-size:.86rem;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.quote)}</div>
         ${badge}
       </div>`;
-    }).join('') + (!exactInList ? addNewRow : '');
+    }).join('');
     document.getElementById('esList').innerHTML = '';
     return;
   }
