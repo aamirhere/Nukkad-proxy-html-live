@@ -170,7 +170,9 @@ body{font-family:var(--fb);background:var(--bg);color:var(--ink);min-height:100v
 .oi-chk.done{background:var(--green);border-color:var(--green);color:#fff}
 .oi-chk.part{background:var(--amber);border-color:var(--amber);color:#fff}
 .oi-q{flex:1;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.oi-c{font-size:.68rem;color:var(--muted);white-space:nowrap}
+.oi-c{font-size:.68rem;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:3px}
+.color-edit-pencil{border:none;background:none;padding:0 2px;font-size:.72rem;cursor:pointer;color:var(--muted);opacity:.6;line-height:1;flex-shrink:0}
+.color-edit-pencil:hover{opacity:1;color:var(--accent)}
 .oi-n{font-size:.68rem;font-weight:700;color:var(--muted);white-space:nowrap}
 .oi-clickable{cursor:pointer;border-radius:5px;transition:background .15s}
 .oi-clickable:hover{background:rgba(212,84,31,.08)}
@@ -3002,12 +3004,14 @@ function renderList() {
             const bk = _bd([it.order_name, it.quote, it.color]);
             const selKey = `${it.order_name}|||${it.quote}|||${it.color}`;
             const isSel = _listSel.has(selKey);
+            const ebk = _bd([it.order_name, it.quote, it.color]);
+            const pencilBtn = `<button class="color-edit-pencil" data-bd="${ebk}" onclick="event.stopPropagation();var d=_btnData[this.dataset.bd];openColorEdit(d[0],d[1],d[2])" title="Change color">✏</button>`;
             if (_listSelMode) {
               const lk = _bd([it.order_name, it.quote, it.color]);
               return `<div class="oi-line oi-clickable" data-bd="${lk}" onclick="listSelToggle(this.dataset.bd)" style="${isSel?'background:#fff3e0;':done?'opacity:.55;':''}">
                 <input type="checkbox" id="lchk-${lk}" style="width:15px;height:15px;accent-color:var(--accent);pointer-events:none;flex-shrink:0" ${isSel?'checked':''}>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                <div class="oi-c">${esc(it.color)}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
                 <div class="oi-n" style="color:${done?'#4caf50':'var(--muted)'}">${it.found}/${it.needed}</div>
               </div>`;
             }
@@ -3016,14 +3020,14 @@ function renderList() {
               return `<div class="oi-line oi-clickable" data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck / reduce count">
                 <div class="oi-chk done" style="cursor:pointer">✓</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                <div class="oi-c">${esc(it.color)}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
                 <div class="oi-n" style="color:var(--green)">${it.found}/${it.needed}</div>
               </div>`;
             }
             return `<div class="oi-line oi-clickable" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found">
               <div class="oi-chk ${chkCls}">${chkTxt}</div>
               <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-              <div class="oi-c">${esc(it.color)}</div>
+              <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
               <div class="oi-n">${it.found}/${it.needed}</div>
             </div>`;
           }).join('')}
@@ -6295,7 +6299,67 @@ function tcCopyInTransit() {
   btn.textContent = '✓ Copied!';
   setTimeout(() => { btn.textContent = orig; }, 1500);
 }
+
+// ── COLOR EDIT ─────────────────────────────────────────────────────────────────
+const COLOR_EDIT_COLORS = ['Peach','White','Blue','Orange','Red','Yellow','Purple','Green','Gold','Standard'];
+const COLOR_EMOJI = { Peach:'🟠', White:'⚪', Blue:'🔵', Orange:'🟧', Red:'🔴', Yellow:'🟡', Purple:'🟣', Green:'🟢', Gold:'🟤', Standard:'⬜' };
+let _ceOrderName = '', _cePrevColor = '', _ceQuote = '', _ceNewColor = '';
+
+function openColorEdit(orderName, quote, color) {
+  _ceOrderName = orderName; _ceQuote = quote; _cePrevColor = color; _ceNewColor = color;
+  document.getElementById('ceTitle').textContent = `Change color for ${orderName}`;
+  document.getElementById('ceQuote').textContent = quote;
+  document.getElementById('ceSaveBtn').disabled = true;
+  const pills = COLOR_EDIT_COLORS.map(c =>
+    `<button class="cpill${c===color?' cpill-active':''}" onclick="cePick('${c}')" id="cep-${c}">${COLOR_EMOJI[c]||''} ${c}</button>`
+  ).join('');
+  document.getElementById('cePills').innerHTML = pills;
+  document.getElementById('colorEditModal').style.display = 'flex';
+}
+
+function cePick(color) {
+  _ceNewColor = color;
+  document.querySelectorAll('#cePills .cpill').forEach(b => b.classList.remove('cpill-active'));
+  const btn = document.getElementById('cep-' + color);
+  if (btn) btn.classList.add('cpill-active');
+  document.getElementById('ceSaveBtn').disabled = (color === _cePrevColor);
+}
+
+async function saveColorEdit() {
+  if (!_ceNewColor || _ceNewColor === _cePrevColor) return;
+  const btn = document.getElementById('ceSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await apiFetch({ action: 'update_rack_color', order_name: _ceOrderName, quote: _ceQuote, old_color: _cePrevColor, new_color: _ceNewColor });
+    // Update local rackItems
+    const row = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _ceQuote && r.color === _cePrevColor);
+    if (row) row.color = _ceNewColor;
+    closeColorEdit();
+    renderList();
+    toast(`Color changed to ${_ceNewColor}`);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Save';
+    toast('Failed: ' + (e.message || e));
+  }
+}
+
+function closeColorEdit() {
+  document.getElementById('colorEditModal').style.display = 'none';
+}
 </script>
+
+<!-- Color Edit Modal -->
+<div id="colorEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:20px 18px;width:90%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+    <div style="font-weight:700;font-size:.95rem;color:var(--ink);margin-bottom:4px" id="ceTitle">Change color</div>
+    <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="ceQuote"></div>
+    <div class="color-pills" id="cePills" style="margin-bottom:18px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="act-btn" onclick="closeColorEdit()">Cancel</button>
+      <button class="act-btn go" id="ceSaveBtn" onclick="saveColorEdit()" disabled>Save</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
