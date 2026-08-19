@@ -784,6 +784,70 @@ async function refreshProducts() {
 
 // ── A4 GENERATION ─────────────────────────────────────────────────────────────
 
+// Physical size in mm from product metadata + image aspect ratio
+function getPhysicalSizeMm(p, lk, img) {
+  const lenMm = lk?.size_h_mm || (p?.size_h_in ? p.size_h_in * 25.4 : null);
+  if (lenMm && img) {
+    const aspect = img.naturalWidth / img.naturalHeight;
+    return aspect >= 1
+      ? { wMm: lenMm, hMm: lenMm / aspect }
+      : { wMm: lenMm * aspect, hMm: lenMm };
+  }
+  return { wMm: null, hMm: null };
+}
+
+// Pack count copies of (wMm × hMm) onto one A4 page using CSS units
+function buildPrintHtml(copies, imgData, wMm, hMm, title) {
+  const PAD = 10, GAP = 3;
+  // Try portrait first, then landscape — pick whichever fits more per page
+  const pUW = 210 - 2*PAD, pUH = 297 - 2*PAD;
+  const lUW = 297 - 2*PAD, lUH = 210 - 2*PAD;
+
+  function layout(uW, uH) {
+    // scale down only if design is bigger than usable area
+    const scaleW = wMm > uW ? uW / wMm : 1;
+    const scaleH = hMm * scaleW > uH ? uH / (hMm * scaleW) / 1 : 1;
+    const s = Math.min(scaleW, scaleH);
+    const dW = wMm * s, dH = hMm * s;
+    const cols = Math.max(1, Math.floor((uW + GAP) / (dW + GAP)));
+    const rows = Math.max(1, Math.floor((uH + GAP) / (dH + GAP)));
+    return { cols, rows, dW, dH, perPage: cols * rows };
+  }
+
+  let useLand = false;
+  if (wMm !== null) {
+    const { perPage: pp } = layout(pUW, pUH);
+    const { perPage: lp } = layout(lUW, lUH);
+    useLand = wMm > pUW || lp > pp;
+  }
+
+  const uW = useLand ? lUW : pUW;
+  const uH = useLand ? lUH : pUH;
+  const { cols, dW, dH, perPage } = wMm !== null ? layout(uW, uH) : { cols: 1, dW: uW, dH: uH, perPage: 1 };
+
+  const pgSize = useLand ? 'A4 landscape' : 'A4 portrait';
+
+  const pages = [];
+  let remaining = copies;
+  while (remaining > 0) {
+    const n = Math.min(remaining, perPage);
+    const items = Array.from({ length: n }, () =>
+      `<img src="${imgData}" style="width:${dW}mm;height:${dH}mm;object-fit:contain;display:block;flex-shrink:0">`
+    ).join('');
+    pages.push(`<div class="pg"><div class="wrap">${items}</div></div>`);
+    remaining -= n;
+  }
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${title || 'Print'}</title><style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#fff}
+    .pg{page-break-after:always}
+    .pg:last-child{page-break-after:auto}
+    .wrap{display:flex;flex-wrap:wrap;gap:${GAP}mm;padding:${PAD}mm;align-content:flex-start;width:${useLand?297:210}mm}
+    @media print{@page{size:${pgSize};margin:0}}
+  </style></head><body>${pages.join('')}</body></html>`;
+}
+
 async function genA4(handle, mode) {
   const p = allProducts.find(x => x.handle === handle);
   const lk = links[handle];
@@ -795,56 +859,46 @@ async function genA4(handle, mode) {
   if (!imgData) { toast('Could not load image — check Drive sharing (Anyone with link → Viewer)'); return; }
 
   const img = await loadImage(imgData);
-  const { pw, ph } = getPrintSize(p, lk, img);
-  const canvas = document.getElementById('offCanvas');
-  const ctx = canvas.getContext('2d');
+  const hasSize = !!(lk?.size_h_mm || p?.size_h_in);
+  if (!hasSize) toast('⚠ No size set — fitting to A4. Set the length (📐) for exact physical size.', true);
 
+  const { wMm, hMm } = getPhysicalSizeMm(p, lk, img);
+
+  let copies;
   if (mode === 'single') {
-    const hasSize = !!(lk?.size_h_mm || p?.size_h_in);
-    if (!hasSize) toast('⚠ No size set — fitting to A4. Set the length (📐) for exact physical size.', true);
-
-    // landscape only when physical width can't fit in portrait page width
-    const useLand = pw > A4_W - 2*MARGIN;
-    const cW = useLand ? A4_H : A4_W;
-    const cH = useLand ? A4_W : A4_H;
-    canvas.width = cW; canvas.height = cH;
-    fillA4(ctx);
-    // if size is known: exact physical size (never enlarge). if unknown: fit to usable area.
-    const { x, y, w, h } = hasSize ? placePrint(pw, ph, cW, cH, MARGIN) : centerFit(pw, ph, cW, cH, MARGIN);
-    ctx.drawImage(img, x, y, w, h);
-    downloadCanvas(canvas, `${handle}-single.png`);
+    copies = 1;
   } else if (mode === 'tile2') {
-    const { cW, cH } = bestA4(pw, ph);
-    canvas.width = cW; canvas.height = cH;
-    fillA4(ctx);
-    tilePlacements(pw, ph, 2, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
-    downloadCanvas(canvas, `${handle}-tile2.png`);
-  } else if (mode === 'tilemax') {
-    const { cW, cH } = bestA4(pw, ph);
-    canvas.width = cW; canvas.height = cH;
-    fillA4(ctx);
-    const max = maxTiles(pw, ph, cW, cH);
-    tilePlacements(pw, ph, max, cW, cH).forEach(pl => ctx.drawImage(img, pl.x, pl.y, pl.w, pl.h));
-    downloadCanvas(canvas, `${handle}-tilemax.png`);
+    copies = 2;
+  } else { // tilemax
+    if (wMm !== null) {
+      const PAD = 10, GAP = 3;
+      const pUW = 210 - 2*PAD, pUH = 297 - 2*PAD;
+      const lUW = 297 - 2*PAD, lUH = 210 - 2*PAD;
+      const pCols = Math.max(1, Math.floor((pUW + GAP) / (wMm + GAP)));
+      const pRows = Math.max(1, Math.floor((pUH + GAP) / (hMm + GAP)));
+      const lCols = Math.max(1, Math.floor((lUW + GAP) / (wMm + GAP)));
+      const lRows = Math.max(1, Math.floor((lUH + GAP) / (hMm + GAP)));
+      copies = Math.max(pCols * pRows, lCols * lRows, 1);
+    } else {
+      copies = 2;
+    }
   }
+
+  const html = buildPrintHtml(copies, imgData, wMm, hMm, p?.title || handle);
+  const win = window.open('', '_blank');
+  if (!win) { toast('Allow popups to open the print dialog'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.addEventListener('load', () => { win.focus(); win.print(); });
 }
 
-// Bulk download — separate A4 per selected product (single layout)
+// Bulk: one design per A4 page (separate page for each selected product)
 async function bulkDownload() {
-  const handles = [...selectedHandles];
-  if (!handles.length) { toast('Nothing selected'); return; }
-  toast(`Downloading ${handles.length} A4 sheets…`);
-  for (const handle of handles) {
-    const lk = links[handle];
-    if (!lk?.image_url && !lk?.drive_id) { toast(`Skipped ${handle} — no image`); continue; }
-    await genPDF(handle, 'single');
-    await sleep(400);
-  }
-  toast('All done!');
-  cancelSelect();
+  // Reuse genMultiA4 — it already packs each product on its own page when they differ in orientation
+  await genMultiA4();
 }
 
-// Multi-product: pack onto A4 pages, open print window for PDF
+// Multi-product: pack onto A4 pages using CSS units, open print window
 async function genMultiA4() {
   if (!selectedHandles.size) { toast('Select products first'); return; }
   toast(`Loading ${selectedHandles.size} images…`);
@@ -858,85 +912,55 @@ async function genMultiA4() {
     const imgData = lk.image_url || await fetchProxiedImage(driveId);
     if (!imgData) continue;
     const img = await loadImage(imgData);
-    const { pw, ph } = getPrintSize(p, lk, img);
-    const hasSize = !!(lk?.size_h_mm || lk?.size_w_mm || p?.size_h_in);
-    const needsLand = pw > A4_W - 2*MARGIN;
-    items.push({ img, pw, ph, needsLand, hasSize });
+    const { wMm, hMm } = getPhysicalSizeMm(p, lk, img);
+    items.push({ imgData, wMm, hMm, title: p?.title || handle });
   }
 
   if (!items.length) { toast('No images loaded'); return; }
 
-  const canvas = document.getElementById('offCanvas');
-  const ctx = canvas.getContext('2d');
-  const dataUrls = []; // { url, landscape }
+  const PAD = 10, GAP = 3;
+  const pUW = 210 - 2*PAD, pUH = 297 - 2*PAD;
+  const lUW = 297 - 2*PAD, lUH = 210 - 2*PAD;
 
-  // sort: portrait items first, landscape items after — so they group naturally
-  const portList = items.filter(i => !i.needsLand);
-  const landList  = items.filter(i =>  i.needsLand);
+  // Sort: items wider than portrait usable go to landscape pages
+  const portList = items.filter(i => !i.wMm || i.wMm <= pUW);
+  const landList = items.filter(i => i.wMm && i.wMm > pUW);
 
-  const portUsableW = A4_W - 2*MARGIN;
-  const portUsableH = A4_H - 2*MARGIN;
-  const lUsableW    = A4_H - 2*MARGIN;
-  const lUsableH    = A4_W - 2*MARGIN;
-  // cap no-size items at half the usable height so at least 2 can pack per page
-  const noSizeCapH  = Math.floor((portUsableH - GAP) / 2);
-  const noSizeCapHl = Math.floor((lUsableH - GAP) / 2);
+  const pages = [];
 
-  let portItems = [], portCurY = MARGIN;
-  const flushPortrait = () => {
-    if (!portItems.length) return;
-    canvas.width = A4_W; canvas.height = A4_H;
-    fillA4(ctx);
-    portItems.forEach(({ img, x, y, w, h }) => ctx.drawImage(img, x, y, w, h));
-    dataUrls.push({ url: canvas.toDataURL('image/png'), landscape: false });
-    portItems = []; portCurY = MARGIN;
-  };
-
-  let landItems = [], landCurY = MARGIN;
-  const flushLandscape = () => {
-    if (!landItems.length) return;
-    canvas.width = A4_H; canvas.height = A4_W;
-    fillA4(ctx);
-    landItems.forEach(({ img, x, y, w, h }) => ctx.drawImage(img, x, y, w, h));
-    dataUrls.push({ url: canvas.toDataURL('image/png'), landscape: true });
-    landItems = []; landCurY = MARGIN;
-  };
-
-  for (const item of portList) {
-    const maxH = item.hasSize ? portUsableH : noSizeCapH;
-    const scale = Math.min(1, portUsableW/item.pw, maxH/item.ph);
-    const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
-    if (portItems.length && portCurY + dh > A4_H - MARGIN) flushPortrait();
-    portItems.push({ img: item.img, x: MARGIN + Math.round((portUsableW-dw)/2), y: portCurY, w: dw, h: dh });
-    portCurY += dh + GAP;
+  function packPage(list, uW, uH, landscape) {
+    let pageItems = [], curY = 0;
+    const flush = () => {
+      if (!pageItems.length) return;
+      const w = landscape ? 297 : 210;
+      pages.push(`<div class="pg"><div style="display:flex;flex-wrap:wrap;gap:${GAP}mm;padding:${PAD}mm;align-content:flex-start;width:${w}mm">${pageItems.join('')}</div></div>`);
+      pageItems = []; curY = 0;
+    };
+    for (const item of list) {
+      const dW = item.wMm ? Math.min(item.wMm, uW) : uW;
+      const dH = item.hMm ? item.hMm * (dW / item.wMm) : uH / 2;
+      const fH = Math.min(dH, uH);
+      if (pageItems.length && curY + fH > uH) flush();
+      pageItems.push(`<img src="${item.imgData}" style="width:${dW}mm;height:${fH}mm;object-fit:contain;display:block">`);
+      curY += fH + GAP;
+    }
+    flush();
   }
-  flushPortrait();
 
-  for (const item of landList) {
-    const maxH = item.hasSize ? lUsableH : noSizeCapHl;
-    const scale = Math.min(1, lUsableW/item.pw, maxH/item.ph);
-    const dw = Math.round(item.pw*scale), dh = Math.round(item.ph*scale);
-    if (landItems.length && landCurY + dh > A4_W - MARGIN) flushLandscape();
-    landItems.push({ img: item.img, x: MARGIN + Math.round((lUsableW-dw)/2), y: landCurY, w: dw, h: dh });
-    landCurY += dh + GAP;
-  }
-  flushLandscape();
+  packPage(portList, pUW, pUH, false);
+  packPage(landList, lUW, lUH, true);
 
-  toast(`${dataUrls.length} page(s) — opening print dialog…`);
+  const allPagesHtml = pages.join('');
+  toast(`${pages.length} page(s) — opening print dialog…`);
   const win = window.open('', '_blank');
-  if (!win) { toast('Allow popups to download multi-page PDF'); return; }
-  const pageHtml = dataUrls.map(({ url, landscape }) =>
-    `<div class="pg ${landscape ? 'land' : 'port'}"><img src="${url}"></div>`
-  ).join('');
-  win.document.write(`<!doctype html><html><head><style>
+  if (!win) { toast('Allow popups to open the print dialog'); return; }
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><style>
     *{margin:0;padding:0;box-sizing:border-box}
-    .pg{page-break-after:always;display:flex;align-items:center;justify-content:center}
+    body{background:#fff}
+    .pg{page-break-after:always}
     .pg:last-child{page-break-after:auto}
-    .port{width:210mm;height:297mm} .land{width:297mm;height:210mm}
-    @media print{.port{page:port} .land{page:land}}
-    @page port{size:A4 portrait;margin:0} @page land{size:A4 landscape;margin:0}
-    img{width:100%;height:100%;object-fit:contain}
-  </style></head><body>${pageHtml}</body></html>`);
+    @media print{@page{size:A4;margin:0}}
+  </style></head><body>${allPagesHtml}</body></html>`);
   win.document.close();
   win.addEventListener('load', () => { win.focus(); win.print(); });
   cancelSelect();
