@@ -221,6 +221,19 @@ body{font-family:Nunito,Helvetica Neue,sans-serif;background:#f6f0e8;color:#3a2b
   </label>
 </div>
 
+<div id="printCalBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 14px;background:#fff8f0;border:1px solid #e9ddca;border-radius:10px;margin:8px 10px 4px;font-size:.8rem;color:#6f5b46">
+  <span style="font-weight:700;color:#3a2b1d">📐 Print calibration</span>
+  <label style="display:flex;align-items:center;gap:5px">
+    Size offset
+    <input id="printOffsetVal" type="number" value="0" step="0.5" style="width:62px;padding:3px 7px;border:1.5px solid #e9ddca;border-radius:6px;font-size:.8rem;text-align:center" oninput="savePrintCalib()">
+    <select id="printOffsetUnit" onchange="savePrintCalib()" style="padding:3px 6px;border:1.5px solid #e9ddca;border-radius:6px;font-size:.8rem;background:#fff">
+      <option value="mm">mm</option>
+      <option value="in">inch</option>
+    </select>
+  </label>
+  <span style="color:#9c8a76;font-size:.75rem">Positive = larger, negative = smaller. Applied to all prints.</span>
+</div>
+
 <div id="selPill">
   <span class="pill-count" id="selCount">0</span> selected
   <div class="pill-dl-wrap" id="pillDlWrap">
@@ -784,14 +797,38 @@ async function refreshProducts() {
 
 // ── A4 GENERATION ─────────────────────────────────────────────────────────────
 
+// ── PRINT CALIBRATION ─────────────────────────────────────────────────────────
+
+function getPrintOffsetMm() {
+  const val = parseFloat(document.getElementById('printOffsetVal')?.value) || 0;
+  const unit = document.getElementById('printOffsetUnit')?.value || 'mm';
+  return unit === 'in' ? val * 25.4 : val;
+}
+
+function savePrintCalib() {
+  const val = document.getElementById('printOffsetVal')?.value || '0';
+  const unit = document.getElementById('printOffsetUnit')?.value || 'mm';
+  localStorage.setItem('ntPrintOffset', JSON.stringify({ val, unit }));
+}
+
+function loadPrintCalib() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ntPrintOffset') || '{}');
+    if (saved.val !== undefined) document.getElementById('printOffsetVal').value = saved.val;
+    if (saved.unit) document.getElementById('printOffsetUnit').value = saved.unit;
+  } catch {}
+}
+
 // Physical size in mm from product metadata + image aspect ratio
 function getPhysicalSizeMm(p, lk, img) {
   const lenMm = lk?.size_h_mm || (p?.size_h_in ? p.size_h_in * 25.4 : null);
   if (lenMm && img) {
+    const offsetMm = getPrintOffsetMm();
+    const adjustedLen = Math.max(1, lenMm + offsetMm);
     const aspect = img.naturalWidth / img.naturalHeight;
     return aspect >= 1
-      ? { wMm: lenMm, hMm: lenMm / aspect }
-      : { wMm: lenMm * aspect, hMm: lenMm };
+      ? { wMm: adjustedLen, hMm: adjustedLen / aspect }
+      : { wMm: adjustedLen * aspect, hMm: adjustedLen };
   }
   return { wMm: null, hMm: null };
 }
@@ -1665,6 +1702,7 @@ async function uploadFile(handle, file) {
 }
 
 init();
+loadPrintCalib();
 </script>
 </body>
 </html>
