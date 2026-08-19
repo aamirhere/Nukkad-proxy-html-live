@@ -1888,7 +1888,8 @@ function clearEmgDateFilter() {
 function emgPendingCount(handle) {
   const g = allEmgGroups.find(g => g.handle === handle);
   if (!g) return 0;
-  return g.units.filter(u => !u.picked_at && !u.downloaded_at).length;
+  // pending = not yet picked (includes both "all open" and "printed" states)
+  return g.units.filter(u => !u.picked_at).length;
 }
 
 function toggleEmgGroup(id) {
@@ -2446,36 +2447,38 @@ async function loadDispatchView() {
       const total = allItems.reduce((s, it) => s + (it.qty || 0), 0);
       const totalEmg = allItems.reduce((s, it) => s + (it.emergency || 0), 0);
       const totalStk = allItems.reduce((s, it) => s + (it.stock || 0), 0);
-      // group by dispatch id for delete buttons
-      const dispatchBlocks = dayDispatches.map(d => {
+      // flatten all items with their dispatch id for individual delete
+      const flatRows = dayDispatches.flatMap(d => {
         const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
-        const safeItems = JSON.stringify(items).replace(/"/g, '&quot;');
-        const rows = items.map((it, ii) => {
-          const typeInfo = DISPATCH_TYPES.find(t => t.value === (it.type || 'emg')) || DISPATCH_TYPES[0];
-          const itPending = emgPendingCount(it.handle);
-          return `
-          <div style="padding:6px 0;border-bottom:1px solid #faf6f0">
-            <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center">
-              <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
-              <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
-              <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
-              <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
-              <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove this item">✕</button>
-            </div>
-            <div style="display:flex;gap:6px;margin-top:3px;align-items:center">
-              <span style="font-size:.7rem;padding:1px 7px;border-radius:8px;font-weight:600;background:${typeInfo.color}18;color:${typeInfo.color}">${typeInfo.label}</span>
-              ${itPending ? `<span style="font-size:.7rem;color:#e65100;font-weight:600">🚨 ${itPending} still pending</span>` : `<span style="font-size:.7rem;color:#2d7a4f;font-weight:600">✓ all fulfilled</span>`}
-            </div>
-          </div>`;
-        }).join('');
-        return `<div style="border-top:1px dashed #e9ddca;margin-top:8px;padding-top:8px">
-          <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center;font-size:.79rem;color:#9c8a76;font-weight:600;padding:0 0 4px;border-bottom:1px solid #f0ebe0;margin-bottom:4px">
+        return items.map((it, ii) => ({ it, ii, d, safeItems: JSON.stringify(items).replace(/"/g, '&quot;') }));
+      });
+      const dispatchBlocks = `
+        <div style="border-top:1px solid #f0ebe0;margin-top:8px;padding-top:8px">
+          <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center;font-size:.79rem;color:#9c8a76;font-weight:600;padding:0 0 6px;border-bottom:1px solid #f0ebe0;margin-bottom:4px">
             <span>Design</span><span style="text-align:center">Qty</span><span style="text-align:center">Emg</span><span style="text-align:center">Stock</span>
-            <button onclick="deleteDispatch('${d.id}')" style="background:none;border:none;color:#ccc;font-size:.72rem;cursor:pointer;padding:0;line-height:1;white-space:nowrap" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Delete entry">🗑</button>
+            <button onclick="if(confirm('Delete all entries for this day?'))Promise.all([${dayDispatches.map(d=>`deleteDispatch('${d.id}',true)`).join(',')}]).then(()=>loadDispatchView())" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.68rem;cursor:pointer;padding:1px 6px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑 Delete</button>
           </div>
-          ${rows}
+          ${flatRows.map(({ it, ii, d, safeItems }) => {
+            const typeInfo = DISPATCH_TYPES.find(t => t.value === (it.type || 'emg')) || DISPATCH_TYPES[0];
+            const itPending = emgPendingCount(it.handle);
+            const status = itPending
+              ? `<span style="font-size:.68rem;color:#e65100;font-weight:700">🚨 ${itPending} pending</span>`
+              : `<span style="font-size:.68rem;color:#2d7a4f;font-weight:600">✓ fulfilled</span>`;
+            return `<div style="padding:5px 0;border-bottom:1px solid #faf6f0">
+              <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center">
+                <div style="min-width:0">
+                  <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
+                  <span style="margin-left:6px;font-size:.68rem;padding:1px 6px;border-radius:8px;font-weight:600;background:${typeInfo.color}18;color:${typeInfo.color}">${typeInfo.label.replace(/^[^\s]+ /,'')}</span>
+                  <span style="margin-left:4px">${status}</span>
+                </div>
+                <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
+                <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
+                <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
+                <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
+              </div>
+            </div>`;
+          }).join('')}
         </div>`;
-      }).join('');
       return `<div style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <div style="font-weight:700;font-size:.92rem">${dateStr}</div>
@@ -2492,13 +2495,12 @@ async function loadDispatchView() {
   } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
 }
 
-async function deleteDispatch(id) {
-  if (!confirm('Delete this dispatch entry?')) return;
+async function deleteDispatch(id, silent = false) {
+  if (!silent && !confirm('Delete this dispatch entry?')) return;
   try {
     await api({ action: 'delete_dispatch', id });
-    toast('Deleted ✓');
-    loadDispatchView();
-  } catch(e) { toast('Failed: ' + e.message); }
+    if (!silent) { toast('Deleted ✓'); loadDispatchView(); }
+  } catch(e) { if (!silent) toast('Failed: ' + e.message); }
 }
 
 async function deleteDispatchItem(id, idx, items) {
