@@ -2539,11 +2539,8 @@ async function loadDispatchView() {
             const emg = it.emergency || 0;
             const stk = it.stock || 0;
             const parts = [];
-            if (emg > 0) parts.push(`<span style="color:#e65100;font-weight:700">🚨 ${emg} emg fulfilled</span>`);
-            if (stk > 0) parts.push(`<span style="color:#2d7a4f;font-weight:600">📦 ${stk} to stock</span>`);
-            if (itPending > 0) parts.push(`<span style="color:#c62828;font-weight:700">⚠️ ${itPending} still pending</span>`);
-            if (!emg && !stk) parts.push(`<span style="color:#9c8a76">—</span>`);
-            const statusLine = parts.join('<span style="color:#ddd;margin:0 3px">·</span>');
+            if (itPending > 0) parts.push(`<span style="color:#c62828;font-weight:700">🚨 ${itPending} pending</span>`);
+            const statusLine = parts.join('');
             return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #faf6f0">
                 <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
                   <span style="font-size:.85rem;font-weight:600;color:#3a2b1d;white-space:nowrap">${it.title || it.handle}</span>
