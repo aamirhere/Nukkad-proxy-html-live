@@ -957,7 +957,7 @@ async function genA4(handle, mode) {
     if (!win) { toast('Allow popups to open the print dialog'); return; }
     win.document.write(html);
     win.document.close();
-    win.addEventListener('load', () => { win.focus(); win.print(); });
+    win.addEventListener('load', () => { win.focus(); win.print(); win.onafterprint = () => win.close(); });
     return;
   }
 
@@ -986,7 +986,7 @@ async function genA4(handle, mode) {
   if (!win) { toast('Allow popups to open the print dialog'); return; }
   win.document.write(html);
   win.document.close();
-  win.addEventListener('load', () => { win.focus(); win.print(); });
+  win.addEventListener('load', () => { win.focus(); win.print(); win.onafterprint = () => win.close(); });
 }
 
 // Bulk: one design per A4 page (separate page for each selected product)
@@ -1059,7 +1059,7 @@ async function genMultiA4() {
     @media print{@page{size:A4;margin:0}}
   </style></head><body>${allPagesHtml}</body></html>`);
   win.document.close();
-  win.addEventListener('load', () => { win.focus(); win.print(); });
+  win.addEventListener('load', () => { win.focus(); win.print(); win.onafterprint = () => win.close(); });
   cancelSelect();
 }
 
