@@ -977,7 +977,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 </div>
 
 <!-- ── DISPATCH MODAL ──────────────────────────────────────────────────────── -->
-<div class="modal-backdrop" id="dispatchModal" onclick="closeDispatchModal(event)" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+<div class="modal-backdrop" id="dispatchModal" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.55);align-items:center;justify-content:center">
   <div onclick="event.stopPropagation()" style="background:#fff;width:90%;max-width:520px;border-radius:16px;padding:22px 20px 24px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.22)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div style="font-size:1rem;font-weight:700">📤 Record Dispatch</div>
@@ -2357,11 +2357,22 @@ function dSelect(i, handle, title) {
   const pending = emgPendingCount(handle);
   const pendingEl = document.getElementById(`dpending-${i}`);
   if (pendingEl) pendingEl.textContent = pending ? `🚨 ${pending} still pending` : '';
+  // auto-focus qty field for this row
+  setTimeout(() => {
+    const row = inp && inp.closest('div[style*="background:#fdf5ec"]');
+    const qty = row && row.querySelector('input[type="number"]');
+    if (qty) { qty.focus(); qty.select(); }
+  }, 50);
 }
 
 function addDispatchRow() {
   _dispatchRows.push({});
   renderDispatchRows();
+  const idx = _dispatchRows.length - 1;
+  setTimeout(() => {
+    const inp = document.querySelector(`.disp-search[data-di="${idx}"]`);
+    if (inp) inp.focus();
+  }, 50);
 }
 
 async function submitDispatch(btn) {
