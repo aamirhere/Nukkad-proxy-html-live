@@ -1946,7 +1946,7 @@ function emgPendingCount(handle, title) {
   return g.units.filter(u => !u.picked_at).length;
 }
 
-function toggleEmgGroup(id) {
+function togglePrintedSentGroup(id) {
   const body = document.getElementById(id);
   if (!body) return;
   const isHidden = body.style.display === 'none';
@@ -1992,7 +1992,7 @@ async function loadPrintedView() {
         </div>`;
       }).join('');
       return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="pgroup-${g.handle}">
-        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="toggleEmgGroup('${bodyId}')">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="togglePrintedSentGroup('${bodyId}')">
           <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▸</span>
           <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
           <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="pcnt-${g.handle}">${g.units.length} printed</span>
@@ -2065,7 +2065,7 @@ async function loadSentView() {
         </div>`;
       }).join('');
       return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="sgroup-${g.handle}">
-        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="toggleEmgGroup('${bodyId}')">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="togglePrintedSentGroup('${bodyId}')">
           <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▸</span>
           <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
           <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="scnt-${g.handle}">${g.units.length} sent</span>
