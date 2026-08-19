@@ -5623,40 +5623,41 @@ function fmtDate(d) {
       </div>
       <button onclick="closeExtraStock()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
     </div>
-    <!-- channel filter chips -->
-    <div id="esFilterRow" style="padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0">
-      <button id="esF-all" onclick="_esSetFilter('')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:.75rem;font-weight:700;cursor:pointer">All</button>
-      <button id="esF-extra" onclick="_esSetFilter('extra')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">🗂 Extra</button>
-      <button id="esF-prime" onclick="_esSetFilter('prime')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">🔵 Prime</button>
-      <button id="esF-zepto" onclick="_esSetFilter('zepto')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">⚡ Zepto</button>
-      <button id="esF-blinkit" onclick="_esSetFilter('blinkit')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">Blinkit</button>
-      <button id="esF-bulk" onclick="_esSetFilter('bulk')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">Bulk</button>
-    </div>
-    <!-- search / product lookup -->
+    <!-- search -->
     <div style="padding:10px 14px;border-bottom:1px solid var(--line);flex-shrink:0">
       <input id="esSearch" type="text" placeholder="Search design to add or filter…" autocomplete="off" autocorrect="off" spellcheck="false"
         oninput="_esRender()"
         style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.88rem;font-family:var(--fb);outline:none">
     </div>
-    <!-- product search results (shown when typing) -->
+    <!-- search results dropdown -->
     <div id="esProductResults" style="display:none;flex-shrink:0;max-height:220px;overflow-y:auto;border-bottom:1px solid var(--line)"></div>
-    <!-- add form (shown after selecting a product) -->
+    <!-- add form -->
     <div id="esAddRow" style="padding:10px 14px;border-bottom:1px solid var(--line);background:#fdf5ec;flex-shrink:0;display:none;flex-direction:column;gap:8px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
-        <div style="flex:1;font-size:.82rem;font-weight:700;color:var(--ink)" id="esAddQuoteLabel">—</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;font-size:.85rem;font-weight:700;color:var(--ink)" id="esAddQuoteLabel">—</div>
         <button onclick="_esClearAdd()" style="background:none;border:none;font-size:.8rem;color:var(--muted);cursor:pointer;padding:0">✕ Clear</button>
       </div>
       <input id="esAddQuote" type="hidden">
-      <!-- existing extras for this design (if any) -->
-      <div id="esAddExisting" style="display:none;padding:7px 10px;background:#fff;border-radius:8px;border:1.5px solid var(--line);font-size:.78rem;color:var(--ink2)"></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        <select id="esAddColor" style="flex:1;min-width:110px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;font-family:var(--fb);background:#fff;outline:none">
-          <option value="">Color (optional)</option>
-          <option>Peach</option><option>Blue</option><option>White</option><option>Red</option>
-          <option>Orange</option><option>Green</option><option>Yellow</option><option>Purple</option><option>Gold</option>
-        </select>
+      <!-- existing entries for this design -->
+      <div id="esAddExisting" style="display:none;background:#fff;border-radius:8px;border:1.5px solid var(--line);padding:8px 10px"></div>
+      <!-- color pills -->
+      <div>
+        <div style="font-size:.72rem;font-weight:700;color:var(--ink2);margin-bottom:5px">Color</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="esColorPills">
+          <button onclick="_esPickColor('')" id="esCP-" class="es-cpill active" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:.76rem;font-weight:700;cursor:pointer">None</button>
+          <button onclick="_esPickColor('Peach')" id="esCP-Peach" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">🟠 Peach</button>
+          <button onclick="_esPickColor('Blue')" id="esCP-Blue" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">🔵 Blue</button>
+          <button onclick="_esPickColor('White')" id="esCP-White" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">⚪ White</button>
+          <button onclick="_esPickColor('Red')" id="esCP-Red" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">🔴 Red</button>
+          <button onclick="_esPickColor('Green')" id="esCP-Green" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">🟢 Green</button>
+          <button onclick="_esPickColor('Yellow')" id="esCP-Yellow" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">🟡 Yellow</button>
+          <button onclick="_esPickColor('Purple')" id="esCP-Purple" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">🟣 Purple</button>
+          <button onclick="_esPickColor('Gold')" id="esCP-Gold" class="es-cpill" style="padding:4px 11px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.76rem;cursor:pointer">🟤 Gold</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
         <input id="esAddQty" type="number" min="1" value="1" style="width:64px;padding:7px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:.84rem;font-family:var(--fb);outline:none;text-align:center">
-        <select id="esAddChannel" style="flex:1;min-width:100px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;font-family:var(--fb);background:#fff;outline:none">
+        <select id="esAddChannel" style="flex:1;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;font-family:var(--fb);background:#fff;outline:none">
           <option value="extra">🗂 Extra</option>
           <option value="prime">🔵 Prime</option>
           <option value="zepto">⚡ Zepto</option>
@@ -5884,7 +5885,9 @@ async function rcApply() {
 }
 
 // ── EXTRA STOCK MODAL ──────────────────────────────────────────────────────────
-let _esItems = []; // raw rows from nt_stock_items
+let _esItems = [];
+let _esDesigns = []; // all known designs for search
+let _esColorSel = ''; // currently selected color pill
 
 const ES_CHANNEL_LABEL = { prime:'🔵 Prime', zepto:'⚡ Zepto', blinkit:'Blinkit', bulk:'Bulk', extra:'🗂 Extra' };
 const ES_COLORS = { Peach:'#f4a261', Blue:'#1565c0', White:'#ccc', Red:'#c62828', Orange:'#e65100', Green:'#388e3c', Yellow:'#f9a825', Purple:'#6a1b9a', Gold:'#b8860b' };
@@ -5896,8 +5899,12 @@ async function openExtraStock() {
   document.getElementById('esStatus').textContent = 'Loading…';
   document.getElementById('esList').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">Loading…</div>';
   try {
-    const r = await apiFetch({ action: 'get_stock_items' });
+    const [r, di] = await Promise.all([
+      apiFetch({ action: 'get_stock_items' }),
+      _esDesigns.length ? Promise.resolve(null) : apiFetch({ action: 'load_design_index' }),
+    ]);
     _esItems = r.items || [];
+    if (di) _esDesigns = di.designs || [];
     document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
     _esRender();
   } catch(e) {
@@ -5910,31 +5917,24 @@ function closeExtraStock() {
   document.getElementById('esModal').style.display = 'none';
 }
 
-function _esToggleAdd() { /* no-op — add is now triggered via product search */ }
+function _esToggleAdd() { /* no-op */ }
 
-let _esFilter = ''; // current channel filter
-
-function _esSetFilter(ch) {
-  _esFilter = ch;
-  // update chip styles
-  ['all','extra','prime','zepto','blinkit','bulk'].forEach(k => {
-    const el = document.getElementById(`esF-${k}`);
-    if (!el) return;
-    const active = (ch === '' && k === 'all') || ch === k;
-    el.style.background = active ? 'var(--accent)' : 'none';
-    el.style.color = active ? '#fff' : 'var(--ink2)';
-    el.style.borderColor = active ? 'var(--accent)' : 'var(--line)';
+function _esPickColor(color) {
+  _esColorSel = color;
+  document.querySelectorAll('.es-cpill').forEach(b => {
+    const active = b.id === 'esCP-' + color;
+    b.style.background = active ? 'var(--accent)' : 'none';
+    b.style.color = active ? '#fff' : 'var(--ink2)';
+    b.style.borderColor = active ? 'var(--accent)' : 'var(--line)';
   });
-  _esRender();
 }
 
 async function _esRemoveItem(id) {
   try {
     await apiFetch({ action: 'remove_stock_item', id });
-    _esItems = _esItems.filter(i => i.id !== id);
+    _esItems = _esItems.filter(i => String(i.id) !== String(id));
     document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
     _esRender();
-    // if add row is open for this design, refresh existing display
     _esRefreshExisting();
   } catch(e) { alert('Error: ' + e.message); }
 }
@@ -5942,14 +5942,15 @@ async function _esRemoveItem(id) {
 function _esRefreshExisting() {
   const quote = document.getElementById('esAddQuote').value;
   if (!quote) return;
-  const esGroups = _esGroupsByQuote();
-  const existing = esGroups[(quote || '').toLowerCase()];
+  const existingRows = _esItems.filter(i => (i.quote || '').toLowerCase() === quote.toLowerCase());
   const existEl = document.getElementById('esAddExisting');
-  if (existing) {
-    const chips = Object.entries(existing.channels).map(([ch, n]) =>
-      `<span style="background:#f0f0f0;border-radius:10px;padding:2px 8px;font-weight:700">${ES_CHANNEL_LABEL[ch]||ch} ×${n}</span>`
-    ).join(' ');
-    existEl.innerHTML = `Already in stock: <strong>${existing.total}</strong> pcs — ${chips}`;
+  if (existingRows.length) {
+    existEl.innerHTML = `<div style="font-size:.72rem;font-weight:700;color:var(--ink2);margin-bottom:4px">In stock (${existingRows.reduce((s,i)=>s+(i.qty||1),0)} pcs):</div>` +
+      existingRows.map(i => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f0e8">
+        <span style="font-size:.74rem;font-weight:700;color:var(--accent);min-width:18px">${i.qty||1}</span>
+        <span style="font-size:.74rem;color:var(--ink2);flex:1">${ES_CHANNEL_LABEL[i.channel]||i.channel}${i.color?' · '+i.color:''}</span>
+        <button onclick="_esRemoveItem('${i.id}')" style="background:none;border:none;color:#ccc;font-size:.85rem;cursor:pointer;padding:2px 6px" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'">✕</button>
+      </div>`).join('');
     existEl.style.display = 'block';
   } else {
     existEl.style.display = 'none';
@@ -5957,10 +5958,9 @@ function _esRefreshExisting() {
 }
 
 async function _esRemoveAll() {
-  const label = _esFilter ? `all ${ES_CHANNEL_LABEL[_esFilter]||_esFilter} stock` : 'ALL extra stock';
-  if (!confirm(`Remove ${label}? This cannot be undone.`)) return;
+  if (!confirm('Remove ALL extra stock? This cannot be undone.')) return;
   try {
-    await apiFetch({ action: 'remove_all_stock_items', channel: _esFilter || undefined });
+    await apiFetch({ action: 'remove_all_stock_items' });
     const r = await apiFetch({ action: 'get_stock_items' });
     _esItems = r.items || [];
     document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
@@ -5990,68 +5990,70 @@ function _esGroupsByQuote() {
 function _esSelectQuote(quote) {
   document.getElementById('esSearch').value = '';
   document.getElementById('esProductResults').style.display = 'none';
-
   document.getElementById('esAddQuote').value = quote;
   document.getElementById('esAddQuoteLabel').textContent = quote;
-  document.getElementById('esAddColor').value = '';
   document.getElementById('esAddQty').value = '1';
   document.getElementById('esAddChannel').value = 'extra';
-
-  const existEl = document.getElementById('esAddExisting');
-  const existingRows = _esItems.filter(i => (i.quote || '').toLowerCase() === (quote || '').toLowerCase());
-  if (existingRows.length) {
-    existEl.innerHTML = `<div style="font-size:.75rem;font-weight:700;color:var(--ink2);margin-bottom:5px">Already in stock (${existingRows.reduce((s,i) => s+(i.qty||1),0)} pcs):</div>` +
-      existingRows.map(i => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f0e8">
-        <span style="font-size:.76rem;font-weight:700;min-width:18px;text-align:center;color:var(--accent)">${i.qty||1}</span>
-        <span style="font-size:.74rem;color:var(--ink2);flex:1">${ES_CHANNEL_LABEL[i.channel]||i.channel}${i.color ? ' · '+i.color : ''}</span>
-        <button onclick="_esRemoveItem('${i.id}')" style="background:none;border:none;color:#ccc;font-size:.85rem;cursor:pointer;padding:2px 4px" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
-      </div>`).join('');
-    existEl.style.display = 'block';
-  } else {
-    existEl.style.display = 'none';
-  }
-
+  _esPickColor(''); // reset color selection
+  _esRefreshExisting();
   document.getElementById('esAddRow').style.display = 'flex';
   document.getElementById('esList').innerHTML = '';
 }
 
 function _esRender() {
   const q = (document.getElementById('esSearch').value || '').toLowerCase().trim();
-
-  // While typing: show matching quotes from rackItems as product search results
   const prodEl = document.getElementById('esProductResults');
+
   if (q.length >= 2) {
-    const esGroups = _esGroupsByQuote();
-    // Unique quotes from all rack items matching the query
+    // Search across: _esDesigns (all order designs), existing _esItems, and rackItems
     const seen = new Set();
     const matches = [];
+
+    // Priority 1: design index (all known designs from orders)
+    for (const d of _esDesigns) {
+      const tlo = (d.title || '').toLowerCase();
+      if (tlo.includes(q) && !seen.has(tlo)) {
+        seen.add(tlo);
+        const existingQty = _esItems.filter(i => (i.quote||'').toLowerCase() === tlo).reduce((s,i) => s+(i.qty||1), 0);
+        matches.push({ quote: d.title, existingQty });
+      }
+    }
+    // Priority 2: current rack orders (catches today's orders not yet in design index)
     for (const o of rackItems) {
       for (const it of (o.items || [])) {
         const qlo = (it.quote || '').toLowerCase();
         if (qlo.includes(q) && !seen.has(qlo)) {
           seen.add(qlo);
-          matches.push({ quote: it.quote, existingQty: esGroups[qlo]?.total || 0 });
+          const existingQty = _esItems.filter(i => (i.quote||'').toLowerCase() === qlo).reduce((s,i) => s+(i.qty||1), 0);
+          matches.push({ quote: it.quote, existingQty });
         }
       }
     }
-    // Also match existing extra stock entries not in rackItems
-    for (const [k, g] of Object.entries(esGroups)) {
-      if (k.includes(q) && !seen.has(k)) { seen.add(k); matches.push({ quote: g.quote, existingQty: g.total }); }
+    // Priority 3: existing extra stock entries
+    for (const item of _esItems) {
+      const qlo = (item.quote || '').toLowerCase();
+      if (qlo.includes(q) && !seen.has(qlo)) {
+        seen.add(qlo);
+        const existingQty = _esItems.filter(i => (i.quote||'').toLowerCase() === qlo).reduce((s,i) => s+(i.qty||1), 0);
+        matches.push({ quote: item.quote, existingQty });
+      }
     }
     matches.sort((a, b) => a.quote.localeCompare(b.quote));
 
-    // Raw search text from input (preserve case for display and saving)
     const rawQ = (document.getElementById('esSearch').value || '').trim();
     const exactInList = matches.some(m => m.quote.toLowerCase() === q);
-    const addNewRow = `<div onclick="_esSelectQuote(${JSON.stringify(rawQ)})" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fdf5ec">
-      <div style="font-size:.86rem;font-weight:600;color:var(--accent);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">➕ Add "${esc(rawQ)}" as new</div>
+    const addNewRow = `<div onclick="_esSelectQuote(${JSON.stringify(rawQ).replace(/"/g,'&quot;')})" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;background:#fdf5ec">
+      <div style="font-size:.86rem;font-weight:600;color:var(--accent)">➕ Add "${esc(rawQ)}" as new</div>
     </div>`;
+
     prodEl.style.display = 'block';
-    prodEl.innerHTML = matches.map(m => {
-      const extra = m.existingQty > 0 ? `<span style="font-size:.68rem;background:#e8f5e9;color:#2e7d32;padding:2px 7px;border-radius:10px;font-weight:700">${m.existingQty} in stock</span>` : `<span style="font-size:.68rem;color:var(--muted)">No stock</span>`;
-      return `<div onclick="_esSelectQuote(${JSON.stringify(m.quote)})" style="padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px">
+    prodEl.innerHTML = matches.slice(0, 30).map(m => {
+      const badge = m.existingQty > 0
+        ? `<span style="font-size:.68rem;background:#e8f5e9;color:#2e7d32;padding:2px 7px;border-radius:10px;font-weight:700">${m.existingQty} in stock</span>`
+        : `<span style="font-size:.68rem;color:var(--muted)">No stock</span>`;
+      return `<div onclick="_esSelectQuote(${JSON.stringify(m.quote).replace(/"/g,'&quot;')})" style="padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div style="font-size:.86rem;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.quote)}</div>
-        ${extra}
+        ${badge}
       </div>`;
     }).join('') + (!exactInList ? addNewRow : '');
     document.getElementById('esList').innerHTML = '';
@@ -6060,57 +6062,36 @@ function _esRender() {
 
   prodEl.style.display = 'none';
 
-  // No query — show existing extra stock list (filtered by channel if set)
-  const filteredItems = _esFilter ? _esItems.filter(i => i.channel === _esFilter) : _esItems;
-  const groups = {};
-  for (const item of filteredItems) {
-    const key = (item.quote || '').toLowerCase();
-    if (!groups[key]) groups[key] = { quote: item.quote || '', qty: 0, channels: {}, rows: [], latest: item.created_at };
-    groups[key].qty += (item.qty || 1);
-    groups[key].channels[item.channel] = (groups[key].channels[item.channel] || 0) + (item.qty || 1);
-    groups[key].rows.push(item);
-    if (item.created_at > groups[key].latest) groups[key].latest = item.created_at;
-  }
-  const sortedGroups = Object.values(groups).sort((a, b) => b.latest.localeCompare(a.latest));
-
+  // No query — show flat list of all _esItems, newest first
   const el = document.getElementById('esList');
-  if (!sortedGroups.length) {
-    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">No extra stock logged yet.<br><span style="font-size:.76rem">Search a design name above to add.</span></div>`;
+  if (!_esItems.length) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">No extra stock logged yet.<br><span style="font-size:.76rem">Search a design name above to add.</span></div>';
     return;
   }
-  el.innerHTML = sortedGroups.map(r => {
-    const channelChips = Object.entries(r.channels).map(([ch, n]) =>
-      `<span style="font-size:.65rem;padding:2px 7px;border-radius:12px;background:#f0f0f0;color:var(--ink2);font-weight:700">${ES_CHANNEL_LABEL[ch] || ch} ×${n}</span>`
-    ).join('');
-    const subRows = r.rows.map(i =>
-      `<div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-top:1px solid #faf6f0">
-        <span style="font-size:.72rem;font-weight:700;color:var(--accent);min-width:20px">${i.qty||1}</span>
-        <span style="font-size:.72rem;color:var(--ink2);flex:1">${ES_CHANNEL_LABEL[i.channel]||i.channel}${i.color ? ' · '+i.color : ''}</span>
-        <button onmousedown="event.preventDefault()" onclick="_esRemoveItem('${i.id}')" style="background:none;border:none;color:#ccc;font-size:.85rem;cursor:pointer;padding:2px 6px" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove this entry">✕</button>
-      </div>`
-    ).join('');
-    return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;overflow:hidden">
-      <div style="padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="_esSelectQuote(${JSON.stringify(r.quote)})">
-        <div style="background:#fdf5ec;border-radius:8px;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;color:var(--accent);flex-shrink:0">${r.qty}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:.86rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.quote)}</div>
-          <div style="display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:wrap">${channelChips}</div>
+  el.innerHTML = _esItems.map(i => {
+    const colorDot = ES_COLORS[i.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ES_COLORS[i.color]};border:1px solid rgba(0,0,0,.15);flex-shrink:0;margin-right:2px"></span>` : '';
+    const chLabel = ES_CHANNEL_LABEL[i.channel] || i.channel || '';
+    return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+      <div style="background:#fdf5ec;border-radius:8px;min-width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:900;color:var(--accent);flex-shrink:0">${i.qty||1}</div>
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="_esSelectQuote(${JSON.stringify(i.quote).replace(/"/g,'&quot;')})">
+        <div style="font-weight:700;font-size:.85rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.quote||'')}</div>
+        <div style="display:flex;align-items:center;gap:4px;margin-top:2px">
+          ${colorDot}<span style="font-size:.72rem;color:var(--muted)">${i.color ? esc(i.color)+' · ' : ''}${chLabel}</span>
         </div>
-        <div style="font-size:.72rem;color:var(--muted);flex-shrink:0">+ Add</div>
       </div>
-      ${subRows}
+      <button onclick="_esRemoveItem('${i.id}')" style="background:none;border:none;color:#ccc;font-size:1rem;cursor:pointer;padding:4px 6px;flex-shrink:0" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
     </div>`;
   }).join('');
 }
 
 async function _esAddSave() {
   const quote = document.getElementById('esAddQuote').value.trim();
-  const color = document.getElementById('esAddColor').value;
+  const color = _esColorSel || '';
   const qty   = parseInt(document.getElementById('esAddQty').value) || 1;
   const channel = document.getElementById('esAddChannel').value || 'extra';
   if (!quote) return;
-  const btn = document.querySelector('#esAddRow button');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  const btn = document.querySelector('#esAddRow button[onclick="_esAddSave()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
     await apiFetch({ action: 'add_stock_item', quote, color, qty, channel });
     document.getElementById('esAddRow').style.display = 'none';
@@ -6120,7 +6101,7 @@ async function _esAddSave() {
     document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
     _esRender();
   } catch(e) { alert('Error: ' + e.message); }
-  btn.disabled = false; btn.textContent = '+ Add to Stock';
+  if (btn) { btn.disabled = false; btn.textContent = '+ Add to Stock'; }
 }
 
 // ── DUPLICATE TRACKING ─────────────────────────────────────────────────────────
