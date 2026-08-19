@@ -1034,12 +1034,13 @@ async function genMultiA4() {
       pageItems = []; curY = 0;
     };
     for (const item of list) {
-      const dW = item.wMm ? Math.min(item.wMm, uW) : uW;
-      const dH = item.hMm ? item.hMm * (dW / item.wMm) : uH / 2;
-      const fH = Math.min(dH, uH);
-      if (pageItems.length && curY + fH > uH) flush();
-      pageItems.push(`<img src="${item.imgData}" style="width:${dW}mm;height:${fH}mm;object-fit:contain;display:block">`);
-      curY += fH + GAP;
+      // Scale to fill page width (same as single print), cap at page height
+      const aspect = (item.wMm && item.hMm) ? item.wMm / item.hMm : 1;
+      const dW = uW;
+      const dH = Math.min(dW / aspect, uH);
+      if (pageItems.length && curY + dH > uH) flush();
+      pageItems.push(`<img src="${item.imgData}" style="width:${dW}mm;height:${dH}mm;object-fit:contain;display:block">`);
+      curY += dH + GAP;
     }
     flush();
   }
