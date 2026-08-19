@@ -5899,12 +5899,8 @@ async function openExtraStock() {
   document.getElementById('esStatus').textContent = 'Loading…';
   document.getElementById('esList').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">Loading…</div>';
   try {
-    const [r, di] = await Promise.all([
-      apiFetch({ action: 'get_stock_items' }),
-      _esDesigns.length ? Promise.resolve(null) : apiFetch({ action: 'load_design_index' }),
-    ]);
+    const r = await apiFetch({ action: 'get_stock_items' });
     _esItems = r.items || [];
-    if (di) _esDesigns = di.designs || [];
     document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
     _esRender();
   } catch(e) {
@@ -6005,31 +6001,28 @@ function _esRender() {
   const prodEl = document.getElementById('esProductResults');
 
   if (q.length >= 2) {
-    // Search across: _esDesigns (all order designs), existing _esItems, and rackItems
     const seen = new Set();
     const matches = [];
 
-    // Priority 1: design index (all known designs from orders)
-    for (const d of _esDesigns) {
-      const tlo = (d.title || '').toLowerCase();
+    // Priority 1: _designCatalog — same Shopify product titles used by main scanner
+    for (const title of _designCatalog) {
+      const tlo = title.toLowerCase();
       if (tlo.includes(q) && !seen.has(tlo)) {
         seen.add(tlo);
         const existingQty = _esItems.filter(i => (i.quote||'').toLowerCase() === tlo).reduce((s,i) => s+(i.qty||1), 0);
-        matches.push({ quote: d.title, existingQty });
+        matches.push({ quote: title, existingQty });
       }
     }
-    // Priority 2: current rack orders (catches today's orders not yet in design index)
-    for (const o of rackItems) {
-      for (const it of (o.items || [])) {
-        const qlo = (it.quote || '').toLowerCase();
-        if (qlo.includes(q) && !seen.has(qlo)) {
-          seen.add(qlo);
-          const existingQty = _esItems.filter(i => (i.quote||'').toLowerCase() === qlo).reduce((s,i) => s+(i.qty||1), 0);
-          matches.push({ quote: it.quote, existingQty });
-        }
+    // Priority 2: current rack orders (flat array)
+    for (const it of rackItems) {
+      const qlo = (it.quote || '').toLowerCase();
+      if (qlo.includes(q) && !seen.has(qlo)) {
+        seen.add(qlo);
+        const existingQty = _esItems.filter(i => (i.quote||'').toLowerCase() === qlo).reduce((s,i) => s+(i.qty||1), 0);
+        matches.push({ quote: it.quote, existingQty });
       }
     }
-    // Priority 3: existing extra stock entries
+    // Priority 3: existing extra stock entries not yet in catalog
     for (const item of _esItems) {
       const qlo = (item.quote || '').toLowerCase();
       if (qlo.includes(q) && !seen.has(qlo)) {
