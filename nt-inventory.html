@@ -2533,6 +2533,10 @@ async function loadDispatchView() {
   const el = document.getElementById('dispatchView');
   el.innerHTML = [...Array(3)].map(() => '<div class="loading-row" style="height:70px;border-radius:10px;margin-bottom:10px"></div>').join('');
   try {
+    if (!allEmgGroups.length) {
+      const emgRes = await api({ action: 'load_all_emergencies' });
+      allEmgGroups = emgRes.groups || [];
+    }
     const res = await api({ action: 'load_dispatches', days: 90 });
     const dispatches = res.dispatches || [];
     if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>'; return; }
