@@ -988,8 +988,15 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <input type="date" id="dispatchDate" style="flex:1;border:1.5px solid #e9ddca;border-radius:8px;padding:7px 10px;font-size:.84rem">
     </div>
     <div id="dispatchTypeRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div id="dispatchPasteArea" style="display:none;margin-bottom:14px">
+      <textarea id="dispatchPasteText" rows="8" placeholder="Paste WhatsApp list here…&#10;e.g. Slow down here 2 pes&#10;Dog Mom 7 pes" style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:10px;font-size:.82rem;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+      <button onclick="parsePastedList()" style="margin-top:8px;width:100%;padding:9px;border:none;border-radius:8px;background:#d4541f;color:#fff;font-weight:700;font-size:.84rem;cursor:pointer">Parse & fill rows</button>
+    </div>
     <div id="dispatchRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
-    <button onclick="addDispatchRow()" style="width:100%;padding:9px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">+ Add another design</button>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button onclick="addDispatchRow()" style="flex:1;padding:9px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">+ Add design</button>
+      <button onclick="toggleDispatchPaste()" style="padding:9px 14px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">📋 Paste list</button>
+    </div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button onclick="closeDispatchModal()" style="flex:1;padding:11px;border:1.5px solid #e9ddca;border-radius:10px;background:none;font-weight:700;cursor:pointer">Cancel</button>
       <button onclick="submitDispatch(this)" style="flex:2;padding:11px;border:none;border-radius:10px;background:#d4541f;color:#fff;font-weight:700;font-size:.9rem;cursor:pointer">Save Dispatch</button>
@@ -2403,8 +2410,77 @@ function addDispatchRow() {
   }, 50);
 }
 
+function toggleDispatchPaste() {
+  const el = document.getElementById('dispatchPasteArea');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (el.style.display === 'block') document.getElementById('dispatchPasteText').focus();
+}
+
+function parsePastedList() {
+  const raw = document.getElementById('dispatchPasteText').value;
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const src = _designIndex.length ? _designIndex
+    : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+
+  function normStr(s) {
+    return (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+  }
+  function bestMatch(query) {
+    const nq = normStr(query);
+    let best = null, bestScore = 0;
+    for (const p of src) {
+      const nt = normStr(p.title);
+      // score: length of longest common substring relative to query length
+      let score = 0;
+      if (nt === nq) { score = 1; }
+      else if (nt.includes(nq) || nq.includes(nt)) {
+        score = Math.min(nq.length, nt.length) / Math.max(nq.length, nt.length);
+      } else {
+        // word overlap
+        const qw = nq.split(' '), tw = nt.split(' ');
+        const overlap = qw.filter(w => w.length > 2 && tw.includes(w)).length;
+        score = overlap / Math.max(qw.length, tw.length) * 0.9;
+      }
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    return bestScore >= 0.5 ? best : null;
+  }
+
+  const parsed = [];
+  for (const line of lines) {
+    // extract last number before optional unit word
+    const m = line.match(/^(.+?)\s+(\d+)\s*(?:pes|pcs|pc|pieces?|p\.?)?\s*$/i);
+    if (!m) continue;
+    const designName = m[1].trim();
+    const qty = parseInt(m[2], 10);
+    if (!qty || !designName) continue;
+    const match = bestMatch(designName);
+    parsed.push({ title: match ? match.title : designName, handle: match ? match.handle : '', qty, _guessed: designName });
+  }
+
+  if (!parsed.length) { toast('Could not parse any lines — check the format'); return; }
+  _dispatchRows = parsed;
+  renderDispatchRows();
+  // show mismatch warnings inline
+  setTimeout(() => {
+    parsed.forEach((p, i) => {
+      if (!p.handle) {
+        const inp = document.querySelector(`.disp-search[data-di="${i}"]`);
+        if (inp) { inp.style.border = '1.5px solid #e65100'; inp.title = `No match found for "${p._guessed}" — please select manually`; }
+      }
+    });
+  }, 100);
+  document.getElementById('dispatchPasteArea').style.display = 'none';
+  document.getElementById('dispatchPasteText').value = '';
+  const unmatched = parsed.filter(p => !p.handle).length;
+  toast(`✓ ${parsed.length} items loaded${unmatched ? ` · ${unmatched} unmatched (shown in orange — select manually)` : ''}`);
+}
+
 async function submitDispatch(btn) {
-  const items = _dispatchRows.filter(r => r.handle && r.qty > 0).map(r => ({ ...r, type: _dispatchType }));
+  // include rows that have at least a title (backend does handle fallback via title ilike)
+  const items = _dispatchRows
+    .filter(r => (r.handle || r.title) && r.qty > 0)
+    .map(r => ({ ...r, type: _dispatchType }));
   if (!items.length) { toast('Add at least one design with qty'); return; }
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
