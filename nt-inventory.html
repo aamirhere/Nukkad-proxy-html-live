@@ -983,10 +983,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <div style="font-size:1rem;font-weight:700">📤 Record Dispatch</div>
       <button onclick="closeDispatchModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#9c8a76">✕</button>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <label style="font-size:.8rem;font-weight:600;color:#6f5b46;white-space:nowrap">Dispatch date</label>
       <input type="date" id="dispatchDate" style="flex:1;border:1.5px solid #e9ddca;border-radius:8px;padding:7px 10px;font-size:.84rem">
     </div>
+    <div id="dispatchTypeRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
     <div id="dispatchRows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
     <button onclick="addDispatchRow()" style="width:100%;padding:9px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">+ Add another design</button>
     <div style="display:flex;gap:10px;margin-top:16px">
@@ -2264,11 +2265,26 @@ async function downloadEmgUnit(gi, ui, u, handle) {
 
 // ── DISPATCH MODAL ────────────────────────────────────────────────────────────
 let _dispatchRows = []; // [{ handle, title, qty }]
+let _dispatchType = 'emg'; // global type for all rows
+
+function _normSearch(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function renderDispatchTypePills() {
+  document.getElementById('dispatchTypeRow').innerHTML = DISPATCH_TYPES.map(t =>
+    `<button onclick="_dispatchType='${t.value}';renderDispatchTypePills()"
+      style="padding:4px 13px;border-radius:20px;border:1.5px solid ${_dispatchType===t.value ? t.color : '#e9ddca'};background:${_dispatchType===t.value ? t.color+'18' : '#fff'};color:${_dispatchType===t.value ? t.color : '#9c8a76'};font-size:.76rem;font-weight:700;cursor:pointer;font-family:inherit"
+    >${t.label}</button>`
+  ).join('');
+}
 
 function openDispatchModal() {
   if (!Object.keys(_printLinks).length) loadPrintData();
   _dispatchRows = [{}];
+  _dispatchType = 'emg';
   document.getElementById('dispatchDate').value = new Date().toISOString().slice(0, 10);
+  renderDispatchTypePills();
   renderDispatchRows();
   document.getElementById('dispatchModal').style.display = 'flex';
 }
@@ -2276,7 +2292,9 @@ function openDispatchModal() {
 function openDispatchModalForDate(date) {
   if (!Object.keys(_printLinks).length) loadPrintData();
   _dispatchRows = [{}];
+  _dispatchType = 'emg';
   document.getElementById('dispatchDate').value = date;
+  renderDispatchTypePills();
   renderDispatchRows();
   document.getElementById('dispatchModal').style.display = 'flex';
 }
@@ -2296,15 +2314,9 @@ const DISPATCH_TYPES = [
 function renderDispatchRows() {
   document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
     const pending = row.handle ? emgPendingCount(row.handle) : 0;
-    const selType = row.type || 'emg';
-    const typePills = DISPATCH_TYPES.map(t =>
-      `<button onclick="_dispatchRows[${i}].type='${t.value}';renderDispatchRows()"
-        style="padding:3px 10px;border-radius:20px;border:1.5px solid ${selType===t.value ? t.color : '#e9ddca'};background:${selType===t.value ? t.color+'18' : '#fff'};color:${selType===t.value ? t.color : '#9c8a76'};font-size:.73rem;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"
-      >${t.label}</button>`
-    ).join('');
     return `
-    <div style="margin-bottom:10px;padding:10px;background:#fdf5ec;border-radius:10px;border:1.5px solid #e9ddca">
-      <div style="display:flex;gap:8px;align-items:flex-start">
+    <div data-drow="${i}" style="padding:10px;background:#fdf5ec;border-radius:10px;border:1.5px solid #e9ddca">
+      <div style="display:flex;gap:8px;align-items:center">
         <div style="position:relative;flex:1">
           <input type="text" data-di="${i}" class="disp-search" autocomplete="off"
             placeholder="Search design…"
@@ -2312,38 +2324,47 @@ function renderDispatchRows() {
             oninput="dSearch(${i},this)"
             onfocus="dSearch(${i},this)"
             style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:8px 10px;font-size:.82rem;background:#fff">
-          <div class="disp-dd" id="ddd-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e9ddca;border-top:none;border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.14)"></div>
+          <div class="disp-dd" id="ddd-${i}" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #e9ddca;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.14)"></div>
         </div>
         <input type="number" min="1" value="${row.qty || ''}" placeholder="Qty"
           oninput="_dispatchRows[${i}].qty=parseInt(this.value)||0"
           style="width:58px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center;background:#fff">
-        ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:7px 4px">✕</button>` : ''}
+        ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:4px 6px">✕</button>` : ''}
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">
-        ${typePills}
-        <span id="dpending-${i}" style="font-size:.72rem;color:#e65100;font-weight:600;margin-left:4px">${pending ? `🚨 ${pending} still pending` : ''}</span>
-      </div>
+      ${pending ? `<div style="margin-top:5px;font-size:.72rem;color:#e65100;font-weight:600">🚨 ${pending} still pending</div>` : ''}
     </div>`;
   }).join('');
 }
 
 const _dSearchTimers = {};
 function dSearch(i, inp) {
-  const q = inp.value.trim().toLowerCase();
+  const raw = inp.value.trim();
+  const q = _normSearch(raw);
   const dd = document.getElementById(`ddd-${i}`);
   if (q.length < 1) { dd.style.display = 'none'; return; }
-  // _designIndex uses order-line-item titles (same source as nt_order_units handles)
   const src = _designIndex.length ? _designIndex
     : allProducts.length ? allProducts
     : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-  const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 25);
+  // deduplicate by normalized title
+  const seen = new Set();
+  const matches = [];
+  for (const p of src) {
+    if (!p.title) continue;
+    const nt = _normSearch(p.title);
+    if (nt.includes(q) && !seen.has(nt)) { seen.add(nt); matches.push(p); }
+    if (matches.length >= 25) break;
+  }
   if (!matches.length) { dd.style.display = 'none'; return; }
-  dd.innerHTML = matches.map(p =>
-    `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
-      style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8"
+  dd.innerHTML = matches.map(p => {
+    const pending = emgPendingCount(p.handle);
+    const pendingBadge = pending
+      ? `<span style="font-size:.68rem;color:#e65100;font-weight:700;white-space:nowrap">🚨 ${pending} pending</span>`
+      : '';
+    return `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
+      style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8;display:flex;align-items:center;justify-content:space-between;gap:8px"
       onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
-    >${p.title}</div>`
-  ).join('');
+    ><span>${p.title}</span>${pendingBadge}</div>`;
+  }).join('');
   dd.style.display = 'block';
 }
 
@@ -2354,12 +2375,16 @@ function dSelect(i, handle, title) {
   if (inp) inp.value = title;
   const dd = document.getElementById(`ddd-${i}`);
   if (dd) dd.style.display = 'none';
-  const pending = emgPendingCount(handle);
-  const pendingEl = document.getElementById(`dpending-${i}`);
-  if (pendingEl) pendingEl.textContent = pending ? `🚨 ${pending} still pending` : '';
-  // auto-focus qty field for this row
+  // update pending indicator on the row
+  const row = document.querySelector(`[data-drow="${i}"]`);
+  if (row) {
+    const pending = emgPendingCount(handle);
+    let pel = row.querySelector('.drow-pending');
+    if (!pel) { pel = document.createElement('div'); pel.className = 'drow-pending'; pel.style.cssText = 'margin-top:5px;font-size:.72rem;color:#e65100;font-weight:600'; row.appendChild(pel); }
+    pel.textContent = pending ? `🚨 ${pending} still pending` : '';
+  }
+  // auto-focus qty field
   setTimeout(() => {
-    const row = inp && inp.closest('div[style*="background:#fdf5ec"]');
     const qty = row && row.querySelector('input[type="number"]');
     if (qty) { qty.focus(); qty.select(); }
   }, 50);
@@ -2370,13 +2395,15 @@ function addDispatchRow() {
   renderDispatchRows();
   const idx = _dispatchRows.length - 1;
   setTimeout(() => {
+    const row = document.querySelector(`[data-drow="${idx}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     const inp = document.querySelector(`.disp-search[data-di="${idx}"]`);
     if (inp) inp.focus();
   }, 50);
 }
 
 async function submitDispatch(btn) {
-  const items = _dispatchRows.filter(r => r.handle && r.qty > 0);
+  const items = _dispatchRows.filter(r => r.handle && r.qty > 0).map(r => ({ ...r, type: _dispatchType }));
   if (!items.length) { toast('Add at least one design with qty'); return; }
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
