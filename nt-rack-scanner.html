@@ -6300,21 +6300,50 @@ function tcCopyInTransit() {
   setTimeout(() => { btn.textContent = orig; }, 1500);
 }
 
-// ── COLOR EDIT ─────────────────────────────────────────────────────────────────
+// ── ITEM EDIT (quote + color) ──────────────────────────────────────────────────
 const COLOR_EDIT_COLORS = ['Peach','White','Blue','Orange','Red','Yellow','Purple','Green','Gold','Standard'];
 const COLOR_EMOJI = { Peach:'🟠', White:'⚪', Blue:'🔵', Orange:'🟧', Red:'🔴', Yellow:'🟡', Purple:'🟣', Green:'🟢', Gold:'🟤', Standard:'⬜' };
-let _ceOrderName = '', _cePrevColor = '', _ceQuote = '', _ceNewColor = '';
+let _ceOrderName = '', _cePrevColor = '', _cePrevQuote = '', _ceNewColor = '', _ceNewQuote = '';
 
 function openColorEdit(orderName, quote, color) {
-  _ceOrderName = orderName; _ceQuote = quote; _cePrevColor = color; _ceNewColor = color;
-  document.getElementById('ceTitle').textContent = `Change color for ${orderName}`;
-  document.getElementById('ceQuote').textContent = quote;
+  _ceOrderName = orderName;
+  _cePrevQuote = quote; _ceNewQuote = quote;
+  _cePrevColor = color; _ceNewColor = color;
+
+  document.getElementById('ceTitle').textContent = `Edit item — ${orderName}`;
+  const inp = document.getElementById('ceQuoteInput');
+  inp.value = quote;
+  inp.dataset.selected = quote;
+  document.getElementById('ceQuoteResults').innerHTML = '';
   document.getElementById('ceSaveBtn').disabled = true;
+
   const pills = COLOR_EDIT_COLORS.map(c =>
     `<button class="cpill${c===color?' cpill-active':''}" onclick="cePick('${c}')" id="cep-${c}">${COLOR_EMOJI[c]||''} ${c}</button>`
   ).join('');
   document.getElementById('cePills').innerHTML = pills;
   document.getElementById('colorEditModal').style.display = 'flex';
+  inp.focus();
+}
+
+function ceQuoteSearch(val) {
+  _ceNewQuote = val;
+  const q = val.trim().toLowerCase();
+  const res = document.getElementById('ceQuoteResults');
+  if (!q) { res.innerHTML = ''; ceCheckSaveBtn(); return; }
+  const unique = [...new Set(rackItems.map(r => r.quote).filter(Boolean))];
+  const matches = unique.filter(s => s.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { res.innerHTML = ''; ceCheckSaveBtn(); return; }
+  res.innerHTML = matches.map(s =>
+    `<div class="ce-result" onclick="ceSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
+  ).join('');
+}
+
+function ceSelectQuote(q) {
+  _ceNewQuote = q;
+  document.getElementById('ceQuoteInput').value = q;
+  document.getElementById('ceQuoteInput').dataset.selected = q;
+  document.getElementById('ceQuoteResults').innerHTML = '';
+  ceCheckSaveBtn();
 }
 
 function cePick(color) {
@@ -6322,21 +6351,30 @@ function cePick(color) {
   document.querySelectorAll('#cePills .cpill').forEach(b => b.classList.remove('cpill-active'));
   const btn = document.getElementById('cep-' + color);
   if (btn) btn.classList.add('cpill-active');
-  document.getElementById('ceSaveBtn').disabled = (color === _cePrevColor);
+  ceCheckSaveBtn();
+}
+
+function ceCheckSaveBtn() {
+  const q = document.getElementById('ceQuoteInput').value.trim();
+  _ceNewQuote = q;
+  const changed = q && (q !== _cePrevQuote || _ceNewColor !== _cePrevColor);
+  document.getElementById('ceSaveBtn').disabled = !changed;
 }
 
 async function saveColorEdit() {
-  if (!_ceNewColor || _ceNewColor === _cePrevColor) return;
+  const newQuote = document.getElementById('ceQuoteInput').value.trim();
+  if (!newQuote) return;
+  _ceNewQuote = newQuote;
   const btn = document.getElementById('ceSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    await apiFetch({ action: 'update_rack_color', order_name: _ceOrderName, quote: _ceQuote, old_color: _cePrevColor, new_color: _ceNewColor });
+    await apiFetch({ action: 'update_rack_color', order_name: _ceOrderName, quote: _cePrevQuote, old_color: _cePrevColor, new_color: _ceNewColor, new_quote: _ceNewQuote });
     // Update local rackItems
-    const row = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _ceQuote && r.color === _cePrevColor);
-    if (row) row.color = _ceNewColor;
+    const row = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _cePrevQuote && r.color === _cePrevColor);
+    if (row) { row.color = _ceNewColor; row.quote = _ceNewQuote; }
     closeColorEdit();
     renderList();
-    toast(`Color changed to ${_ceNewColor}`);
+    toast(`Item updated`);
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Save';
     toast('Failed: ' + (e.message || e));
@@ -6348,18 +6386,34 @@ function closeColorEdit() {
 }
 </script>
 
-<!-- Color Edit Modal -->
-<div id="colorEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:20px 18px;width:90%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-    <div style="font-weight:700;font-size:.95rem;color:var(--ink);margin-bottom:4px" id="ceTitle">Change color</div>
-    <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="ceQuote"></div>
-    <div class="color-pills" id="cePills" style="margin-bottom:18px"></div>
+<!-- Item Edit Modal -->
+<div id="colorEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center" onclick="if(event.target===this)closeColorEdit()">
+  <div style="background:#fff;border-radius:16px;padding:20px 18px;width:92%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+    <div style="font-weight:700;font-size:.95rem;color:var(--ink);margin-bottom:14px" id="ceTitle">Edit item</div>
+
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Quote</div>
+    <div style="position:relative;margin-bottom:4px">
+      <input id="ceQuoteInput" type="text" placeholder="Search quote…" oninput="ceQuoteSearch(this.value)" onblur="setTimeout(()=>document.getElementById('ceQuoteResults').innerHTML='',180)"
+        style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;color:var(--ink);font-family:var(--fb)">
+      <div id="ceQuoteResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:10;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+    </div>
+    <div style="font-size:.68rem;color:var(--muted);margin-bottom:14px">Type to search existing quotes, or type any custom quote</div>
+
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Color</div>
+    <div class="color-pills" id="cePills" style="margin-bottom:20px"></div>
+
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="act-btn" onclick="closeColorEdit()">Cancel</button>
       <button class="act-btn go" id="ceSaveBtn" onclick="saveColorEdit()" disabled>Save</button>
     </div>
   </div>
 </div>
+
+<style>
+.ce-result{padding:8px 12px;font-size:.8rem;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line)}
+.ce-result:last-child{border-bottom:none}
+.ce-result:hover{background:#fff3e0}
+</style>
 
 </body>
 </html>
