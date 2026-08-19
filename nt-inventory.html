@@ -907,13 +907,16 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   <div class="emg-toolbar">
     <div class="emg-view-tabs">
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
-      <button class="emg-tab" id="emgTabDate" onclick="setEmgView('date')">By date</button>
       <button class="emg-tab" id="emgTabPrinted" onclick="setEmgView('printed')">Printed</button>
       <button class="emg-tab" id="emgTabSent" onclick="setEmgView('sent')">Sent</button>
     </div>
     <button class="btn btn-ghost" onclick="openAddEmgModal()">➕ Add</button>
-    <button class="btn btn-ghost" onclick="sendTgUpdate(this)">📲 Send Update</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
+  </div>
+  <div id="emgDateFilterRow" style="display:none;padding:0 0 10px;align-items:center;gap:8px">
+    <label style="font-size:.8rem;font-weight:700;color:var(--ink2)">Filter by date:</label>
+    <input type="date" id="emgDateFilter" onchange="applyEmgDateFilter()" style="padding:5px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.85rem;font-family:var(--fb);background:#fff;color:var(--ink)">
+    <button onclick="clearEmgDateFilter()" style="padding:4px 10px;border-radius:8px;border:1.5px solid var(--line);background:none;font-size:.8rem;cursor:pointer;color:var(--ink2)">✕ Clear</button>
   </div>
 
   <!-- grouped by item view -->
@@ -1851,16 +1854,34 @@ async function sendTgUpdate(btn) {
 function setEmgView(v) {
   emgView = v;
   document.getElementById('emgTabAll').classList.toggle('active', v === 'all');
-  document.getElementById('emgTabDate').classList.toggle('active', v === 'date');
   document.getElementById('emgTabPrinted').classList.toggle('active', v === 'printed');
   document.getElementById('emgTabSent').classList.toggle('active', v === 'sent');
   document.getElementById('emgGrouped').style.display  = v === 'all' ? '' : 'none';
-  document.getElementById('emgByDate').style.display   = v === 'date' ? '' : 'none';
+  document.getElementById('emgByDate').style.display   = 'none';
   document.getElementById('emgPrinted').style.display  = v === 'printed' ? '' : 'none';
   document.getElementById('emgSent').style.display     = v === 'sent' ? '' : 'none';
-  if (v === 'date') { buildEmgTabs(); loadEmgDateView(); }
+  const filterRow = document.getElementById('emgDateFilterRow');
+  if (filterRow) filterRow.style.display = v === 'all' ? 'flex' : 'none';
   if (v === 'printed') { loadPrintedView(); }
   if (v === 'sent') { loadSentView(); }
+}
+
+function applyEmgDateFilter() {
+  const date = document.getElementById('emgDateFilter').value;
+  if (!date) { renderEmgGroups(); return; }
+  const filtered = allEmgGroups.map(g => ({
+    ...g,
+    units: g.units.filter(u => !u.downloaded_at && !u.picked_at && u.date === date),
+  })).filter(g => g.units.length > 0);
+  const html = filtered.map((g, gi) => emgGroupHTML(g, gi, 'all')).join('');
+  document.getElementById('emgGroups').innerHTML = html ||
+    '<div class="empty-state"><div class="icon">✅</div><p>No emergency units for this date</p></div>';
+}
+
+function clearEmgDateFilter() {
+  const inp = document.getElementById('emgDateFilter');
+  if (inp) inp.value = '';
+  renderEmgGroups();
 }
 
 async function loadPrintedView() {
@@ -2805,12 +2826,14 @@ function syncRecvBadges() {
 }
 
 async function loadEmergencyView() {
-  // called from switchView — default to "all open" view
+  const filterRow = document.getElementById('emgDateFilterRow');
+  if (filterRow) filterRow.style.display = emgView === 'all' ? 'flex' : 'none';
   if (emgView === 'all') {
     await loadAllEmergencies();
-  } else {
-    buildEmgTabs();
-    loadEmgDateView();
+  } else if (emgView === 'printed') {
+    await loadPrintedView();
+  } else if (emgView === 'sent') {
+    await loadSentView();
   }
 }
 
