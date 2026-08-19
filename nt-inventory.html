@@ -2539,18 +2539,15 @@ async function loadDispatchView() {
             const emg = it.emergency || 0;
             const stk = it.stock || 0;
             const parts = [];
-            if (emg > 0) parts.push(`<span style="color:#e65100;font-weight:700">🚨 ${emg} emg fulfilled</span>`);
-            if (stk > 0) parts.push(`<span style="color:#2d7a4f;font-weight:600">📦 ${stk} to stock</span>`);
-            if (itPending > 0) parts.push(`<span style="color:#e65100;font-weight:700">⚠️ ${itPending} still pending</span>`);
+            if (stk > 0) parts.push(`<span style="color:#2d7a4f">📦 ${stk} to stock</span>`);
+            if (itPending > 0) parts.push(`<span style="color:#e65100;font-weight:700">🚨 ${itPending} pending</span>`);
+            else if (emg > 0) parts.push(`<span style="color:#6f5b46">${emg} fulfilled</span>`);
             if (!emg && !stk) parts.push(`<span style="color:#9c8a76">—</span>`);
-            const statusLine = parts.join('<span style="color:#ccc;margin:0 4px">·</span>');
-            return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #faf6f0">
-                <div style="flex:1;min-width:0">
-                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                    <span style="font-size:.85rem;font-weight:600;color:#3a2b1d">${it.title || it.handle}</span>
-                    <span style="font-size:.68rem;padding:1px 7px;border-radius:8px;font-weight:700;background:${typeInfo.color}18;color:${typeInfo.color};white-space:nowrap">${typeInfo.label}</span>
-                  </div>
-                  <div style="font-size:.72rem;margin-top:3px">${statusLine}</div>
+            const statusLine = parts.join('<span style="color:#ddd;margin:0 3px">·</span>');
+            return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #faf6f0">
+                <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+                  <span style="font-size:.85rem;font-weight:600;color:#3a2b1d;white-space:nowrap">${it.title || it.handle}</span>
+                  <span style="font-size:.72rem">${statusLine}</span>
                 </div>
                 <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center;flex-shrink:0">
                 <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
