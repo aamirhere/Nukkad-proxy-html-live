@@ -6334,7 +6334,7 @@ function ceQuoteSearch(val) {
   const matches = unique.filter(s => s.toLowerCase().includes(q)).slice(0, 8);
   if (!matches.length) { res.innerHTML = ''; ceCheckSaveBtn(); return; }
   res.innerHTML = matches.map(s =>
-    `<div class="ce-result" onclick="ceSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
+    `<div class="ce-result" onmousedown="event.preventDefault();ceSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
   ).join('');
 }
 
@@ -6363,21 +6363,21 @@ function ceCheckSaveBtn() {
 
 async function saveColorEdit() {
   const newQuote = document.getElementById('ceQuoteInput').value.trim();
-  if (!newQuote) return;
+  if (!newQuote) { toast('Quote cannot be empty'); return; }
   _ceNewQuote = newQuote;
   const btn = document.getElementById('ceSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    await apiFetch({ action: 'update_rack_color', order_name: _ceOrderName, quote: _cePrevQuote, old_color: _cePrevColor, new_color: _ceNewColor, new_quote: _ceNewQuote });
-    // Update local rackItems
+    const payload = { action: 'update_rack_color', order_name: _ceOrderName, quote: _cePrevQuote, old_color: _cePrevColor, new_color: _ceNewColor, new_quote: _ceNewQuote };
+    await apiFetch(payload);
     const row = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _cePrevQuote && r.color === _cePrevColor);
     if (row) { row.color = _ceNewColor; row.quote = _ceNewQuote; }
     closeColorEdit();
     renderList();
-    toast(`Item updated`);
+    toast('Item updated ✓');
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Save';
-    toast('Failed: ' + (e.message || e));
+    alert('Save failed: ' + (e.message || JSON.stringify(e)));
   }
 }
 
