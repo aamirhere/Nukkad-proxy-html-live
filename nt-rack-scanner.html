@@ -5623,9 +5623,18 @@ function fmtDate(d) {
       </div>
       <button onclick="closeExtraStock()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
     </div>
+    <!-- channel filter chips -->
+    <div id="esFilterRow" style="padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0">
+      <button id="esF-all" onclick="_esSetFilter('')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:.75rem;font-weight:700;cursor:pointer">All</button>
+      <button id="esF-extra" onclick="_esSetFilter('extra')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">🗂 Extra</button>
+      <button id="esF-prime" onclick="_esSetFilter('prime')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">🔵 Prime</button>
+      <button id="esF-zepto" onclick="_esSetFilter('zepto')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">⚡ Zepto</button>
+      <button id="esF-blinkit" onclick="_esSetFilter('blinkit')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">Blinkit</button>
+      <button id="esF-bulk" onclick="_esSetFilter('bulk')" style="padding:3px 12px;border-radius:20px;border:1.5px solid var(--line);background:none;color:var(--ink2);font-size:.75rem;font-weight:700;cursor:pointer">Bulk</button>
+    </div>
     <!-- search / product lookup -->
     <div style="padding:10px 14px;border-bottom:1px solid var(--line);flex-shrink:0">
-      <input id="esSearch" type="text" placeholder="Search design to add or filter stock…" autocomplete="off" autocorrect="off" spellcheck="false"
+      <input id="esSearch" type="text" placeholder="Search design to add or filter…" autocomplete="off" autocorrect="off" spellcheck="false"
         oninput="_esRender()"
         style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.88rem;font-family:var(--fb);outline:none">
     </div>
@@ -5662,6 +5671,7 @@ function fmtDate(d) {
     <!-- footer -->
     <div style="padding:10px 14px;border-top:1px solid var(--line);flex-shrink:0;display:flex;gap:8px;align-items:center">
       <button onclick="openExtraStock()" style="background:#f5f5f5;border:1.5px solid var(--line);padding:10px 14px;border-radius:10px;font-size:.82rem;cursor:pointer;color:var(--ink2)">↺ Refresh</button>
+      <button onclick="_esRemoveAll()" style="background:none;border:1.5px solid #f5c6c6;padding:10px 14px;border-radius:10px;font-size:.82rem;cursor:pointer;color:#c62828;margin-left:auto">🗑 Remove All</button>
     </div>
   </div>
 </div>
@@ -5902,6 +5912,62 @@ function closeExtraStock() {
 
 function _esToggleAdd() { /* no-op — add is now triggered via product search */ }
 
+let _esFilter = ''; // current channel filter
+
+function _esSetFilter(ch) {
+  _esFilter = ch;
+  // update chip styles
+  ['all','extra','prime','zepto','blinkit','bulk'].forEach(k => {
+    const el = document.getElementById(`esF-${k}`);
+    if (!el) return;
+    const active = (ch === '' && k === 'all') || ch === k;
+    el.style.background = active ? 'var(--accent)' : 'none';
+    el.style.color = active ? '#fff' : 'var(--ink2)';
+    el.style.borderColor = active ? 'var(--accent)' : 'var(--line)';
+  });
+  _esRender();
+}
+
+async function _esRemoveItem(id) {
+  try {
+    await apiFetch({ action: 'remove_stock_item', id });
+    _esItems = _esItems.filter(i => i.id !== id);
+    document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
+    _esRender();
+    // if add row is open for this design, refresh existing display
+    _esRefreshExisting();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function _esRefreshExisting() {
+  const quote = document.getElementById('esAddQuote').value;
+  if (!quote) return;
+  const esGroups = _esGroupsByQuote();
+  const existing = esGroups[(quote || '').toLowerCase()];
+  const existEl = document.getElementById('esAddExisting');
+  if (existing) {
+    const chips = Object.entries(existing.channels).map(([ch, n]) =>
+      `<span style="background:#f0f0f0;border-radius:10px;padding:2px 8px;font-weight:700">${ES_CHANNEL_LABEL[ch]||ch} ×${n}</span>`
+    ).join(' ');
+    existEl.innerHTML = `Already in stock: <strong>${existing.total}</strong> pcs — ${chips}`;
+    existEl.style.display = 'block';
+  } else {
+    existEl.style.display = 'none';
+  }
+}
+
+async function _esRemoveAll() {
+  const label = _esFilter ? `all ${ES_CHANNEL_LABEL[_esFilter]||_esFilter} stock` : 'ALL extra stock';
+  if (!confirm(`Remove ${label}? This cannot be undone.`)) return;
+  try {
+    await apiFetch({ action: 'remove_all_stock_items', channel: _esFilter || undefined });
+    const r = await apiFetch({ action: 'get_stock_items' });
+    _esItems = r.items || [];
+    document.getElementById('esStatus').textContent = `${_esItems.length} entries`;
+    _esRender();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 function _esClearAdd() {
   document.getElementById('esAddRow').style.display = 'none';
   document.getElementById('esSearch').value = '';
@@ -5925,9 +5991,6 @@ function _esSelectQuote(quote) {
   document.getElementById('esSearch').value = '';
   document.getElementById('esProductResults').style.display = 'none';
 
-  const esGroups = _esGroupsByQuote();
-  const existing = esGroups[(quote || '').toLowerCase()];
-
   document.getElementById('esAddQuote').value = quote;
   document.getElementById('esAddQuoteLabel').textContent = quote;
   document.getElementById('esAddColor').value = '';
@@ -5935,11 +5998,14 @@ function _esSelectQuote(quote) {
   document.getElementById('esAddChannel').value = 'extra';
 
   const existEl = document.getElementById('esAddExisting');
-  if (existing) {
-    const chips = Object.entries(existing.channels).map(([ch, n]) =>
-      `<span style="background:#f0f0f0;border-radius:10px;padding:2px 8px;font-weight:700">${ES_CHANNEL_LABEL[ch]||ch} ×${n}</span>`
-    ).join(' ');
-    existEl.innerHTML = `Already in stock: <strong>${existing.total}</strong> pcs — ${chips}`;
+  const existingRows = _esItems.filter(i => (i.quote || '').toLowerCase() === (quote || '').toLowerCase());
+  if (existingRows.length) {
+    existEl.innerHTML = `<div style="font-size:.75rem;font-weight:700;color:var(--ink2);margin-bottom:5px">Already in stock (${existingRows.reduce((s,i) => s+(i.qty||1),0)} pcs):</div>` +
+      existingRows.map(i => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f0e8">
+        <span style="font-size:.76rem;font-weight:700;min-width:18px;text-align:center;color:var(--accent)">${i.qty||1}</span>
+        <span style="font-size:.74rem;color:var(--ink2);flex:1">${ES_CHANNEL_LABEL[i.channel]||i.channel}${i.color ? ' · '+i.color : ''}</span>
+        <button onclick="_esRemoveItem('${i.id}')" style="background:none;border:none;color:#ccc;font-size:.85rem;cursor:pointer;padding:2px 4px" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
+      </div>`).join('');
     existEl.style.display = 'block';
   } else {
     existEl.style.display = 'none';
@@ -5994,37 +6060,45 @@ function _esRender() {
 
   prodEl.style.display = 'none';
 
-  // No query — show existing extra stock list
+  // No query — show existing extra stock list (filtered by channel if set)
+  const filteredItems = _esFilter ? _esItems.filter(i => i.channel === _esFilter) : _esItems;
   const groups = {};
-  for (const item of _esItems) {
-    const key = (item.quote || '') + '|||' + (item.color || '');
-    if (!groups[key]) groups[key] = { quote: item.quote || '', color: item.color || '', qty: 0, channels: {}, latest: item.created_at };
+  for (const item of filteredItems) {
+    const key = (item.quote || '').toLowerCase();
+    if (!groups[key]) groups[key] = { quote: item.quote || '', qty: 0, channels: {}, rows: [], latest: item.created_at };
     groups[key].qty += (item.qty || 1);
     groups[key].channels[item.channel] = (groups[key].channels[item.channel] || 0) + (item.qty || 1);
+    groups[key].rows.push(item);
     if (item.created_at > groups[key].latest) groups[key].latest = item.created_at;
   }
-  const rows = Object.values(groups).sort((a, b) => b.latest.localeCompare(a.latest));
+  const sortedGroups = Object.values(groups).sort((a, b) => b.latest.localeCompare(a.latest));
 
   const el = document.getElementById('esList');
-  if (!rows.length) {
+  if (!sortedGroups.length) {
     el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">No extra stock logged yet.<br><span style="font-size:.76rem">Search a design name above to add.</span></div>`;
     return;
   }
-  el.innerHTML = rows.map(r => {
-    const colorDot = ES_COLORS[r.color] ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ES_COLORS[r.color]};border:1px solid rgba(0,0,0,.15);flex-shrink:0"></span>` : '';
+  el.innerHTML = sortedGroups.map(r => {
     const channelChips = Object.entries(r.channels).map(([ch, n]) =>
       `<span style="font-size:.65rem;padding:2px 7px;border-radius:12px;background:#f0f0f0;color:var(--ink2);font-weight:700">${ES_CHANNEL_LABEL[ch] || ch} ×${n}</span>`
     ).join('');
-    return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px" onclick="_esSelectQuote(${JSON.stringify(r.quote)})" style="cursor:pointer">
-      <div style="background:#fdf5ec;border-radius:8px;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;color:var(--accent);flex-shrink:0">${r.qty}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:.86rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.quote)}</div>
-        <div style="display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:wrap">
-          ${colorDot}<span style="font-size:.74rem;color:var(--muted)">${esc(r.color || '—')}</span>
-          ${channelChips}
+    const subRows = r.rows.map(i =>
+      `<div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-top:1px solid #faf6f0">
+        <span style="font-size:.72rem;font-weight:700;color:var(--accent);min-width:20px">${i.qty||1}</span>
+        <span style="font-size:.72rem;color:var(--ink2);flex:1">${ES_CHANNEL_LABEL[i.channel]||i.channel}${i.color ? ' · '+i.color : ''}</span>
+        <button onmousedown="event.preventDefault()" onclick="_esRemoveItem('${i.id}')" style="background:none;border:none;color:#ccc;font-size:.85rem;cursor:pointer;padding:2px 6px" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove this entry">✕</button>
+      </div>`
+    ).join('');
+    return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;overflow:hidden">
+      <div style="padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="_esSelectQuote(${JSON.stringify(r.quote)})">
+        <div style="background:#fdf5ec;border-radius:8px;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;color:var(--accent);flex-shrink:0">${r.qty}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.86rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.quote)}</div>
+          <div style="display:flex;align-items:center;gap:5px;margin-top:2px;flex-wrap:wrap">${channelChips}</div>
         </div>
+        <div style="font-size:.72rem;color:var(--muted);flex-shrink:0">+ Add</div>
       </div>
-      <div style="font-size:.72rem;color:var(--muted);flex-shrink:0">+ Add</div>
+      ${subRows}
     </div>`;
   }).join('');
 }
