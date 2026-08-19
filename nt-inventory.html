@@ -2273,6 +2273,14 @@ function openDispatchModal() {
   document.getElementById('dispatchModal').style.display = 'flex';
 }
 
+function openDispatchModalForDate(date) {
+  if (!Object.keys(_printLinks).length) loadPrintData();
+  _dispatchRows = [{}];
+  document.getElementById('dispatchDate').value = date;
+  renderDispatchRows();
+  document.getElementById('dispatchModal').style.display = 'flex';
+}
+
 function closeDispatchModal(e) {
   if (e && e.target !== document.getElementById('dispatchModal')) return;
   document.getElementById('dispatchModal').style.display = 'none';
@@ -2288,8 +2296,11 @@ const DISPATCH_TYPES = [
 function renderDispatchRows() {
   document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
     const pending = row.handle ? emgPendingCount(row.handle) : 0;
-    const typeOpts = DISPATCH_TYPES.map(t =>
-      `<option value="${t.value}" ${(row.type||'emg')===t.value?'selected':''}>${t.label}</option>`
+    const selType = row.type || 'emg';
+    const typePills = DISPATCH_TYPES.map(t =>
+      `<button onclick="_dispatchRows[${i}].type='${t.value}';renderDispatchRows()"
+        style="padding:3px 10px;border-radius:20px;border:1.5px solid ${selType===t.value ? t.color : '#e9ddca'};background:${selType===t.value ? t.color+'18' : '#fff'};color:${selType===t.value ? t.color : '#9c8a76'};font-size:.73rem;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"
+      >${t.label}</button>`
     ).join('');
     return `
     <div style="margin-bottom:10px;padding:10px;background:#fdf5ec;border-radius:10px;border:1.5px solid #e9ddca">
@@ -2308,9 +2319,9 @@ function renderDispatchRows() {
           style="width:58px;border:1.5px solid #e9ddca;border-radius:8px;padding:8px;font-size:.84rem;text-align:center;background:#fff">
         ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:7px 4px">✕</button>` : ''}
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-        <select onchange="_dispatchRows[${i}].type=this.value" style="border:1.5px solid #e9ddca;border-radius:8px;padding:4px 8px;font-size:.78rem;font-family:inherit;background:#fff;color:#3a2b1d;flex:1">${typeOpts}</select>
-        <span id="dpending-${i}" style="font-size:.72rem;color:#e65100;font-weight:600">${pending ? `🚨 ${pending} still pending` : ''}</span>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">
+        ${typePills}
+        <span id="dpending-${i}" style="font-size:.72rem;color:#e65100;font-weight:600;margin-left:4px">${pending ? `🚨 ${pending} still pending` : ''}</span>
       </div>
     </div>`;
   }).join('');
@@ -2432,10 +2443,11 @@ async function loadDispatchView() {
       return `<div style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
           <div style="font-weight:700;font-size:.92rem">${dateStr}</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <span style="font-size:.74rem;background:#f5f0e8;color:#6f5b46;padding:2px 9px;border-radius:10px;font-weight:600">${total} piece${total!==1?'s':''}</span>
             ${totalEmg ? `<span style="font-size:.74rem;background:#fff3e0;color:#e65100;padding:2px 9px;border-radius:10px;font-weight:600">🚨 ${totalEmg} emg</span>` : ''}
             ${totalStk ? `<span style="font-size:.74rem;background:#e8f5e9;color:#2d7a4f;padding:2px 9px;border-radius:10px;font-weight:600">📦 ${totalStk} stock</span>` : ''}
+            <button onclick="openDispatchModalForDate('${date}')" style="font-size:.72rem;padding:2px 10px;border-radius:10px;border:1.5px solid #e9ddca;background:#fdf5ec;color:#d4541f;font-weight:700;cursor:pointer;font-family:inherit">+ Add items</button>
           </div>
         </div>
         ${dispatchBlocks}
