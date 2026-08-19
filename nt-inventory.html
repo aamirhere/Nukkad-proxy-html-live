@@ -864,6 +864,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <input type="file" accept=".csv" style="display:none" onchange="uploadCSV(this.files[0]);this.value=''">
     </label>
     <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
+    <button class="btn btn-ghost" id="btnResetStock" onclick="resetStock()" style="color:#c62828;border-color:#f5c6c6">↺ Reset stock</button>
+    <button class="btn btn-ghost" id="btnRecalcStock" onclick="recalcStock()" style="color:#2d7a4f;border-color:#c8e6c9">⟳ Recalc from dispatch</button>
   </div>
   <div class="inv-list" id="invList">
     <div class="loading-row"></div>
@@ -1411,6 +1413,33 @@ async function refreshProducts() {
     allProducts = res2.products || [];
     renderInventory();
   } catch (e) { toast('Sync failed: ' + e.message); }
+}
+
+async function resetStock() {
+  if (!confirm('Set ALL stock counts to 0? Do this before Recalc.')) return;
+  const btn = document.getElementById('btnResetStock');
+  btn.disabled = true; btn.textContent = 'Resetting…';
+  try {
+    await api({ action: 'reset_stock' });
+    toast('All stock reset to 0');
+    const res = await api({ action: 'load_products' });
+    allProducts = res.products || [];
+    renderInventory();
+  } catch (e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '↺ Reset stock'; }
+}
+
+async function recalcStock() {
+  const btn = document.getElementById('btnRecalcStock');
+  btn.disabled = true; btn.textContent = 'Calculating…';
+  try {
+    const res = await api({ action: 'recalc_stock' });
+    toast(`Done — ${res.handles_updated} designs updated`);
+    const res2 = await api({ action: 'load_products' });
+    allProducts = res2.products || [];
+    renderInventory();
+  } catch (e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '⟳ Recalc from dispatch'; }
 }
 
 async function deleteProduct(handle, title, event) {
