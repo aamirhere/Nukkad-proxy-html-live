@@ -1920,10 +1920,10 @@ function clearEmgDateFilter() {
   renderEmgGroups();
 }
 
-function emgPendingCount(handle) {
-  const g = allEmgGroups.find(g => g.handle === handle);
+function emgPendingCount(handle, title) {
+  let g = allEmgGroups.find(g => g.handle === handle);
+  if (!g && title) g = allEmgGroups.find(g => g.title && g.title.toLowerCase().trim() === title.toLowerCase().trim());
   if (!g) return 0;
-  // pending = not yet picked (includes both "all open" and "printed" states)
   return g.units.filter(u => !u.picked_at).length;
 }
 
@@ -2349,7 +2349,7 @@ const DISPATCH_TYPES = [
 
 function renderDispatchRows() {
   document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
-    const pending = row.handle ? emgPendingCount(row.handle) : 0;
+    const pending = emgPendingCount(row.handle, row.title);
     return `
     <div data-drow="${i}" style="padding:10px;background:#fdf5ec;border-radius:10px;border:1.5px solid #e9ddca">
       <div style="display:flex;gap:8px;align-items:center">
@@ -2567,7 +2567,7 @@ async function loadDispatchView() {
           </div>
           ${flatRows.map(({ it, ii, d, safeItems }) => {
             const typeInfo = DISPATCH_TYPES.find(t => t.value === (it.type || 'emg')) || DISPATCH_TYPES[0];
-            const itPending = emgPendingCount(it.handle);
+            const itPending = emgPendingCount(it.handle, it.title);
             const emg = it.emergency || 0;
             const stk = it.stock || 0;
             const parts = [];
