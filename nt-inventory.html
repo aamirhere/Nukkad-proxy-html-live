@@ -864,6 +864,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <input type="file" accept=".csv" style="display:none" onchange="uploadCSV(this.files[0]);this.value=''">
     </label>
     <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
+    <button class="btn btn-ghost" onclick="recalculateStock()" style="color:#c62828" title="Reset stock counts and recalculate from all dispatch records">↺ Recalc stock</button>
   </div>
   <div class="inv-list" id="invList">
     <div class="loading-row"></div>
@@ -1411,6 +1412,18 @@ async function refreshProducts() {
     allProducts = res2.products || [];
     renderInventory();
   } catch (e) { toast('Sync failed: ' + e.message); }
+}
+
+async function recalculateStock() {
+  if (!confirm('This will reset all stock counts and recalculate from dispatch records. Continue?')) return;
+  toast('Recalculating…');
+  try {
+    const res = await api({ action: 'recalculate_stock' });
+    toast(`Done — ${res.handles_updated} designs updated`);
+    const res2 = await api({ action: 'load_products' });
+    allProducts = res2.products || [];
+    renderInventory();
+  } catch (e) { toast('Failed: ' + e.message); }
 }
 
 async function deleteProduct(handle, title, event) {
