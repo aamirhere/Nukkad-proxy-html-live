@@ -6000,11 +6000,10 @@ function _esRender() {
   const q = (document.getElementById('esSearch').value || '').toLowerCase().trim();
   const prodEl = document.getElementById('esProductResults');
 
+  // catalog dropdown for adding (when query >= 2)
   if (q.length >= 2) {
     const seen = new Set();
     const matches = [];
-
-    // Priority 1: _designCatalog — same Shopify product titles used by main scanner
     for (const title of _designCatalog) {
       const tlo = title.toLowerCase();
       if (tlo.includes(q) && !seen.has(tlo)) {
@@ -6013,7 +6012,6 @@ function _esRender() {
         matches.push({ quote: title, existingQty });
       }
     }
-    // Priority 2: current rack orders (flat array)
     for (const it of rackItems) {
       const qlo = (it.quote || '').toLowerCase();
       if (qlo.includes(q) && !seen.has(qlo)) {
@@ -6022,7 +6020,6 @@ function _esRender() {
         matches.push({ quote: it.quote, existingQty });
       }
     }
-    // Priority 3: existing extra stock entries not yet in catalog
     for (const item of _esItems) {
       const qlo = (item.quote || '').toLowerCase();
       if (qlo.includes(q) && !seen.has(qlo)) {
@@ -6032,30 +6029,35 @@ function _esRender() {
       }
     }
     matches.sort((a, b) => a.quote.localeCompare(b.quote));
-
     prodEl.style.display = matches.length ? 'block' : 'none';
     prodEl.innerHTML = matches.slice(0, 30).map(m => {
       const badge = m.existingQty > 0
         ? `<span style="font-size:.68rem;background:#e8f5e9;color:#2e7d32;padding:2px 7px;border-radius:10px;font-weight:700">${m.existingQty} in stock</span>`
-        : `<span style="font-size:.68rem;color:var(--muted)">No stock</span>`;
+        : `<span style="font-size:.68rem;color:var(--muted)">tap to add</span>`;
       return `<div onclick="_esSelectQuote(${JSON.stringify(m.quote).replace(/"/g,'&quot;')})" style="padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div style="font-size:.86rem;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.quote)}</div>
         ${badge}
       </div>`;
     }).join('');
-    document.getElementById('esList').innerHTML = '';
-    return;
+  } else {
+    prodEl.style.display = 'none';
   }
 
-  prodEl.style.display = 'none';
-
-  // No query — show flat list of all _esItems, newest first
+  // existing stock list — always shown, filtered by query when active
   const el = document.getElementById('esList');
+  const filtered = q.length >= 2
+    ? _esItems.filter(i => (i.quote||'').toLowerCase().includes(q))
+    : _esItems;
+
   if (!_esItems.length) {
-    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">No extra stock logged yet.<br><span style="font-size:.76rem">Search a design name above to add.</span></div>';
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.84rem">No extra stock logged yet.<br><span style="font-size:.76rem">Search a design above to add.</span></div>';
     return;
   }
-  el.innerHTML = _esItems.map(i => {
+  if (q.length >= 2 && !filtered.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:.84rem">No existing stock matches this search.</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(i => {
     const colorDot = ES_COLORS[i.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ES_COLORS[i.color]};border:1px solid rgba(0,0,0,.15);flex-shrink:0;margin-right:2px"></span>` : '';
     const chLabel = ES_CHANNEL_LABEL[i.channel] || i.channel || '';
     return `<div style="background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">
