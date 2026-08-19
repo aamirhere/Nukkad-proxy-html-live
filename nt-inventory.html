@@ -2530,28 +2530,31 @@ async function loadDispatchView() {
       });
       const dispatchBlocks = `
         <div style="border-top:1px solid #f0ebe0;margin-top:8px;padding-top:8px">
-          <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center;font-size:.79rem;color:#9c8a76;font-weight:600;padding:0 0 6px;border-bottom:1px solid #f0ebe0;margin-bottom:4px">
-            <span>Design</span><span style="text-align:center">Qty</span><span style="text-align:center">Emg</span><span style="text-align:center">Stock</span>
-            <button onclick="if(confirm('Delete all entries for this day?'))Promise.all([${dayDispatches.map(d=>`deleteDispatch('${d.id}',true)`).join(',')}]).then(()=>loadDispatchView())" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.68rem;cursor:pointer;padding:1px 6px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑 Delete</button>
+          <div style="display:grid;grid-template-columns:1fr 58px 32px 36px 24px;gap:4px 8px;align-items:center;font-size:.79rem;color:#9c8a76;font-weight:600;padding:0 0 6px;border-bottom:1px solid #f0ebe0;margin-bottom:4px">
+            <span>Design</span>
+            <span style="text-align:center">Qty</span>
+            <span style="text-align:center">Emg</span>
+            <span style="text-align:center">Stock</span>
+            <button onclick="if(confirm('Delete all entries for this day?'))Promise.all([${dayDispatches.map(d=>`deleteDispatch('${d.id}',true)`).join(',')}]).then(()=>loadDispatchView())" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.68rem;cursor:pointer;padding:1px 4px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑</button>
           </div>
           ${flatRows.map(({ it, ii, d, safeItems }) => {
             const typeInfo = DISPATCH_TYPES.find(t => t.value === (it.type || 'emg')) || DISPATCH_TYPES[0];
             const itPending = emgPendingCount(it.handle);
             const status = itPending
-              ? `<span style="font-size:.68rem;color:#e65100;font-weight:700">🚨 ${itPending} pending</span>`
-              : `<span style="font-size:.68rem;color:#2d7a4f;font-weight:600">✓ fulfilled</span>`;
-            return `<div style="padding:5px 0;border-bottom:1px solid #faf6f0">
-              <div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:4px 10px;align-items:center">
-                <div style="min-width:0">
-                  <span style="font-size:.84rem;font-weight:500">${it.title || it.handle}</span>
-                  <span style="margin-left:6px;font-size:.68rem;padding:1px 6px;border-radius:8px;font-weight:600;background:${typeInfo.color}18;color:${typeInfo.color}">${typeInfo.label.replace(/^[^\s]+ /,'')}</span>
-                  <span style="margin-left:4px">${status}</span>
+              ? `<span style="font-size:.65rem;color:#e65100;font-weight:700">🚨${itPending}</span>`
+              : `<span style="font-size:.65rem;color:#2d7a4f;font-weight:600">✓</span>`;
+            return `<div style="display:grid;grid-template-columns:1fr 58px 32px 36px 24px;gap:4px 8px;align-items:center;padding:5px 0;border-bottom:1px solid #faf6f0">
+                <div style="min-width:0;overflow:hidden">
+                  <div style="font-size:.84rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || it.handle}</div>
+                  <div style="display:flex;gap:4px;align-items:center;margin-top:1px">
+                    <span style="font-size:.65rem;padding:1px 5px;border-radius:6px;font-weight:600;background:${typeInfo.color}18;color:${typeInfo.color}">${typeInfo.label.replace(/^[^\s]+ /,'')}</span>
+                    ${status}
+                  </div>
                 </div>
-                <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center">
+                <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:100%;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center;box-sizing:border-box">
                 <span style="font-size:.8rem;text-align:center;color:${it.emergency ? '#e65100' : '#ccc'}">${it.emergency ?? '—'}</span>
                 <span style="font-size:.8rem;text-align:center;color:${it.stock ? '#2d7a4f' : '#ccc'}">${it.stock ?? '—'}</span>
-                <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
-              </div>
+                <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 2px;line-height:1" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
             </div>`;
           }).join('')}
         </div>`;
