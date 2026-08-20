@@ -1146,6 +1146,15 @@ const openGroups  = new Set(); // tracks which multi-unit groups are expanded
 const localState = {}; // key → {picked, is_emergency}
 
 function stateKey(u) { return `${u.order_id}_${u.line_item_id}_${u.unit_index}`; }
+function fmtTs(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const IST = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  const day = IST.getUTCDate();
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][IST.getUTCMonth()];
+  const h = IST.getUTCHours(), m = IST.getUTCMinutes();
+  return `${day} ${mon} ${h}:${String(m).padStart(2,'0')}`;
+}
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
 
@@ -1591,7 +1600,7 @@ function renderInventory() {
       }
       <div class="inv-title">
         ${p.title}
-        <div class="inv-handle">${p.handle}</div>
+        <div class="inv-handle">${p.handle}${p.updated_at ? ` · <span style="color:var(--muted);font-size:.68rem" title="Stock last updated">${fmtTs(p.updated_at)}</span>` : ''}</div>
       </div>
       <span class="inv-order-count">${ordersLabel}</span>
       <div class="stock-chip ${chipClass}" id="chip-${p.handle}">
