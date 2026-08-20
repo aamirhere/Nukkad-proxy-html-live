@@ -2097,19 +2097,22 @@ async function undoSent(u, btn) {
 
 // ── Add Emergency Modal ──────────────────────────────────────────────────────
 const _addEmgSearchTimers = {};
-async function openAddEmgModal() {
-  if (!_designIndex.length) {
-    try { const r = await api({ action: 'load_design_index' }); _designIndex = r.designs || []; } catch {}
-  }
-  document.getElementById('addEmgSearch').value = '';
+function openAddEmgModal() {
+  const inp = document.getElementById('addEmgSearch');
+  inp.value = '';
+  inp.placeholder = _designIndex.length ? 'Type to search design…' : 'Loading designs…';
   document.getElementById('addEmgHandle').value = '';
   document.getElementById('addEmgTitle').value = '';
   document.getElementById('addEmgQty').value = '1';
   document.getElementById('addEmgDate').value = '';
   document.getElementById('addEmgDropdown').style.display = 'none';
-  const m = document.getElementById('addEmgModal');
-  m.style.display = 'flex';
-  document.getElementById('addEmgSearch').focus();
+  document.getElementById('addEmgModal').style.display = 'flex';
+  inp.focus();
+  if (!_designIndex.length) {
+    api({ action: 'load_design_index' })
+      .then(r => { _designIndex = r.designs || []; inp.placeholder = 'Type to search design…'; })
+      .catch(() => { inp.placeholder = 'Type to search design…'; });
+  }
 }
 function closeAddEmgModal(e) {
   if (e && e.target !== document.getElementById('addEmgModal')) return;
@@ -2153,7 +2156,7 @@ async function submitAddEmg(btn) {
     document.getElementById('addEmgDropdown').style.display = 'none';
     document.getElementById('addEmgSearch').focus();
     loadAllEmergencies();
-  } catch (e) { toast('Failed: ' + e.message); }
+  } catch (e) { alert('Failed to add emergency: ' + (e.message || JSON.stringify(e))); }
   finally { btn.disabled = false; btn.textContent = 'Add to Emergency'; }
 }
 
