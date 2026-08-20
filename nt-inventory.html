@@ -2644,7 +2644,7 @@ async function loadDispatchView() {
       const dispatchBlocks = `
         <div class="dl-body" style="${isOpen ? '' : 'display:none;'}border-top:1px solid #f0ebe0;margin-top:8px;padding-top:8px">
           <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-            <button onclick="if(confirm('Delete all entries for this day?'))Promise.all([${dayDispatches.map(d=>`deleteDispatch('${d.id}',true)`).join(',')}]).then(()=>loadDispatchView())" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.7rem;cursor:pointer;padding:2px 8px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑 Delete all</button>
+            <button onclick="deleteAllForDay(${JSON.stringify(dayDispatches.map(d=>d.id))},this)" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.7rem;cursor:pointer;padding:2px 8px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑 Delete all</button>
           </div>
           ${rowsHTML}
         </div>`;
@@ -2701,7 +2701,23 @@ async function deleteDispatch(id, silent = false) {
   try {
     await api({ action: 'delete_dispatch', id });
     if (!silent) { toast('Deleted ✓'); loadDispatchView(); }
-  } catch(e) { if (!silent) toast('Failed: ' + e.message); }
+  } catch(e) { alert('Delete failed: ' + (e.message || JSON.stringify(e))); }
+}
+
+async function deleteAllForDay(ids, btn) {
+  if (!confirm(`Delete all ${ids.length} entr${ids.length === 1 ? 'y' : 'ies'} for this day? This will reverse all stock and emergency changes.`)) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    for (const id of ids) {
+      await api({ action: 'delete_dispatch', id });
+    }
+    toast('All entries deleted ✓');
+    loadDispatchView();
+  } catch(e) {
+    alert('Delete failed: ' + (e.message || JSON.stringify(e)));
+    btn.disabled = false; btn.textContent = orig;
+  }
 }
 
 async function deleteDispatchItem(id, idx, items) {
