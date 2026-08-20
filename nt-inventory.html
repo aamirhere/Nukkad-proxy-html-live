@@ -952,32 +952,35 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
 <!-- ── ADD EMERGENCY MODAL ─────────────────────────────────────────────── -->
 <div class="modal-backdrop" id="addEmgModal" onclick="closeAddEmgModal(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:28px 24px;width:min(420px,96vw);max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <div style="background:#fff;border-radius:16px;padding:24px 20px;width:min(440px,96vw);max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
       <span style="font-family:var(--ff);font-size:1.1rem;font-weight:700;color:var(--ink)">Add Emergency</span>
       <button onclick="closeAddEmgModal()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--muted)">✕</button>
     </div>
+
+    <!-- queued items list -->
+    <div id="addEmgQueue" style="display:none;margin-bottom:14px;border:1.5px solid var(--line);border-radius:10px;overflow:hidden"></div>
+
+    <!-- date (shared for all items) -->
     <div style="margin-bottom:14px">
-      <label style="font-size:.8rem;font-weight:700;color:var(--ink2);display:block;margin-bottom:6px">Design</label>
-      <div style="position:relative">
-        <input id="addEmgSearch" type="text" placeholder="Type to search design…" oninput="addEmgSearch(this)"
-          style="width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.88rem;font-family:var(--fb);outline:none">
-        <div id="addEmgDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:10;max-height:200px;overflow-y:auto"></div>
+      <label style="font-size:.78rem;font-weight:700;color:var(--ink2);display:block;margin-bottom:5px">Order date <span style="font-weight:400;color:var(--muted)">(optional — blank = today)</span></label>
+      <input id="addEmgDate" type="date" style="padding:8px 11px;border:1.5px solid var(--line);border-radius:10px;font-size:.86rem;font-family:var(--fb);outline:none">
+    </div>
+
+    <!-- add-a-design row -->
+    <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:16px">
+      <div style="flex:1;position:relative">
+        <input id="addEmgSearch" type="text" placeholder="Type to search design…" oninput="addEmgSearchFn(this)"
+          style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.86rem;font-family:var(--fb);outline:none">
+        <div id="addEmgDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:10;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+        <input id="addEmgHandle" type="hidden">
+        <input id="addEmgTitle" type="hidden">
       </div>
-      <input id="addEmgHandle" type="hidden">
-      <input id="addEmgTitle" type="hidden">
+      <input id="addEmgQty" type="number" min="1" value="1" style="width:62px;padding:9px 8px;border:1.5px solid var(--line);border-radius:10px;font-size:.86rem;font-family:var(--fb);outline:none;text-align:center">
+      <button onclick="addEmgQueueItem()" style="padding:9px 14px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:1rem;cursor:pointer;font-weight:700;white-space:nowrap">+</button>
     </div>
-    <div style="margin-bottom:14px">
-      <label style="font-size:.8rem;font-weight:700;color:var(--ink2);display:block;margin-bottom:6px">Quantity</label>
-      <input id="addEmgQty" type="number" min="1" value="1"
-        style="width:80px;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.88rem;font-family:var(--fb);outline:none">
-    </div>
-    <div style="margin-bottom:20px">
-      <label style="font-size:.8rem;font-weight:700;color:var(--ink2);display:block;margin-bottom:6px">Order date <span style="font-weight:400;color:var(--muted)">(optional — leave blank for today)</span></label>
-      <input id="addEmgDate" type="date"
-        style="padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.88rem;font-family:var(--fb);outline:none">
-    </div>
-    <button onclick="submitAddEmg(this)" style="width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:var(--fb)">Add to Emergency</button>
+
+    <button id="addEmgSubmitBtn" onclick="submitAddEmg(this)" disabled style="width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:var(--fb);opacity:.4">Add All to Emergency</button>
   </div>
 </div>
 
@@ -2096,11 +2099,14 @@ async function undoSent(u, btn) {
 }
 
 // ── Add Emergency Modal ──────────────────────────────────────────────────────
-const _addEmgSearchTimers = {};
+let _addEmgQueue = []; // [{ handle, title, qty }]
+
 function openAddEmgModal() {
+  _addEmgQueue = [];
+  _renderAddEmgQueue();
   const inp = document.getElementById('addEmgSearch');
   inp.value = '';
-  inp.placeholder = _designIndex.length ? 'Type to search design…' : 'Loading designs…';
+  inp.placeholder = allProducts.length ? 'Type to search design…' : 'Loading designs…';
   document.getElementById('addEmgHandle').value = '';
   document.getElementById('addEmgTitle').value = '';
   document.getElementById('addEmgQty').value = '1';
@@ -2108,24 +2114,21 @@ function openAddEmgModal() {
   document.getElementById('addEmgDropdown').style.display = 'none';
   document.getElementById('addEmgModal').style.display = 'flex';
   inp.focus();
-  if (!_designIndex.length) {
-    api({ action: 'load_design_index' })
-      .then(r => { _designIndex = r.designs || []; inp.placeholder = 'Type to search design…'; })
-      .catch(() => { inp.placeholder = 'Type to search design…'; });
-  }
+  // Always refresh product list on open
+  api({ action: 'load_products' })
+    .then(r => { allProducts = r.products || []; inp.placeholder = 'Type to search design…'; })
+    .catch(() => { inp.placeholder = 'Type to search design…'; });
 }
 function closeAddEmgModal(e) {
   if (e && e.target !== document.getElementById('addEmgModal')) return;
   document.getElementById('addEmgModal').style.display = 'none';
 }
-function addEmgSearch(inp) {
+function addEmgSearchFn(inp) {
   const q = inp.value.trim().toLowerCase();
   const dd = document.getElementById('addEmgDropdown');
   if (q.length < 1) { dd.style.display = 'none'; return; }
-  const src = _designIndex.length ? _designIndex
-    : allProducts.length ? allProducts
-    : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-  const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 10);
+  const src = allProducts.length ? allProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 12);
   if (!matches.length) { dd.style.display = 'none'; return; }
   dd.innerHTML = matches.map(p =>
     `<div style="padding:9px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--line)" onmousedown="addEmgSelect('${p.handle.replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}');event.preventDefault()">${p.title}</div>`
@@ -2138,26 +2141,59 @@ function addEmgSelect(handle, title) {
   document.getElementById('addEmgSearch').value = title;
   document.getElementById('addEmgDropdown').style.display = 'none';
 }
-async function submitAddEmg(btn) {
+function addEmgQueueItem() {
   const handle = document.getElementById('addEmgHandle').value.trim();
   const title = document.getElementById('addEmgTitle').value.trim();
   const qty = parseInt(document.getElementById('addEmgQty').value, 10) || 1;
-  const date = document.getElementById('addEmgDate').value;
   if (!handle) { toast('Select a design first'); return; }
-  btn.disabled = true; btn.textContent = '…';
+  const existing = _addEmgQueue.find(x => x.handle === handle);
+  if (existing) { existing.qty += qty; }
+  else { _addEmgQueue.push({ handle, title, qty }); }
+  _renderAddEmgQueue();
+  document.getElementById('addEmgSearch').value = '';
+  document.getElementById('addEmgHandle').value = '';
+  document.getElementById('addEmgTitle').value = '';
+  document.getElementById('addEmgQty').value = '1';
+  document.getElementById('addEmgDropdown').style.display = 'none';
+  document.getElementById('addEmgSearch').focus();
+}
+function _renderAddEmgQueue() {
+  const el = document.getElementById('addEmgQueue');
+  const btn = document.getElementById('addEmgSubmitBtn');
+  if (!_addEmgQueue.length) {
+    el.style.display = 'none'; el.innerHTML = '';
+    btn.disabled = true; btn.style.opacity = '.4';
+    return;
+  }
+  el.style.display = '';
+  el.innerHTML = _addEmgQueue.map((item, i) =>
+    `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--line);font-size:.84rem">
+      <span style="flex:1;color:var(--ink)">${item.title}</span>
+      <span style="color:var(--ink2);margin:0 10px">×${item.qty}</span>
+      <button onmousedown="_addEmgRemove(${i});event.preventDefault()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0">✕</button>
+    </div>`
+  ).join('');
+  btn.disabled = false; btn.style.opacity = '1';
+}
+function _addEmgRemove(i) {
+  _addEmgQueue.splice(i, 1);
+  _renderAddEmgQueue();
+}
+async function submitAddEmg(btn) {
+  if (!_addEmgQueue.length) return;
+  const date = document.getElementById('addEmgDate').value;
+  btn.disabled = true; btn.textContent = 'Adding…';
   try {
-    const res = await api({ action: 'add_emergency_manual', handle, title, qty, date });
-    toast(`Added ${res.added} emergency unit${res.added !== 1 ? 's' : ''} ✓`);
-    // Keep modal open — reset fields so user can add another design
-    document.getElementById('addEmgSearch').value = '';
-    document.getElementById('addEmgHandle').value = '';
-    document.getElementById('addEmgTitle').value = '';
-    document.getElementById('addEmgQty').value = '1';
-    document.getElementById('addEmgDropdown').style.display = 'none';
-    document.getElementById('addEmgSearch').focus();
+    let total = 0;
+    for (const item of _addEmgQueue) {
+      const res = await api({ action: 'add_emergency_manual', handle: item.handle, title: item.title, qty: item.qty, date });
+      total += res.added || 0;
+    }
+    toast(`Added ${total} emergency unit${total !== 1 ? 's' : ''} ✓`);
+    document.getElementById('addEmgModal').style.display = 'none';
     loadAllEmergencies();
-  } catch (e) { alert('Failed to add emergency: ' + (e.message || JSON.stringify(e))); }
-  finally { btn.disabled = false; btn.textContent = 'Add to Emergency'; }
+  } catch (e) { alert('Failed: ' + (e.message || JSON.stringify(e))); }
+  finally { btn.disabled = false; btn.textContent = 'Add All to Emergency'; btn.style.opacity = _addEmgQueue.length ? '1' : '.4'; }
 }
 
 function buildEmgTabs() {
@@ -2409,8 +2445,8 @@ function dSearch(i, inp) {
   const q = _normSearch(raw);
   const dd = document.getElementById(`ddd-${i}`);
   if (q.length < 1) { dd.style.display = 'none'; return; }
-  const src = _designIndex.length ? _designIndex
-    : allProducts.length ? allProducts
+  const src = allProducts.length ? allProducts
+    : _designIndex.length ? _designIndex
     : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
   // deduplicate by normalized title
   const seen = new Set();
