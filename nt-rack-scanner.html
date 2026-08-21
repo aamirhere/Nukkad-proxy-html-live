@@ -6305,10 +6305,13 @@ const COLOR_EDIT_COLORS = ['Peach','White','Blue','Orange','Red','Yellow','Purpl
 const COLOR_EMOJI = { Peach:'🟠', White:'⚪', Blue:'🔵', Orange:'🟧', Red:'🔴', Yellow:'🟡', Purple:'🟣', Green:'🟢', Gold:'🟤', Standard:'⬜' };
 let _ceOrderName = '', _cePrevColor = '', _cePrevQuote = '', _ceNewColor = '', _ceNewQuote = '';
 
+let _ceAddQuote = '', _ceAddColor = '', _ceAddOpen = false;
+
 function openColorEdit(orderName, quote, color) {
   _ceOrderName = orderName;
   _cePrevQuote = quote; _ceNewQuote = quote;
   _cePrevColor = color; _ceNewColor = color;
+  _ceAddQuote = ''; _ceAddColor = ''; _ceAddOpen = false;
 
   document.getElementById('ceTitle').textContent = `Edit item — ${orderName}`;
   const inp = document.getElementById('ceQuoteInput');
@@ -6321,8 +6324,55 @@ function openColorEdit(orderName, quote, color) {
     `<button class="cpill${c===color?' cpill-active':''}" onclick="cePick('${c}')" id="cep-${c}">${COLOR_EMOJI[c]||''} ${c}</button>`
   ).join('');
   document.getElementById('cePills').innerHTML = pills;
+
+  // Reset add section
+  document.getElementById('ceAddSection').style.display = 'none';
+  document.getElementById('ceAddToggleBtn').textContent = '＋ Add another item to this order';
+  document.getElementById('ceAddQuoteInput').value = '';
+  document.getElementById('ceAddQuoteResults').innerHTML = '';
+  document.getElementById('ceAddQty').value = '1';
+  document.getElementById('ceAddPills').innerHTML = COLOR_EDIT_COLORS.map(c =>
+    `<button class="cpill" onclick="ceAddPick('${c}')" id="ceap-${c}">${COLOR_EMOJI[c]||''} ${c}</button>`
+  ).join('');
+
   document.getElementById('colorEditModal').style.display = 'flex';
   inp.focus();
+}
+
+function ceToggleAdd() {
+  _ceAddOpen = !_ceAddOpen;
+  document.getElementById('ceAddSection').style.display = _ceAddOpen ? 'block' : 'none';
+  document.getElementById('ceAddToggleBtn').textContent = _ceAddOpen ? '✕ Cancel add' : '＋ Add another item to this order';
+  if (_ceAddOpen) { _ceAddQuote = ''; _ceAddColor = ''; ceCheckSaveBtn(); document.getElementById('ceAddQuoteInput').focus(); }
+  else { _ceAddQuote = ''; _ceAddColor = ''; ceCheckSaveBtn(); }
+}
+
+function ceAddQuoteSearch(val) {
+  _ceAddQuote = val.trim();
+  const q = val.trim().toLowerCase();
+  const res = document.getElementById('ceAddQuoteResults');
+  if (!q) { res.innerHTML = ''; ceCheckSaveBtn(); return; }
+  const unique = [...new Set(rackItems.map(r => r.quote).filter(Boolean))];
+  const matches = unique.filter(s => s.toLowerCase().includes(q)).slice(0, 8);
+  res.innerHTML = matches.map(s =>
+    `<div class="ce-result" onmousedown="event.preventDefault();ceAddSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
+  ).join('');
+  ceCheckSaveBtn();
+}
+
+function ceAddSelectQuote(q) {
+  _ceAddQuote = q;
+  document.getElementById('ceAddQuoteInput').value = q;
+  document.getElementById('ceAddQuoteResults').innerHTML = '';
+  ceCheckSaveBtn();
+}
+
+function ceAddPick(color) {
+  _ceAddColor = color;
+  document.querySelectorAll('#ceAddPills .cpill').forEach(b => b.classList.remove('cpill-active'));
+  const btn = document.getElementById('ceap-' + color);
+  if (btn) btn.classList.add('cpill-active');
+  ceCheckSaveBtn();
 }
 
 function ceQuoteSearch(val) {
@@ -6357,24 +6407,39 @@ function cePick(color) {
 function ceCheckSaveBtn() {
   const q = document.getElementById('ceQuoteInput').value.trim();
   _ceNewQuote = q;
-  const changed = q && (q !== _cePrevQuote || _ceNewColor !== _cePrevColor);
-  document.getElementById('ceSaveBtn').disabled = !changed;
+  const editChanged = q && (q !== _cePrevQuote || _ceNewColor !== _cePrevColor);
+  const addReady = _ceAddOpen && _ceAddQuote && _ceAddColor;
+  document.getElementById('ceSaveBtn').disabled = !(editChanged || addReady);
 }
 
 async function saveColorEdit() {
   const newQuote = document.getElementById('ceQuoteInput').value.trim();
   if (!newQuote) { toast('Quote cannot be empty'); return; }
   _ceNewQuote = newQuote;
+  const editChanged = newQuote !== _cePrevQuote || _ceNewColor !== _cePrevColor;
+  const addReady = _ceAddOpen && _ceAddQuote && _ceAddColor;
+  if (!editChanged && !addReady) return;
+
   const btn = document.getElementById('ceSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const payload = { action: 'update_rack_color', order_name: _ceOrderName, quote: _cePrevQuote, old_color: _cePrevColor, new_color: _ceNewColor, new_quote: _ceNewQuote };
-    await apiFetch(payload);
-    const row = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _cePrevQuote && r.color === _cePrevColor);
-    if (row) { row.color = _ceNewColor; row.quote = _ceNewQuote; }
+    if (editChanged) {
+      await apiFetch({ action: 'update_rack_color', order_name: _ceOrderName, quote: _cePrevQuote, old_color: _cePrevColor, new_color: _ceNewColor, new_quote: _ceNewQuote });
+      const row = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _cePrevQuote && r.color === _cePrevColor);
+      if (row) { row.color = _ceNewColor; row.quote = _ceNewQuote; }
+    }
+    if (addReady) {
+      const qty = parseInt(document.getElementById('ceAddQty').value, 10) || 1;
+      await apiFetch({ action: 'add_rack_item', order_name: _ceOrderName, quote: _ceAddQuote, color: _ceAddColor, needed: qty });
+      // Inject new item into rackItems in memory
+      const ref = rackItems.find(r => r.order_name === _ceOrderName);
+      if (ref) {
+        rackItems.push({ ...ref, quote: _ceAddQuote, color: _ceAddColor, needed: qty, found: 0 });
+      }
+    }
     closeColorEdit();
     renderList();
-    toast('Item updated ✓');
+    toast(editChanged && addReady ? 'Item updated & new item added ✓' : editChanged ? 'Item updated ✓' : 'Item added ✓');
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Save';
     alert('Save failed: ' + (e.message || JSON.stringify(e)));
@@ -6388,19 +6453,39 @@ function closeColorEdit() {
 
 <!-- Item Edit Modal -->
 <div id="colorEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center" onclick="if(event.target===this)closeColorEdit()">
-  <div style="background:#fff;border-radius:16px;padding:20px 18px;width:92%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+  <div style="background:#fff;border-radius:16px;padding:20px 18px;width:92%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.18);max-height:90vh;overflow-y:auto">
     <div style="font-weight:700;font-size:.95rem;color:var(--ink);margin-bottom:14px" id="ceTitle">Edit item</div>
 
+    <!-- Edit existing item -->
     <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Quote</div>
     <div style="position:relative;margin-bottom:4px">
       <input id="ceQuoteInput" type="text" placeholder="Search quote…" oninput="ceQuoteSearch(this.value)" onblur="setTimeout(()=>document.getElementById('ceQuoteResults').innerHTML='',180)"
         style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;color:var(--ink);font-family:var(--fb)">
       <div id="ceQuoteResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:10;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
     </div>
-    <div style="font-size:.68rem;color:var(--muted);margin-bottom:14px">Type to search existing quotes, or type any custom quote</div>
+    <div style="font-size:.68rem;color:var(--muted);margin-bottom:14px">Type to search existing quotes, or enter any custom quote</div>
 
     <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Color</div>
     <div class="color-pills" id="cePills" style="margin-bottom:20px"></div>
+
+    <!-- Add new item section -->
+    <div style="border-top:1.5px solid var(--line);padding-top:14px;margin-bottom:16px">
+      <button id="ceAddToggleBtn" onclick="ceToggleAdd()" style="background:none;border:1.5px dashed var(--line);border-radius:8px;width:100%;padding:9px;font-size:.8rem;color:var(--ink2);cursor:pointer;font-family:var(--fb)">＋ Add another item to this order</button>
+      <div id="ceAddSection" style="display:none;margin-top:12px">
+        <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">New item quote</div>
+        <div style="position:relative;margin-bottom:4px">
+          <input id="ceAddQuoteInput" type="text" placeholder="Search quote…" oninput="ceAddQuoteSearch(this.value)" onblur="setTimeout(()=>document.getElementById('ceAddQuoteResults').innerHTML='',180)"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;color:var(--ink);font-family:var(--fb)">
+          <div id="ceAddQuoteResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:10;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
+        </div>
+        <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 8px">Color</div>
+        <div class="color-pills" id="ceAddPills" style="margin-bottom:10px"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+          <span style="font-size:.72rem;color:var(--muted)">Qty</span>
+          <input id="ceAddQty" type="number" min="1" value="1" style="width:55px;padding:5px 8px;border:1.5px solid var(--line);border-radius:7px;font-size:.82rem;text-align:center">
+        </div>
+      </div>
+    </div>
 
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="act-btn" onclick="closeColorEdit()">Cancel</button>
