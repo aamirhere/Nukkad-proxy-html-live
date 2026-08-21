@@ -4603,8 +4603,13 @@ function updateBatchBar() {
     const pb = document.getElementById('painterBatchBar');
     if (pb) pb.style.display = 'none';
   } else {
-    bar.classList.add('visible');
-    cnt.textContent = label;
+    // Only show the main batchBar when NOT in painter mode — painter has its own bar above
+    if (activeMode !== 'painter') {
+      bar.classList.add('visible');
+      cnt.textContent = label;
+    } else {
+      bar.classList.remove('visible');
+    }
     const pb = document.getElementById('painterBatchBar');
     const pc = document.getElementById('painterBatchCount');
     if (pb) { pb.style.display = 'flex'; if (pc) pc.textContent = label; }
@@ -4614,6 +4619,8 @@ function updateBatchBar() {
 function openBatchTag() {
   if (!batchQueue.length) return;
   renderBatchTag();
+  const submitBtn = document.getElementById('brSubmitBtn');
+  if (submitBtn) submitBtn.textContent = activeMode === 'painter' ? '✓ Mark as Found' : '✓ Confirm Tagged';
   document.getElementById('brOverlay').style.display = 'flex';
 }
 
@@ -4813,7 +4820,10 @@ function updateBrCount() {
     const hasMatch = batchQueue.some(it => it.tag?.match);
     btn.style.opacity = hasMatch ? '1' : '.4';
     btn.style.pointerEvents = hasMatch ? 'auto' : 'none';
-    btn.textContent = `✓ Confirm Tagged (${batchQueue.filter(it=>it.tag?.match).length})`;
+    const matchCount = batchQueue.filter(it=>it.tag?.match).length;
+    btn.textContent = activeMode === 'painter'
+      ? `✓ Mark as Found (${matchCount})`
+      : `✓ Confirm Tagged (${matchCount})`;
   }
 }
 
@@ -4840,29 +4850,52 @@ async function submitBatch() {
   if (!toConfirm.length) return;
 
   const btn = document.getElementById('brSubmitBtn');
-  btn.textContent = 'Submitting…'; btn.style.pointerEvents = 'none';
+  btn.textContent = 'Marking…'; btn.style.pointerEvents = 'none';
 
   let done = 0;
-  for (const item of toConfirm) {
-    const m = item.tag.match;
-    try {
-      const thumb = await compressToThumb(item.dataUrl);
-      await apiFetch({
-        action: 'submit_batch_pending',
-        order_name: m.order_name, quote: m.quote, color: m.color,
-        painter: currentPainter || null, thumb
-      });
-      done++;
-    } catch {}
-  }
 
-  closeBrOverlay();
-  clearBatch();
-  batchMode = false;
-  currentPainter = null;
-  setMode('sort');
-  refreshPendingBadge();
-  setStatus(`✓ ${done} photo${done !== 1 ? 's' : ''} submitted for approval — check Pending tab`);
+  if (activeMode === 'painter') {
+    // Painter drop-off: mark as found directly — no pending approval
+    for (const item of toConfirm) {
+      const m = item.tag.match;
+      try {
+        const r = await apiFetch({ action: 'update_rack_found', order_name: m.order_name, quote: m.quote, color: m.color, delta: 1 });
+        const it = rackItems.find(i => i.order_name === m.order_name && i.quote === m.quote && i.color === m.color);
+        if (it) it.found = r.found ?? Math.min(it.found + 1, it.needed);
+        if (it && it.found >= it.needed) {
+          apiFetch({ action: 'queue_for_print', order_name: m.order_name }).catch(() => {});
+        }
+        done++;
+      } catch {}
+    }
+    closeBrOverlay();
+    clearBatch();
+    updateSummary(); buildDateNav(); renderList();
+    if (printModeActive) loadPrintQueue().catch(() => {});
+    setStatus(`✓ ${done} piece${done !== 1 ? 's' : ''} marked as found`);
+    // Stay in painter mode so they can keep marking
+  } else {
+    // Non-painter mode: submit for pending approval
+    for (const item of toConfirm) {
+      const m = item.tag.match;
+      try {
+        const thumb = await compressToThumb(item.dataUrl);
+        await apiFetch({
+          action: 'submit_batch_pending',
+          order_name: m.order_name, quote: m.quote, color: m.color,
+          painter: currentPainter || null, thumb
+        });
+        done++;
+      } catch {}
+    }
+    closeBrOverlay();
+    clearBatch();
+    batchMode = false;
+    currentPainter = null;
+    setMode('sort');
+    refreshPendingBadge();
+    setStatus(`✓ ${done} photo${done !== 1 ? 's' : ''} submitted for approval — check Pending tab`);
+  }
 }
 
 async function refreshPendingBadge() {
@@ -5478,15 +5511,16 @@ async function painterMarkFound(orderName, quote, color, btn, qtyInpId, rowId) {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty });
     const it = rackItems.find(i => i.order_name === orderName && i.quote === quote && i.color === color);
     if (it) it.found = r.found ?? Math.min(it.found + qty, it.needed);
+    // Queue for print when order is now complete
+    if (it && it.found >= it.needed) {
+      apiFetch({ action: 'queue_for_print', order_name: orderName }).catch(() => {});
+      if (printModeActive) loadPrintQueue().catch(() => {});
+    }
     btn.textContent = '✓ Done'; btn.style.background = '#4caf50';
     updateSummary(); buildDateNav(); renderList();
-    // show remaining matched orders
-    const qk = quote.replace(/[^a-z0-9]/gi,'_').slice(0,30) + '_' + Math.abs(quote.split('').reduce((a,c)=>a+c.charCodeAt(0),0));
-    _showMatchedOrders(qk, quote, color);
-    setTimeout(() => {
-      const qv = norm(document.getElementById('painterSearchQ')?.value || '');
-      if (qv.length >= 2) _renderPainterResults(qv, qv);
-    }, 2000);
+    // Re-render search results immediately to reflect updated found counts
+    const qv = norm(document.getElementById('painterSearchQ')?.value || '');
+    if (qv.length >= 2) _renderPainterResults(qv, qv);
   } catch(e) { btn.disabled = false; btn.textContent = 'Confirm'; alert(e.message); }
 }
 
