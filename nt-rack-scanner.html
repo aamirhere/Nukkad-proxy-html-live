@@ -240,8 +240,8 @@ input[type=file]{display:none}
 .bb-clear{padding:8px 12px;border-radius:8px;background:none;border:1.5px solid var(--line);color:var(--ink2);font-size:.78rem;cursor:pointer}
 
 /* Batch review overlay */
-.br-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:600;display:flex;align-items:flex-end;justify-content:center}
-.br-sheet{background:var(--bg);width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column}
+.br-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
+.br-sheet{background:var(--bg);width:100%;max-width:480px;border-radius:16px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column}
 .br-header{padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:1}
 .br-title{font-family:var(--ff);font-size:1rem;font-weight:700;color:var(--ink)}
 .br-submit{padding:8px 18px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:.84rem;font-weight:700;cursor:pointer}
@@ -4634,12 +4634,15 @@ function renderBatchTag() {
                  <button onclick="brClearTag(${i})" style="background:none;border:none;color:var(--muted);font-size:.72rem;cursor:pointer;padding:0">✕ change</button>
                </div>
                ${matchLine}`
-            : `<input id="brInp${i}" type="text" placeholder="Type design name…"
+            : `<div style="position:relative">
+                 <input id="brInp${i}" type="text" placeholder="Type design name…"
                    style="width:100%;padding:8px 10px;border:1.5px solid var(--accent);border-radius:8px;font-size:.84rem;font-family:var(--fb);box-sizing:border-box;outline:none"
                    autocomplete="off"
                    oninput="brShowSuggest(${i},this.value)"
-                   onkeydown="if(event.key==='Enter')brPickFirst(${i});if(event.key==='Escape')brHideSuggest()"
-                   onblur="setTimeout(()=>brHideSuggest(),200)">`
+                   onkeydown="if(event.key==='Enter')brPickFirst(${i});if(event.key==='Escape')brHideSuggest(${i})"
+                   onblur="setTimeout(()=>brHideSuggest(${i}),200)">
+                 <div id="brSug${i}" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 3px);background:#fff;border:1.5px solid var(--line);border-radius:10px;z-index:800;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.14)"></div>
+               </div>`
           }
         </div>
       </div>
@@ -4653,20 +4656,11 @@ function renderBatchTag() {
   updateBrCount();
 }
 
-let _brSuggestFor = null; // current item index the portal is serving
 function brShowSuggest(i, val) {
-  const box = document.getElementById('brSuggestPortal');
+  const box = document.getElementById('brSug' + i);
   if (!box) return;
   const q = norm(val.trim());
   if (q.length < 1) { box.style.display = 'none'; return; }
-  _brSuggestFor = i;
-  const inp = document.getElementById('brInp' + i);
-  if (inp) {
-    const r = inp.getBoundingClientRect();
-    box.style.left = r.left + 'px';
-    box.style.width = r.width + 'px';
-    box.style.top = (r.bottom + 4) + 'px';
-  }
 
   const hitMap = new Map();
   for (const it of rackItems) {
@@ -4677,7 +4671,6 @@ function brShowSuggest(i, val) {
       hitMap.get(it.quote).hasActive = true;
     }
   }
-  // also include catalog-only matches
   for (const t of _designCatalog) {
     if (norm(t).includes(q) && !hitMap.has(t)) hitMap.set(t, { hasActive: false });
   }
@@ -4688,7 +4681,7 @@ function brShowSuggest(i, val) {
   box.innerHTML = hits.slice(0, 12).map(([quote, h]) => {
     const bk = _bd([i, quote]);
     return `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:.82rem;display:flex;gap:6px;align-items:center"
-      data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brPickDesign(d[0],d[1]);brHideSuggest()">
+      data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brHideSuggest(d[0]);brPickDesign(d[0],d[1])">
       <span style="flex:1;font-weight:600${!h.hasActive?';color:var(--muted)':''}">${esc(quote)}</span>
       ${!h.hasActive ? '<span style="font-size:.66rem;color:var(--muted)">done/dispatched</span>' : ''}
     </div>`;
@@ -4696,30 +4689,29 @@ function brShowSuggest(i, val) {
   box.style.display = 'block';
 }
 
-function brHideSuggest() {
-  const box = document.getElementById('brSuggestPortal');
-  if (box) box.style.display = 'none';
-  _brSuggestFor = null;
+function brHideSuggest(i) {
+  if (i !== undefined) {
+    const box = document.getElementById('brSug' + i);
+    if (box) box.style.display = 'none';
+  } else {
+    // hide all
+    document.querySelectorAll('[id^="brSug"]').forEach(el => el.style.display = 'none');
+  }
 }
 
 function brPickFirst(i) {
-  const box = document.getElementById('brSuggestPortal');
+  const box = document.getElementById('brSug' + i);
   const first = box?.querySelector('[data-bd]');
   if (first) first.click();
 }
 
 function brPickDesign(i, quote) {
   brHideSuggest(i);
-  // find matching active rack items for color selection
   const active = rackItems.filter(r => r.quote === quote && !r.dispatched && r.found < r.needed);
-  if (active.length === 1) {
-    // single match — auto-confirm with that color
-    brSetTag(i, quote, active[0].color, active[0]);
-  } else if (active.length === 0) {
-    // no active order — tag anyway so user sees it
+  if (active.length === 0) {
     brSetTag(i, quote, '', null);
   } else {
-    // multiple colors — show color picker inline
+    // always show color pills — never skip even for single match
     brShowColorPick(i, quote, active);
   }
 }
@@ -4727,21 +4719,50 @@ function brPickDesign(i, quote) {
 function brShowColorPick(i, quote, options) {
   const info = document.getElementById('brItem' + i)?.querySelector('.br-info');
   if (!info) return;
-  // deduplicate by color — pick the first matching order per color
   const byColor = new Map();
   for (const r of options) {
-    if (!byColor.has(r.color)) byColor.set(r.color, r);
+    if (!byColor.has(r.color)) byColor.set(r.color, []);
+    byColor.get(r.color).push(r);
   }
-  const unique = [...byColor.values()];
-  info.innerHTML = `<div style="font-size:.82rem;font-weight:700;margin-bottom:6px">${esc(quote)}</div>
-    <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px">Pick color:</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px">
-      ${unique.map(r => {
-        const bk = _bd([i, quote, r.color, r.order_name]);
-        return `<button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];brSetTagFromBtn(d[0],d[1],d[2],d[3])"
-          style="padding:5px 12px;border:1.5px solid var(--accent);border-radius:20px;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--ink)">${esc(r.color)}</button>`;
+  const colors = [...byColor.keys()];
+  info.innerHTML = `<div style="font-size:.82rem;font-weight:700;margin-bottom:8px">${esc(quote)}</div>
+    <div style="font-size:.7rem;color:var(--muted);margin-bottom:6px;font-weight:600">Pick color:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px" id="brCols${i}">
+      ${colors.map(color => {
+        const bk = _bd([i, quote, color]);
+        return `<button data-bd="${bk}" onclick="brSelectColor(${i},'${esc(quote)}','${esc(color)}')"
+          id="brcol_${i}_${esc(color).replace(/\s/g,'_')}"
+          style="padding:5px 12px;border:1.5px solid var(--line);border-radius:20px;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--ink2)">${esc(color)}</button>`;
       }).join('')}
-    </div>`;
+    </div>
+    <div id="brColOrder${i}"></div>`;
+  // auto-select if only one color
+  if (colors.length === 1) brSelectColor(i, quote, colors[0]);
+}
+
+function brSelectColor(i, quote, color) {
+  // highlight selected pill
+  const container = document.getElementById('brCols' + i);
+  if (container) container.querySelectorAll('button').forEach(b => {
+    const isThis = b.id === `brcol_${i}_${color.replace(/\s/g,'_')}`;
+    b.style.background = isThis ? 'var(--accent)' : '#fff';
+    b.style.color = isThis ? '#fff' : 'var(--ink2)';
+    b.style.borderColor = isThis ? 'var(--accent)' : 'var(--line)';
+  });
+  // show matched order
+  const matches = rackItems.filter(r => r.quote === quote && r.color === color && !r.dispatched && r.found < r.needed);
+  const orderDiv = document.getElementById('brColOrder' + i);
+  if (!orderDiv) return;
+  if (!matches.length) {
+    orderDiv.innerHTML = `<div style="font-size:.72rem;color:var(--muted)">No pending order for this color</div>`;
+    brSetTag(i, quote, color, null);
+    return;
+  }
+  const r = matches[0];
+  orderDiv.innerHTML = `<div style="font-size:.75rem;background:#f1f8e9;border-radius:8px;padding:7px 10px;display:flex;align-items:center;gap:8px">
+    <div style="flex:1"><span style="font-weight:700;color:var(--accent)">${esc(r.order_name)}</span> <span style="color:var(--ink2)">· ${esc(r.customer||'')}</span> <span style="color:var(--muted)">(${r.found}/${r.needed})</span></div>
+  </div>`;
+  brSetTag(i, quote, color, r);
 }
 
 function brSetTagFromBtn(i, quote, color, orderName) {
@@ -5234,40 +5255,63 @@ function _renderPainterResults(q, origVal) {
       <div style="font-weight:700;font-size:.88rem;margin-bottom:8px">${esc(quote)}</div>`;
 
     if (!activeChannel && active.length) {
+      // group by color, show color pills first
+      const byColor = new Map();
+      for (const r of active) {
+        if (!byColor.has(r.color)) byColor.set(r.color, []);
+        byColor.get(r.color).push(r);
+      }
+      const colorKeys = [...byColor.keys()];
       html += `<div id="pord_${qk}">
-        <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Orders</div>`;
-      html += active.map(r => {
-        const bk = _bd([r.order_name, r.quote, r.color]);
-        const rowId = 'prow_' + bk;
-        return `<div id="${rowId}" style="padding:6px 0;border-bottom:1px solid var(--line)">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="flex:1;font-size:.78rem">
-              <span style="font-weight:700;color:var(--accent)">${esc(r.color||'—')}</span>
-              <span style="color:var(--muted);margin-left:5px">${esc(r.order_name)}</span>
-              ${r.customer ? `<span style="color:var(--ink2);margin-left:4px">· ${esc(r.customer)}</span>` : ''}
-              <span style="color:var(--ink2);margin-left:4px;font-size:.7rem">(${r.found}/${r.needed})</span>
-            </div>
-            <button data-bd="${bk}" onclick="painterExpandOrder(this.dataset.bd,'${rowId}')"
-              style="padding:5px 10px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">✓ Found</button>
-            <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
-              style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
-          </div>
-          <div id="${rowId}_qty" style="display:none;margin-top:8px;flex-direction:column;gap:6px;padding:8px 10px;background:#f1f8e9;border-radius:8px">
-            <div style="font-size:.72rem;color:var(--muted)">Marking found for <strong>${esc(r.order_name)}</strong> · ${esc(r.color||'')}</div>
+        <div style="font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Select color to mark found</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${colorKeys.map(color => {
+            const bk = _bd([qk, color, quote]);
+            return `<button data-bd="${bk}" id="pcpill_${qk}_${color.replace(/\s/g,'_')}"
+              onclick="painterExpandColor('${qk}','${esc(quote)}','${esc(color)}')"
+              style="padding:5px 13px;border-radius:20px;border:1.5px solid var(--line);background:#fff;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--ink2)">${esc(color)}</button>`;
+          }).join('')}
+        </div>
+        <div id="pcolor_rows_${qk}"></div>
+      </div>`;
+      // auto-expand if only one color
+      if (colorKeys.length === 1) {
+        const autoColor = colorKeys[0];
+        const autoRows = byColor.get(autoColor);
+        const autoRowsHtml = autoRows.map(r => {
+          const bk = _bd([r.order_name, r.quote, r.color]);
+          const rowId = 'prow_' + bk;
+          return `<div id="${rowId}" style="padding:6px 0;border-bottom:1px solid var(--line)">
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
-              <input type="number" min="1" max="${r.needed - r.found}" value="${r.needed - r.found}"
-                style="width:56px;padding:4px 8px;border:1.5px solid #a5d6a7;border-radius:6px;font-size:.88rem;text-align:center"
-                id="${rowId}_qtyinp">
-              <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this,'${rowId}_qtyinp','${rowId}')"
-                style="padding:5px 14px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
-              <button onclick="document.getElementById('${rowId}_qty').style.display='none'"
-                style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+              <div style="flex:1;font-size:.78rem">
+                <span style="font-weight:700;color:var(--accent)">${esc(r.order_name)}</span>
+                ${r.customer ? `<span style="color:var(--ink2);margin-left:4px">· ${esc(r.customer)}</span>` : ''}
+                <span style="color:var(--muted);margin-left:4px;font-size:.7rem">(${r.found}/${r.needed})</span>
+              </div>
+              <button data-bd="${bk}" onclick="painterExpandOrder(this.dataset.bd,'${rowId}')"
+                style="padding:5px 10px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">✓ Found</button>
+              <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
+                style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
             </div>
-          </div>
-        </div>`;
-      }).join('');
-      html += `</div>`; // close pord_${qk}
+            <div id="${rowId}_qty" style="display:none;margin-top:8px;flex-direction:column;gap:6px;padding:8px 10px;background:#f1f8e9;border-radius:8px">
+              <div style="font-size:.72rem;color:var(--muted)">Marking found for <strong>${esc(r.order_name)}</strong> · ${esc(r.color||'')}</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
+                <input type="number" min="1" max="${r.needed - r.found}" value="${r.needed - r.found}"
+                  style="width:56px;padding:4px 8px;border:1.5px solid #a5d6a7;border-radius:6px;font-size:.88rem;text-align:center"
+                  id="${rowId}_qtyinp">
+                <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this,'${rowId}_qtyinp','${rowId}')"
+                  style="padding:5px 14px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+                <button onclick="document.getElementById('${rowId}_qty').style.display='none'"
+                  style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+        // inject auto-expanded rows after render via placeholder
+        html = html.replace(`<div id="pcolor_rows_${qk}"></div>`,
+          `<div id="pcolor_rows_${qk}" style="padding:8px 10px;background:#f1f8e9;border-radius:10px">${autoRowsHtml}</div>`);
+      }
     } else if (activeChannel && active.length) {
       html += `<div style="font-size:.72rem;color:var(--ink2);margin-bottom:6px">${active.length} pending order${active.length>1?'s':''}: ${active.map(r=>`<span style="color:var(--accent);font-weight:700">${esc(r.order_name)}</span>`).join(', ')}</div>`;
     }
@@ -5308,6 +5352,50 @@ function painterPickColor(qk, color, inputId) {
 
 function painterExpandOrder(bk, rowId) {
   document.getElementById(rowId + '_qty').style.display = 'flex';
+}
+
+function painterExpandColor(qk, quote, color) {
+  // highlight active pill
+  document.querySelectorAll(`[id^="pcpill_${qk}_"]`).forEach(b => {
+    const isThis = b.id === `pcpill_${qk}_${color.replace(/\s/g,'_')}`;
+    b.style.background = isThis ? 'var(--accent)' : '#fff';
+    b.style.color = isThis ? '#fff' : 'var(--ink2)';
+    b.style.borderColor = isThis ? 'var(--accent)' : 'var(--line)';
+  });
+  const rows = rackItems.filter(r => r.quote === quote && r.color === color && !r.dispatched && r.found < r.needed);
+  const container = document.getElementById('pcolor_rows_' + qk);
+  if (!container) return;
+  container.style.cssText = 'padding:8px 10px;background:#f1f8e9;border-radius:10px';
+  container.innerHTML = rows.map(r => {
+    const bk = _bd([r.order_name, r.quote, r.color]);
+    const rowId = 'prow_' + bk;
+    return `<div id="${rowId}" style="padding:6px 0;border-bottom:1px solid #c8e6c9">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;font-size:.78rem">
+          <span style="font-weight:700;color:var(--accent)">${esc(r.order_name)}</span>
+          ${r.customer ? `<span style="color:var(--ink2);margin-left:4px">· ${esc(r.customer)}</span>` : ''}
+          <span style="color:var(--muted);margin-left:4px;font-size:.7rem">(${r.found}/${r.needed})</span>
+        </div>
+        <button data-bd="${bk}" onclick="painterExpandOrder(this.dataset.bd,'${rowId}')"
+          style="padding:5px 10px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">✓ Found</button>
+        <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterDispatch(d[0],this)"
+          style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🚚</button>
+      </div>
+      <div id="${rowId}_qty" style="display:none;margin-top:8px;flex-direction:column;gap:6px;padding:8px 10px;background:#e8f5e9;border-radius:8px">
+        <div style="font-size:.72rem;color:var(--muted)">Marking found for <strong>${esc(r.order_name)}</strong> · ${esc(r.color||'')}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.78rem;color:var(--ink2)">Qty:</span>
+          <input type="number" min="1" max="${r.needed - r.found}" value="${r.needed - r.found}"
+            style="width:56px;padding:4px 8px;border:1.5px solid #a5d6a7;border-radius:6px;font-size:.88rem;text-align:center"
+            id="${rowId}_qtyinp">
+          <button data-bd="${bk}" onclick="var d=_btnData[this.dataset.bd];painterMarkFound(d[0],d[1],d[2],this,'${rowId}_qtyinp','${rowId}')"
+            style="padding:5px 14px;border-radius:8px;border:none;background:#388e3c;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer">Confirm</button>
+          <button onclick="document.getElementById('${rowId}_qty').style.display='none'"
+            style="padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);font-size:.72rem;cursor:pointer">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') || `<div style="font-size:.75rem;color:var(--muted)">No pending orders for ${esc(color)}</div>`;
 }
 
 let _painterChCtx = {};
