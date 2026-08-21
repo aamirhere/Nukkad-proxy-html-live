@@ -570,9 +570,8 @@ input[type=file]{display:none}
         oninput="painterSearchDesign(this.value)"
         onkeydown="if(event.key==='Escape'){this.value='';painterClearResult()}"
         onclick="this.select()">
+      <div id="painterSearchResults" style="position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:600;background:#fff;border:1.5px solid var(--line);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.13);max-height:340px;overflow-y:auto;display:none"></div>
     </div>
-    <!-- inline search results -->
-    <div id="painterSearchResults"></div>
   </div>
 
   <!-- scan button + search input row (hidden in painter mode) -->
@@ -2983,7 +2982,7 @@ function renderList() {
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
             ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':''}
             ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
-            ${complete && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">✓ Matched</span>' : ''}
+            ${complete && !o.dispatched && !o.cancelled ? (o.painter ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80">🎨 Drop-off</span>' : '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">✓ Matched</span>') : ''}
             ${o.print_done && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
@@ -4941,6 +4940,10 @@ document.addEventListener('click', e => {
     const box = document.getElementById('slipProductResults');
     if (box) box.style.display = 'none';
   }
+  if (!document.getElementById('painterSearchQ')?.contains(e.target) &&
+      !document.getElementById('painterSearchResults')?.contains(e.target)) {
+    painterClearResult();
+  }
 });
 
 let slipEditMode = false;
@@ -5130,7 +5133,9 @@ function painterSearchDesign(val) {
 }
 
 function painterClearResult() {
-  document.getElementById('painterSearchResults').innerHTML = '';
+  const el = document.getElementById('painterSearchResults');
+  el.innerHTML = '';
+  el.style.display = 'none';
 }
 
 function _renderPainterResults(q, origVal) {
@@ -5143,8 +5148,9 @@ function _renderPainterResults(q, origVal) {
   const catalogMatches = _designCatalog.filter(t => norm(t).includes(q) && !matchMap.has(t)).slice(0, 4);
 
   if (!matchMap.size && !catalogMatches.length) {
-    document.getElementById('painterSearchResults').innerHTML =
-      `<div style="font-size:.8rem;color:var(--muted);padding:8px 0">No matching designs found</div>`;
+    const el = document.getElementById('painterSearchResults');
+    el.innerHTML = `<div style="font-size:.8rem;color:var(--muted);padding:10px 14px">No matching designs found</div>`;
+    el.style.display = 'block';
     return;
   }
 
@@ -5284,7 +5290,9 @@ function _renderPainterResults(q, origVal) {
     </div>`;
   }
 
-  document.getElementById('painterSearchResults').innerHTML = html;
+  const el = document.getElementById('painterSearchResults');
+  el.innerHTML = html;
+  el.style.display = html.trim() ? 'block' : 'none';
 }
 
 function painterPickColor(qk, color, inputId) {
