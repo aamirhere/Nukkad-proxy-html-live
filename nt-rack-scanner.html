@@ -1022,33 +1022,39 @@ async function init() {
   _loadSkips().catch(() => {});
   updatePendingBadge();
   refreshPendingBadge();
-  maybeAutoSync();
-  // Run tracking sync on load (independent of sync_rack so it works even if sync_rack times out)
-  const _lastTrkSync = parseInt(localStorage.getItem('nt_last_trk_sync') || '0', 10);
-  if (Date.now() - _lastTrkSync > 30 * 60 * 1000) {
-    apiFetch({ action: 'sync_tracking' }).then(tr => {
-      if (tr.updated > 0) {
-        localStorage.setItem('nt_last_trk_sync', Date.now());
-        loadRackStatus();
-        setStatus(`↑ ${tr.updated} tracking${tr.updated !== 1 ? 's' : ''} updated`);
-      } else {
-        localStorage.setItem('nt_last_trk_sync', Date.now());
-      }
-    }).catch(() => {});
-  }
-  // 1. Read Supabase catalog immediately — fast
-  apiFetch({ action: 'get_design_catalog' }).then(r => {
-    _designCatalog = (r.titles || []);
-    if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
-  }).catch(() => {});
 
-  // 2. Sync new Shopify products into Supabase on every load — runs in background, never blocks UI
-  apiFetch({ action: 'sync_design_catalog' }).then(s => {
-    if (s && s.titles && s.titles.length > _designCatalog.length) {
-      _designCatalog = s.titles;
-      if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
+  // Stagger background work 2s after main load so we don't compete with get_rack_status
+  setTimeout(() => {
+    maybeAutoSync();
+
+    const _lastTrkSync = parseInt(localStorage.getItem('nt_last_trk_sync') || '0', 10);
+    if (Date.now() - _lastTrkSync > 30 * 60 * 1000) {
+      apiFetch({ action: 'sync_tracking' }).then(tr => {
+        if (tr.updated > 0) {
+          localStorage.setItem('nt_last_trk_sync', Date.now());
+          loadRackStatus();
+          setStatus(`↑ ${tr.updated} tracking${tr.updated !== 1 ? 's' : ''} updated`);
+        } else {
+          localStorage.setItem('nt_last_trk_sync', Date.now());
+        }
+      }).catch(() => {});
     }
-  }).catch(e => console.warn('catalog sync failed:', e.message));
+
+    // Catalog: read cached first, then sync in background
+    apiFetch({ action: 'get_design_catalog' }).then(r => {
+      _designCatalog = (r.titles || []);
+      if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
+    }).catch(() => {});
+
+    setTimeout(() => {
+      apiFetch({ action: 'sync_design_catalog' }).then(s => {
+        if (s && s.titles && s.titles.length > _designCatalog.length) {
+          _designCatalog = s.titles;
+          if (_lastSuggestVal) showQuoteSuggestions(_lastSuggestVal);
+        }
+      }).catch(e => console.warn('catalog sync failed:', e.message));
+    }, 3000); // further delay catalog sync — it hits Shopify API
+  }, 2000);
 }
 
 // Only hit Shopify if last sync was more than 30 minutes ago
@@ -1219,7 +1225,7 @@ async function loadLiveEmergencies() {
 
 async function loadRackStatus() {
   try {
-    rackItems = await apiFetch({ action: 'get_rack_status' });
+    rackItems = await apiFetch({ action: 'get_rack_status' }, API, 40000);
     updateSummary();
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
