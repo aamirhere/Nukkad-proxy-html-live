@@ -1908,6 +1908,8 @@ async function markEmergency(u) {
 let emgDate = todayIST();
 let emgView = 'all'; // 'all' | 'date'
 let allEmgGroups = []; // cached from last load
+let _printedUnits = []; // cached printed units for re-filter without re-fetch
+let _sentGroups = {};   // cached sent groups for re-filter without re-fetch
 
 async function sendTgUpdate(btn) {
   btn.disabled = true; btn.textContent = 'Sending…';
@@ -1937,6 +1939,8 @@ function setEmgView(v) {
 }
 
 function applyEmgDateFilter() {
+  if (emgView === 'printed') { renderPrintedView(); return; }
+  if (emgView === 'sent') { renderSentView(); return; }
   const date = document.getElementById('emgDateFilter').value;
   if (!date) { renderEmgGroups(); return; }
   const filtered = allEmgGroups.map(g => ({
@@ -1951,6 +1955,8 @@ function applyEmgDateFilter() {
 function clearEmgDateFilter() {
   const inp = document.getElementById('emgDateFilter');
   if (inp) inp.value = '';
+  if (emgView === 'printed') { renderPrintedView(); return; }
+  if (emgView === 'sent') { renderSentView(); return; }
   renderEmgGroups();
 }
 
@@ -1975,54 +1981,59 @@ async function loadPrintedView() {
     [...Array(3)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px;margin-bottom:8px"></div>').join('');
   try {
     const res = await api({ action: 'load_downloaded_emergencies', days: 60 });
-    const units = res.units || [];
-    if (!units.length) {
-      document.getElementById('emgPrintedList').innerHTML =
-        '<div class="empty-state"><div class="icon">🖨️</div><p>No printed units yet</p></div>';
-      return;
-    }
-    const byDesign = {};
-    for (const u of units) {
-      const k = u.handle || u.title;
-      if (!byDesign[k]) byDesign[k] = { title: u.title, handle: u.handle, units: [] };
-      byDesign[k].units.push(u);
-    }
-    const dateFilter = document.getElementById('emgDateFilter')?.value || '';
-    const html = Object.values(byDesign).map(g => {
-      const displayUnits = dateFilter ? g.units.filter(u => (u.downloaded_at || '').slice(0, 10) === dateFilter) : g.units;
-      if (!displayUnits.length) return '';
-      const safeHandle = JSON.stringify(g.handle).replace(/"/g, '&quot;');
-      const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
-      const bodyId = `prowlist-${slug}`;
-      const pending = emgPendingCount(g.handle);
-      const rows = displayUnits.map(u => {
-        const orderDateStr = u.date
-          ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-          : '—';
-        const printedDateStr = u.downloaded_at
-          ? new Date(u.downloaded_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-          : '—';
-        const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
-        return `<div class="emg-unit-row" id="prow-${u.order_id}-${u.line_item_id}-${u.unit_index}">
-          <span class="emg-unit-date" title="Order date">📅 ${orderDateStr}</span>
-          <span class="emg-unit-order">${u.order_name || u.order_id}</span>
-          <span style="font-size:.75rem;color:var(--muted);margin-left:4px">🖨 ${printedDateStr}</span>
-          <button onclick="markUnitSent(${safeU},this)" style="margin-left:auto;padding:4px 12px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;cursor:pointer">Sent →</button>
-        </div>`;
-      }).join('');
-      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="pgroup-${slug}">
-        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="togglePrintedSentGroup('${bodyId}')">
-          <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▸</span>
-          <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
-          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="pcnt-${slug}">${displayUnits.length} printed</span>
-          ${pending ? `<span style="font-size:.72rem;color:#e65100;background:#fff3e0;padding:2px 7px;border-radius:10px;font-weight:600">+${pending} queued</span>` : ''}
-          <button onclick="event.stopPropagation();markAllSent(${safeHandle},this)" style="padding:4px 12px;border-radius:20px;border:1.5px solid var(--accent);background:none;color:var(--accent);font-size:.72rem;font-weight:700;cursor:pointer">Send All →</button>
-        </div>
-        <div id="${bodyId}" style="display:none;border-top:1px solid var(--line)">${rows}</div>
+    _printedUnits = res.units || [];
+    renderPrintedView();
+  } catch (e) { document.getElementById('emgPrintedList').innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+}
+
+function renderPrintedView() {
+  const units = _printedUnits;
+  if (!units.length) {
+    document.getElementById('emgPrintedList').innerHTML =
+      '<div class="empty-state"><div class="icon">🖨️</div><p>No printed units yet</p></div>';
+    return;
+  }
+  const byDesign = {};
+  for (const u of units) {
+    const k = u.handle || u.title || 'unknown';
+    if (!byDesign[k]) byDesign[k] = { title: u.title || k, handle: u.handle, units: [] };
+    byDesign[k].units.push(u);
+  }
+  const dateFilter = document.getElementById('emgDateFilter')?.value || '';
+  const html = Object.values(byDesign).map(g => {
+    const displayUnits = dateFilter ? g.units.filter(u => (u.downloaded_at || '').slice(0, 10) === dateFilter) : g.units;
+    if (!displayUnits.length) return '';
+    const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
+    const bodyId = `prowlist-${slug}`;
+    const pending = emgPendingCount(g.handle);
+    const rows = displayUnits.map(u => {
+      const orderDateStr = u.date
+        ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        : '—';
+      const printedDateStr = u.downloaded_at
+        ? new Date(u.downloaded_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        : '—';
+      const uData = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+      return `<div class="emg-unit-row" id="prow-${u.order_id}-${u.line_item_id}-${u.unit_index}" data-u='${uData}'>
+        <span class="emg-unit-date" title="Order date">📅 ${orderDateStr}</span>
+        <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+        <span style="font-size:.75rem;color:var(--muted);margin-left:4px">🖨 ${printedDateStr}</span>
+        <button class="ps-sent-btn" style="margin-left:auto;padding:4px 12px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;cursor:pointer">Sent →</button>
       </div>`;
     }).join('');
-    document.getElementById('emgPrintedList').innerHTML = html;
-  } catch (e) { document.getElementById('emgPrintedList').innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+    const safeHandleAttr = (g.handle || '').replace(/'/g, '');
+    return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="pgroup-${slug}">
+      <div class="ps-group-head" data-bodyid="${bodyId}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer">
+        <span class="ps-chev" data-bodyid="${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px;pointer-events:none">▸</span>
+        <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1;pointer-events:none">${g.title || '—'}</span>
+        <span style="font-size:.75rem;color:var(--muted);font-weight:400;pointer-events:none">${displayUnits.length} printed</span>
+        ${pending ? `<span style="font-size:.72rem;color:#e65100;background:#fff3e0;padding:2px 7px;border-radius:10px;font-weight:600;pointer-events:none">+${pending} queued</span>` : ''}
+        <button class="ps-sendall-btn" data-handle="${safeHandleAttr}" style="padding:4px 12px;border-radius:20px;border:1.5px solid var(--accent);background:none;color:var(--accent);font-size:.72rem;font-weight:700;cursor:pointer">Send All →</button>
+      </div>
+      <div id="${bodyId}" style="display:none;border-top:1px solid var(--line)">${rows}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('emgPrintedList').innerHTML = html || '<div class="empty-state"><div class="icon">🖨️</div><p>No printed units for this date</p></div>';
 }
 
 async function markUnitSent(u, btn) {
@@ -2048,7 +2059,7 @@ async function markAllSent(handle, btn) {
   btn.disabled = true; btn.textContent = '…';
   try {
     const res = await api({ action: 'mark_sent_all', handle });
-    const groupEl = document.getElementById(`pgroup-${handle}`);
+    const groupEl = btn.closest('[id^="pgroup-"]');
     if (groupEl) groupEl.remove();
     toast(`Sent ${res.fulfilled} unit${res.fulfilled !== 1 ? 's' : ''} ✓`);
   } catch (e) { btn.disabled = false; btn.textContent = 'Send All →'; toast('Failed: ' + e.message); }
@@ -2059,45 +2070,49 @@ async function loadSentView() {
     [...Array(3)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px;margin-bottom:8px"></div>').join('');
   try {
     const res = await api({ action: 'load_sent_emergencies', days: 30 });
-    const byDesign = res.byDesign || {};
-    const groups = Object.values(byDesign);
-    if (!groups.length) {
-      document.getElementById('emgSentList').innerHTML =
-        '<div class="empty-state"><div class="icon">📭</div><p>No sent units yet</p></div>';
-      return;
-    }
-    const dateFilter = document.getElementById('emgDateFilter')?.value || '';
-    const html = groups.map(g => {
-      const displayUnits = dateFilter ? g.units.filter(u => (u.picked_at || '').slice(0, 10) === dateFilter) : g.units;
-      if (!displayUnits.length) return '';
-      const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
-      const bodyId = `srowlist-${slug}`;
-      const rows = displayUnits.map(u => {
-        const orderDateStr = u.date
-          ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-          : '—';
-        const sentDateStr = u.picked_at
-          ? new Date(u.picked_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-          : '—';
-        const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
-        return `<div class="emg-unit-row" id="srow-${u.order_id}-${u.line_item_id}-${u.unit_index}">
-          <span class="emg-unit-date" title="Order date">📅 ${orderDateStr}</span>
-          <span class="emg-unit-order">${u.order_name || u.order_id}</span>
-          <span style="font-size:.75rem;color:var(--muted);margin-left:4px">📤 ${sentDateStr}</span>
-          <button onclick="undoSent(${safeU},this)" style="margin-left:auto;padding:3px 10px;border-radius:20px;border:1.5px solid var(--muted);background:none;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer">↩ Undo</button>
-        </div>`;
-      }).join('');
-      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="sgroup-${slug}">
-        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="togglePrintedSentGroup('${bodyId}')">
-          <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▸</span>
-          <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
-          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="scnt-${slug}">${displayUnits.length} sent</span>
-        </div>
-        <div id="${bodyId}" style="display:none;border-top:1px solid var(--line)">${rows}</div>
+    _sentGroups = res.byDesign || {};
+    renderSentView();
+  } catch (e) { document.getElementById('emgSentList').innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+}
+
+function renderSentView() {
+  const groups = Object.values(_sentGroups);
+  if (!groups.length) {
+    document.getElementById('emgSentList').innerHTML =
+      '<div class="empty-state"><div class="icon">📭</div><p>No sent units yet</p></div>';
+    return;
+  }
+  const dateFilter = document.getElementById('emgDateFilter')?.value || '';
+  const html = groups.map(g => {
+    const displayUnits = dateFilter ? g.units.filter(u => (u.picked_at || '').slice(0, 10) === dateFilter) : g.units;
+    if (!displayUnits.length) return '';
+    const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
+    const bodyId = `srowlist-${slug}`;
+    const rows = displayUnits.map(u => {
+      const orderDateStr = u.date
+        ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        : '—';
+      const sentDateStr = u.picked_at
+        ? new Date(u.picked_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        : '—';
+      const uData = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+      return `<div class="emg-unit-row" id="srow-${u.order_id}-${u.line_item_id}-${u.unit_index}" data-u='${uData}'>
+        <span class="emg-unit-date" title="Order date">📅 ${orderDateStr}</span>
+        <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+        <span style="font-size:.75rem;color:var(--muted);margin-left:4px">📤 ${sentDateStr}</span>
+        <button class="ps-undo-btn" style="margin-left:auto;padding:3px 10px;border-radius:20px;border:1.5px solid var(--muted);background:none;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer">↩ Undo</button>
       </div>`;
     }).join('');
-    document.getElementById('emgSentList').innerHTML = html;
-  } catch (e) { document.getElementById('emgSentList').innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+    return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="sgroup-${slug}">
+      <div class="ps-group-head" data-bodyid="${bodyId}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer">
+        <span class="ps-chev" data-bodyid="${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px;pointer-events:none">▸</span>
+        <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1;pointer-events:none">${g.title || '—'}</span>
+        <span style="font-size:.75rem;color:var(--muted);font-weight:400;pointer-events:none">${displayUnits.length} sent</span>
+      </div>
+      <div id="${bodyId}" style="display:none;border-top:1px solid var(--line)">${rows}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('emgSentList').innerHTML = html || '<div class="empty-state"><div class="icon">📭</div><p>No sent units for this date</p></div>';
 }
 
 async function undoSent(u, btn) {
@@ -3467,6 +3482,44 @@ document.addEventListener('keydown', e => {
     document.getElementById('recvModal').classList.remove('open');
   }
   if (e.key === 'Enter' && document.getElementById('addModal').classList.contains('open')) submitAddProduct();
+});
+
+// ── Printed/Sent tab event delegation ────────────────────────────────────────
+document.addEventListener('click', e => {
+  // Expand/collapse group headers
+  const head = e.target.closest('.ps-group-head');
+  if (head) {
+    const bodyId = head.dataset.bodyid;
+    const body = bodyId && document.getElementById(bodyId);
+    if (body) {
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      const chev = head.querySelector('.ps-chev');
+      if (chev) chev.textContent = open ? '▸' : '▾';
+    }
+    return;
+  }
+  // Printed tab: Send All
+  const sendAllBtn = e.target.closest('.ps-sendall-btn');
+  if (sendAllBtn) {
+    e.stopPropagation();
+    markAllSent(sendAllBtn.dataset.handle, sendAllBtn);
+    return;
+  }
+  // Printed tab: Sent →
+  const sentBtn = e.target.closest('.ps-sent-btn');
+  if (sentBtn) {
+    const row = sentBtn.closest('.emg-unit-row');
+    if (row && row.dataset.u) { try { markUnitSent(JSON.parse(row.dataset.u), sentBtn); } catch(_) {} }
+    return;
+  }
+  // Sent tab: Undo
+  const undoBtn = e.target.closest('.ps-undo-btn');
+  if (undoBtn) {
+    const row = undoBtn.closest('.emg-unit-row');
+    if (row && row.dataset.u) { try { undoSent(JSON.parse(row.dataset.u), undoBtn); } catch(_) {} }
+    return;
+  }
 });
 
 init();
