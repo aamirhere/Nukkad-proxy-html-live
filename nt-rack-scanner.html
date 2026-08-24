@@ -1901,6 +1901,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
           <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="queueForPrint('${esc(orderName)}',this)">Queue Print</button>
           ${allFound ? `<button class="act-btn" style="background:#388e3c;color:#fff;border:none" data-bd="${_bd([orderName])}" onclick="var d=_btnData[this.dataset.bd];dispatchFromQueue(d[0],this)">✓ Dispatched</button>` : ''}
           <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="jumpToOrderInList('${esc(orderName)}','${esc(orderDate||'')}',${allFound})">See in List</button>
+          <button class="act-btn" style="background:#f5f5f5;color:var(--ink2);border:1px solid var(--line);font-size:.72rem" data-bd="${_bd([orderName])}" onclick="var d=_btnData[this.dataset.bd];resyncOrderItems(d[0],this)">↻ Re-sync</button>
         </div>
       </div>
     </div>`;
@@ -1915,6 +1916,23 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     }
     renderHistory();
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function resyncOrderItems(orderName, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res = await apiFetch({ action: 'resync_order', order_name: orderName });
+    if (res.added > 0) {
+      toast(`↻ Added ${res.added} missing item${res.added > 1 ? 's' : ''} for ${orderName}`);
+      await loadRackStatus();
+    } else {
+      toast(`${orderName} already has all items`);
+    }
+    btn.textContent = '✓ Done';
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '↻ Re-sync';
+    toast('Re-sync failed: ' + e.message);
+  }
 }
 
 async function queueForPrint(orderName, btn) {
