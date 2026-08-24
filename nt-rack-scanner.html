@@ -6441,7 +6441,7 @@ const COLOR_EDIT_COLORS = ['Peach','White','Blue','Orange','Red','Yellow','Purpl
 const COLOR_EMOJI = { Peach:'🟠', White:'⚪', Blue:'🔵', Orange:'🟧', Red:'🔴', Yellow:'🟡', Purple:'🟣', Green:'🟢', Gold:'🟤', Standard:'⬜' };
 let _ceOrderName = '', _cePrevColor = '', _cePrevQuote = '', _ceNewColor = '', _ceNewQuote = '';
 
-let _ceAddQuote = '', _ceAddColor = '', _ceAddOpen = false, _ceAddPicking = false;
+let _ceAddQuote = '', _ceAddColor = '', _ceAddOpen = false, _ceAddPicking = false, _ceAddPrice = 599;
 
 function openColorEdit(orderName, quote, color) {
   _ceOrderName = orderName;
@@ -6497,11 +6497,19 @@ function openColorEdit(orderName, quote, color) {
   inp.focus();
 }
 
+function ceSetPrice(p) {
+  _ceAddPrice = p;
+  document.getElementById('cePrice599').style.background = p === 599 ? 'var(--accent)' : '#fff';
+  document.getElementById('cePrice599').style.color = p === 599 ? '#fff' : 'var(--ink2)';
+  document.getElementById('cePrice999').style.background = p === 999 ? 'var(--accent)' : '#fff';
+  document.getElementById('cePrice999').style.color = p === 999 ? '#fff' : 'var(--ink2)';
+}
+
 function ceToggleAdd() {
   _ceAddOpen = !_ceAddOpen;
   document.getElementById('ceAddSection').style.display = _ceAddOpen ? 'block' : 'none';
   document.getElementById('ceAddToggleBtn').textContent = _ceAddOpen ? '✕ Cancel add' : '＋ Add another item to this order';
-  if (_ceAddOpen) { _ceAddQuote = ''; _ceAddColor = ''; ceCheckSaveBtn(); document.getElementById('ceAddQuoteInput').focus(); }
+  if (_ceAddOpen) { _ceAddQuote = ''; _ceAddColor = ''; _ceAddPrice = 599; ceSetPrice(599); ceCheckSaveBtn(); document.getElementById('ceAddQuoteInput').focus(); }
   else { _ceAddQuote = ''; _ceAddColor = ''; ceCheckSaveBtn(); }
 }
 
@@ -6609,7 +6617,7 @@ async function saveColorEdit() {
     }
     if (addReady) {
       const qty = parseInt(document.getElementById('ceAddQty').value, 10) || 1;
-      await apiFetch({ action: 'add_rack_item', order_name: _ceOrderName, quote: _ceAddQuote, color: _ceAddColor, needed: qty });
+      await apiFetch({ action: 'add_rack_item', order_name: _ceOrderName, quote: _ceAddQuote, color: _ceAddColor, needed: qty, item_price: _ceAddPrice });
       // Inject new item into rackItems in memory
       const ref = rackItems.find(r => r.order_name === _ceOrderName);
       if (ref) {
@@ -6692,6 +6700,11 @@ function closeColorEdit() {
         </div>
         <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 8px">Color</div>
         <div class="color-pills" id="ceAddPills" style="margin-bottom:10px"></div>
+        <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 6px">Price</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button id="cePrice599" onclick="ceSetPrice(599)" style="flex:1;padding:6px;border-radius:8px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer">₹599</button>
+          <button id="cePrice999" onclick="ceSetPrice(999)" style="flex:1;padding:6px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.82rem;font-weight:700;cursor:pointer">₹999</button>
+        </div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
           <span style="font-size:.72rem;color:var(--muted)">Qty</span>
           <input id="ceAddQty" type="number" min="1" value="1" style="width:55px;padding:5px 8px;border:1.5px solid var(--line);border-radius:7px;font-size:.82rem;text-align:center">
