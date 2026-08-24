@@ -2889,15 +2889,20 @@ function renderList() {
     ? rackItems
     : rackItems.filter(it => it.order_date === selectedDate);
 
-  // Apply search filter
+  // Apply search filter — match at order level, show all items for matching orders
   if (searchQuery) {
     const q = searchQuery;
-    items = items.filter(it =>
-      it.order_name.toLowerCase().includes(q) ||
-      (it.quote || '').toLowerCase().includes(q) ||
-      (it.customer || '').toLowerCase().includes(q) ||
-      (it.notes || '').toLowerCase().includes(q)
+    const matchingOrders = new Set(
+      items
+        .filter(it =>
+          it.order_name.toLowerCase().includes(q) ||
+          (it.quote || '').toLowerCase().includes(q) ||
+          (it.customer || '').toLowerCase().includes(q) ||
+          (it.notes || '').toLowerCase().includes(q)
+        )
+        .map(it => it.order_name)
     );
+    items = items.filter(it => matchingOrders.has(it.order_name));
   }
 
   const dateLabel = selectedDate === 'all' ? 'All Dates' : fmtDate(selectedDate);
