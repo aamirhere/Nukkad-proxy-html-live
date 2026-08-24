@@ -1142,7 +1142,7 @@ async function apiFetch(payload, url = API, timeoutMs = 25000) {
   } finally { clearTimeout(tid); }
 }
 
-// ── SYNC (incremental — backend handles from/to via Redis cursor) ──────────────
+// ── SYNC (incremental + gap fill on every sync) ────────────────────────────────
 async function syncAll() {
   const btn = document.getElementById('syncBtn');
   btn.disabled = true;
@@ -1151,10 +1151,22 @@ async function syncAll() {
   try {
     const r = await apiFetch({ action: 'sync_rack' });
     const resolvedMsg = r.pending_resolved > 0 ? ` · ✓ ${r.pending_resolved} pending applied` : '';
-    setStatus(`✓ Synced ${r.orders} orders · ${r.synced} items (${fmtDate(r.from)} → ${fmtDate(r.to)})${resolvedMsg} — refreshing tracking…`);
+    setStatus(`✓ Synced ${r.orders} orders${resolvedMsg} — checking for missing items…`);
     await loadRackStatus();
     updatePendingBadge();
-    // Refresh tracking for last 15 days separately to avoid timeout in main sync
+
+    // Always fill gaps so every order has all its items, not just recently-synced ones
+    try {
+      const gap = await apiFetch({ action: 'fill_rack_gaps', date_from: '2026-07-29' });
+      if (gap.new_rows > 0) {
+        await loadRackStatus();
+        setStatus(`✓ Up to date · filled ${gap.new_rows} missing item(s) across ${gap.affected_orders.length} order(s) — refreshing tracking…`);
+      } else {
+        setStatus(`✓ Orders up to date — refreshing tracking…`);
+      }
+    } catch(_) {}
+
+    // Refresh tracking separately to avoid timeout in main sync
     try {
       const tr = await apiFetch({ action: 'sync_tracking' });
       if (tr.updated > 0) {
@@ -1901,7 +1913,6 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
           <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="queueForPrint('${esc(orderName)}',this)">Queue Print</button>
           ${allFound ? `<button class="act-btn" style="background:#388e3c;color:#fff;border:none" data-bd="${_bd([orderName])}" onclick="var d=_btnData[this.dataset.bd];dispatchFromQueue(d[0],this)">✓ Dispatched</button>` : ''}
           <button class="act-btn" style="background:var(--line);color:var(--ink);border:none" onclick="jumpToOrderInList('${esc(orderName)}','${esc(orderDate||'')}',${allFound})">See in List</button>
-          <button class="act-btn" style="background:#f5f5f5;color:var(--ink2);border:1px solid var(--line);font-size:.72rem" data-bd="${_bd([orderName])}" onclick="var d=_btnData[this.dataset.bd];resyncOrderItems(d[0],this)">↻ Re-sync</button>
         </div>
       </div>
     </div>`;
