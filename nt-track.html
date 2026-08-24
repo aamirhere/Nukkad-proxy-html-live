@@ -309,24 +309,27 @@ input:focus { border-color: var(--accent); }
   flex-shrink: 0;
 }
 .tl-dot {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   flex-shrink: 0;
   border: 2px solid var(--step-todo);
   background: var(--card);
-  margin-top: 2px;
+  margin-top: 1px;
   position: relative;
   z-index: 1;
   transition: all .3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .tl-dot.done {
   background: var(--step-done);
   border-color: var(--step-done);
 }
 .tl-dot.current {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   margin-top: 0;
   background: var(--step-done);
   border-color: var(--step-done);
@@ -361,22 +364,16 @@ input:focus { border-color: var(--accent); }
   line-height: 1.2;
 }
 .tl-label.muted { color: var(--muted); font-weight: 600; }
+.tl-sub { font-size: .78rem; color: var(--ink2); margin-top: 2px; }
+.tl-sub.dim { color: var(--muted); }
 .tl-when {
-  font-size: .75rem;
-  color: var(--muted);
-  margin-top: 3px;
+  font-size: .73rem;
+  color: var(--accent);
+  margin-top: 4px;
+  font-weight: 600;
 }
-.tl-loc {
-  font-size: .75rem;
-  color: var(--ink2);
-  margin-top: 2px;
-}
-.tl-remark {
-  font-size: .72rem;
-  color: var(--muted);
-  margin-top: 2px;
-  font-style: italic;
-}
+.tl-now { color: var(--accent); animation: blink-now 1.4s ease-in-out infinite; }
+@keyframes blink-now { 0%,100%{opacity:1} 50%{opacity:.4} }
 
 /* ── SCANS ACCORDION ── */
 .scans-toggle {
@@ -599,70 +596,116 @@ async function doTrack() {
   }
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────────────
+// ── SHARED JOURNEY ENGINE ─────────────────────────────────────────────────────
 
 function fmtDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const d = parseBdDate(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
 }
 
-function fmtDateTime(iso) {
+function fmtDT(iso) {
   if (!iso) return '';
-  // Bluedart sends dates in various formats — try to parse
-  // Format: "20/08/2026 14:30:00" or ISO
-  let d;
-  if (/^\d{2}\/\d{2}\/\d{4}/.test(iso)) {
-    const [day, mon, yr, ...rest] = iso.split(/[\/ :]/);
-    d = new Date(`${yr}-${mon}-${day}T${rest.slice(0,3).join(':')}`);
-  } else {
-    d = new Date(iso);
-  }
+  const d = parseBdDate(iso);
   if (isNaN(d)) return iso;
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
-    ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}) +
+         ' at ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 }
 
-function deriveStatus(tracking) {
-  if (!tracking || !tracking.ok) return 'dispatched';
-  if (tracking.delivered)        return 'delivered';
-  if (tracking.out_for_delivery) return 'ofd';
-  const code = (tracking.statusCode || '').toUpperCase();
-  const desc = (tracking.statusDesc || '').toLowerCase();
-  if (['IT', 'IN_TRANSIT', 'TR'].includes(code) || desc.includes('transit')) return 'transit';
-  if (desc.includes('pickup') || desc.includes('picked')) return 'dispatched';
-  return 'transit';
+function parseBdDate(iso) {
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(iso)) {
+    const p = iso.split(/[\/ :]/);
+    return new Date(`${p[2]}-${p[1]}-${p[0]}T${(p[3]||'00')}:${(p[4]||'00')}:${(p[5]||'00')}`);
+  }
+  return new Date(iso);
+}
+
+// Map Bluedart scan remarks → journey stage keys
+function scanStage(remark) {
+  if (!remark) return null;
+  const r = remark.toLowerCase();
+  if (r.includes('out for delivery') || r.includes('ofd') || r.includes('messenger')) return 'ofd';
+  if (r.includes('deliver')) return 'delivered';
+  if (r.includes('pickup') || r.includes('picked') || r.includes('shipment received') ||
+      r.includes('collected') || r.includes('received at origin')) return 'pickup';
+  if (r.includes('transit') || r.includes('arrival') || r.includes('departed') ||
+      r.includes('hub') || r.includes('sorting') || r.includes('transshipment') ||
+      r.includes('in-scan') || r.includes('inscan')) return 'transit';
+  return null;
+}
+
+// Build stage dates from Bluedart tracking data
+function buildStageDates(tracking, orderDate) {
+  const dates = {};
+  if (orderDate) dates.ordered = orderDate;
+
+  if (!tracking?.ok) return dates;
+
+  // Top-level fields
+  if (tracking.pickUpDate) dates.pickup = tracking.pickUpDate;
+  if (tracking.delivered && tracking.statusTime) dates.delivered = tracking.statusTime;
+  if (tracking.out_for_delivery && tracking.statusTime && !dates.ofd) dates.ofd = tracking.statusTime;
+
+  // Walk scans chronologically (oldest first = reversed from newest-first API)
+  const chronoScans = (tracking.scans || []).slice().reverse();
+  for (const sc of chronoScans) {
+    const stage = scanStage(sc.remark);
+    if (stage && !dates[stage] && sc.time) dates[stage] = sc.time;
+    // Any scan with a location = some form of transit
+    if (!stage && sc.location && sc.time && !dates.transit) dates.transit = sc.time;
+  }
+
+  return dates;
+}
+
+// The five fixed journey stages shown to every customer
+const JOURNEY_STAGES = [
+  { key: 'ordered',   label: 'Order placed',           sublabel: 'We received your order' },
+  { key: 'crafting',  label: 'Being handcrafted',       sublabel: 'Painting & engraving underway' },
+  { key: 'pickup',    label: 'Picked up by BlueDart',   sublabel: 'Left our workshop' },
+  { key: 'transit',   label: 'In transit',              sublabel: 'Moving across India' },
+  { key: 'ofd',       label: 'Out for delivery',        sublabel: 'On the way to your door' },
+  { key: 'delivered', label: 'Delivered',               sublabel: 'Your story has arrived' },
+];
+
+// Determine which is the current active stage
+function currentStageKey(dates, hasAwb) {
+  if (dates.delivered) return 'delivered';
+  if (dates.ofd)       return 'ofd';
+  if (dates.transit)   return 'transit';
+  if (dates.pickup || hasAwb) return 'pickup';
+  return 'crafting';
 }
 
 const GUL_MESSAGES = {
-  crafting:   "Your piece is being painted and engraved with love. Good things take a little time — it'll find its way to you.",
-  dispatched: "Your piece has left our nukkad! I spotted it heading your way. Keep an eye on the door.",
-  transit:    "On its way! Your wooden keepsake is traveling across India. It'll be home soon.",
-  ofd:        "Almost there — your piece is out for delivery today. Someone's going to love this.",
-  delivered:  "It's there! Your story has found its place. We hope it brings a smile every time it's seen.",
+  crafting:  "Your piece is being painted and engraved with love. Good things take a little time — it'll be worth the wait.",
+  pickup:    "Your piece has left our workshop! I spotted it heading to BlueDart. Keep an eye out.",
+  transit:   "On its way! Your wooden keepsake is traveling across India. Almost home.",
+  ofd:       "Almost there — your piece is out for delivery today. Someone's going to love this.",
+  delivered: "It's there! Your story has found its place. We hope it brings a smile every time it's seen.",
 };
 
 const STATUS_LABELS = {
-  crafting:   ['Being handcrafted', 'chip-crafting'],
-  dispatched: ['Dispatched', 'chip-dispatched'],
-  transit:    ['In Transit', 'chip-transit'],
-  ofd:        ['Out for Delivery', 'chip-ofd'],
-  delivered:  ['Delivered', 'chip-delivered'],
+  crafting:  ['Being Handcrafted', 'chip-crafting'],
+  pickup:    ['Dispatched',         'chip-dispatched'],
+  transit:   ['In Transit',         'chip-transit'],
+  ofd:       ['Out for Delivery',   'chip-ofd'],
+  delivered: ['Delivered',          'chip-delivered'],
 };
 
 function renderResult(data) {
   const { order_name, customer, products, order_date, awb, tracking } = data;
-  const status = !awb ? 'crafting' : deriveStatus(tracking);
-  const [statusLabel, statusClass] = STATUS_LABELS[status];
+  const stageDates = buildStageDates(tracking, order_date);
+  const curKey     = currentStageKey(stageDates, !!awb);
+  const [statusLabel, statusClass] = STATUS_LABELS[curKey] || STATUS_LABELS.crafting;
 
   // Order meta
-  const metaEl = document.getElementById('orderMeta');
   const productsHtml = (products || []).map(p => `<div>${esc(p)}</div>`).join('');
-  metaEl.innerHTML = `
+  document.getElementById('orderMeta').innerHTML = `
     <div>
       <div class="order-number">${esc(order_name || awb || '')}</div>
       ${order_date ? `<div class="order-date">${fmtDate(order_date)}</div>` : ''}
-      ${customer ? `<div class="order-products">${esc(customer)}</div>` : ''}
+      ${customer   ? `<div class="order-products">${esc(customer)}</div>` : ''}
       ${productsHtml ? `<div class="order-products" style="margin-top:4px">${productsHtml}</div>` : ''}
       ${awb ? `<div class="awb-row"><span class="awb-badge">AWB ${esc(awb)}</span></div>` : ''}
     </div>
@@ -674,116 +717,76 @@ function renderResult(data) {
     <div class="gul-bird">🐦</div>
     <div>
       <div class="gul-name">Gul says</div>
-      <div class="gul-text">"${GUL_MESSAGES[status] || GUL_MESSAGES.transit}"</div>
+      <div class="gul-text">"${GUL_MESSAGES[curKey] || GUL_MESSAGES.transit}"</div>
     </div>
   `;
 
   // Timeline
-  buildTimeline(data, status);
+  buildTimeline(stageDates, curKey, awb, tracking);
 
   document.getElementById('searchCard').style.display = 'none';
   document.getElementById('resultCard').style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function buildTimeline(data, status) {
-  const { order_date, awb, tracking } = data;
+function buildTimeline(stageDates, curKey, awb, tracking) {
+  const ORDER = JOURNEY_STAGES.map(s => s.key);
+  const curIdx = ORDER.indexOf(curKey);
   const container = document.getElementById('timeline');
 
-  // Define all possible stages
-  const stages = [
-    { key: 'placed',     icon: '✦', label: 'Order placed',       when: order_date ? fmtDate(order_date) : null },
-    { key: 'crafting',   icon: '🎨', label: 'Being handcrafted',  when: null },
-    { key: 'dispatched', icon: '📦', label: 'Handed to BlueDart', when: tracking?.pickUpDate ? fmtDateTime(tracking.pickUpDate) : null },
-  ];
-
-  // Add Bluedart scan milestones
-  const scans = (tracking?.scans || []).slice().reverse(); // oldest first
-
-  // Deduplicate scans by remark type into key milestones
-  const milestone = (remark) => {
-    if (!remark) return null;
-    const r = remark.toLowerCase();
-    if (r.includes('out for delivery') || r.includes('ofd')) return { key: 'ofd', label: 'Out for delivery', icon: '🏘️' };
-    if (r.includes('deliver')) return { key: 'delivered', label: 'Delivered', icon: '🎁' };
-    if (r.includes('transit') || r.includes('arrival') || r.includes('departed') || r.includes('hub')) return { key: 'transit', label: 'In transit', icon: '🚚' };
-    return null;
-  };
-
-  const seenMilestones = new Set();
-  const transitScans = [];
-
-  for (const scan of scans) {
-    const m = milestone(scan.remark);
-    if (m && !seenMilestones.has(m.key)) {
-      seenMilestones.add(m.key);
-      stages.push({ ...m, when: scan.time ? fmtDateTime(scan.time) : null, loc: scan.location });
-    } else if (!m && scan.location) {
-      transitScans.push(scan);
-    }
-  }
-
-  // Determine which stages are "done"
-  const ORDER = ['placed', 'crafting', 'dispatched', 'transit', 'ofd', 'delivered'];
-  const currentIdx = ORDER.indexOf(status === 'transit' ? 'transit' : status);
-
-  const stageOrder = stages.map(s => ORDER.indexOf(s.key));
-
   let html = '';
-  for (let i = 0; i < stages.length; i++) {
-    const s = stages[i];
-    const sIdx = ORDER.indexOf(s.key);
-    const done    = sIdx <= currentIdx && awb; // dispatched+ stages need awb
-    const current = sIdx === currentIdx;
-    const isLast  = i === stages.length - 1;
-    const isDone  = s.key === 'placed' || (awb && done);
-    const isCurrent = current && awb;
+  for (let i = 0; i < JOURNEY_STAGES.length; i++) {
+    const s      = JOURNEY_STAGES[i];
+    const isLast = i === JOURNEY_STAGES.length - 1;
+    const sIdx   = ORDER.indexOf(s.key);
+    const done   = sIdx < curIdx || (sIdx === curIdx);
+    const isCur  = sIdx === curIdx;
+    const when   = stageDates[s.key] ? fmtDT(stageDates[s.key]) : null;
 
-    const dotClass  = isDone ? (isCurrent ? 'tl-dot current' : 'tl-dot done') : 'tl-dot';
-    const lineClass = isDone ? 'tl-line done' : 'tl-line dashed';
-    const labelClass= isDone ? 'tl-label' : 'tl-label muted';
+    const dotCls  = done ? (isCur ? 'tl-dot current' : 'tl-dot done') : 'tl-dot';
+    const lineCls = sIdx < curIdx ? 'tl-line done' : 'tl-line dashed';
+    const lblCls  = done ? 'tl-label' : 'tl-label muted';
+    const subCls  = done ? 'tl-sub' : 'tl-sub dim';
 
     html += `
       <div class="tl-step">
         <div class="tl-left">
-          <div class="${dotClass}"></div>
-          ${!isLast ? `<div class="${lineClass}"></div>` : ''}
+          <div class="${dotCls}">${done && !isCur ? '<svg width="8" height="6" viewBox="0 0 8 6" fill="none" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"><path d="M1 3L3 5L7 1" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</div>
+          ${!isLast ? `<div class="${lineCls}"></div>` : ''}
         </div>
         <div class="tl-content">
-          <div class="${labelClass}">${s.label}</div>
-          ${s.when ? `<div class="tl-when">${s.when}</div>` : ''}
-          ${s.loc  ? `<div class="tl-loc">📍 ${esc(s.loc)}</div>` : ''}
+          <div class="${lblCls}">${esc(s.label)}</div>
+          <div class="${subCls}">${esc(s.sublabel)}</div>
+          ${when ? `<div class="tl-when">✓ ${when}</div>` : (isCur && !when ? '<div class="tl-when tl-now">● Right now</div>' : '')}
         </div>
       </div>
     `;
   }
 
-  // Add scan detail toggle if there are transit scans
-  if (transitScans.length > 0) {
+  // Raw scan log accordion (all scans, newest first)
+  const allScans = (tracking?.scans || []);
+  if (allScans.length > 0) {
+    const uid = 'scansList_' + Math.random().toString(36).slice(2);
     html += `
-      <button class="scans-toggle" onclick="toggleScans(this)">
-        <span class="toggle-arrow">▸</span> View ${transitScans.length} scan${transitScans.length > 1 ? 's' : ''}
+      <button class="scans-toggle" onclick="
+        var l=document.getElementById('${uid}');
+        var open=l.classList.toggle('open');
+        this.querySelector('.toggle-arrow').textContent=open?'▾':'▸';
+      ">
+        <span class="toggle-arrow">▸</span> Full scan log (${allScans.length})
       </button>
-      <div class="scans-list" id="scansList">
+      <div class="scans-list" id="${uid}">
     `;
-    for (const sc of transitScans.slice().reverse()) {
-      html += `
-        <div class="scan-row">
-          <span class="scan-time">${sc.time ? fmtDateTime(sc.time) : '—'}</span>
-          <span>${esc(sc.location || '')}${sc.remark ? ` · <em>${esc(sc.remark)}</em>` : ''}</span>
-        </div>
-      `;
+    for (const sc of allScans) {
+      html += `<div class="scan-row">
+        <span class="scan-time">${sc.time ? fmtDT(sc.time) : '—'}</span>
+        <span>${esc(sc.location||'')}${sc.remark ? ` &middot; <em>${esc(sc.remark)}</em>` : ''}</span>
+      </div>`;
     }
-    html += `</div>`;
+    html += '</div>';
   }
 
   container.innerHTML = html;
-}
-
-function toggleScans(btn) {
-  const list = document.getElementById('scansList');
-  const open = list.classList.toggle('open');
-  btn.querySelector('.toggle-arrow').textContent = open ? '▾' : '▸';
 }
 
 function resetPage() {

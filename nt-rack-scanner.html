@@ -6888,54 +6888,95 @@ async function doTrackLookup() {
   resEl.style.display = 'block';
 }
 
+function trkEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function trkParseBdDate(iso) {
+  if (!iso) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(iso)) {
+    const p = iso.split(/[\/ :]/);
+    return new Date(`${p[2]}-${p[1]}-${p[0]}T${p[3]||'00'}:${p[4]||'00'}:${p[5]||'00'}`);
+  }
+  return new Date(iso);
+}
 function trkFmtDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  return isNaN(d) ? iso : d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+  const d = trkParseBdDate(iso);
+  return (!d||isNaN(d)) ? '' : d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
 }
 function trkFmtDT(iso) {
   if (!iso) return '';
-  let d;
-  if (/^\d{2}\/\d{2}\/\d{4}/.test(iso)) {
-    const parts = iso.split(/[\/ :]/);
-    d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${parts.slice(3,6).join(':')}`);
-  } else { d = new Date(iso); }
-  if (isNaN(d)) return iso;
-  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + ' · ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  const d = trkParseBdDate(iso);
+  if (!d||isNaN(d)) return iso;
+  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + ' at ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 }
-function trkEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function trkDeriveStatus(tracking) {
-  if (!tracking?.ok) return 'dispatched';
-  if (tracking.delivered) return 'delivered';
-  if (tracking.out_for_delivery) return 'ofd';
-  const code = (tracking.statusCode||'').toUpperCase();
-  const desc = (tracking.statusDesc||'').toLowerCase();
-  if (['IT','IN_TRANSIT','TR'].includes(code) || desc.includes('transit')) return 'transit';
-  return 'transit';
+function trkScanStage(remark) {
+  if (!remark) return null;
+  const r = remark.toLowerCase();
+  if (r.includes('out for delivery')||r.includes('ofd')||r.includes('messenger')) return 'ofd';
+  if (r.includes('deliver')) return 'delivered';
+  if (r.includes('pickup')||r.includes('picked')||r.includes('shipment received')||r.includes('collected')||r.includes('received at origin')) return 'pickup';
+  if (r.includes('transit')||r.includes('arrival')||r.includes('departed')||r.includes('hub')||r.includes('sorting')||r.includes('inscan')||r.includes('in-scan')) return 'transit';
+  return null;
 }
+
+function trkBuildStageDates(tracking, orderDate) {
+  const dates = {};
+  if (orderDate) dates.ordered = orderDate;
+  if (!tracking?.ok) return dates;
+  if (tracking.pickUpDate) dates.pickup = tracking.pickUpDate;
+  if (tracking.delivered && tracking.statusTime) dates.delivered = tracking.statusTime;
+  if (tracking.out_for_delivery && tracking.statusTime && !dates.ofd) dates.ofd = tracking.statusTime;
+  const chrono = (tracking.scans||[]).slice().reverse();
+  for (const sc of chrono) {
+    const stage = trkScanStage(sc.remark);
+    if (stage && !dates[stage] && sc.time) dates[stage] = sc.time;
+    if (!stage && sc.location && sc.time && !dates.transit) dates.transit = sc.time;
+  }
+  return dates;
+}
+
+const TRK_STAGES = [
+  { key:'ordered',   label:'Order placed',             sub:'Received & confirmed' },
+  { key:'crafting',  label:'Being handcrafted',         sub:'Painting & engraving' },
+  { key:'pickup',    label:'Picked up by BlueDart',     sub:'Left our workshop' },
+  { key:'transit',   label:'In transit',                sub:'Moving across India' },
+  { key:'ofd',       label:'Out for delivery',          sub:'On the way to the door' },
+  { key:'delivered', label:'Delivered',                 sub:'Story has arrived' },
+];
 
 const TRK_GUL = {
-  crafting:   'Being painted and engraved. Gul has whispered it to the workshop.',
-  dispatched: 'Handed to BlueDart. Heading your customer\'s way.',
-  transit:    'In transit across India — moving along nicely.',
-  ofd:        'Out for delivery today. Almost home.',
-  delivered:  'Delivered. Story has found its place.',
+  crafting:  'Being painted and engraved right now.',
+  pickup:    'Handed to BlueDart. Heading your customer\'s way.',
+  transit:   'In transit across India — moving along nicely.',
+  ofd:       'Out for delivery today. Almost home.',
+  delivered: 'Delivered. Story has found its place.',
 };
-const TRK_STATUS_LABEL = {
-  crafting:'Being Made', dispatched:'Dispatched', transit:'In Transit', ofd:'Out for Delivery', delivered:'Delivered',
+const TRK_CHIP = {
+  crafting:'trk-chip-crafting', pickup:'trk-chip-dispatched', transit:'trk-chip-transit', ofd:'trk-chip-ofd', delivered:'trk-chip-delivered',
 };
-const TRK_CHIP_CLASS = {
-  crafting:'trk-chip-crafting', dispatched:'trk-chip-dispatched', transit:'trk-chip-transit', ofd:'trk-chip-ofd', delivered:'trk-chip-delivered',
+const TRK_LABEL = {
+  crafting:'Being Made', pickup:'Dispatched', transit:'In Transit', ofd:'Out for Delivery', delivered:'Delivered',
 };
+
+function trkCurrentKey(dates, hasAwb) {
+  if (dates.delivered) return 'delivered';
+  if (dates.ofd)       return 'ofd';
+  if (dates.transit)   return 'transit';
+  if (dates.pickup || hasAwb) return 'pickup';
+  return 'crafting';
+}
 
 function trkBuildResult(data) {
   const { order_name, customer, products, order_date, awb, tracking } = data;
-  const status = !awb ? 'crafting' : trkDeriveStatus(tracking);
+  const stageDates = trkBuildStageDates(tracking, order_date);
+  const curKey     = trkCurrentKey(stageDates, !!awb);
+  const chip       = TRK_CHIP[curKey] || TRK_CHIP.crafting;
+  const labelText  = TRK_LABEL[curKey] || 'Being Made';
 
   const prodLines = (products||[]).map(p=>`<div style="font-size:.78rem;color:var(--ink2);margin-top:1px">${trkEsc(p)}</div>`).join('');
 
-  let html = `
+  return `
     <div style="background:var(--card,#fff);border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(58,43,29,.10)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px">
         <div>
@@ -6943,88 +6984,61 @@ function trkBuildResult(data) {
           ${order_date ? `<div style="font-size:.75rem;color:var(--muted);margin-top:2px">${trkFmtDate(order_date)}</div>`:''}
           ${customer   ? `<div style="font-size:.8rem;color:var(--ink2);margin-top:2px">${trkEsc(customer)}</div>`:''}
           ${prodLines}
-          ${awb ? `<div style="margin-top:6px"><span style="font-size:.7rem;font-weight:700;letter-spacing:.04em;background:var(--bg-2,#f8e8d2);color:var(--ink2);border:1px solid var(--line);border-radius:6px;padding:2px 8px">AWB ${trkEsc(awb)}</span></div>`:''}
+          ${awb ? `<div style="margin-top:6px"><span style="font-size:.7rem;font-weight:700;letter-spacing:.04em;background:var(--gul-bg,#fff8f2);color:var(--ink2);border:1px solid var(--line);border-radius:6px;padding:2px 8px">AWB ${trkEsc(awb)}</span></div>`:''}
         </div>
-        <span class="trk-chip ${TRK_CHIP_CLASS[status]}">${TRK_STATUS_LABEL[status]}</span>
+        <span class="trk-chip ${chip}">${labelText}</span>
       </div>
-
-      <div style="background:var(--gul-bg,#fff8f2);border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;margin-bottom:18px">
-        <span style="font-size:1.2rem;line-height:1;flex-shrink:0">🐦</span>
-        <div style="font-size:.83rem;color:var(--ink2);line-height:1.5;font-style:italic">"${TRK_GUL[status]}"</div>
+      <div style="background:var(--gul-bg,#fff8f2);border-radius:10px;padding:11px 14px;display:flex;gap:10px;align-items:flex-start;margin-bottom:18px">
+        <span style="font-size:1.1rem;line-height:1;flex-shrink:0">🐦</span>
+        <div style="font-size:.82rem;color:var(--ink2);line-height:1.5;font-style:italic">"${TRK_GUL[curKey]||TRK_GUL.transit}"</div>
       </div>
-
-      <div style="font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--line)">Journey</div>
-      ${trkBuildTimeline(data, status)}
-    </div>
-  `;
-  return html;
+      <div style="font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--line)">Journey</div>
+      ${trkBuildTimeline(stageDates, curKey, awb, tracking)}
+    </div>`;
 }
 
-function trkBuildTimeline(data, status) {
-  const { order_date, awb, tracking } = data;
-  const ORDER = ['placed','crafting','dispatched','transit','ofd','delivered'];
-  const curIdx = ORDER.indexOf(status === 'transit' ? 'transit' : status);
-
-  const stages = [
-    { key:'placed',     label:'Order placed',       when: order_date ? trkFmtDate(order_date) : null },
-    { key:'crafting',   label:'Being handcrafted',  when: null },
-    { key:'dispatched', label:'Handed to BlueDart', when: tracking?.pickUpDate ? trkFmtDT(tracking.pickUpDate) : null },
-  ];
-
-  const scans = (tracking?.scans||[]).slice().reverse();
-  const seenM = new Set();
-  const rawScans = [];
-
-  for (const sc of scans) {
-    const r = (sc.remark||'').toLowerCase();
-    let m = null;
-    if (r.includes('out for delivery')||r.includes('ofd')) m = { key:'ofd', label:'Out for delivery' };
-    else if (r.includes('deliver')) m = { key:'delivered', label:'Delivered' };
-    else if (r.includes('transit')||r.includes('arrival')||r.includes('hub')||r.includes('departed')) m = { key:'transit', label:'In transit' };
-    if (m && !seenM.has(m.key)) { seenM.add(m.key); stages.push({ ...m, when: sc.time ? trkFmtDT(sc.time) : null, loc: sc.location }); }
-    else if (!m && sc.location) rawScans.push(sc);
-  }
-
+function trkBuildTimeline(stageDates, curKey, awb, tracking) {
+  const ORDER = TRK_STAGES.map(s => s.key);
+  const curIdx = ORDER.indexOf(curKey);
   let html = '<div class="trk-journey">';
-  for (let i=0; i<stages.length; i++) {
-    const s = stages[i];
-    const sIdx = ORDER.indexOf(s.key);
-    const done    = s.key === 'placed' || (!!awb && sIdx <= curIdx);
-    const current = !!awb && sIdx === curIdx;
-    const isLast  = i === stages.length - 1;
-    const dotCls  = current ? 'trk-dot current' : done ? 'trk-dot done' : 'trk-dot';
-    const lineCls = done ? 'trk-line done' : 'trk-line dashed';
+
+  for (let i = 0; i < TRK_STAGES.length; i++) {
+    const s      = TRK_STAGES[i];
+    const isLast = i === TRK_STAGES.length - 1;
+    const sIdx   = ORDER.indexOf(s.key);
+    const done   = sIdx <= curIdx;
+    const isCur  = sIdx === curIdx;
+    const when   = stageDates[s.key] ? trkFmtDT(stageDates[s.key]) : null;
+
+    const dotCls = done ? (isCur ? 'trk-dot current' : 'trk-dot done') : 'trk-dot';
+    const lineCls = sIdx < curIdx ? 'trk-line done' : 'trk-line dashed';
     const lblCls  = done ? 'trk-label' : 'trk-label dim';
-    html += `
-      <div class="trk-step">
-        <div class="trk-left">
-          <div class="${dotCls}"></div>
-          ${!isLast ? `<div class="${lineCls}"></div>` : ''}
-        </div>
-        <div class="trk-body">
-          <div class="${lblCls}">${trkEsc(s.label)}</div>
-          ${s.when ? `<div class="trk-when">${s.when}</div>` : ''}
-          ${s.loc  ? `<div class="trk-loc">📍 ${trkEsc(s.loc)}</div>` : ''}
-        </div>
-      </div>`;
+
+    html += `<div class="trk-step">
+      <div class="trk-left">
+        <div class="${dotCls}">${done && !isCur ? '<svg width="8" height="6" viewBox="0 0 8 6" fill="none" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"><path d="M1 3L3 5L7 1" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</div>
+        ${!isLast ? `<div class="${lineCls}"></div>` : ''}
+      </div>
+      <div class="trk-body">
+        <div class="${lblCls}">${trkEsc(s.label)}</div>
+        <div style="font-size:.74rem;color:${done?'var(--ink2)':'var(--muted)'};margin-top:1px">${trkEsc(s.sub)}</div>
+        ${when ? `<div class="trk-when">✓ ${when}</div>` : (isCur && !when ? '<div class="trk-when" style="animation:pulse-trk 1.4s ease-in-out infinite">● Now</div>' : '')}
+      </div>
+    </div>`;
   }
   html += '</div>';
 
-  if (rawScans.length > 0) {
-    const uid = 'trkScans_' + Date.now();
-    html += `<button class="trk-scans-toggle" onclick="document.getElementById('${uid}').classList.toggle('open');this.querySelector('.trk-arr').textContent=document.getElementById('${uid}').classList.contains('open')?'▾':'▸'">
-      <span class="trk-arr">▸</span> ${rawScans.length} scan detail${rawScans.length>1?'s':''}
-    </button>
-    <div class="trk-scans-list" id="${uid}">`;
-    for (const sc of rawScans.slice().reverse()) {
-      html += `<div class="trk-scan-row">
-        <span class="trk-scan-time">${sc.time ? trkFmtDT(sc.time) : '—'}</span>
-        <span>${trkEsc(sc.location||'')}${sc.remark ? ` · <em>${trkEsc(sc.remark)}</em>` : ''}</span>
-      </div>`;
+  const allScans = (tracking?.scans||[]);
+  if (allScans.length > 0) {
+    const uid = 'ts_' + Math.random().toString(36).slice(2);
+    html += `<button class="trk-scans-toggle" onclick="var l=document.getElementById('${uid}');var o=l.classList.toggle('open');this.querySelector('.trk-arr').textContent=o?'▾':'▸'">
+      <span class="trk-arr">▸</span> Full scan log (${allScans.length})
+    </button><div class="trk-scans-list" id="${uid}">`;
+    for (const sc of allScans) {
+      html += `<div class="trk-scan-row"><span class="trk-scan-time">${sc.time?trkFmtDT(sc.time):'—'}</span><span>${trkEsc(sc.location||'')}${sc.remark?` &middot; <em>${trkEsc(sc.remark)}</em>`:''}</span></div>`;
     }
     html += '</div>';
   }
-
   return html;
 }
 </script>
