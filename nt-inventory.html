@@ -1945,7 +1945,7 @@ function applyEmgDateFilter() {
   if (!date) { renderEmgGroups(); return; }
   const filtered = allEmgGroups.map(g => ({
     ...g,
-    units: g.units.filter(u => !u.downloaded_at && !u.picked_at && u.date === date),
+    units: g.units.filter(u => !u.downloaded_at && !u.picked_at && u.date === date && u.order_name !== 'Auto'),
   })).filter(g => g.units.length > 0);
   const html = filtered.map((g, gi) => emgGroupHTML(g, gi, 'all')).join('');
   document.getElementById('emgGroups').innerHTML = html ||
