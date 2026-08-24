@@ -1928,7 +1928,7 @@ function setEmgView(v) {
   document.getElementById('emgPrinted').style.display  = v === 'printed' ? '' : 'none';
   document.getElementById('emgSent').style.display     = v === 'sent' ? '' : 'none';
   const filterRow = document.getElementById('emgDateFilterRow');
-  if (filterRow) filterRow.style.display = v === 'all' ? 'flex' : 'none';
+  if (filterRow) filterRow.style.display = 'flex';
   if (v === 'printed') { loadPrintedView().then(() => filterEmgSearch(document.getElementById('emgSearch')?.value)); }
   if (v === 'sent') { loadSentView().then(() => filterEmgSearch(document.getElementById('emgSearch')?.value)); }
 }
@@ -1984,11 +1984,15 @@ async function loadPrintedView() {
       if (!byDesign[k]) byDesign[k] = { title: u.title, handle: u.handle, units: [] };
       byDesign[k].units.push(u);
     }
+    const dateFilter = document.getElementById('emgDateFilter')?.value || '';
     const html = Object.values(byDesign).map(g => {
+      const displayUnits = dateFilter ? g.units.filter(u => u.date === dateFilter) : g.units;
+      if (!displayUnits.length) return '';
       const safeHandle = JSON.stringify(g.handle).replace(/"/g, '&quot;');
-      const bodyId = `prowlist-${g.handle}`;
+      const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
+      const bodyId = `prowlist-${slug}`;
       const pending = emgPendingCount(g.handle);
-      const rows = g.units.map(u => {
+      const rows = displayUnits.map(u => {
         const orderDateStr = u.date
           ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
           : '—';
@@ -2003,11 +2007,11 @@ async function loadPrintedView() {
           <button onclick="markUnitSent(${safeU},this)" style="margin-left:auto;padding:4px 12px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;cursor:pointer">Sent →</button>
         </div>`;
       }).join('');
-      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="pgroup-${g.handle}">
+      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="pgroup-${slug}">
         <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="togglePrintedSentGroup('${bodyId}')">
           <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▸</span>
           <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
-          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="pcnt-${g.handle}">${g.units.length} printed</span>
+          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="pcnt-${slug}">${displayUnits.length} printed</span>
           ${pending ? `<span style="font-size:.72rem;color:#e65100;background:#fff3e0;padding:2px 7px;border-radius:10px;font-weight:600">+${pending} queued</span>` : ''}
           <button onclick="event.stopPropagation();markAllSent(${safeHandle},this)" style="padding:4px 12px;border-radius:20px;border:1.5px solid var(--accent);background:none;color:var(--accent);font-size:.72rem;font-weight:700;cursor:pointer">Send All →</button>
         </div>
@@ -2059,8 +2063,12 @@ async function loadSentView() {
         '<div class="empty-state"><div class="icon">📭</div><p>No sent units yet</p></div>';
       return;
     }
+    const dateFilter = document.getElementById('emgDateFilter')?.value || '';
     const html = groups.map(g => {
-      const bodyId = `srowlist-${g.handle}`;
+      const displayUnits = dateFilter ? g.units.filter(u => u.date === dateFilter) : g.units;
+      if (!displayUnits.length) return '';
+      const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
+      const bodyId = `srowlist-${slug}`;
       const rows = g.units.map(u => {
         const orderDateStr = u.date
           ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -2076,11 +2084,26 @@ async function loadSentView() {
           <button onclick="undoSent(${safeU},this)" style="margin-left:auto;padding:3px 10px;border-radius:20px;border:1.5px solid var(--muted);background:none;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer">↩ Undo</button>
         </div>`;
       }).join('');
-      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="sgroup-${g.handle}">
+      const rows = displayUnits.map(u => {
+        const orderDateStr = u.date
+          ? new Date(u.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+          : '—';
+        const sentDateStr = u.picked_at
+          ? new Date(u.picked_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+          : '—';
+        const safeU = JSON.stringify({ order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date }).replace(/"/g, '&quot;');
+        return `<div class="emg-unit-row" id="srow-${u.order_id}-${u.line_item_id}-${u.unit_index}">
+          <span class="emg-unit-date" title="Order date">📅 ${orderDateStr}</span>
+          <span class="emg-unit-order">${u.order_name || u.order_id}</span>
+          <span style="font-size:.75rem;color:var(--muted);margin-left:4px">📤 ${sentDateStr}</span>
+          <button onclick="undoSent(${safeU},this)" style="margin-left:auto;padding:3px 10px;border-radius:20px;border:1.5px solid var(--muted);background:none;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer">↩ Undo</button>
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:10px;background:#fff;border-radius:12px;border:1.5px solid var(--line)" id="sgroup-${slug}">
         <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer" onclick="togglePrintedSentGroup('${bodyId}')">
           <span id="chev-${bodyId}" style="font-size:.9rem;color:var(--muted);width:14px">▸</span>
           <span style="font-weight:700;font-size:.87rem;color:var(--ink);flex:1">${g.title}</span>
-          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="scnt-${g.handle}">${g.units.length} sent</span>
+          <span style="font-size:.75rem;color:var(--muted);font-weight:400" id="scnt-${slug}">${displayUnits.length} sent</span>
         </div>
         <div id="${bodyId}" style="display:none;border-top:1px solid var(--line)">${rows}</div>
       </div>`;
