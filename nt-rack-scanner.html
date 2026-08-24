@@ -6539,6 +6539,9 @@ function ceAddSelectQuote(q) {
   const portal = document.getElementById('ceAddQuotePortal');
   portal.style.display = 'none'; portal.innerHTML = '';
   ceCheckSaveBtn();
+  // Draw attention to color pills
+  const pills = document.getElementById('ceAddPills');
+  if (pills) { pills.style.outline = '2px solid var(--accent)'; pills.style.borderRadius = '8px'; pills.style.padding = '4px'; setTimeout(() => { pills.style.outline = ''; pills.style.padding = ''; }, 1500); }
 }
 
 function ceAddPick(color) {
@@ -6582,8 +6585,9 @@ function ceCheckSaveBtn() {
   const q = document.getElementById('ceQuoteInput').value.trim();
   _ceNewQuote = q;
   const editChanged = q && (q !== _cePrevQuote || _ceNewColor !== _cePrevColor);
-  const addReady = _ceAddOpen && _ceAddQuote && _ceAddColor;
-  document.getElementById('ceSaveBtn').disabled = !(editChanged || addReady);
+  // Allow save if add section has a quote (color validated on submit)
+  const addPartial = _ceAddOpen && _ceAddQuote;
+  document.getElementById('ceSaveBtn').disabled = !(editChanged || addPartial);
 }
 
 async function saveColorEdit() {
@@ -6592,6 +6596,7 @@ async function saveColorEdit() {
   _ceNewQuote = newQuote;
   const editChanged = newQuote !== _cePrevQuote || _ceNewColor !== _cePrevColor;
   const addReady = _ceAddOpen && _ceAddQuote && _ceAddColor;
+  if (_ceAddOpen && _ceAddQuote && !_ceAddColor) { toast('Pick a color for the new item'); return; }
   if (!editChanged && !addReady) return;
 
   const btn = document.getElementById('ceSaveBtn');
