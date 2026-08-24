@@ -1932,7 +1932,7 @@ function setEmgView(v) {
   const filterRow = document.getElementById('emgDateFilterRow');
   if (filterRow) filterRow.style.display = 'flex';
   const filterLabel = document.getElementById('emgDateFilterLabel');
-  if (filterLabel) filterLabel.textContent = v === 'printed' ? 'Filter by print date:' : v === 'sent' ? 'Filter by sent date:' : 'Filter by batch date:';
+  if (filterLabel) filterLabel.textContent = 'Filter by batch date:';
   document.getElementById('emgDateFilter').value = '';
   if (v === 'printed') { loadPrintedView().then(() => filterEmgSearch(document.getElementById('emgSearch')?.value)); }
   if (v === 'sent') { loadSentView().then(() => filterEmgSearch(document.getElementById('emgSearch')?.value)); }
@@ -2001,7 +2001,7 @@ function renderPrintedView() {
   }
   const dateFilter = document.getElementById('emgDateFilter')?.value || '';
   const html = Object.values(byDesign).map(g => {
-    const displayUnits = dateFilter ? g.units.filter(u => (u.downloaded_at || '').slice(0, 10) === dateFilter) : g.units;
+    const displayUnits = dateFilter ? g.units.filter(u => (u.date || '') === dateFilter) : g.units;
     if (!displayUnits.length) return '';
     const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
     const bodyId = `prowlist-${slug}`;
@@ -2084,7 +2084,7 @@ function renderSentView() {
   }
   const dateFilter = document.getElementById('emgDateFilter')?.value || '';
   const html = groups.map(g => {
-    const displayUnits = dateFilter ? g.units.filter(u => (u.picked_at || '').slice(0, 10) === dateFilter) : g.units;
+    const displayUnits = dateFilter ? g.units.filter(u => (u.date || '') === dateFilter) : g.units;
     if (!displayUnits.length) return '';
     const slug = (g.handle || g.title || 'x').replace(/[^a-z0-9]/gi, '-');
     const bodyId = `srowlist-${slug}`;
