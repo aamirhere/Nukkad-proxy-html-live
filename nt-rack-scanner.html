@@ -1155,9 +1155,10 @@ async function syncAll() {
     await loadRackStatus();
     updatePendingBadge();
 
-    // Always fill gaps so every order has all its items, not just recently-synced ones
+    // Always fill gaps for the last 15 days — catches missed items without risking timeout
+    const gapFrom = new Date(Date.now() - 15 * 86400000).toISOString().slice(0, 10);
     try {
-      const gap = await apiFetch({ action: 'fill_rack_gaps', date_from: '2026-07-29' });
+      const gap = await apiFetch({ action: 'fill_rack_gaps', date_from: gapFrom });
       if (gap.new_rows > 0) {
         await loadRackStatus();
         setStatus(`✓ Up to date · filled ${gap.new_rows} missing item(s) across ${gap.affected_orders.length} order(s) — refreshing tracking…`);
