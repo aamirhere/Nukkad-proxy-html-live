@@ -6441,7 +6441,7 @@ const COLOR_EDIT_COLORS = ['Peach','White','Blue','Orange','Red','Yellow','Purpl
 const COLOR_EMOJI = { Peach:'🟠', White:'⚪', Blue:'🔵', Orange:'🟧', Red:'🔴', Yellow:'🟡', Purple:'🟣', Green:'🟢', Gold:'🟤', Standard:'⬜' };
 let _ceOrderName = '', _cePrevColor = '', _cePrevQuote = '', _ceNewColor = '', _ceNewQuote = '';
 
-let _ceAddQuote = '', _ceAddColor = '', _ceAddOpen = false;
+let _ceAddQuote = '', _ceAddColor = '', _ceAddOpen = false, _ceAddPicking = false;
 
 function openColorEdit(orderName, quote, color) {
   _ceOrderName = orderName;
@@ -6513,12 +6513,13 @@ function ceAddQuoteSearch(val) {
   const unique = [...new Set(rackItems.map(r => r.quote).filter(Boolean))];
   const matches = unique.filter(s => s.toLowerCase().includes(q)).slice(0, 8);
   res.innerHTML = matches.map(s =>
-    `<div class="ce-result" onmousedown="event.preventDefault()" onclick="ceAddSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
+    `<div class="ce-result" onpointerdown="_ceAddPicking=true" onclick="ceAddSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
   ).join('');
   ceCheckSaveBtn();
 }
 
 function ceAddSelectQuote(q) {
+  _ceAddPicking = false;
   _ceAddQuote = q;
   document.getElementById('ceAddQuoteInput').value = q;
   document.getElementById('ceAddQuoteResults').innerHTML = '';
@@ -6663,7 +6664,7 @@ function closeColorEdit() {
       <div id="ceAddSection" style="display:none;margin-top:12px">
         <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">New item quote</div>
         <div style="position:relative;margin-bottom:4px">
-          <input id="ceAddQuoteInput" type="text" placeholder="Search quote…" oninput="ceAddQuoteSearch(this.value)" onblur="setTimeout(()=>document.getElementById('ceAddQuoteResults').innerHTML='',350)"
+          <input id="ceAddQuoteInput" type="text" placeholder="Search quote…" oninput="ceAddQuoteSearch(this.value)" onblur="setTimeout(()=>{if(!_ceAddPicking)document.getElementById('ceAddQuoteResults').innerHTML='';},350)"
             style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;color:var(--ink);font-family:var(--fb)">
           <div id="ceAddQuoteResults" style="position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:10010;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1)"></div>
         </div>
