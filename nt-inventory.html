@@ -3486,6 +3486,13 @@ document.addEventListener('keydown', e => {
 
 // ── Printed/Sent tab event delegation ────────────────────────────────────────
 document.addEventListener('click', e => {
+  // Send All is inside group-head — must check before the expand/collapse handler
+  const sendAllBtn = e.target.closest('.ps-sendall-btn');
+  if (sendAllBtn) {
+    e.stopPropagation();
+    markAllSent(sendAllBtn.dataset.handle, sendAllBtn);
+    return;
+  }
   // Expand/collapse group headers
   const head = e.target.closest('.ps-group-head');
   if (head) {
@@ -3497,13 +3504,6 @@ document.addEventListener('click', e => {
       const chev = head.querySelector('.ps-chev');
       if (chev) chev.textContent = open ? '▸' : '▾';
     }
-    return;
-  }
-  // Printed tab: Send All
-  const sendAllBtn = e.target.closest('.ps-sendall-btn');
-  if (sendAllBtn) {
-    e.stopPropagation();
-    markAllSent(sendAllBtn.dataset.handle, sendAllBtn);
     return;
   }
   // Printed tab: Sent →
