@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Track Your Order — NukkadTales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,400&family=Nunito:wght@400;500;600;700&display=swap">
+<style>
+/* ── TOKENS ── */
+:root {
+  --accent:   #d4541f;
+  --accent-s: #b8441a;
+  --ink:      #3a2b1d;
+  --ink2:     #6f5b46;
+  --muted:    #9c8a76;
+  --line:     #e9ddca;
+  --card:     #ffffff;
+  --bg-1:     #fdf5ec;
+  --bg-2:     #f8e8d2;
+  --gul-bg:   #fff8f2;
+  --step-done: #d4541f;
+  --step-todo: #d9cabb;
+  --dot-border: #e9ddca;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink:      #f2dfc8;
+    --ink2:     #c9a987;
+    --muted:    #8c7460;
+    --line:     #3d2d1e;
+    --card:     #251a10;
+    --bg-1:     #1a0f08;
+    --bg-2:     #221408;
+    --gul-bg:   #2e1d0e;
+    --step-done: #e06630;
+    --step-todo: #3d2d1e;
+    --dot-border: #3d2d1e;
+  }
+}
+:root[data-theme="dark"] {
+  --ink:      #f2dfc8;
+  --ink2:     #c9a987;
+  --muted:    #8c7460;
+  --line:     #3d2d1e;
+  --card:     #251a10;
+  --bg-1:     #1a0f08;
+  --bg-2:     #221408;
+  --gul-bg:   #2e1d0e;
+  --step-done: #e06630;
+  --step-todo: #3d2d1e;
+  --dot-border: #3d2d1e;
+}
+
+/* ── RESET ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body {
+  font-family: 'Nunito', Helvetica Neue, sans-serif;
+  background: var(--bg-1);
+  color: var(--ink);
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 120% 60% at 80% 0%, rgba(240,175,110,.22) 0%, transparent 65%),
+    radial-gradient(ellipse 80%  50% at 10% 100%, rgba(212,84,31,.10) 0%, transparent 60%),
+    linear-gradient(168deg, #fdf5ec 0%, #f8e8d2 42%, #f2d0b0 100%);
+}
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"] body) {
+    background:
+      radial-gradient(ellipse 120% 60% at 80% 0%, rgba(140,75,30,.18) 0%, transparent 65%),
+      radial-gradient(ellipse 80%  50% at 10% 100%, rgba(212,84,31,.08) 0%, transparent 60%),
+      linear-gradient(168deg, #1a0f08 0%, #221408 42%, #2a1808 100%);
+  }
+}
+
+/* ── PAGE WRAPPER ── */
+.page {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+/* ── HEADER ── */
+.nt-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.nt-logo {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: 18px;
+}
+.nt-logo span { color: var(--accent); }
+.nt-headline {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 2rem;
+  font-weight: 300;
+  color: var(--ink);
+  line-height: 1.2;
+  text-wrap: balance;
+  margin-bottom: 6px;
+}
+.nt-sub {
+  font-size: .88rem;
+  color: var(--ink2);
+  line-height: 1.5;
+}
+
+/* ── CARD ── */
+.card {
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: 0 2px 20px rgba(58,43,29,.10), 0 1px 4px rgba(58,43,29,.06);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--gul-bg);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+.tab {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Nunito', sans-serif;
+  font-size: .83rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .18s;
+  letter-spacing: .01em;
+}
+.tab.active {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(58,43,29,.10);
+}
+
+/* ── FORM ── */
+.field {
+  margin-bottom: 14px;
+}
+label {
+  display: block;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+input[type="text"],input[type="email"] {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .92rem;
+  color: var(--ink);
+  background: var(--card);
+  outline: none;
+  transition: border-color .15s;
+  appearance: none;
+}
+input:focus { border-color: var(--accent); }
+
+.track-btn {
+  width: 100%;
+  padding: 13px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+  margin-top: 4px;
+  letter-spacing: .01em;
+}
+.track-btn:hover  { background: var(--accent-s); }
+.track-btn:active { transform: scale(.98); }
+.track-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ── ERROR ── */
+.err-msg {
+  font-size: .83rem;
+  color: #c0392b;
+  margin-top: 10px;
+  text-align: center;
+  display: none;
+}
+
+/* ── GUL BOX ── */
+.gul-box {
+  background: var(--gul-bg);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+.gul-bird {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.gul-text {
+  font-size: .88rem;
+  color: var(--ink2);
+  line-height: 1.55;
+  font-style: italic;
+}
+.gul-name {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+/* ── ORDER META ── */
+.order-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  gap: 12px;
+}
+.order-number {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.order-date {
+  font-size: .78rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.order-products {
+  font-size: .8rem;
+  color: var(--ink2);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.status-chip {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip-crafting   { background: #fff3e0; color: #e65100; }
+.chip-dispatched { background: #e3f2fd; color: #1565c0; }
+.chip-transit    { background: #fff8e1; color: #f57f17; }
+.chip-ofd        { background: #fce4ec; color: #c62828; }
+.chip-delivered  { background: #e8f5e9; color: #2e7d32; }
+
+/* ── JOURNEY TIMELINE ── */
+.journey-title {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.tl-step {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+.tl-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 36px;
+  flex-shrink: 0;
+}
+.tl-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid var(--step-todo);
+  background: var(--card);
+  margin-top: 2px;
+  position: relative;
+  z-index: 1;
+  transition: all .3s;
+}
+.tl-dot.done {
+  background: var(--step-done);
+  border-color: var(--step-done);
+}
+.tl-dot.current {
+  width: 18px;
+  height: 18px;
+  margin-top: 0;
+  background: var(--step-done);
+  border-color: var(--step-done);
+  box-shadow: 0 0 0 4px rgba(212,84,31,.18);
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { box-shadow: 0 0 0 4px rgba(212,84,31,.18); }
+  50%      { box-shadow: 0 0 0 8px rgba(212,84,31,.06); }
+}
+.tl-line {
+  width: 2px;
+  flex: 1;
+  min-height: 24px;
+  background: var(--step-todo);
+  margin: 3px 0;
+}
+.tl-line.done { background: var(--step-done); }
+.tl-line.dashed {
+  background: repeating-linear-gradient(to bottom, var(--step-todo) 0px, var(--step-todo) 4px, transparent 4px, transparent 8px);
+}
+
+.tl-content {
+  padding: 0 0 24px 12px;
+  flex: 1;
+}
+.tl-step:last-child .tl-content { padding-bottom: 4px; }
+.tl-label {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.tl-label.muted { color: var(--muted); font-weight: 600; }
+.tl-when {
+  font-size: .75rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.tl-loc {
+  font-size: .75rem;
+  color: var(--ink2);
+  margin-top: 2px;
+}
+.tl-remark {
+  font-size: .72rem;
+  color: var(--muted);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+/* ── SCANS ACCORDION ── */
+.scans-toggle {
+  font-size: .78rem;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  margin-bottom: 16px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: 'Nunito', sans-serif;
+}
+.scans-list {
+  margin-bottom: 16px;
+  display: none;
+}
+.scans-list.open { display: block; }
+.scan-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: .78rem;
+  color: var(--ink2);
+}
+.scan-row:last-child { border-bottom: none; }
+.scan-time { color: var(--muted); flex-shrink: 0; min-width: 72px; }
+
+/* ── ANOTHER ORDER LINK ── */
+.another-btn {
+  display: block;
+  text-align: center;
+  margin-top: 4px;
+  font-size: .84rem;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: 'Nunito', sans-serif;
+  padding: 8px;
+  width: 100%;
+}
+
+/* ── LOADING ── */
+.loading-state {
+  text-align: center;
+  padding: 32px 0 16px;
+  display: none;
+}
+.loading-bird {
+  font-size: 2rem;
+  animation: bird-fly 1.4s ease-in-out infinite alternate;
+  display: inline-block;
+}
+@keyframes bird-fly {
+  from { transform: translateY(0) rotate(-5deg); }
+  to   { transform: translateY(-8px) rotate(5deg); }
+}
+.loading-text {
+  margin-top: 12px;
+  font-size: .88rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── AWB BADGE ── */
+.awb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.awb-badge {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  background: var(--gul-bg);
+  color: var(--ink2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 9px;
+}
+
+@media (max-width:400px) {
+  .nt-headline { font-size: 1.7rem; }
+  .card { padding: 18px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="nt-header">
+    <a class="nt-logo" href="https://nukkadtales.com">Nukkad<span>Tales</span></a>
+    <h1 class="nt-headline">Where's your piece?</h1>
+    <p class="nt-sub">Gul will fetch the news for you.</p>
+  </header>
+
+  <!-- Search Card -->
+  <div class="card" id="searchCard">
+    <div class="tabs">
+      <button class="tab active" id="tabOrder" onclick="switchTab('order')">Order + Email</button>
+      <button class="tab"        id="tabAwb"   onclick="switchTab('awb')">AWB / Docket No.</button>
+    </div>
+
+    <!-- Order + Email form -->
+    <div id="formOrder">
+      <div class="field">
+        <label>Order Number</label>
+        <input type="text" id="inpOrderNum" placeholder="e.g. 85335" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Email Address</label>
+        <input type="email" id="inpEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+    </div>
+
+    <!-- AWB form -->
+    <div id="formAwb" style="display:none">
+      <div class="field">
+        <label>BlueDart AWB / Docket Number</label>
+        <input type="text" id="inpAwb" placeholder="e.g. 90630060835" inputmode="numeric" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="loading-state" id="loadingState">
+      <div class="loading-bird">🐦</div>
+      <div class="loading-text">Gul is flying out to check…</div>
+    </div>
+
+    <button class="track-btn" id="trackBtn" onclick="doTrack()">Track My Order →</button>
+    <div class="err-msg" id="errMsg"></div>
+  </div>
+
+  <!-- Result Card -->
+  <div class="card" id="resultCard" style="display:none">
+    <div class="order-meta" id="orderMeta"></div>
+    <div class="gul-box" id="gulBox"></div>
+    <div class="journey-title">Your piece's journey</div>
+    <div class="timeline" id="timeline"></div>
+    <button class="another-btn" id="anotherBtn" onclick="resetPage()">← Track another order</button>
+  </div>
+
+</div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-track';
+let activeTab = 'order';
+
+function switchTab(t) {
+  activeTab = t;
+  document.getElementById('tabOrder').classList.toggle('active', t === 'order');
+  document.getElementById('tabAwb').classList.toggle('active', t === 'awb');
+  document.getElementById('formOrder').style.display = t === 'order' ? 'block' : 'none';
+  document.getElementById('formAwb').style.display   = t === 'awb'   ? 'block' : 'none';
+  clearErr();
+}
+
+function showErr(msg) {
+  const el = document.getElementById('errMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearErr() {
+  document.getElementById('errMsg').style.display = 'none';
+}
+
+function setLoading(on) {
+  document.getElementById('loadingState').style.display = on ? 'block' : 'none';
+  document.getElementById('trackBtn').style.display     = on ? 'none' : 'block';
+  document.getElementById('trackBtn').disabled = on;
+}
+
+async function doTrack() {
+  clearErr();
+  setLoading(true);
+
+  let body;
+  if (activeTab === 'order') {
+    const num   = document.getElementById('inpOrderNum').value.trim();
+    const email = document.getElementById('inpEmail').value.trim();
+    if (!num || !email) { showErr('Please fill in both fields.'); setLoading(false); return; }
+    body = { action: 'track_by_order', order_number: num, email };
+  } else {
+    const awb = document.getElementById('inpAwb').value.trim();
+    if (!awb) { showErr('Please enter an AWB number.'); setLoading(false); return; }
+    body = { action: 'track_by_awb', awb };
+  }
+
+  try {
+    const r = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    setLoading(false);
+
+    if (!data.found) {
+      const msgs = {
+        order_not_found: "Hmm, I couldn't find that order. Double-check the order number.",
+        email_mismatch:  'The email doesn\'t match our records for that order.',
+        awb_not_found:   "That AWB doesn't have tracking info yet. Try again in a bit.",
+      };
+      showErr(msgs[data.error] || "Something went wrong. Please try again.");
+      return;
+    }
+
+    renderResult(data);
+  } catch(e) {
+    setLoading(false);
+    showErr('Network error. Please try again.');
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '';
+  // Bluedart sends dates in various formats — try to parse
+  // Format: "20/08/2026 14:30:00" or ISO
+  let d;
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(iso)) {
+    const [day, mon, yr, ...rest] = iso.split(/[\/ :]/);
+    d = new Date(`${yr}-${mon}-${day}T${rest.slice(0,3).join(':')}`);
+  } else {
+    d = new Date(iso);
+  }
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
+    ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function deriveStatus(tracking) {
+  if (!tracking || !tracking.ok) return 'dispatched';
+  if (tracking.delivered)        return 'delivered';
+  if (tracking.out_for_delivery) return 'ofd';
+  const code = (tracking.statusCode || '').toUpperCase();
+  const desc = (tracking.statusDesc || '').toLowerCase();
+  if (['IT', 'IN_TRANSIT', 'TR'].includes(code) || desc.includes('transit')) return 'transit';
+  if (desc.includes('pickup') || desc.includes('picked')) return 'dispatched';
+  return 'transit';
+}
+
+const GUL_MESSAGES = {
+  crafting:   "Your piece is being painted and engraved with love. Good things take a little time — it'll find its way to you.",
+  dispatched: "Your piece has left our nukkad! I spotted it heading your way. Keep an eye on the door.",
+  transit:    "On its way! Your wooden keepsake is traveling across India. It'll be home soon.",
+  ofd:        "Almost there — your piece is out for delivery today. Someone's going to love this.",
+  delivered:  "It's there! Your story has found its place. We hope it brings a smile every time it's seen.",
+};
+
+const STATUS_LABELS = {
+  crafting:   ['Being handcrafted', 'chip-crafting'],
+  dispatched: ['Dispatched', 'chip-dispatched'],
+  transit:    ['In Transit', 'chip-transit'],
+  ofd:        ['Out for Delivery', 'chip-ofd'],
+  delivered:  ['Delivered', 'chip-delivered'],
+};
+
+function renderResult(data) {
+  const { order_name, customer, products, order_date, awb, tracking } = data;
+  const status = !awb ? 'crafting' : deriveStatus(tracking);
+  const [statusLabel, statusClass] = STATUS_LABELS[status];
+
+  // Order meta
+  const metaEl = document.getElementById('orderMeta');
+  const productsHtml = (products || []).map(p => `<div>${esc(p)}</div>`).join('');
+  metaEl.innerHTML = `
+    <div>
+      <div class="order-number">${esc(order_name || awb || '')}</div>
+      ${order_date ? `<div class="order-date">${fmtDate(order_date)}</div>` : ''}
+      ${customer ? `<div class="order-products">${esc(customer)}</div>` : ''}
+      ${productsHtml ? `<div class="order-products" style="margin-top:4px">${productsHtml}</div>` : ''}
+      ${awb ? `<div class="awb-row"><span class="awb-badge">AWB ${esc(awb)}</span></div>` : ''}
+    </div>
+    <span class="status-chip ${statusClass}">${statusLabel}</span>
+  `;
+
+  // Gul message
+  document.getElementById('gulBox').innerHTML = `
+    <div class="gul-bird">🐦</div>
+    <div>
+      <div class="gul-name">Gul says</div>
+      <div class="gul-text">"${GUL_MESSAGES[status] || GUL_MESSAGES.transit}"</div>
+    </div>
+  `;
+
+  // Timeline
+  buildTimeline(data, status);
+
+  document.getElementById('searchCard').style.display = 'none';
+  document.getElementById('resultCard').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function buildTimeline(data, status) {
+  const { order_date, awb, tracking } = data;
+  const container = document.getElementById('timeline');
+
+  // Define all possible stages
+  const stages = [
+    { key: 'placed',     icon: '✦', label: 'Order placed',       when: order_date ? fmtDate(order_date) : null },
+    { key: 'crafting',   icon: '🎨', label: 'Being handcrafted',  when: null },
+    { key: 'dispatched', icon: '📦', label: 'Handed to BlueDart', when: tracking?.pickUpDate ? fmtDateTime(tracking.pickUpDate) : null },
+  ];
+
+  // Add Bluedart scan milestones
+  const scans = (tracking?.scans || []).slice().reverse(); // oldest first
+
+  // Deduplicate scans by remark type into key milestones
+  const milestone = (remark) => {
+    if (!remark) return null;
+    const r = remark.toLowerCase();
+    if (r.includes('out for delivery') || r.includes('ofd')) return { key: 'ofd', label: 'Out for delivery', icon: '🏘️' };
+    if (r.includes('deliver')) return { key: 'delivered', label: 'Delivered', icon: '🎁' };
+    if (r.includes('transit') || r.includes('arrival') || r.includes('departed') || r.includes('hub')) return { key: 'transit', label: 'In transit', icon: '🚚' };
+    return null;
+  };
+
+  const seenMilestones = new Set();
+  const transitScans = [];
+
+  for (const scan of scans) {
+    const m = milestone(scan.remark);
+    if (m && !seenMilestones.has(m.key)) {
+      seenMilestones.add(m.key);
+      stages.push({ ...m, when: scan.time ? fmtDateTime(scan.time) : null, loc: scan.location });
+    } else if (!m && scan.location) {
+      transitScans.push(scan);
+    }
+  }
+
+  // Determine which stages are "done"
+  const ORDER = ['placed', 'crafting', 'dispatched', 'transit', 'ofd', 'delivered'];
+  const currentIdx = ORDER.indexOf(status === 'transit' ? 'transit' : status);
+
+  const stageOrder = stages.map(s => ORDER.indexOf(s.key));
+
+  let html = '';
+  for (let i = 0; i < stages.length; i++) {
+    const s = stages[i];
+    const sIdx = ORDER.indexOf(s.key);
+    const done    = sIdx <= currentIdx && awb; // dispatched+ stages need awb
+    const current = sIdx === currentIdx;
+    const isLast  = i === stages.length - 1;
+    const isDone  = s.key === 'placed' || (awb && done);
+    const isCurrent = current && awb;
+
+    const dotClass  = isDone ? (isCurrent ? 'tl-dot current' : 'tl-dot done') : 'tl-dot';
+    const lineClass = isDone ? 'tl-line done' : 'tl-line dashed';
+    const labelClass= isDone ? 'tl-label' : 'tl-label muted';
+
+    html += `
+      <div class="tl-step">
+        <div class="tl-left">
+          <div class="${dotClass}"></div>
+          ${!isLast ? `<div class="${lineClass}"></div>` : ''}
+        </div>
+        <div class="tl-content">
+          <div class="${labelClass}">${s.label}</div>
+          ${s.when ? `<div class="tl-when">${s.when}</div>` : ''}
+          ${s.loc  ? `<div class="tl-loc">📍 ${esc(s.loc)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  // Add scan detail toggle if there are transit scans
+  if (transitScans.length > 0) {
+    html += `
+      <button class="scans-toggle" onclick="toggleScans(this)">
+        <span class="toggle-arrow">▸</span> View ${transitScans.length} scan${transitScans.length > 1 ? 's' : ''}
+      </button>
+      <div class="scans-list" id="scansList">
+    `;
+    for (const sc of transitScans.slice().reverse()) {
+      html += `
+        <div class="scan-row">
+          <span class="scan-time">${sc.time ? fmtDateTime(sc.time) : '—'}</span>
+          <span>${esc(sc.location || '')}${sc.remark ? ` · <em>${esc(sc.remark)}</em>` : ''}</span>
+        </div>
+      `;
+    }
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function toggleScans(btn) {
+  const list = document.getElementById('scansList');
+  const open = list.classList.toggle('open');
+  btn.querySelector('.toggle-arrow').textContent = open ? '▾' : '▸';
+}
+
+function resetPage() {
+  document.getElementById('searchCard').style.display = 'block';
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('inpOrderNum').value = '';
+  document.getElementById('inpEmail').value    = '';
+  document.getElementById('inpAwb').value      = '';
+  clearErr();
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Enter key submits
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') doTrack();
+});
+</script>
+</body>
+</html>
