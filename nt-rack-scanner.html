@@ -6520,9 +6520,16 @@ function ceAddQuoteSearch(val) {
   portal.style.width = rect.width + 'px';
   portal.style.display = 'block';
   portal.innerHTML = matches.map(s =>
-    `<div class="ce-result" onpointerdown="_ceAddPicking=true" onclick="ceAddSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
+    `<div class="ce-result" data-q=${JSON.stringify(s)}>${esc(s)}</div>`
   ).join('');
   ceCheckSaveBtn();
+}
+
+function _cePortalPick(e) {
+  const row = e.target.closest('[data-q]');
+  if (!row) return;
+  e.preventDefault(); e.stopPropagation();
+  ceAddSelectQuote(row.dataset.q);
 }
 
 function ceAddSelectQuote(q) {
@@ -6695,6 +6702,14 @@ function closeColorEdit() {
 </div>
 <!-- Portal dropdown for add-item search — lives outside modal to escape stacking context -->
 <div id="ceAddQuotePortal" style="display:none;position:fixed;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:999999;max-height:220px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.2)"></div>
+<script>
+(function(){
+  const p = document.getElementById('ceAddQuotePortal');
+  p.addEventListener('pointerdown', function(e){ _ceAddPicking = true; e.preventDefault(); });
+  p.addEventListener('click', _cePortalPick);
+  p.addEventListener('touchend', _cePortalPick);
+})();
+</script>
 
 <style>
 .ce-result{padding:8px 12px;font-size:.8rem;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line)}
