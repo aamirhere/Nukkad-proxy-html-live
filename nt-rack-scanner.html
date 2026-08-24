@@ -479,6 +479,7 @@ input[type=file]{display:none}
   <div class="tab" id="tabDispatch" onclick="switchTab('dispatch')">Dispatch</div>
   <div class="tab" id="tabProd" onclick="switchTab('prod')">Production</div>
   <div class="tab" id="tabPending" onclick="switchTab('pending')" style="position:relative">Pending<span id="photoPendingBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;border-radius:99px;font-size:.6rem;padding:1px 5px;line-height:1.4"></span></div>
+  <div class="tab" id="tabTrack" onclick="switchTab('track')">Track</div>
 </div>
 
 <input type="file" id="fileInput" accept="image/*" capture="environment" multiple style="display:none">
@@ -716,6 +717,35 @@ input[type=file]{display:none}
 <div id="pendingTab" class="list-wrap" style="display:none">
   <div id="pendingContent">
     <div class="empty-msg">No items waiting for approval.</div>
+  </div>
+</div>
+
+<!-- ── TRACK TAB ── -->
+<div id="trackTab" class="list-wrap" style="display:none">
+  <div style="padding:16px 12px 32px">
+
+    <!-- Search box -->
+    <div style="background:var(--card,#fff);border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(58,43,29,.10);margin-bottom:16px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px">Journey Lookup</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="trackLookupInp"
+          placeholder="Order # or AWB docket…"
+          style="flex:1;padding:10px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:.9rem;font-family:var(--fb);color:var(--ink);background:var(--card,#fff);outline:none"
+          oninput="document.getElementById('trackLookupInp').style.borderColor='var(--line)'"
+          onkeydown="if(event.key==='Enter') doTrackLookup()">
+        <button onclick="doTrackLookup()" style="padding:10px 16px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:var(--fb);font-size:.85rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          Find →
+        </button>
+      </div>
+      <div id="trackLookupErr" style="display:none;font-size:.8rem;color:#c0392b;margin-top:8px"></div>
+      <div id="trackLookupLoading" style="display:none;text-align:center;padding:20px 0;font-size:.85rem;color:var(--muted);font-style:italic">
+        <div style="font-size:1.6rem;display:inline-block;animation:bird-fly 1.2s ease-in-out infinite alternate">🐦</div><br>Fetching status…
+      </div>
+    </div>
+
+    <!-- Result panel -->
+    <div id="trackLookupResult" style="display:none"></div>
+
   </div>
 </div>
 
@@ -1116,11 +1146,13 @@ function switchTab(t) {
   document.getElementById('dispatchTab').style.display = t === 'dispatch' ? '' : 'none';
   document.getElementById('prodTab').style.display     = t === 'prod'     ? '' : 'none';
   document.getElementById('pendingTab').style.display  = t === 'pending'  ? '' : 'none';
+  document.getElementById('trackTab').style.display    = t === 'track'    ? '' : 'none';
   document.getElementById('tabScan').classList.toggle('active',     t === 'scan');
   document.getElementById('tabList').classList.toggle('active',     t === 'list');
   document.getElementById('tabDispatch').classList.toggle('active', t === 'dispatch');
   document.getElementById('tabProd').classList.toggle('active',     t === 'prod');
   document.getElementById('tabPending').classList.toggle('active',  t === 'pending');
+  document.getElementById('tabTrack').classList.toggle('active',    t === 'track');
   if (t === 'list')     { buildDateNav(); renderList(); }
   if (t === 'dispatch') { renderDispatch(); }
   if (t === 'prod')     { renderProduction(); }
@@ -6768,7 +6800,234 @@ function closeColorEdit() {
 .ce-result{padding:8px 12px;font-size:.8rem;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line)}
 .ce-result:last-child{border-bottom:none}
 .ce-result:hover{background:#fff3e0}
+
+/* ── TRACK TAB ── */
+@keyframes bird-fly {
+  from { transform: translateY(0) rotate(-5deg); }
+  to   { transform: translateY(-6px) rotate(5deg); }
+}
+.trk-journey { display:flex;flex-direction:column;gap:0 }
+.trk-step { display:flex;gap:0;position:relative }
+.trk-left { display:flex;flex-direction:column;align-items:center;width:32px;flex-shrink:0 }
+.trk-dot { width:13px;height:13px;border-radius:50%;flex-shrink:0;border:2px solid #e9ddca;background:var(--card,#fff);margin-top:2px;z-index:1;transition:all .3s }
+.trk-dot.done { background:#d4541f;border-color:#d4541f }
+.trk-dot.current { width:17px;height:17px;margin-top:0;background:#d4541f;border-color:#d4541f;box-shadow:0 0 0 4px rgba(212,84,31,.18);animation:pulse-trk 2s infinite }
+@keyframes pulse-trk { 0%,100%{box-shadow:0 0 0 4px rgba(212,84,31,.18)}50%{box-shadow:0 0 0 8px rgba(212,84,31,.06)} }
+.trk-line { width:2px;flex:1;min-height:20px;margin:3px 0;background:#e9ddca }
+.trk-line.done { background:#d4541f }
+.trk-line.dashed { background:repeating-linear-gradient(to bottom,#e9ddca 0,#e9ddca 4px,transparent 4px,transparent 8px) }
+.trk-body { padding:0 0 20px 12px;flex:1 }
+.trk-step:last-child .trk-body { padding-bottom:4px }
+.trk-label { font-size:.88rem;font-weight:700;color:var(--ink);line-height:1.2 }
+.trk-label.dim { color:var(--muted);font-weight:600 }
+.trk-when { font-size:.73rem;color:var(--muted);margin-top:2px }
+.trk-loc  { font-size:.73rem;color:var(--ink2);margin-top:2px }
+.trk-scans-toggle { font-size:.77rem;color:var(--accent);font-weight:600;cursor:pointer;background:none;border:none;padding:4px 0;font-family:var(--fb);display:inline-flex;align-items:center;gap:3px }
+.trk-scans-list { display:none;margin:6px 0 12px 0 }
+.trk-scans-list.open { display:block }
+.trk-scan-row { display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:.76rem;color:var(--ink2) }
+.trk-scan-row:last-child { border:none }
+.trk-scan-time { color:var(--muted);flex-shrink:0;min-width:68px }
+.trk-chip { display:inline-block;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;margin-bottom:10px }
+.trk-chip-crafting   { background:#fff3e0;color:#e65100 }
+.trk-chip-dispatched { background:#e3f2fd;color:#1565c0 }
+.trk-chip-transit    { background:#fff8e1;color:#f57f17 }
+.trk-chip-ofd        { background:#fce4ec;color:#c62828 }
+.trk-chip-delivered  { background:#e8f5e9;color:#2e7d32 }
 </style>
+
+<script>
+// ── TRACK LOOKUP ──────────────────────────────────────────────────────────────
+const TRACK_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-track';
+
+async function doTrackLookup() {
+  const inp = document.getElementById('trackLookupInp');
+  const val = inp.value.trim();
+  if (!val) { inp.style.borderColor = 'var(--accent)'; inp.focus(); return; }
+
+  const errEl  = document.getElementById('trackLookupErr');
+  const loadEl = document.getElementById('trackLookupLoading');
+  const resEl  = document.getElementById('trackLookupResult');
+  errEl.style.display  = 'none';
+  loadEl.style.display = 'block';
+  resEl.style.display  = 'none';
+
+  // Decide: pure number = AWB, else = order name
+  const isAwb = /^\d{8,14}$/.test(val.replace(/^#/, ''));
+  let data;
+  try {
+    if (isAwb) {
+      const r = await fetch(TRACK_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'track_by_awb', awb: val }) });
+      data = await r.json();
+    } else {
+      // Try by order name — no email needed from ops side, use Shopify lookup only
+      const orderNum = val.replace(/^#/, '');
+      const r = await fetch(TRACK_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'track_by_order_ops', order_number: orderNum }) });
+      data = await r.json();
+    }
+  } catch(e) {
+    loadEl.style.display = 'none';
+    errEl.textContent = 'Network error — try again.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  loadEl.style.display = 'none';
+
+  if (!data.found) {
+    const msgs = {
+      order_not_found: 'Order not found on Shopify.',
+      awb_not_found:   'No tracking data for that AWB yet.',
+    };
+    errEl.textContent = msgs[data.error] || 'Not found — check the number.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  resEl.innerHTML = trkBuildResult(data);
+  resEl.style.display = 'block';
+}
+
+function trkFmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+}
+function trkFmtDT(iso) {
+  if (!iso) return '';
+  let d;
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(iso)) {
+    const parts = iso.split(/[\/ :]/);
+    d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${parts.slice(3,6).join(':')}`);
+  } else { d = new Date(iso); }
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}) + ' · ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+}
+function trkEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function trkDeriveStatus(tracking) {
+  if (!tracking?.ok) return 'dispatched';
+  if (tracking.delivered) return 'delivered';
+  if (tracking.out_for_delivery) return 'ofd';
+  const code = (tracking.statusCode||'').toUpperCase();
+  const desc = (tracking.statusDesc||'').toLowerCase();
+  if (['IT','IN_TRANSIT','TR'].includes(code) || desc.includes('transit')) return 'transit';
+  return 'transit';
+}
+
+const TRK_GUL = {
+  crafting:   'Being painted and engraved. Gul has whispered it to the workshop.',
+  dispatched: 'Handed to BlueDart. Heading your customer\'s way.',
+  transit:    'In transit across India — moving along nicely.',
+  ofd:        'Out for delivery today. Almost home.',
+  delivered:  'Delivered. Story has found its place.',
+};
+const TRK_STATUS_LABEL = {
+  crafting:'Being Made', dispatched:'Dispatched', transit:'In Transit', ofd:'Out for Delivery', delivered:'Delivered',
+};
+const TRK_CHIP_CLASS = {
+  crafting:'trk-chip-crafting', dispatched:'trk-chip-dispatched', transit:'trk-chip-transit', ofd:'trk-chip-ofd', delivered:'trk-chip-delivered',
+};
+
+function trkBuildResult(data) {
+  const { order_name, customer, products, order_date, awb, tracking } = data;
+  const status = !awb ? 'crafting' : trkDeriveStatus(tracking);
+
+  const prodLines = (products||[]).map(p=>`<div style="font-size:.78rem;color:var(--ink2);margin-top:1px">${trkEsc(p)}</div>`).join('');
+
+  let html = `
+    <div style="background:var(--card,#fff);border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(58,43,29,.10)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px">
+        <div>
+          <div style="font-family:var(--ff,Georgia,serif);font-size:1.35rem;font-weight:500;color:var(--ink);line-height:1.1">${trkEsc(order_name||awb||'')}</div>
+          ${order_date ? `<div style="font-size:.75rem;color:var(--muted);margin-top:2px">${trkFmtDate(order_date)}</div>`:''}
+          ${customer   ? `<div style="font-size:.8rem;color:var(--ink2);margin-top:2px">${trkEsc(customer)}</div>`:''}
+          ${prodLines}
+          ${awb ? `<div style="margin-top:6px"><span style="font-size:.7rem;font-weight:700;letter-spacing:.04em;background:var(--bg-2,#f8e8d2);color:var(--ink2);border:1px solid var(--line);border-radius:6px;padding:2px 8px">AWB ${trkEsc(awb)}</span></div>`:''}
+        </div>
+        <span class="trk-chip ${TRK_CHIP_CLASS[status]}">${TRK_STATUS_LABEL[status]}</span>
+      </div>
+
+      <div style="background:var(--gul-bg,#fff8f2);border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;margin-bottom:18px">
+        <span style="font-size:1.2rem;line-height:1;flex-shrink:0">🐦</span>
+        <div style="font-size:.83rem;color:var(--ink2);line-height:1.5;font-style:italic">"${TRK_GUL[status]}"</div>
+      </div>
+
+      <div style="font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--line)">Journey</div>
+      ${trkBuildTimeline(data, status)}
+    </div>
+  `;
+  return html;
+}
+
+function trkBuildTimeline(data, status) {
+  const { order_date, awb, tracking } = data;
+  const ORDER = ['placed','crafting','dispatched','transit','ofd','delivered'];
+  const curIdx = ORDER.indexOf(status === 'transit' ? 'transit' : status);
+
+  const stages = [
+    { key:'placed',     label:'Order placed',       when: order_date ? trkFmtDate(order_date) : null },
+    { key:'crafting',   label:'Being handcrafted',  when: null },
+    { key:'dispatched', label:'Handed to BlueDart', when: tracking?.pickUpDate ? trkFmtDT(tracking.pickUpDate) : null },
+  ];
+
+  const scans = (tracking?.scans||[]).slice().reverse();
+  const seenM = new Set();
+  const rawScans = [];
+
+  for (const sc of scans) {
+    const r = (sc.remark||'').toLowerCase();
+    let m = null;
+    if (r.includes('out for delivery')||r.includes('ofd')) m = { key:'ofd', label:'Out for delivery' };
+    else if (r.includes('deliver')) m = { key:'delivered', label:'Delivered' };
+    else if (r.includes('transit')||r.includes('arrival')||r.includes('hub')||r.includes('departed')) m = { key:'transit', label:'In transit' };
+    if (m && !seenM.has(m.key)) { seenM.add(m.key); stages.push({ ...m, when: sc.time ? trkFmtDT(sc.time) : null, loc: sc.location }); }
+    else if (!m && sc.location) rawScans.push(sc);
+  }
+
+  let html = '<div class="trk-journey">';
+  for (let i=0; i<stages.length; i++) {
+    const s = stages[i];
+    const sIdx = ORDER.indexOf(s.key);
+    const done    = s.key === 'placed' || (!!awb && sIdx <= curIdx);
+    const current = !!awb && sIdx === curIdx;
+    const isLast  = i === stages.length - 1;
+    const dotCls  = current ? 'trk-dot current' : done ? 'trk-dot done' : 'trk-dot';
+    const lineCls = done ? 'trk-line done' : 'trk-line dashed';
+    const lblCls  = done ? 'trk-label' : 'trk-label dim';
+    html += `
+      <div class="trk-step">
+        <div class="trk-left">
+          <div class="${dotCls}"></div>
+          ${!isLast ? `<div class="${lineCls}"></div>` : ''}
+        </div>
+        <div class="trk-body">
+          <div class="${lblCls}">${trkEsc(s.label)}</div>
+          ${s.when ? `<div class="trk-when">${s.when}</div>` : ''}
+          ${s.loc  ? `<div class="trk-loc">📍 ${trkEsc(s.loc)}</div>` : ''}
+        </div>
+      </div>`;
+  }
+  html += '</div>';
+
+  if (rawScans.length > 0) {
+    const uid = 'trkScans_' + Date.now();
+    html += `<button class="trk-scans-toggle" onclick="document.getElementById('${uid}').classList.toggle('open');this.querySelector('.trk-arr').textContent=document.getElementById('${uid}').classList.contains('open')?'▾':'▸'">
+      <span class="trk-arr">▸</span> ${rawScans.length} scan detail${rawScans.length>1?'s':''}
+    </button>
+    <div class="trk-scans-list" id="${uid}">`;
+    for (const sc of rawScans.slice().reverse()) {
+      html += `<div class="trk-scan-row">
+        <span class="trk-scan-time">${sc.time ? trkFmtDT(sc.time) : '—'}</span>
+        <span>${trkEsc(sc.location||'')}${sc.remark ? ` · <em>${trkEsc(sc.remark)}</em>` : ''}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  return html;
+}
+</script>
 
 </body>
 </html>
