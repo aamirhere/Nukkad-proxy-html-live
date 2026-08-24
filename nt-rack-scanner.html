@@ -6450,6 +6450,28 @@ function openColorEdit(orderName, quote, color) {
   _ceAddQuote = ''; _ceAddColor = ''; _ceAddOpen = false;
 
   document.getElementById('ceTitle').textContent = `Edit item — ${orderName}`;
+
+  // Populate qty row
+  const row = rackItems.find(r => r.order_name === orderName && r.quote === quote && r.color === color);
+  const needed = row ? row.needed : 1;
+  const found  = row ? row.found  : 0;
+  document.getElementById('ceQtyLabel').textContent = `Qty ordered: ${needed}${found > 0 ? ` · ${found} already found` : ''}`;
+  const reduceBtn = document.getElementById('ceReduceBtn');
+  // show "−1 qty" only if needed > 1, or "Cancel item" if needed === 1
+  if (needed <= 0) {
+    document.getElementById('ceQtyRow').style.display = 'none';
+  } else {
+    document.getElementById('ceQtyRow').style.display = 'flex';
+    if (needed === 1) {
+      reduceBtn.textContent = 'Cancel item';
+      reduceBtn.style.borderColor = '#ef5350';
+      reduceBtn.style.color = '#b71c1c';
+    } else {
+      reduceBtn.textContent = '−1 qty';
+      reduceBtn.style.borderColor = '#ef9a9a';
+      reduceBtn.style.color = '#c62828';
+    }
+  }
   const inp = document.getElementById('ceQuoteInput');
   inp.value = quote;
   inp.dataset.selected = quote;
@@ -6582,6 +6604,31 @@ async function saveColorEdit() {
   }
 }
 
+async function ceReduceNeeded() {
+  const btn = document.getElementById('ceReduceBtn');
+  const row = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _cePrevQuote && r.color === _cePrevColor);
+  const needed = row ? row.needed : 1;
+  const action = needed <= 1 ? 'cancel item' : 'reduce qty to ' + (needed - 1);
+  if (!confirm(`${action === 'cancel item' ? 'Cancel this item entirely' : 'Reduce qty by 1'} for ${_ceOrderName}?\n"${_cePrevQuote}" · ${_cePrevColor}`)) return;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res = await apiFetch({ action: 'reduce_rack_needed', order_name: _ceOrderName, quote: _cePrevQuote, color: _cePrevColor });
+    if (row) {
+      row.needed = res.needed;
+      row.found  = res.found;
+      if (res.cancelled) row.cancelled = true;
+    }
+    closeColorEdit();
+    renderList();
+    toast(res.cancelled ? 'Item cancelled ✓' : `Qty reduced to ${res.needed} ✓`);
+  } catch(e) {
+    btn.disabled = false;
+    const r2 = rackItems.find(r => r.order_name === _ceOrderName && r.quote === _cePrevQuote && r.color === _cePrevColor);
+    btn.textContent = (r2?.needed || 1) <= 1 ? 'Cancel item' : '−1 qty';
+    alert('Failed: ' + (e.message || JSON.stringify(e)));
+  }
+}
+
 function closeColorEdit() {
   document.getElementById('colorEditModal').style.display = 'none';
 }
@@ -6602,7 +6649,13 @@ function closeColorEdit() {
     <div style="font-size:.68rem;color:var(--muted);margin-bottom:14px">Type to search existing quotes, or enter any custom quote</div>
 
     <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Color</div>
-    <div class="color-pills" id="cePills" style="margin-bottom:20px"></div>
+    <div class="color-pills" id="cePills" style="margin-bottom:12px"></div>
+
+    <!-- Qty / cancel for existing item -->
+    <div id="ceQtyRow" style="display:flex;align-items:center;gap:8px;margin-bottom:18px;padding:8px 10px;background:#fdf5ec;border-radius:8px;border:1px solid var(--line)">
+      <span style="font-size:.75rem;color:var(--ink2);flex:1" id="ceQtyLabel"></span>
+      <button id="ceReduceBtn" onclick="ceReduceNeeded()" style="padding:4px 12px;border-radius:7px;border:1.5px solid #ef9a9a;background:#fff;color:#c62828;font-size:.78rem;font-weight:700;cursor:pointer">−1 qty</button>
+    </div>
 
     <!-- Add new item section -->
     <div style="border-top:1.5px solid var(--line);padding-top:14px;margin-bottom:16px">
