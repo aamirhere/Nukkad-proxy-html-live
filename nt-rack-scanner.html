@@ -6508,16 +6508,18 @@ function ceToggleAdd() {
 function ceAddQuoteSearch(val) {
   _ceAddQuote = val.trim();
   const q = val.trim().toLowerCase();
-  const res = document.getElementById('ceAddQuoteResults');
-  if (!q) { res.style.display = 'none'; res.innerHTML = ''; ceCheckSaveBtn(); return; }
+  const portal = document.getElementById('ceAddQuotePortal');
+  if (!q) { portal.style.display = 'none'; portal.innerHTML = ''; ceCheckSaveBtn(); return; }
   const unique = [...new Set(rackItems.map(r => r.quote).filter(Boolean))];
   const matches = unique.filter(s => s.toLowerCase().includes(q)).slice(0, 8);
-  if (!matches.length) { res.style.display = 'none'; res.innerHTML = ''; ceCheckSaveBtn(); return; }
-  // Position as fixed so modal overflow-y:auto doesn't block pointer events
+  if (!matches.length) { portal.style.display = 'none'; portal.innerHTML = ''; ceCheckSaveBtn(); return; }
   const inp = document.getElementById('ceAddQuoteInput');
   const rect = inp.getBoundingClientRect();
-  res.style.cssText = `display:block;position:fixed;left:${rect.left}px;top:${rect.bottom + 3}px;width:${rect.width}px;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:99999;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.18)`;
-  res.innerHTML = matches.map(s =>
+  portal.style.left = rect.left + 'px';
+  portal.style.top = (rect.bottom + 3) + 'px';
+  portal.style.width = rect.width + 'px';
+  portal.style.display = 'block';
+  portal.innerHTML = matches.map(s =>
     `<div class="ce-result" onpointerdown="_ceAddPicking=true" onclick="ceAddSelectQuote(${JSON.stringify(s)})">${esc(s)}</div>`
   ).join('');
   ceCheckSaveBtn();
@@ -6527,7 +6529,8 @@ function ceAddSelectQuote(q) {
   _ceAddPicking = false;
   _ceAddQuote = q;
   document.getElementById('ceAddQuoteInput').value = q;
-  document.getElementById('ceAddQuoteResults').innerHTML = '';
+  const portal = document.getElementById('ceAddQuotePortal');
+  portal.style.display = 'none'; portal.innerHTML = '';
   ceCheckSaveBtn();
 }
 
@@ -6637,6 +6640,8 @@ async function ceReduceNeeded() {
 
 function closeColorEdit() {
   document.getElementById('colorEditModal').style.display = 'none';
+  const p = document.getElementById('ceAddQuotePortal');
+  if (p) { p.style.display = 'none'; p.innerHTML = ''; }
 }
 </script>
 
@@ -6669,7 +6674,7 @@ function closeColorEdit() {
       <div id="ceAddSection" style="display:none;margin-top:12px">
         <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">New item quote</div>
         <div style="position:relative;margin-bottom:4px">
-          <input id="ceAddQuoteInput" type="text" placeholder="Search quote…" oninput="ceAddQuoteSearch(this.value)" onblur="setTimeout(()=>{if(!_ceAddPicking)document.getElementById('ceAddQuoteResults').innerHTML='';},350)"
+          <input id="ceAddQuoteInput" type="text" placeholder="Search quote…" oninput="ceAddQuoteSearch(this.value)" onblur="setTimeout(()=>{if(!_ceAddPicking){const p=document.getElementById('ceAddQuotePortal');p.style.display='none';p.innerHTML='';}},350)"
             style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:.82rem;color:var(--ink);font-family:var(--fb)">
           <div id="ceAddQuoteResults" style="display:none"></div>
         </div>
@@ -6688,6 +6693,8 @@ function closeColorEdit() {
     </div>
   </div>
 </div>
+<!-- Portal dropdown for add-item search — lives outside modal to escape stacking context -->
+<div id="ceAddQuotePortal" style="display:none;position:fixed;background:#fff;border:1.5px solid var(--line);border-radius:8px;z-index:999999;max-height:220px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.2)"></div>
 
 <style>
 .ce-result{padding:8px 12px;font-size:.8rem;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line)}
