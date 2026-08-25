@@ -376,6 +376,9 @@ input[type=file]{display:none}
 .meta-inp:focus{border-color:var(--accent);background:#fff}
 .meta-save-btn{padding:4px 9px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
 .meta-dispatch-btn{padding:4px 9px;border-radius:6px;border:1.5px solid var(--blue);color:var(--blue);background:none;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.ord-addr-row{margin-top:4px}
+.addr-toggle-btn{padding:2px 7px;border-radius:6px;border:1px solid var(--line);background:none;font-size:.7rem;cursor:pointer;color:var(--muted)}
+.addr-detail{font-size:.75rem;color:var(--ink2);margin-top:5px;line-height:1.6;padding:6px 8px;background:var(--bg2,#f8f0e6);border-radius:8px}
 .painter-badge{font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:20px;background:#e8eaf6;color:#3949ab;margin-left:4px;display:inline-block}
 .painter-opt-row{display:flex;align-items:center;gap:6px}
 .painter-opt-row .painter-opt{flex:1;margin-bottom:0}
@@ -3122,6 +3125,10 @@ function renderList() {
           <input class="meta-inp" placeholder="📝 Note…" value="${esc(o.notes||'')}" id="note-${esc(o.order_name)}" style="max-width:200px;flex:2">
           <button class="meta-save-btn" onclick="saveOrderMeta('${safeOn}')">Save</button>
         </div>
+        <div class="ord-addr-row no-print">
+          <button class="addr-toggle-btn" onclick="toggleAddr('${safeOn}',this)" title="Show address &amp; phone">▾ Address</button>
+          <div class="addr-detail" id="addr-${esc(o.order_name)}" style="display:none"></div>
+        </div>
       </div>`;
     }
   }
@@ -5184,6 +5191,35 @@ async function undoDispatch(orderName) {
     buildDateNav(); renderList(); updateSummary();
     toast(`${orderName} moved back to active`);
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function toggleAddr(orderName, btn) {
+  const box = document.getElementById('addr-' + orderName);
+  if (!box) return;
+  if (box.style.display !== 'none') {
+    box.style.display = 'none';
+    btn.textContent = '▾ Address';
+    return;
+  }
+  btn.textContent = '… loading';
+  btn.disabled = true;
+  try {
+    const res = await apiFetch({ action: 'get_order_address', order_name: orderName });
+    if (!res.found) { box.innerHTML = '<em>Not found</em>'; }
+    else {
+      const ph   = res.phone ? `📞 <strong>${esc(res.phone)}</strong>` : '';
+      const loc  = [res.city, res.province, res.zip].filter(Boolean).map(s => esc(s)).join(' · ');
+      const addr = res.address1 ? esc(res.address1) + (res.address2 ? ', ' + esc(res.address2) : '') : '';
+      box.innerHTML = [ph, loc, addr].filter(Boolean).join('<br>');
+    }
+    box.style.display = 'block';
+    btn.textContent = '▴ Address';
+  } catch(e) {
+    box.innerHTML = '<em style="color:#c62828">Error loading</em>';
+    box.style.display = 'block';
+    btn.textContent = '▴ Address';
+  }
+  btn.disabled = false;
 }
 
 async function manualCancel(orderName) {
