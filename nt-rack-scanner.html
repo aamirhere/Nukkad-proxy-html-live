@@ -376,6 +376,9 @@ input[type=file]{display:none}
 .meta-inp:focus{border-color:var(--accent);background:#fff}
 .meta-save-btn{padding:4px 9px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
 .meta-dispatch-btn{padding:4px 9px;border-radius:6px;border:1.5px solid var(--blue);color:var(--blue);background:none;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.wmp-btn{flex:1;padding:8px 0;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);font-size:.82rem;font-weight:700;cursor:pointer}
+.wmp-btn.wmp-active{background:#e65100;color:#fff;border-color:#e65100}
+.paint-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e65100;color:#fff;font-size:.65rem;font-weight:900;flex-shrink:0}
 .ord-addr-row{margin-top:4px}
 .addr-toggle-btn{padding:2px 7px;border-radius:6px;border:1px solid var(--line);background:none;font-size:.7rem;cursor:pointer;color:var(--muted)}
 .addr-detail{font-size:.75rem;color:var(--ink2);margin-top:5px;line-height:1.6;padding:6px 8px;background:var(--bg2,#f8f0e6);border-radius:8px}
@@ -549,6 +552,13 @@ input[type=file]{display:none}
     <button class="pctx-btn" data-ctx="bulk"    onclick="setPackingCtx('bulk',this)">Bulk</button>
   </div>
 
+  <!-- paint / finished work mode pills -->
+  <div id="workModePills" style="display:flex;gap:8px;margin-top:6px">
+    <button id="wmpFinished" class="wmp-btn wmp-active" onclick="setWorkMode('finished')">✓ Finished</button>
+    <button id="wmpPaint"    class="wmp-btn"            onclick="setWorkMode('paint')">🎨 Paint</button>
+  </div>
+  <div id="workModeNote" style="display:none;font-size:.7rem;color:#e65100;font-weight:700;margin-top:3px">🎨 Paint mode — scans mark item as IN PAINT, not found</div>
+
   <!-- painter-mode area (shown only in painter mode) -->
   <div id="painterScanArea" style="display:none;flex-direction:column;gap:12px;padding:8px 0">
     <div style="font-size:.78rem;color:var(--muted)">Painter: <strong id="painterScanName"></strong></div>
@@ -663,6 +673,7 @@ input[type=file]{display:none}
     <div class="ftab" onclick="setFilter('matched')" data-f="matched" data-label="Matched ✓">Matched ✓</div>
     <div class="ftab" onclick="setFilter('emergency')" data-f="emergency" data-label="Emergency">Emergency</div>
     <div class="ftab" onclick="setFilter('dispatched')" data-f="dispatched" data-label="Dispatched">Dispatched</div>
+    <div class="ftab" onclick="setFilter('inpaint')" data-f="inpaint" data-label="🎨 In Paint">🎨 In Paint</div>
   </div>
 
   <div class="filter-row no-print" id="trackFilterRow" style="padding-top:0;gap:6px">
@@ -964,6 +975,15 @@ const BD_API     = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/funct
 let rackItems    = [];
 let scanLog      = [];
 let activeFilter = 'all';
+let _scanWorkMode = 'finished'; // 'finished' | 'paint'
+const _paintSet = new Set(); // keys: "orderName|||quote|||color" (session-only, clears on refresh)
+
+function setWorkMode(mode) {
+  _scanWorkMode = mode;
+  document.getElementById('wmpFinished').classList.toggle('wmp-active', mode === 'finished');
+  document.getElementById('wmpPaint').classList.toggle('wmp-active', mode === 'paint');
+  document.getElementById('workModeNote').style.display = mode === 'paint' ? 'block' : 'none';
+}
 let activeTrackFilter = 'all';
 let _currentSlipOrder = null;
 let _liveEmgOrders = new Set(); // order_names with active emergencies (from nt_order_units)
@@ -2345,6 +2365,18 @@ async function markItemFound(el) {
   const d = _btnData[el.dataset.bd];
   if (!d) return;
   const [orderName, quote, color] = d;
+  const paintKey = `${orderName}|||${quote}|||${color}`;
+
+  if (_scanWorkMode === 'paint') {
+    _paintSet.add(paintKey);
+    renderList();
+    updateFilterCounts();
+    toast(`🎨 Marked in paint: ${quote}`);
+    return;
+  }
+
+  // Finished mode — mark as found and remove from paint set if present
+  _paintSet.delete(paintKey);
   el.style.opacity = '.5'; el.style.pointerEvents = 'none';
   try {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
@@ -2353,7 +2385,6 @@ async function markItemFound(el) {
     updateSummary();
     buildDateNav();
     renderList();
-    // if all done for order, refresh print queue silently
     const orderItems = rackItems.filter(it => it.order_name === orderName);
     if (orderItems.every(it => it.found >= it.needed)) {
       apiFetch({ action: 'queue_for_print', order_name: orderName }).then(() => loadPrintQueue()).catch(() => {});
@@ -2910,6 +2941,7 @@ function updateFilterCounts() {
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     dispatched: all.filter(o => o.dispatched).length,
+    inpaint:    [...new Set([..._paintSet].map(k => k.split('|||')[0]))].length,
   };
   document.querySelectorAll('.ftab[data-f]').forEach(b => {
     const f = b.dataset.f;
@@ -2992,6 +3024,7 @@ function renderList() {
     if (activeFilter === 'partial')    return partial && !o.dispatched;
     if (activeFilter === 'matched')    return complete && !o.dispatched;
     if (activeFilter === 'emergency')  return _liveEmgOrders.has(o.order_name) && !o.dispatched;
+    if (activeFilter === 'inpaint')    return o.items.some(it => _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
     return true;
   }).filter(o => {
     if (activeTrackFilter === 'all') return true;
@@ -3081,7 +3114,9 @@ function renderList() {
             const selKey = `${it.order_name}|||${it.quote}|||${it.color}`;
             const isSel = _listSel.has(selKey);
             const ebk = _bd([it.order_name, it.quote, it.color]);
+            const inPaint = _paintSet.has(selKey);
             const pencilBtn = `<button class="color-edit-pencil" data-bd="${ebk}" onclick="event.stopPropagation();var d=_btnData[this.dataset.bd];openColorEdit(d[0],d[1],d[2])" title="Change color">✏</button>`;
+            const paintBadge = inPaint ? `<span class="paint-badge" title="In paint">P</span>` : '';
             if (_listSelMode) {
               const lk = _bd([it.order_name, it.quote, it.color]);
               return `<div class="oi-line oi-clickable" data-bd="${lk}" onclick="listSelToggle(this.dataset.bd)" style="${isSel?'background:#fff3e0;':done?'opacity:.55;':''}">
@@ -3100,8 +3135,8 @@ function renderList() {
                 <div class="oi-n" style="color:var(--green)">${it.found}/${it.needed}</div>
               </div>`;
             }
-            return `<div class="oi-line oi-clickable" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found">
-              <div class="oi-chk ${chkCls}">${chkTxt}</div>
+            return `<div class="oi-line oi-clickable${inPaint?' paint-item':''}" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found${inPaint?' (in paint)':''}" style="${inPaint?'background:#fff8f2;':''}" >
+              <div class="oi-chk ${chkCls}">${inPaint ? paintBadge : chkTxt}</div>
               <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
               <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
               <div class="oi-n">${it.found}/${it.needed}</div>
