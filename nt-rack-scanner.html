@@ -2907,7 +2907,7 @@ function updateFilterCounts() {
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     dispatched: all.filter(o => o.dispatched).length,
   };
-  document.querySelectorAll('.ftab').forEach(b => {
+  document.querySelectorAll('.ftab[data-f]').forEach(b => {
     const f = b.dataset.f;
     const c = counts[f];
     b.textContent = b.dataset.label + (c != null ? ` ${c}` : '');
