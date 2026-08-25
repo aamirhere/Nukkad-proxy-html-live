@@ -3107,7 +3107,15 @@ function renderList() {
         </div>
         <div class="ord-meta-row no-print">
           <button class="meta-edit-btn" onclick="toggleMetaEdit('${safeOn}')" title="Edit rack location / note">✏️</button>
-          ${o.dispatched ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.72rem;padding:4px 9px" onclick="undoDispatch('${safeOn}')">↩ Undo Dispatch</button>` : o.print_done ? `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safeOn}')">🚚 Dispatch Now</button>` : `<button class="meta-dispatch-btn" onclick="manualDispatch('${safeOn}')">🚚 Mark Dispatched</button>`}
+          ${o.cancelled
+            ? `<button class="meta-dispatch-btn" style="color:#6f5b46;border-color:#d9cabb;font-size:.72rem;padding:4px 9px" onclick="undoCancel('${safeOn}')">↩ Undo Cancel</button>`
+            : o.dispatched
+              ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.72rem;padding:4px 9px" onclick="undoDispatch('${safeOn}')">↩ Undo Dispatch</button>`
+              : `${o.print_done
+                  ? `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safeOn}')">🚚 Dispatch Now</button>`
+                  : `<button class="meta-dispatch-btn" onclick="manualDispatch('${safeOn}')">🚚 Mark Dispatched</button>`}
+                <button class="meta-dispatch-btn" style="color:#c62828;border-color:#ef9a9a;font-size:.72rem;padding:4px 9px;margin-left:4px" onclick="manualCancel('${safeOn}')">✕ Cancel</button>`
+          }
         </div>
         <div class="ord-meta-edit no-print" id="meta-edit-${esc(o.order_name)}" style="display:none">
           <input class="meta-inp" placeholder="📍 Rack location" value="${esc(o.rack_location||'')}" id="loc-${esc(o.order_name)}">
@@ -5175,6 +5183,26 @@ async function undoDispatch(orderName) {
     _pqOrders = _pqOrders.map(o => o.order_name === orderName ? { ...o, dispatched: false } : o);
     buildDateNav(); renderList(); updateSummary();
     toast(`${orderName} moved back to active`);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function manualCancel(orderName) {
+  if (!confirm(`Mark ${orderName} as cancelled? This will zero out its items.`)) return;
+  try {
+    await apiFetch({ action: 'mark_cancelled', order_name: orderName });
+    rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, cancelled: true, needed: 0, found: 0 } : it);
+    buildDateNav(); renderList(); updateSummary();
+    toast(`${orderName} marked cancelled`);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function undoCancel(orderName) {
+  if (!confirm(`Undo cancellation for ${orderName}? It will return to active. You may need to resync to restore item quantities.`)) return;
+  try {
+    await apiFetch({ action: 'mark_uncancelled', order_name: orderName });
+    rackItems = rackItems.map(it => it.order_name === orderName ? { ...it, cancelled: false } : it);
+    buildDateNav(); renderList(); updateSummary();
+    toast(`${orderName} cancellation undone — resync to restore quantities`);
   } catch(e) { alert('Error: ' + e.message); }
 }
 
