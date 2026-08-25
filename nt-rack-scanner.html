@@ -3126,6 +3126,16 @@ function renderList() {
                 <div class="oi-n" style="color:${done?'#4caf50':'var(--muted)'}">${it.found}/${it.needed}</div>
               </div>`;
             }
+            // Paint mode takes priority — show P badge regardless of done state
+            if (inPaint) {
+              const pbk = _bd([it.order_name, it.quote, it.color]);
+              return `<div class="oi-line oi-clickable paint-item" data-bd="${pbk}" onclick="markItemFound(this)" title="In paint — tap to mark finished" style="background:#fff8f2;">
+                <div class="oi-chk">${paintBadge}</div>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                <div class="oi-n">${it.found}/${it.needed}</div>
+              </div>`;
+            }
             if (done) {
               const ubk = _bd([it.order_name, it.quote, it.color]);
               return `<div class="oi-line oi-clickable" data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck / reduce count">
@@ -3135,8 +3145,18 @@ function renderList() {
                 <div class="oi-n" style="color:var(--green)">${it.found}/${it.needed}</div>
               </div>`;
             }
-            return `<div class="oi-line oi-clickable${inPaint?' paint-item':''}" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found${inPaint?' (in paint)':''}" style="${inPaint?'background:#fff8f2;':''}" >
-              <div class="oi-chk ${chkCls}">${inPaint ? paintBadge : chkTxt}</div>
+            // Partial (found > 0 but not done) — tap unchecks so multi-qty items can be fully cleared
+            if (it.found > 0) {
+              const ubk2 = _bd([it.order_name, it.quote, it.color]);
+              return `<div class="oi-line oi-clickable" data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to reduce count">
+                <div class="oi-chk part" style="cursor:pointer">${it.found}</div>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                <div class="oi-n">${it.found}/${it.needed}</div>
+              </div>`;
+            }
+            return `<div class="oi-line oi-clickable" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found">
+              <div class="oi-chk"></div>
               <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
               <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
               <div class="oi-n">${it.found}/${it.needed}</div>
