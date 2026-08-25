@@ -5207,10 +5207,12 @@ async function toggleAddr(orderName, btn) {
     const res = await apiFetch({ action: 'get_order_address', order_name: orderName });
     if (!res.found) { box.innerHTML = '<em>Not found</em>'; }
     else {
+      const isCod = res.payment_mode === 'COD';
+      const badge = `<span style="display:inline-block;font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;${isCod?'background:#fff3e0;color:#e65100;border:1px solid #ffcc80':'background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7'}">${isCod?'💵 COD':'✓ Prepaid'}</span>`;
       const ph   = res.phone ? `📞 <strong>${esc(res.phone)}</strong>` : '';
       const loc  = [res.city, res.province, res.zip].filter(Boolean).map(s => esc(s)).join(' · ');
       const addr = res.address1 ? esc(res.address1) + (res.address2 ? ', ' + esc(res.address2) : '') : '';
-      box.innerHTML = [ph, loc, addr].filter(Boolean).join('<br>');
+      box.innerHTML = badge + '<br>' + [ph, loc, addr].filter(Boolean).join('<br>');
     }
     box.style.display = 'block';
     btn.textContent = '▴ Address';
