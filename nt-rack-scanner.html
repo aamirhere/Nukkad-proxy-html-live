@@ -1910,7 +1910,8 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     const needed = row ? row.needed : qty;
     _paintSet.set(paintKey, Math.min((_paintSet.get(paintKey) || 0) + qty, needed));
     renderList(); updateFilterCounts();
-    toast(`🎨 Marked in paint: ${visQuote || quote}`);
+    // Visually update the scan result card
+    updateScanCardPaint(orderName, quote, color);
     return;
   }
   try {
@@ -2035,6 +2036,40 @@ async function doSkipItem(orderName, quote, color, orderDate) {
       <button class="act-btn go" onclick="triggerCamera()">Scan Next</button>
     </div>
   </div>`;
+}
+
+function updateScanCardPaint(orderName, quote, color) {
+  const area = document.getElementById('scanResultArea');
+  if (!area) return;
+  const paintKey = `${orderName}|||${quote}|||${color}`;
+  const paintCount = _paintSet.get(paintKey) || 0;
+  const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
+  const needed = row ? row.needed : 1;
+
+  // Update every match-block that references this order
+  area.querySelectorAll('.match-block').forEach(block => {
+    // Find the target item row for this quote+color
+    block.querySelectorAll('.m-item.target').forEach(itemRow => {
+      const pSpan = itemRow.querySelector('.m-item-p');
+      if (pSpan) {
+        pSpan.textContent = `🎨 ${paintCount}/${needed}`;
+        pSpan.style.color = '#d4541f';
+        pSpan.style.fontWeight = '700';
+      }
+      itemRow.style.background = '#fff3e6';
+      itemRow.style.borderRadius = '5px';
+      itemRow.onclick = null;
+      itemRow.style.cursor = 'default';
+    });
+    // Update the "This is it" confirm button
+    block.querySelectorAll('.m-btn.confirm').forEach(btn => {
+      btn.textContent = `🎨 In Paint (${paintCount}/${needed})`;
+      btn.style.background = '#fff3e6';
+      btn.style.color = '#d4541f';
+      btn.style.border = '2px solid #d4541f';
+      btn.disabled = false; // keep clickable so they can add more qty
+    });
+  });
 }
 
 async function confirmMatchAndClearSkip(orderName, quote, color, orderDate, visQuote, visColor, confidence, qty = 1) {
