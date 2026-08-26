@@ -2368,6 +2368,22 @@ function renderSumReady() {
   window._readyOrders = allReadyOrders;
 }
 
+function togglePaintItem(el) {
+  const d = _btnData[el.dataset.bd];
+  if (!d) return;
+  const [orderName, quote, color] = d;
+  const paintKey = `${orderName}|||${quote}|||${color}`;
+  if (_scanWorkMode === 'paint') {
+    // In paint mode: tap removes from paint (deselect)
+    _paintSet.delete(paintKey);
+    renderList(); updateFilterCounts();
+    toast(`Removed from paint: ${quote}`);
+  } else {
+    // In finished mode: tap marks it found (proceed normally)
+    markItemFound(el);
+  }
+}
+
 async function markItemFound(el) {
   const d = _btnData[el.dataset.bd];
   if (!d) return;
@@ -3136,7 +3152,8 @@ function renderList() {
             // Paint mode takes priority — show P badge regardless of done state
             if (inPaint) {
               const pbk = _bd([it.order_name, it.quote, it.color]);
-              return `<div class="oi-line oi-clickable paint-item" data-bd="${pbk}" onclick="markItemFound(this)" title="In paint — tap to mark finished" style="background:#fff8f2;">
+              const paintTitle = _scanWorkMode === 'paint' ? 'In paint — tap to remove from paint' : 'In paint — tap to mark finished';
+              return `<div class="oi-line oi-clickable paint-item" data-bd="${pbk}" onclick="togglePaintItem(this)" title="${paintTitle}" style="background:#fff8f2;">
                 <div class="oi-chk">${paintBadge}</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
