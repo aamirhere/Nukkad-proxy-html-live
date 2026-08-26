@@ -1853,7 +1853,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
       <span style="font-size:.7rem;color:var(--muted)">(${remaining} needed)</span>
     </div>` : '';
 
-    html += `<div class="match-block${idx===0?' best':''}" style="${allCounted?'opacity:.45;pointer-events:none;':''}">
+    html += `<div class="match-block${idx===0?' best':''}" data-order="${esc(it.order_name)}" style="${allCounted?'opacity:.45;pointer-events:none;':''}">
       <div class="m-head">
         <div>
           <div class="m-order">${esc(it.order_name)} · ${esc(it.customer||'')}</div>
@@ -2046,8 +2046,8 @@ function updateScanCardPaint(orderName, quote, color) {
   const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
   const needed = row ? row.needed : 1;
 
-  // Update every match-block that references this order
-  area.querySelectorAll('.match-block').forEach(block => {
+  // Only update the block for this specific order
+  area.querySelectorAll(`.match-block[data-order="${orderName}"]`).forEach(block => {
     // Find the target item row for this quote+color
     block.querySelectorAll('.m-item.target').forEach(itemRow => {
       const pSpan = itemRow.querySelector('.m-item-p');
