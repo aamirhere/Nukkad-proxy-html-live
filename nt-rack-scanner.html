@@ -976,7 +976,7 @@ let rackItems    = [];
 let scanLog      = [];
 let activeFilter = 'all';
 let _scanWorkMode = 'finished'; // 'finished' | 'paint'
-const _paintSet = new Set(); // keys: "orderName|||quote|||color" (session-only, clears on refresh)
+const _paintSet = new Map(); // key "orderName|||quote|||color" → paintCount (session-only)
 
 function setWorkMode(mode) {
   _scanWorkMode = mode;
@@ -1906,7 +1906,9 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
 async function confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence, qty = 1) {
   if (_scanWorkMode === 'paint') {
     const paintKey = `${orderName}|||${quote}|||${color}`;
-    _paintSet.add(paintKey);
+    const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
+    const needed = row ? row.needed : qty;
+    _paintSet.set(paintKey, Math.min((_paintSet.get(paintKey) || 0) + qty, needed));
     renderList(); updateFilterCounts();
     toast(`🎨 Marked in paint: ${visQuote || quote}`);
     return;
@@ -2374,14 +2376,22 @@ function togglePaintItem(el) {
   const [orderName, quote, color] = d;
   const paintKey = `${orderName}|||${quote}|||${color}`;
   if (_scanWorkMode === 'paint') {
-    // In paint mode: tap removes from paint (deselect)
+    // Paint mode + qty=1: tap removes entirely
     _paintSet.delete(paintKey);
     renderList(); updateFilterCounts();
     toast(`Removed from paint: ${quote}`);
   } else {
-    // In finished mode: tap marks it found (proceed normally)
+    // Finished mode: mark it found
     markItemFound(el);
   }
+}
+
+function paintAdj(key, delta, needed) {
+  const cur = _paintSet.get(key) || 0;
+  const nv = Math.max(0, Math.min(needed, cur + delta));
+  if (nv === 0) _paintSet.delete(key);
+  else _paintSet.set(key, nv);
+  renderList(); updateFilterCounts();
 }
 
 async function markItemFound(el) {
@@ -2391,7 +2401,9 @@ async function markItemFound(el) {
   const paintKey = `${orderName}|||${quote}|||${color}`;
 
   if (_scanWorkMode === 'paint') {
-    _paintSet.add(paintKey);
+    const row2 = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
+    const needed2 = row2 ? row2.needed : 1;
+    _paintSet.set(paintKey, Math.min((_paintSet.get(paintKey) || 0) + 1, needed2));
     renderList();
     updateFilterCounts();
     toast(`🎨 Marked in paint: ${quote}`);
@@ -2964,7 +2976,7 @@ function updateFilterCounts() {
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     dispatched: all.filter(o => o.dispatched).length,
-    inpaint:    [...new Set([..._paintSet].map(k => k.split('|||')[0]))].length,
+    inpaint:    [...new Set([..._paintSet.keys()].map(k => k.split('|||')[0]))].length,
   };
   document.querySelectorAll('.ftab[data-f]').forEach(b => {
     const f = b.dataset.f;
@@ -3137,7 +3149,8 @@ function renderList() {
             const selKey = `${it.order_name}|||${it.quote}|||${it.color}`;
             const isSel = _listSel.has(selKey);
             const ebk = _bd([it.order_name, it.quote, it.color]);
-            const inPaint = _paintSet.has(selKey);
+            const paintCount = _paintSet.get(selKey) || 0;
+            const inPaint = paintCount > 0;
             const pencilBtn = `<button class="color-edit-pencil" data-bd="${ebk}" onclick="event.stopPropagation();var d=_btnData[this.dataset.bd];openColorEdit(d[0],d[1],d[2])" title="Change color">✏</button>`;
             const paintBadge = inPaint ? `<span class="paint-badge" title="In paint">P</span>` : '';
             if (_listSelMode) {
@@ -3152,7 +3165,20 @@ function renderList() {
             // Paint mode takes priority — show P badge regardless of done state
             if (inPaint) {
               const pbk = _bd([it.order_name, it.quote, it.color]);
-              const paintTitle = _scanWorkMode === 'paint' ? 'In paint — tap to remove from paint' : 'In paint — tap to mark finished';
+              if (it.needed > 1) {
+                // Multi-qty: show -/+ controls instead of tap-to-toggle
+                return `<div class="oi-line paint-item" style="background:#fff8f2;">
+                  <div class="oi-chk">${paintBadge}</div>
+                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                  <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                  <div class="oi-n" style="display:flex;align-items:center;gap:4px">
+                    <button onclick="paintAdj('${selKey.replace(/'/g,"\\'")}', -1, ${it.needed})" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
+                    <span style="min-width:28px;text-align:center;font-size:.8rem">${paintCount}/${it.needed}</span>
+                    <button onclick="paintAdj('${selKey.replace(/'/g,"\\'")}', +1, ${it.needed})" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">+</button>
+                  </div>
+                </div>`;
+              }
+              const paintTitle = _scanWorkMode === 'paint' ? 'Tap to remove from paint' : 'Tap to mark finished';
               return `<div class="oi-line oi-clickable paint-item" data-bd="${pbk}" onclick="togglePaintItem(this)" title="${paintTitle}" style="background:#fff8f2;">
                 <div class="oi-chk">${paintBadge}</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
@@ -3162,16 +3188,40 @@ function renderList() {
             }
             if (done) {
               const ubk = _bd([it.order_name, it.quote, it.color]);
-              return `<div class="oi-line oi-clickable" data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck / reduce count">
+              if (it.needed > 1) {
+                return `<div class="oi-line" style="opacity:.85">
+                  <div class="oi-chk done">✓</div>
+                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                  <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                  <div class="oi-n" style="display:flex;align-items:center;gap:4px">
+                    <button data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
+                    <span style="min-width:28px;text-align:center;font-size:.8rem;color:var(--green)">${it.found}/${it.needed}</span>
+                    <button data-bd="${ubk}" onclick="markItemFound(this)" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">+</button>
+                  </div>
+                </div>`;
+              }
+              return `<div class="oi-line oi-clickable" data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck">
                 <div class="oi-chk done" style="cursor:pointer">✓</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
                 <div class="oi-n" style="color:var(--green)">${it.found}/${it.needed}</div>
               </div>`;
             }
-            // Partial (found > 0 but not done) — tap unchecks so multi-qty items can be fully cleared
+            // Partial (found > 0 but not done) — multi-qty shows +/-, single taps to uncheck
             if (it.found > 0) {
               const ubk2 = _bd([it.order_name, it.quote, it.color]);
+              if (it.needed > 1) {
+                return `<div class="oi-line">
+                  <div class="oi-chk part">${it.found}</div>
+                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                  <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                  <div class="oi-n" style="display:flex;align-items:center;gap:4px">
+                    <button data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
+                    <span style="min-width:28px;text-align:center;font-size:.8rem">${it.found}/${it.needed}</span>
+                    <button data-bd="${ubk2}" onclick="markItemFound(this)" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">+</button>
+                  </div>
+                </div>`;
+              }
               return `<div class="oi-line oi-clickable" data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to reduce count">
                 <div class="oi-chk part" style="cursor:pointer">${it.found}</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
