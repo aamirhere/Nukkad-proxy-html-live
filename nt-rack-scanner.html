@@ -2061,13 +2061,31 @@ function updateScanCardPaint(orderName, quote, color) {
       itemRow.onclick = null;
       itemRow.style.cursor = 'default';
     });
-    // Update the "This is it" confirm button
+    // Update the "This is it" confirm button → tap to remove from paint
     block.querySelectorAll('.m-btn.confirm').forEach(btn => {
-      btn.textContent = `🎨 In Paint (${paintCount}/${needed})`;
+      btn.textContent = `🎨 In Paint (${paintCount}/${needed}) — tap to remove`;
       btn.style.background = '#fff3e6';
       btn.style.color = '#d4541f';
       btn.style.border = '2px solid #d4541f';
-      btn.disabled = false; // keep clickable so they can add more qty
+      btn.onclick = function() {
+        const key = `${orderName}|||${quote}|||${color}`;
+        _paintSet.delete(key);
+        renderList(); updateFilterCounts();
+        // Reset button back to original green state
+        btn.textContent = '✓ This is it';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.border = '';
+        btn.onclick = null;
+        // Reset item row
+        block.querySelectorAll('.m-item.target').forEach(itemRow => {
+          const pSpan = itemRow.querySelector('.m-item-p');
+          if (pSpan) { pSpan.textContent = 'tap ✓'; pSpan.style.color = 'var(--accent)'; pSpan.style.fontWeight = '700'; }
+          itemRow.style.background = '';
+          itemRow.style.cursor = 'pointer';
+        });
+        toast(`Removed from paint: ${quote}`);
+      };
     });
   });
 }
