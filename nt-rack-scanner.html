@@ -1904,6 +1904,13 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
 
 // ── CONFIRM / MARK ─────────────────────────────────────────────────────────────
 async function confirmMatch(orderName, quote, color, orderDate, visQuote, visColor, confidence, qty = 1) {
+  if (_scanWorkMode === 'paint') {
+    const paintKey = `${orderName}|||${quote}|||${color}`;
+    _paintSet.add(paintKey);
+    renderList(); updateFilterCounts();
+    toast(`🎨 Marked in paint: ${visQuote || quote}`);
+    return;
+  }
   try {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty });
     const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
