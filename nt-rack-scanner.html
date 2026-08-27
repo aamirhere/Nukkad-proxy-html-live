@@ -993,6 +993,15 @@ async function _savePaint(orderName, quote, color, count) {
   } catch(e) { console.warn('paint sync failed', e); }
 }
 
+function _clearPaint(orderName, quote, color) {
+  const key = `${orderName}|||${quote}|||${color}`;
+  _paintSet.delete(key);
+  // Zero the local rack row so _rebuildPaintFromRack won't restore it before the DB write lands
+  const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
+  if (row) row.paint_count = 0;
+  _savePaint(orderName, quote, color, 0);
+}
+
 function setWorkMode(mode) {
   _scanWorkMode = mode;
   document.getElementById('wmpFinished').classList.toggle('wmp-active', mode === 'finished');
@@ -2093,8 +2102,7 @@ function updateScanCardPaint(orderName, quote, color) {
       btn.style.border = '2px solid #d4541f';
       btn.onclick = function() {
         const key = `${orderName}|||${quote}|||${color}`;
-        _paintSet.delete(key);
-        _savePaint(orderName, quote, color, 0); renderList(); updateFilterCounts();
+        _clearPaint(orderName, quote, color); renderList(); updateFilterCounts();
         // Reset button back to original state and restore original handler
         btn.textContent = '✓ This is it';
         btn.style.background = '';
@@ -2454,8 +2462,7 @@ function togglePaintItem(el) {
   const paintKey = `${orderName}|||${quote}|||${color}`;
   if (_scanWorkMode === 'paint') {
     // Paint mode + qty=1: tap removes entirely
-    _paintSet.delete(paintKey);
-    _savePaint(orderName, quote, color, 0); renderList(); updateFilterCounts();
+    _clearPaint(orderName, quote, color); renderList(); updateFilterCounts();
     toast(`Removed from paint: ${quote}`);
   } else {
     // Finished mode: mark it found
@@ -2490,7 +2497,7 @@ async function markItemFound(el) {
   }
 
   // Finished mode — mark as found and remove from paint set if present
-  _paintSet.delete(paintKey); _savePaint(orderName, quote, color, 0);
+  _clearPaint(orderName, quote, color);
   el.style.opacity = '.5'; el.style.pointerEvents = 'none';
   try {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
