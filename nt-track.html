@@ -645,6 +645,9 @@ function buildStageDates(tracking, orderDate) {
   if (tracking.pickUpDate) dates.pickup = tracking.pickUpDate;
   if (tracking.delivered && tracking.statusTime) dates.delivered = tracking.statusTime;
   if (tracking.out_for_delivery && tracking.statusTime && !dates.ofd) dates.ofd = tracking.statusTime;
+  if (tracking.inTransit && tracking.statusTime && !dates.transit) dates.transit = tracking.statusTime;
+  // Shopify shipment_status fallback: set pickup when we at least know it left
+  if (tracking._source === 'shopify' && tracking.statusTime && !dates.pickup) dates.pickup = tracking.statusTime;
 
   // Walk scans chronologically (oldest first = reversed from newest-first API)
   const chronoScans = (tracking.scans || []).slice().reverse();
