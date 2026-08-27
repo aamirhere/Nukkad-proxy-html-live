@@ -695,6 +695,7 @@ const STATUS_LABELS = {
 
 function renderResult(data) {
   const { order_name, customer, products, order_date, awb, tracking } = data;
+  console.log('[nt-track] raw tracking:', JSON.stringify(tracking), '_debug:', data._debug);
   const stageDates = buildStageDates(tracking, order_date);
   const curKey     = currentStageKey(stageDates, !!awb);
   const [statusLabel, statusClass] = STATUS_LABELS[curKey] || STATUS_LABELS.crafting;
