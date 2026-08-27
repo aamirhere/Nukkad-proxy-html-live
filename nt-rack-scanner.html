@@ -668,6 +668,7 @@ input[type=file]{display:none}
   <div class="filter-row no-print">
     <div class="ftab active" onclick="setFilter('all')" data-f="all" data-label="All">All</div>
     <div class="ftab" onclick="setFilter('notmatched')" data-f="notmatched" data-label="Not Matched">Not Matched</div>
+    <div class="ftab" onclick="setFilter('needswork')" data-f="needswork" data-label="Needs Work">Needs Work</div>
     <div class="ftab" onclick="setFilter('missing')" data-f="missing" data-label="Not Started">Not Started</div>
     <div class="ftab" onclick="setFilter('partial')" data-f="partial" data-label="In Progress">In Progress</div>
     <div class="ftab" onclick="setFilter('matched')" data-f="matched" data-label="Matched ✓">Matched ✓</div>
@@ -3050,11 +3051,12 @@ function updateFilterCounts() {
   let items = selectedDate === 'all' ? rackItems : rackItems.filter(it => it.order_date === selectedDate);
   const byOrder = {};
   for (const it of items) {
-    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0 };
+    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false };
     byOrder[it.order_name].needed += it.needed;
     byOrder[it.order_name].found  += it.found;
     if (it.dispatched)   byOrder[it.order_name].dispatched   = true;
     if (it.is_emergency) byOrder[it.order_name].is_emergency = true;
+    if (_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`)) byOrder[it.order_name].hasPaint = true;
   }
   const all = Object.values(byOrder);
   const counts = {
@@ -3066,6 +3068,7 @@ function updateFilterCounts() {
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     dispatched: all.filter(o => o.dispatched).length,
     inpaint:    [...new Set([..._paintSet.keys()].map(k => k.split('|||')[0]))].length,
+    needswork:  all.filter(o => !o.dispatched && o.found < o.needed && !o.hasPaint).length,
   };
   document.querySelectorAll('.ftab[data-f]').forEach(b => {
     const f = b.dataset.f;
@@ -3149,6 +3152,7 @@ function renderList() {
     if (activeFilter === 'matched')    return complete && !o.dispatched;
     if (activeFilter === 'emergency')  return _liveEmgOrders.has(o.order_name) && !o.dispatched;
     if (activeFilter === 'inpaint')    return o.items.some(it => _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
+    if (activeFilter === 'needswork')  return !complete && !o.dispatched && !o.items.some(it => _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
     return true;
   }).filter(o => {
     if (activeTrackFilter === 'all') return true;
