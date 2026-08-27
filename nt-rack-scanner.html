@@ -3067,7 +3067,7 @@ function updateFilterCounts() {
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     dispatched: all.filter(o => o.dispatched).length,
-    inpaint:    [...new Set([..._paintSet.keys()].map(k => k.split('|||')[0]))].length,
+    inpaint:    all.filter(o => !o.dispatched && o.hasPaint).length,
     needswork:  all.filter(o => !o.dispatched && o.found < o.needed && !o.hasPaint).length,
   };
   document.querySelectorAll('.ftab[data-f]').forEach(b => {
