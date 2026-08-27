@@ -668,13 +668,10 @@ input[type=file]{display:none}
   <div class="filter-row no-print">
     <div class="ftab active" onclick="setFilter('all')" data-f="all" data-label="All">All</div>
     <div class="ftab" onclick="setFilter('notmatched')" data-f="notmatched" data-label="Not Matched">Not Matched</div>
-    <div class="ftab" onclick="setFilter('needswork')" data-f="needswork" data-label="Needs Work">Needs Work</div>
-    <div class="ftab" onclick="setFilter('missing')" data-f="missing" data-label="Not Started">Not Started</div>
-    <div class="ftab" onclick="setFilter('partial')" data-f="partial" data-label="In Progress">In Progress</div>
     <div class="ftab" onclick="setFilter('matched')" data-f="matched" data-label="Matched ✓">Matched ✓</div>
+    <div class="ftab" onclick="setFilter('inpaint')" data-f="inpaint" data-label="🎨 In Paint">🎨 In Paint</div>
     <div class="ftab" onclick="setFilter('emergency')" data-f="emergency" data-label="Emergency">Emergency</div>
     <div class="ftab" onclick="setFilter('dispatched')" data-f="dispatched" data-label="Dispatched">Dispatched</div>
-    <div class="ftab" onclick="setFilter('inpaint')" data-f="inpaint" data-label="🎨 In Paint">🎨 In Paint</div>
   </div>
 
   <div class="filter-row no-print" id="trackFilterRow" style="padding-top:0;gap:6px">
@@ -2626,8 +2623,8 @@ function _getUnmatchedItems() {
     : rackItems.filter(it => it.order_date === selectedDate);
   // only unmatched, non-dispatched
   items = items.filter(it => !it.dispatched && it.found < it.needed);
-  // when Needs Work filter is active, exclude in-paint items
-  if (activeFilter === 'needswork') {
+  // when Not Matched filter is active, exclude in-paint items from print
+  if (activeFilter === 'notmatched') {
     items = items.filter(it => !_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
   }
   return items;
@@ -3067,13 +3064,10 @@ function updateFilterCounts() {
   const counts = {
     all:        all.filter(o => !o.dispatched).length,
     notmatched: all.filter(o => !o.dispatched && o.found < o.needed).length,
-    missing:    all.filter(o => !o.dispatched && o.found === 0).length,
-    partial:    all.filter(o => !o.dispatched && o.found > 0 && o.found < o.needed).length,
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     dispatched: all.filter(o => o.dispatched).length,
     inpaint:    all.filter(o => !o.dispatched && o.hasPaint).length,
-    needswork:  all.filter(o => !o.dispatched && o.found < o.needed && !o.hasPaint).length,
   };
   document.querySelectorAll('.ftab[data-f]').forEach(b => {
     const f = b.dataset.f;
