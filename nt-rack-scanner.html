@@ -976,7 +976,17 @@ let rackItems    = [];
 let scanLog      = [];
 let activeFilter = 'all';
 let _scanWorkMode = 'finished'; // 'finished' | 'paint'
-const _paintSet = new Map(); // key "orderName|||quote|||color" → paintCount (session-only)
+const _paintSet = new Map(); // key "orderName|||quote|||color" → paintCount (persisted to localStorage)
+
+function _savePaint() {
+  try { localStorage.setItem('nt_paintSet', JSON.stringify([..._paintSet])); } catch(e) {}
+}
+function _loadPaint() {
+  try {
+    const raw = localStorage.getItem('nt_paintSet');
+    if (raw) { const arr = JSON.parse(raw); arr.forEach(([k,v]) => _paintSet.set(k, v)); }
+  } catch(e) {}
+}
 
 function setWorkMode(mode) {
   _scanWorkMode = mode;
@@ -1071,6 +1081,7 @@ let _designCatalog = []; // all Shopify product titles — loaded on init
 let _lastSuggestVal = ''; // last value typed in search — to refresh dropdown when catalog loads
 
 async function init() {
+  _loadPaint();
   initScanColorBar();
   await loadRackStatus();
   _loadSkips().catch(() => {});
@@ -1872,12 +1883,17 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
         const isTarget = r.quote===it.quote && r.color===it.color;
         const isDone = r.found >= r.needed;
         const p = isDone?'done':r.found>0?'partial':'wait';
+        const rPaintKey = `${it.order_name}|||${r.quote}|||${r.color}`;
+        const rInPaint = _paintSet.has(rPaintKey);
         if (!isDone) {
           const rbk = _bd([it.order_name, r.quote, r.color, it.order_date||'', r.quote, r.color, 'scan']);
-          return `<div class="m-item${isTarget?' target':''}" style="cursor:pointer;border-radius:5px" data-bd="${rbk}" onclick="var d=_btnData[this.dataset.bd];confirmMatch(d[0],d[1],d[2],d[3],d[4],d[5],d[6])" title="Tap to mark found">
+          const tapLabel = rInPaint
+            ? `<span class="m-item-p" style="color:#d4541f;font-size:.68rem;font-weight:700">🎨 ${_paintSet.get(rPaintKey)}/${r.needed}</span>`
+            : `<span class="m-item-p" style="color:var(--accent);font-size:.68rem;font-weight:700">tap ✓</span>`;
+          return `<div class="m-item${isTarget?' target':''}" style="cursor:pointer;border-radius:5px;${rInPaint&&isTarget?'background:#fff3e6;':''}${rInPaint?'border-left:3px solid #d4541f;':''}" data-bd="${rbk}" onclick="var d=_btnData[this.dataset.bd];confirmMatch(d[0],d[1],d[2],d[3],d[4],d[5],d[6])" title="${rInPaint?'In paint — tap to move to finished':'Tap to mark found'}">
             <span class="m-item-q">${esc(r.quote)}</span>
             <span class="m-item-c">${esc(r.color)}</span>
-            <span class="m-item-p" style="color:var(--accent);font-size:.68rem;font-weight:700">tap ✓</span>
+            ${tapLabel}
           </div>`;
         }
         const ubk2 = _bd([it.order_name, r.quote, r.color]);
@@ -1889,7 +1905,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
       }).join('')}</div>
       ${qtyHtml}
       <div class="m-actions">
-        <button class="m-btn confirm" data-bd="${bdConfirm}" data-qid="${qid}" onclick="var d=_btnData[this.dataset.bd];confirmMatchAndClearSkip(d[0],d[1],d[2],d[3],d[4],d[5],d[6],_scanQty[this.dataset.qid]||1)">✓ This is it</button>
+        ${(()=>{ const tpk=`${it.order_name}|||${it.quote}|||${it.color}`; const tip=_paintSet.has(tpk)&&_scanWorkMode==='finished'; return `<button class="m-btn confirm${tip?' paint-to-finish':''}" data-bd="${bdConfirm}" data-qid="${qid}" onclick="var d=_btnData[this.dataset.bd];confirmMatchAndClearSkip(d[0],d[1],d[2],d[3],d[4],d[5],d[6],_scanQty[this.dataset.qid]||1)" style="${tip?'background:#fff3e6;color:#d4541f;border:2px solid #d4541f;':''}">${tip?'🎨 → Move to Finished':'✓ This is it'}</button>`; })()}
         ${skipBtn}
         <button class="m-btn extra-btn" data-bd="${bdExtra}" onclick="var d=_btnData[this.dataset.bd];showChannelPicker(d[0],d[1],d[2])">Tag as stock</button>
         <button class="m-btn" style="background:#388e3c;color:#fff;border:none;font-size:.72rem" data-bd="${_bd([it.order_name])}" onclick="var d=_btnData[this.dataset.bd];dispatchFromQueue(d[0],this)">🚚 Dispatch</button>
@@ -1909,7 +1925,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
     const needed = row ? row.needed : qty;
     _paintSet.set(paintKey, Math.min((_paintSet.get(paintKey) || 0) + qty, needed));
-    renderList(); updateFilterCounts();
+    _savePaint(); renderList(); updateFilterCounts();
     // Visually update the scan result card
     updateScanCardPaint(orderName, quote, color);
     return;
@@ -2071,7 +2087,7 @@ function updateScanCardPaint(orderName, quote, color) {
       btn.onclick = function() {
         const key = `${orderName}|||${quote}|||${color}`;
         _paintSet.delete(key);
-        renderList(); updateFilterCounts();
+        _savePaint(); renderList(); updateFilterCounts();
         // Reset button back to original state and restore original handler
         btn.textContent = '✓ This is it';
         btn.style.background = '';
@@ -2432,7 +2448,7 @@ function togglePaintItem(el) {
   if (_scanWorkMode === 'paint') {
     // Paint mode + qty=1: tap removes entirely
     _paintSet.delete(paintKey);
-    renderList(); updateFilterCounts();
+    _savePaint(); renderList(); updateFilterCounts();
     toast(`Removed from paint: ${quote}`);
   } else {
     // Finished mode: mark it found
@@ -2445,7 +2461,7 @@ function paintAdj(key, delta, needed) {
   const nv = Math.max(0, Math.min(needed, cur + delta));
   if (nv === 0) _paintSet.delete(key);
   else _paintSet.set(key, nv);
-  renderList(); updateFilterCounts();
+  _savePaint(); renderList(); updateFilterCounts();
 }
 
 async function markItemFound(el) {
@@ -2458,14 +2474,14 @@ async function markItemFound(el) {
     const row2 = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
     const needed2 = row2 ? row2.needed : 1;
     _paintSet.set(paintKey, Math.min((_paintSet.get(paintKey) || 0) + 1, needed2));
-    renderList();
+    _savePaint(); renderList();
     updateFilterCounts();
     toast(`🎨 Marked in paint: ${quote}`);
     return;
   }
 
   // Finished mode — mark as found and remove from paint set if present
-  _paintSet.delete(paintKey);
+  _paintSet.delete(paintKey); _savePaint();
   el.style.opacity = '.5'; el.style.pointerEvents = 'none';
   try {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
