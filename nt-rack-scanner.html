@@ -2626,6 +2626,10 @@ function _getUnmatchedItems() {
     : rackItems.filter(it => it.order_date === selectedDate);
   // only unmatched, non-dispatched
   items = items.filter(it => !it.dispatched && it.found < it.needed);
+  // when Needs Work filter is active, exclude in-paint items
+  if (activeFilter === 'needswork') {
+    items = items.filter(it => !_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
+  }
   return items;
 }
 
@@ -3059,17 +3063,16 @@ function updateFilterCounts() {
     if (_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`)) byOrder[it.order_name].hasPaint = true;
   }
   const all = Object.values(byOrder);
-  const pcs = f => all.filter(f).reduce((s, o) => s + o.needed, 0);
   const counts = {
-    all:        pcs(o => !o.dispatched),
-    notmatched: pcs(o => !o.dispatched && o.found < o.needed),
-    missing:    pcs(o => !o.dispatched && o.found === 0),
-    partial:    pcs(o => !o.dispatched && o.found > 0 && o.found < o.needed),
-    matched:    pcs(o => !o.dispatched && o.found >= o.needed),
-    emergency:  pcs(o => !o.dispatched && _liveEmgOrders.has(o.order_name)),
-    dispatched: pcs(o => o.dispatched),
-    inpaint:    pcs(o => !o.dispatched && o.hasPaint),
-    needswork:  pcs(o => !o.dispatched && o.found < o.needed && !o.hasPaint),
+    all:        all.filter(o => !o.dispatched).length,
+    notmatched: all.filter(o => !o.dispatched && o.found < o.needed).length,
+    missing:    all.filter(o => !o.dispatched && o.found === 0).length,
+    partial:    all.filter(o => !o.dispatched && o.found > 0 && o.found < o.needed).length,
+    matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
+    emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
+    dispatched: all.filter(o => o.dispatched).length,
+    inpaint:    all.filter(o => !o.dispatched && o.hasPaint).length,
+    needswork:  all.filter(o => !o.dispatched && o.found < o.needed && !o.hasPaint).length,
   };
   document.querySelectorAll('.ftab[data-f]').forEach(b => {
     const f = b.dataset.f;
