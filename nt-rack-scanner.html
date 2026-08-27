@@ -993,13 +993,14 @@ async function _savePaint(orderName, quote, color, count) {
   } catch(e) { console.warn('paint sync failed', e); }
 }
 
-function _clearPaint(orderName, quote, color) {
+async function _clearPaint(orderName, quote, color) {
   const key = `${orderName}|||${quote}|||${color}`;
   _paintSet.delete(key);
-  // Zero the local rack row so _rebuildPaintFromRack won't restore it before the DB write lands
+  // Zero local row immediately so UI renders correctly
   const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
   if (row) row.paint_count = 0;
-  _savePaint(orderName, quote, color, 0);
+  // Await the DB write so loadRackStatus (called right after) sees paint_count=0
+  await _savePaint(orderName, quote, color, 0);
 }
 
 function setWorkMode(mode) {
