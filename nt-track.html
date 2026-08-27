@@ -375,6 +375,16 @@ input:focus { border-color: var(--accent); }
 .tl-now { color: var(--accent); animation: blink-now 1.4s ease-in-out infinite; }
 @keyframes blink-now { 0%,100%{opacity:1} 50%{opacity:.4} }
 
+/* ── LATEST SCAN ── */
+.latest-scan {
+  font-size: .78rem;
+  color: var(--muted);
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,.03);
+  border-radius: 8px;
+}
+
 /* ── SCANS ACCORDION ── */
 .scans-toggle {
   font-size: .78rem;
@@ -767,27 +777,10 @@ function buildTimeline(stageDates, curKey, awb, tracking) {
     `;
   }
 
-  // Raw scan log accordion (all scans, newest first)
-  const allScans = (tracking?.scans || []);
-  if (allScans.length > 0) {
-    const uid = 'scansList_' + Math.random().toString(36).slice(2);
-    html += `
-      <button class="scans-toggle" onclick="
-        var l=document.getElementById('${uid}');
-        var open=l.classList.toggle('open');
-        this.querySelector('.toggle-arrow').textContent=open?'▾':'▸';
-      ">
-        <span class="toggle-arrow">▸</span> Full scan log (${allScans.length})
-      </button>
-      <div class="scans-list" id="${uid}">
-    `;
-    for (const sc of allScans) {
-      html += `<div class="scan-row">
-        <span class="scan-time">${sc.time ? fmtDT(sc.time) : '—'}</span>
-        <span>${esc(sc.location||'')}${sc.remark ? ` &middot; <em>${esc(sc.remark)}</em>` : ''}</span>
-      </div>`;
-    }
-    html += '</div>';
+  // Latest scan location
+  const latestScan = (tracking?.scans || [])[0];
+  if (latestScan?.location) {
+    html += `<div class="latest-scan">📍 Last seen: ${esc(latestScan.location)}${latestScan.time ? ' · ' + fmtDT(latestScan.time) : ''}</div>`;
   }
 
   container.innerHTML = html;
