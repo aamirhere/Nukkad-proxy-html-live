@@ -976,16 +976,21 @@ let rackItems    = [];
 let scanLog      = [];
 let activeFilter = 'all';
 let _scanWorkMode = 'finished'; // 'finished' | 'paint'
-const _paintSet = new Map(); // key "orderName|||quote|||color" → paintCount (persisted to localStorage)
+const _paintSet = new Map(); // key "orderName|||quote|||color" → paintCount (persisted to Supabase)
 
-function _savePaint() {
-  try { localStorage.setItem('nt_paintSet', JSON.stringify([..._paintSet])); } catch(e) {}
+function _rebuildPaintFromRack() {
+  // Populate _paintSet from rackItems.paint_count after any rack load
+  rackItems.forEach(it => {
+    const key = `${it.order_name}|||${it.quote}|||${it.color}`;
+    if ((it.paint_count || 0) > 0) _paintSet.set(key, it.paint_count);
+    else _paintSet.delete(key);
+  });
 }
-function _loadPaint() {
+
+async function _savePaint(orderName, quote, color, count) {
   try {
-    const raw = localStorage.getItem('nt_paintSet');
-    if (raw) { const arr = JSON.parse(raw); arr.forEach(([k,v]) => _paintSet.set(k, v)); }
-  } catch(e) {}
+    await apiFetch({ action: 'set_paint', order_name: orderName, quote, color, count });
+  } catch(e) { console.warn('paint sync failed', e); }
 }
 
 function setWorkMode(mode) {
@@ -1081,9 +1086,9 @@ let _designCatalog = []; // all Shopify product titles — loaded on init
 let _lastSuggestVal = ''; // last value typed in search — to refresh dropdown when catalog loads
 
 async function init() {
-  _loadPaint();
   initScanColorBar();
   await loadRackStatus();
+  _rebuildPaintFromRack();
   _loadSkips().catch(() => {});
   updatePendingBadge();
   refreshPendingBadge();
@@ -1306,6 +1311,7 @@ async function loadLiveEmergencies() {
 async function loadRackStatus() {
   try {
     rackItems = await apiFetch({ action: 'get_rack_status' }, API, 40000);
+    _rebuildPaintFromRack();
     updateSummary();
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
@@ -1924,8 +1930,9 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     const paintKey = `${orderName}|||${quote}|||${color}`;
     const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
     const needed = row ? row.needed : qty;
-    _paintSet.set(paintKey, Math.min((_paintSet.get(paintKey) || 0) + qty, needed));
-    _savePaint(); renderList(); updateFilterCounts();
+    const newPaintCount = Math.min((_paintSet.get(paintKey) || 0) + qty, needed);
+    _paintSet.set(paintKey, newPaintCount);
+    _savePaint(orderName, quote, color, newPaintCount); renderList(); updateFilterCounts();
     // Visually update the scan result card
     updateScanCardPaint(orderName, quote, color);
     return;
@@ -2087,7 +2094,7 @@ function updateScanCardPaint(orderName, quote, color) {
       btn.onclick = function() {
         const key = `${orderName}|||${quote}|||${color}`;
         _paintSet.delete(key);
-        _savePaint(); renderList(); updateFilterCounts();
+        _savePaint(orderName, quote, color, 0); renderList(); updateFilterCounts();
         // Reset button back to original state and restore original handler
         btn.textContent = '✓ This is it';
         btn.style.background = '';
@@ -2448,7 +2455,7 @@ function togglePaintItem(el) {
   if (_scanWorkMode === 'paint') {
     // Paint mode + qty=1: tap removes entirely
     _paintSet.delete(paintKey);
-    _savePaint(); renderList(); updateFilterCounts();
+    _savePaint(orderName, quote, color, 0); renderList(); updateFilterCounts();
     toast(`Removed from paint: ${quote}`);
   } else {
     // Finished mode: mark it found
@@ -2461,7 +2468,8 @@ function paintAdj(key, delta, needed) {
   const nv = Math.max(0, Math.min(needed, cur + delta));
   if (nv === 0) _paintSet.delete(key);
   else _paintSet.set(key, nv);
-  _savePaint(); renderList(); updateFilterCounts();
+  const [on, q, c] = key.split('|||');
+  _savePaint(on, q, c, nv); renderList(); updateFilterCounts();
 }
 
 async function markItemFound(el) {
@@ -2473,15 +2481,16 @@ async function markItemFound(el) {
   if (_scanWorkMode === 'paint') {
     const row2 = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
     const needed2 = row2 ? row2.needed : 1;
-    _paintSet.set(paintKey, Math.min((_paintSet.get(paintKey) || 0) + 1, needed2));
-    _savePaint(); renderList();
+    const npc = Math.min((_paintSet.get(paintKey) || 0) + 1, needed2);
+    _paintSet.set(paintKey, npc);
+    _savePaint(orderName, quote, color, npc); renderList();
     updateFilterCounts();
     toast(`🎨 Marked in paint: ${quote}`);
     return;
   }
 
   // Finished mode — mark as found and remove from paint set if present
-  _paintSet.delete(paintKey); _savePaint();
+  _paintSet.delete(paintKey); _savePaint(orderName, quote, color, 0);
   el.style.opacity = '.5'; el.style.pointerEvents = 'none';
   try {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
