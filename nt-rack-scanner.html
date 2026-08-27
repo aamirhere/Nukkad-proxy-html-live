@@ -1675,7 +1675,8 @@ function findMatches(quote, color) {
   const results = [];
   for (const it of rackItems) {
     if (it.dispatched) continue;
-    if (it.found >= it.needed) continue;
+    const paintKey = `${it.order_name}|||${it.quote}|||${it.color}`;
+    if (it.found >= it.needed && !_paintSet.has(paintKey)) continue;
     const qScore = wordSim(quote, it.quote);
     if (qScore < 0.65) continue;
     // only include if color matches (or no color specified)
