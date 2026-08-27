@@ -1953,6 +1953,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     if (row) row.found = r.found;
 
     logScan({ order_name: orderName, order_date: orderDate, quote: visQuote, color: visColor, match_type: 'matched', confidence });
+    await _clearPaint(orderName, quote, color);
     updateSummary();
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
@@ -2498,7 +2499,7 @@ async function markItemFound(el) {
   }
 
   // Finished mode — mark as found and remove from paint set if present
-  _clearPaint(orderName, quote, color);
+  await _clearPaint(orderName, quote, color);
   el.style.opacity = '.5'; el.style.pointerEvents = 'none';
   try {
     const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
