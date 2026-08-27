@@ -263,6 +263,13 @@ input:focus { border-color: var(--accent); }
   margin-top: 2px;
   line-height: 1.4;
 }
+.order-address {
+  color: var(--muted);
+  font-size: .75rem;
+}
+.order-item {
+  padding: 2px 0;
+}
 .status-chip {
   flex-shrink: 0;
   padding: 5px 12px;
@@ -707,20 +714,20 @@ const STATUS_LABELS = {
 };
 
 function renderResult(data) {
-  const { order_name, customer, products, order_date, awb, tracking } = data;
-  console.log('[nt-track] raw tracking:', JSON.stringify(tracking), '_debug:', data._debug);
+  const { order_name, customer, products, order_date, awb, tracking, address } = data;
   const stageDates = buildStageDates(tracking, order_date);
   const curKey     = currentStageKey(stageDates, !!awb);
   const [statusLabel, statusClass] = STATUS_LABELS[curKey] || STATUS_LABELS.crafting;
 
   // Order meta
-  const productsHtml = (products || []).map(p => `<div>${esc(p)}</div>`).join('');
+  const productsHtml = (products || []).map(p => `<div class="order-item">🪵 ${esc(p)}</div>`).join('');
   document.getElementById('orderMeta').innerHTML = `
     <div>
       <div class="order-number">${esc(order_name || awb || '')}</div>
       ${order_date ? `<div class="order-date">${fmtDate(order_date)}</div>` : ''}
-      ${customer   ? `<div class="order-products">${esc(customer)}</div>` : ''}
-      ${productsHtml ? `<div class="order-products" style="margin-top:4px">${productsHtml}</div>` : ''}
+      ${customer   ? `<div class="order-products" style="margin-top:6px;font-weight:600">${esc(customer)}</div>` : ''}
+      ${address    ? `<div class="order-products order-address">${esc(address)}</div>` : ''}
+      ${productsHtml ? `<div class="order-products" style="margin-top:6px">${productsHtml}</div>` : ''}
       ${awb ? `<div class="awb-row"><span class="awb-badge">AWB ${esc(awb)}</span></div>` : ''}
     </div>
     <span class="status-chip ${statusClass}">${statusLabel}</span>
