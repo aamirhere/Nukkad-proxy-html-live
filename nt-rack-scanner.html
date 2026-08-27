@@ -3053,17 +3053,19 @@ function updateFilterCounts() {
   let items = selectedDate === 'all' ? rackItems : rackItems.filter(it => it.order_date === selectedDate);
   const byOrder = {};
   for (const it of items) {
-    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false };
+    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false, hasUnmatchedNotPaint: false };
     byOrder[it.order_name].needed += it.needed;
     byOrder[it.order_name].found  += it.found;
     if (it.dispatched)   byOrder[it.order_name].dispatched   = true;
     if (it.is_emergency) byOrder[it.order_name].is_emergency = true;
-    if (_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`)) byOrder[it.order_name].hasPaint = true;
+    const inPaint = _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`);
+    if (inPaint) byOrder[it.order_name].hasPaint = true;
+    if (it.found < it.needed && !inPaint) byOrder[it.order_name].hasUnmatchedNotPaint = true;
   }
   const all = Object.values(byOrder);
   const counts = {
     all:        all.filter(o => !o.dispatched).length,
-    notmatched: all.filter(o => !o.dispatched && o.found < o.needed).length,
+    notmatched: all.filter(o => !o.dispatched && o.hasUnmatchedNotPaint).length,
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     dispatched: all.filter(o => o.dispatched).length,
@@ -3145,7 +3147,7 @@ function renderList() {
     const partial  = totalF > 0 && !complete;
     if (activeFilter === 'dispatched') return o.dispatched;
     if (activeFilter === 'all')        return !o.dispatched;
-    if (activeFilter === 'notmatched') return !complete && !o.dispatched;
+    if (activeFilter === 'notmatched') return !complete && !o.dispatched && o.items.some(it => it.found < it.needed && !_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
     if (activeFilter === 'missing')    return totalF === 0 && !o.dispatched;
     if (activeFilter === 'partial')    return partial && !o.dispatched;
     if (activeFilter === 'matched')    return complete && !o.dispatched;
