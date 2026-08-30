@@ -1952,7 +1952,8 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     if (row) row.found = r.found;
 
     logScan({ order_name: orderName, order_date: orderDate, quote: visQuote, color: visColor, match_type: 'matched', confidence });
-    await _clearPaint(orderName, quote, color);
+    _paintSet.delete(`${orderName}|||${quote}|||${color}`);
+    _clearPaint(orderName, quote, color).catch(() => {});
     updateSummary();
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
@@ -2497,24 +2498,29 @@ async function markItemFound(el) {
     return;
   }
 
-  // Finished mode — mark as found and remove from paint set if present
-  await _clearPaint(orderName, quote, color);
+  // Finished mode — optimistic update: clear paint locally + update UI immediately
+  _paintSet.delete(paintKey);
+  const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
+  if (row) row.found = row.needed;
+  updateSummary(); buildDateNav(); renderList(); updateFilterCounts();
   el.style.opacity = '.5'; el.style.pointerEvents = 'none';
-  try {
-    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
-    const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
-    if (row) row.found = r.found ?? row.needed;
-    updateSummary();
-    buildDateNav();
-    renderList();
-    const orderItems = rackItems.filter(it => it.order_name === orderName);
-    if (orderItems.every(it => it.found >= it.needed)) {
-      apiFetch({ action: 'queue_for_print', order_name: orderName }).then(() => loadPrintQueue()).catch(() => {});
-    }
-  } catch(e) {
-    el.style.opacity = ''; el.style.pointerEvents = '';
-    alert('Error: ' + e.message);
-  }
+  // Persist in parallel — don't block UI on either
+  _clearPaint(orderName, quote, color).catch(() => {});
+  apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true })
+    .then(r => {
+      if (row) row.found = r.found ?? row.needed;
+      const orderItems = rackItems.filter(it => it.order_name === orderName);
+      if (orderItems.every(it => it.found >= it.needed)) {
+        apiFetch({ action: 'queue_for_print', order_name: orderName }).then(() => loadPrintQueue()).catch(() => {});
+      }
+    })
+    .catch(e => {
+      // Revert local state on failure
+      if (row) row.found = Math.max(0, row.found - 1);
+      el.style.opacity = ''; el.style.pointerEvents = '';
+      renderList(); updateFilterCounts();
+      alert('Error: ' + e.message);
+    });
 }
 
 let _undoTimer = null;
