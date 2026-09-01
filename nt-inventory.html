@@ -917,6 +917,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     </div>
     <button class="btn btn-ghost" onclick="openAddEmgModal()">➕ Add</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
+    <button class="btn btn-ghost" id="btnResetEmg" onclick="resetEmergencyAll()" style="color:#c62828;border-color:#f5c6c6">🗑 Reset All</button>
   </div>
   <div id="emgDateFilterRow" style="display:none;padding:0 0 10px;align-items:center;gap:8px">
     <label id="emgDateFilterLabel" style="font-size:.8rem;font-weight:700;color:var(--ink2)">Filter by batch date:</label>
@@ -1443,6 +1444,18 @@ async function recalcStock() {
     renderInventory();
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '⟳ Recalc from dispatch'; }
+}
+
+async function resetEmergencyAll() {
+  if (!confirm('Clear ALL emergency records — open, printed, and sent? This cannot be undone.')) return;
+  const btn = document.getElementById('btnResetEmg');
+  btn.disabled = true; btn.textContent = 'Clearing…';
+  try {
+    const res = await api({ action: 'reset_emergency' });
+    toast(`Emergency reset — ${res.cleared} unit${res.cleared !== 1 ? 's' : ''} cleared`);
+    await loadAllEmergencies();
+  } catch(e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🗑 Reset All'; }
 }
 
 async function resetStock() {
