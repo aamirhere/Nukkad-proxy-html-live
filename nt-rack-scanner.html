@@ -2524,6 +2524,27 @@ async function markItemFound(el) {
 }
 
 let _undoTimer = null;
+async function reduceNeeded(orderName, quote, color, btn) {
+  const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
+  if (!row) return;
+  const prevNeeded = row.needed;
+  const prevFound  = row.found;
+  if (!confirm(`Reduce "${quote}" (${color}) from ${prevNeeded} to ${prevNeeded - 1}? This won't reload from Shopify.`)) return;
+  // Optimistic update
+  row.needed = Math.max(0, prevNeeded - 1);
+  row.found  = Math.min(row.found, row.needed);
+  if (row.needed === 0) row.cancelled = true;
+  updateSummary(); buildDateNav(); renderList(); updateFilterCounts();
+  try {
+    await apiFetch({ action: 'reduce_rack_needed', order_name: orderName, quote, color });
+    toast(`Reduced to ${row.needed}`);
+  } catch(e) {
+    row.needed = prevNeeded; row.found = prevFound; row.cancelled = false;
+    updateSummary(); buildDateNav(); renderList(); updateFilterCounts();
+    alert('Could not reduce: ' + e.message);
+  }
+}
+
 async function uncheckItem(orderName, quote, color) {
   const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
   if (!row || row.found <= 0) return;
@@ -3252,13 +3273,15 @@ function renderList() {
             const paintCount = _paintSet.get(selKey) || 0;
             const inPaint = paintCount > 0;
             const pencilBtn = `<button class="color-edit-pencil" data-bd="${ebk}" onclick="event.stopPropagation();var d=_btnData[this.dataset.bd];openColorEdit(d[0],d[1],d[2])" title="Change color">✏</button>`;
+            const reduceKey = `${it.order_name}|||${it.quote}|||${it.color}`;
+            const reduceBtn = !o.dispatched ? `<button class="color-edit-pencil" style="color:#c62828;border-color:#ef9a9a" data-bd="${_bd([it.order_name, it.quote, it.color])}" onclick="event.stopPropagation();var d=_btnData[this.dataset.bd];reduceNeeded(d[0],d[1],d[2],this)" title="Cancel 1 item (reduce needed)">−1</button>` : '';
             const paintBadge = inPaint ? `<span class="paint-badge" title="In paint">P</span>` : '';
             if (_listSelMode) {
               const lk = _bd([it.order_name, it.quote, it.color]);
               return `<div class="oi-line oi-clickable" data-bd="${lk}" onclick="listSelToggle(this.dataset.bd)" style="${isSel?'background:#fff3e0;':done?'opacity:.55;':''}">
                 <input type="checkbox" id="lchk-${lk}" style="width:15px;height:15px;accent-color:var(--accent);pointer-events:none;flex-shrink:0" ${isSel?'checked':''}>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n" style="color:${done?'#4caf50':'var(--muted)'}">${it.found}/${it.needed}</div>
               </div>`;
             }
@@ -3270,7 +3293,7 @@ function renderList() {
                 return `<div class="oi-line paint-item" style="background:#fff8f2;">
                   <div class="oi-chk">${paintBadge}</div>
                   <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                  <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                  <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                   <div class="oi-n" style="display:flex;align-items:center;gap:4px">
                     <button onclick="paintAdj('${selKey.replace(/'/g,"\\'")}', -1, ${it.needed})" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
                     <span style="min-width:28px;text-align:center;font-size:.8rem">${paintCount}/${it.needed}</span>
@@ -3282,7 +3305,7 @@ function renderList() {
               return `<div class="oi-line oi-clickable paint-item" data-bd="${pbk}" onclick="togglePaintItem(this)" title="${paintTitle}" style="background:#fff8f2;">
                 <div class="oi-chk">${paintBadge}</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n">${it.found}/${it.needed}</div>
               </div>`;
             }
@@ -3292,7 +3315,7 @@ function renderList() {
                 return `<div class="oi-line" style="opacity:.85">
                   <div class="oi-chk done">✓</div>
                   <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                  <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                  <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                   <div class="oi-n" style="display:flex;align-items:center;gap:4px">
                     <button data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
                     <span style="min-width:28px;text-align:center;font-size:.8rem;color:var(--green)">${it.found}/${it.needed}</span>
@@ -3303,7 +3326,7 @@ function renderList() {
               return `<div class="oi-line oi-clickable" data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck">
                 <div class="oi-chk done" style="cursor:pointer">✓</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n" style="color:var(--green)">${it.found}/${it.needed}</div>
               </div>`;
             }
@@ -3314,7 +3337,7 @@ function renderList() {
                 return `<div class="oi-line">
                   <div class="oi-chk part">${it.found}</div>
                   <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                  <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                  <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                   <div class="oi-n" style="display:flex;align-items:center;gap:4px">
                     <button data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
                     <span style="min-width:28px;text-align:center;font-size:.8rem">${it.found}/${it.needed}</span>
@@ -3325,14 +3348,14 @@ function renderList() {
               return `<div class="oi-line oi-clickable" data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to reduce count">
                 <div class="oi-chk part" style="cursor:pointer">${it.found}</div>
                 <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-                <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+                <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n">${it.found}/${it.needed}</div>
               </div>`;
             }
             return `<div class="oi-line oi-clickable" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found">
               <div class="oi-chk"></div>
               <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
-              <div class="oi-c">${esc(it.color)}${pencilBtn}</div>
+              <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
               <div class="oi-n">${it.found}/${it.needed}</div>
             </div>`;
           }).join('')}
