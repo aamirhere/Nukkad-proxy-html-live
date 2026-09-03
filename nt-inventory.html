@@ -1678,15 +1678,14 @@ function setOrdersFilter(f) {
 }
 
 async function debugAmazonOrders() {
-  const date = document.getElementById('ordersDate').value;
-  const res = await api({ action: 'debug_amazon', days_back: 7, ...(date ? { date } : {}) });
+  const res = await api({ action: 'debug_amazon', days_back: 30 });
   const msg = [
     `Token OK: ${res.token_ok ? '✅' : '❌'}`,
     res.token_preview ? `Token: ${res.token_preview}` : '',
     `Orders status: ${res.orders_status}`,
-    `Count (7d): ${res.count}`,
+    `Count (30d): ${res.count}`,
     res.raw_error ? `Error: ${JSON.stringify(res.raw_error)}` : '',
-    res.orders?.length ? 'Orders:\n' + res.orders.map(o => `  ${o.id} | ${o.status} | ${o.purchase_date}`).join('\n') : 'No orders returned',
+    res.orders?.length ? 'Orders (last 30d):\n' + res.orders.map(o => `  ${o.id} | ${o.status} | ${o.purchase_date}`).join('\n') : 'No orders returned',
     res.error ? `Setup error: ${res.error}` : '',
   ].filter(Boolean).join('\n');
   alert(msg);
