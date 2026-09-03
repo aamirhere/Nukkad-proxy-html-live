@@ -3028,7 +3028,7 @@ function daysSince(isoStr) {
 }
 
 function emgGroupHTML(g, gi, containerId) {
-  const visibleUnits = g.units.filter(u => !u.downloaded_at);
+  const visibleUnits = g.units.filter(u => !u.picked_at);
   if (!visibleUnits.length) return '';
   const oldest = visibleUnits[0]?.emergency_at;
   const days = daysSince(oldest);
