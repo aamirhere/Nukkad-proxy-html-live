@@ -436,6 +436,21 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .unit-btn.nostock.active { background: var(--red); color: #fff; }
 .unit-btn.nostock.active:hover { background: #9b1b12; border-color: #9b1b12; }
 
+/* ── amazon sku map ── */
+.sku-row { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+.sku-row.confirmed { border-color:#b8e0c0; background:#f6fdf7; }
+.sku-top { display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap; }
+.sku-label { font-family:monospace; font-size:.85rem; font-weight:700; color:var(--ink); }
+.sku-asin { font-size:.72rem; color:var(--muted); font-family:monospace; }
+.sku-amazon-title { font-size:.82rem; color:var(--ink2); margin-bottom:8px; line-height:1.35; }
+.sku-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.sku-chip { padding:3px 10px; border-radius:20px; font-size:.78rem; border:1px solid var(--line); background:#fdf5ec; color:var(--ink2); cursor:pointer; transition:all .15s; }
+.sku-chip:hover { border-color:var(--accent); color:var(--accent); }
+.sku-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.sku-handle-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.sku-handle-input { flex:1; min-width:160px; padding:5px 10px; border:1px solid var(--line); border-radius:8px; font-size:.82rem; font-family:monospace; }
+.sku-handle-input:focus { border-color:var(--accent); outline:none; }
+
 /* ── emergency view ── */
 .emg-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .emg-view-tabs { display: flex; gap: 4px; }
@@ -802,6 +817,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     </button>
     <button class="nav-btn" onclick="switchView('dispatch')">📤 Dispatch</button>
     <!-- desktop-only -->
+    <button class="nav-btn nav-desktop" onclick="switchView('amazon-skus')" style="color:#c07000">🟡 Amazon SKUs</button>
     <button class="nav-btn nav-desktop" onclick="switchView('cutlist')">✂ Cut List</button>
     <a class="nav-btn nav-desktop" href="nt-production-prints.html" style="text-decoration:none">🖨 Print</a>
   </nav>
@@ -1056,6 +1072,32 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   </div>
 </div>
 
+<!-- ── AMAZON SKU MAP ─────────────────────────────────────────────────────── -->
+<div class="view" id="view-amazon-skus">
+  <div class="page-hd" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2>🟡 Amazon SKU Mapping</h2>
+      <p id="skuSubtitle">Match Amazon product titles to your website designs</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="skuDaysBack" type="number" value="60" min="1" max="180" style="width:60px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:.85rem" title="Days back to scan Amazon orders">
+      <button class="btn btn-ghost" onclick="fetchSkusFromAmazon()" id="skuFetchBtn">↻ Scan Amazon Orders</button>
+      <button class="btn btn-ghost" onclick="loadAmazonSkuView()">↻ Reload</button>
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input id="skuFilter" type="text" placeholder="Filter SKU or title…" oninput="renderSkuTable()"
+      style="flex:1;min-width:180px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;font-size:.85rem">
+    <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--ink2);cursor:pointer">
+      <input type="checkbox" id="skuUnmappedOnly" onchange="renderSkuTable()"> Unmapped only
+    </label>
+    <span id="skuCount" style="font-size:.8rem;color:var(--muted)"></span>
+  </div>
+
+  <div id="skuTable"></div>
+</div>
+
 <!-- ── CUT LIST ───────────────────────────────────────────────────────────── -->
 <div class="view" id="view-cutlist">
   <div class="page-hd">
@@ -1202,6 +1244,9 @@ function switchView(view) {
     } else {
       renderCutList();
     }
+  }
+  if (view === 'amazon-skus') {
+    loadAmazonSkuView();
   }
   if (view === 'dispatch') {
     if (!Object.keys(_printLinks).length) loadPrintData();
@@ -1730,6 +1775,166 @@ async function debugAmazonOrders() {
     res.error ? `Setup error: ${res.error}` : '',
   ].filter(Boolean).join('\n');
   alert(msg);
+}
+
+// ── AMAZON SKU MAPPING ────────────────────────────────────────────────────────
+
+let _skuData = [];        // [{sku, asin, amazon_title, count, handle, confirmed}]
+let _websiteHandles = []; // [{handle, title}] — for fuzzy matching suggestions
+
+function skuScore(amazonTitle, websiteTitle) {
+  // Word-overlap Jaccard score, lowercased, stripped of noise words
+  const noise = new Set(['the','a','an','for','of','on','in','with','and','or','to','from','by','is','it','as','at','be','this','that','was','are','has','have','its','my','your','our']);
+  const tokens = s => s.toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w => w.length > 2 && !noise.has(w));
+  const a = new Set(tokens(amazonTitle));
+  const b = new Set(tokens(websiteTitle));
+  const inter = [...a].filter(w => b.has(w)).length;
+  const union = new Set([...a, ...b]).size;
+  return union ? inter / union : 0;
+}
+
+function topMatches(amazonTitle, handles, n = 5) {
+  return handles
+    .map(h => ({ ...h, score: skuScore(amazonTitle, h.title) }))
+    .filter(h => h.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n);
+}
+
+async function loadAmazonSkuView() {
+  document.getElementById('skuSubtitle').textContent = 'Loading…';
+  document.getElementById('skuTable').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div>'.repeat(5);
+  try {
+    const [mapRes, handleRes] = await Promise.all([
+      api({ action: 'load_sku_map' }),
+      api({ action: 'load_design_index' }),
+    ]);
+    _websiteHandles = mapRes.rows.length
+      ? mapRes.rows.map(r => ({ handle: r.handle || '', title: r.amazon_title || r.sku })) // placeholder until we also load design index
+      : [];
+    // Prefer design index for website titles
+    if (handleRes.designs?.length) _websiteHandles = handleRes.designs;
+    _skuData = (mapRes.rows || []).map(r => ({ ...r, count: 0 }));
+    const mapped = _skuData.filter(r => r.handle && r.handle !== 'amazon').length;
+    document.getElementById('skuSubtitle').textContent =
+      `${_skuData.length} SKU${_skuData.length !== 1 ? 's' : ''} · ${mapped} mapped · ${_skuData.length - mapped} unmatched`;
+    renderSkuTable();
+  } catch(e) { toast('Failed: ' + e.message); }
+}
+
+async function fetchSkusFromAmazon() {
+  const btn = document.getElementById('skuFetchBtn');
+  const days = parseInt(document.getElementById('skuDaysBack').value) || 60;
+  btn.disabled = true; btn.textContent = '⏳ Scanning…';
+  document.getElementById('skuTable').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div>'.repeat(6);
+  try {
+    const res = await api({ action: 'fetch_amazon_skus', days_back: days });
+    if (res.error) { toast('Error: ' + res.error); return; }
+
+    // Merge fetched SKUs with existing map rows
+    const existingMap = res.existing || {};
+    const bySkuArr = (res.skus || []).map(s => ({
+      ...s,
+      handle: existingMap[s.sku]?.handle || '',
+      confirmed: existingMap[s.sku]?.confirmed || false,
+    }));
+
+    // Also include any mapped SKUs not seen in recent orders
+    const seenSkus = new Set(bySkuArr.map(r => r.sku));
+    for (const [sku, row] of Object.entries(existingMap)) {
+      if (!seenSkus.has(sku)) bySkuArr.push({ sku, asin: '', amazon_title: '', handle: row.handle, confirmed: row.confirmed, count: 0 });
+    }
+
+    _skuData = bySkuArr;
+    const mapped = _skuData.filter(r => r.handle && r.handle !== 'amazon').length;
+    document.getElementById('skuSubtitle').textContent =
+      `${_skuData.length} SKU${_skuData.length !== 1 ? 's' : ''} · ${mapped} mapped · ${_skuData.length - mapped} unmatched · ${res.orders_fetched} orders scanned`;
+    renderSkuTable();
+  } catch(e) { toast('Scan failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '↻ Scan Amazon Orders'; }
+}
+
+function renderSkuTable() {
+  const filterVal = (document.getElementById('skuFilter')?.value || '').toLowerCase();
+  const unmappedOnly = document.getElementById('skuUnmappedOnly')?.checked;
+  let rows = _skuData.filter(r => {
+    if (unmappedOnly && r.handle && r.handle !== 'amazon' && r.confirmed) return false;
+    if (filterVal) {
+      const hay = `${r.sku} ${r.amazon_title} ${r.handle}`.toLowerCase();
+      if (!hay.includes(filterVal)) return false;
+    }
+    return true;
+  });
+  document.getElementById('skuCount').textContent = `${rows.length} shown`;
+  if (!rows.length) {
+    document.getElementById('skuTable').innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted)">No SKUs found. Click "Scan Amazon Orders" to fetch.</div>`;
+    return;
+  }
+
+  const html = rows.map(r => {
+    const matches = topMatches(r.amazon_title || r.sku, _websiteHandles);
+    const isConfirmed = r.confirmed && r.handle && r.handle !== 'amazon';
+    const matchChips = matches.map(m =>
+      `<button class="sku-chip${r.handle === m.handle ? ' active' : ''}" onclick="assignSku(${JSON.stringify(r.sku)},${JSON.stringify(m.handle)},${JSON.stringify(m.title)})"
+        title="${(m.score * 100).toFixed(0)}% match">${m.title}</button>`
+    ).join('');
+    const handleInput = `<input class="sku-handle-input" placeholder="website handle…" value="${r.handle || ''}"
+      onblur="assignSkuManual(${JSON.stringify(r.sku)}, this.value)"
+      onkeydown="if(event.key==='Enter') assignSkuManual(${JSON.stringify(r.sku)}, this.value)">`;
+    return `<div class="sku-row${isConfirmed ? ' confirmed' : ''}">
+      <div class="sku-top">
+        <span class="sku-label">${r.sku}</span>
+        ${r.asin ? `<span class="sku-asin">${r.asin}</span>` : ''}
+        ${r.count ? `<span style="font-size:.72rem;color:var(--muted)">${r.count} orders</span>` : ''}
+        ${isConfirmed ? `<span style="font-size:.72rem;color:var(--green);font-weight:600">✓ Confirmed</span>` : ''}
+      </div>
+      <div class="sku-amazon-title">${r.amazon_title || '<em style="color:var(--muted)">No title</em>'}</div>
+      <div class="sku-chips">${matchChips || '<span style="color:var(--muted);font-size:.78rem">No suggestions — enter handle manually</span>'}</div>
+      <div class="sku-handle-row">
+        ${handleInput}
+        <button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--green)"
+          onclick="confirmSku(${JSON.stringify(r.sku)})">✓ Confirm</button>
+        ${isConfirmed ? `<button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--muted)"
+          onclick="unconfirmSku(${JSON.stringify(r.sku)})">Unconfirm</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('skuTable').innerHTML = html;
+}
+
+function assignSku(sku, handle, title) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.handle = handle;
+  // update the input field
+  const rows = document.querySelectorAll('.sku-row');
+  renderSkuTable();
+}
+
+function assignSkuManual(sku, handle) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (r) r.handle = handle.trim();
+}
+
+async function confirmSku(sku) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r || !r.handle) { toast('Set a handle first'); return; }
+  r.confirmed = true;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, confirmed: true });
+    toast(`✓ Saved: ${r.sku} → ${r.handle}`);
+  } catch(e) { toast('Save failed: ' + e.message); }
+}
+
+async function unconfirmSku(sku) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.confirmed = false;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, confirmed: false });
+  } catch {}
 }
 
 async function loadOrders() {
