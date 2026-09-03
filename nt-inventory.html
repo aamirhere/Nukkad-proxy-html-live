@@ -891,7 +891,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <input type="date" id="ordersDate" onchange="loadOrders()">
     <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
     <button class="btn btn-ghost" onclick="downloadPDF()" style="margin-left:auto">⬇ PDF</button>
-    <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#c07000;border-color:#f5dfa0" title="Test Amazon API">🟡 Amazon Debug</button>
+    <button class="btn btn-ghost" id="btnSyncAmz" onclick="syncAmazonNow()" style="color:#c07000;border-color:#f5dfa0" title="Sync last 30 days of Amazon orders">🟡 Sync Amazon</button>
+    <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#9c8a76;border-color:#e9ddca;font-size:.78rem" title="Test Amazon API">Debug</button>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
     <div class="emg-view-tabs" style="margin-bottom:0">
@@ -1707,6 +1708,16 @@ function setEmgSource(s) {
   renderEmgGroups();
 }
 
+async function syncAmazonNow() {
+  const btn = document.getElementById('btnSyncAmz');
+  btn.disabled = true; btn.textContent = '⏳ Syncing…';
+  try {
+    const res = await api({ action: 'sync_amazon_orders', days_back: 30 });
+    toast(res.synced > 0 ? `✅ Synced ${res.synced} Amazon orders (30 days)` : (res.message || '⚠ No Amazon orders returned'));
+  } catch(e) { toast('Sync failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🟡 Sync Amazon'; }
+}
+
 async function debugAmazonOrders() {
   const res = await api({ action: 'debug_amazon', days_back: 30 });
   const msg = [
@@ -1775,7 +1786,8 @@ function renderOrders() {
   }
 
   // color chips
-  const colors = [...new Set(currentUnits.map(u => u.color).filter(Boolean))].sort();
+  // Exclude Amazon city-name "colors" — only show finish/variant colors from website orders
+  const colors = [...new Set(currentUnits.filter(u => u.source !== 'amazon').map(u => u.color).filter(Boolean))].sort();
   document.getElementById('colorChips').innerHTML = [
     `<button class="color-chip${!activeColor ? ' active' : ''}" onclick="setColor('')">All</button>`,
     ...colors.map(c => `<button class="color-chip${activeColor === c ? ' active' : ''}" onclick="setColor('${c}')">${c}</button>`),
