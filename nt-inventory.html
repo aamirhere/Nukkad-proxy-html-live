@@ -893,9 +893,16 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <button class="btn btn-ghost" onclick="downloadPDF()" style="margin-left:auto">⬇ PDF</button>
     <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#c07000;border-color:#f5dfa0" title="Test Amazon API">🟡 Amazon Debug</button>
   </div>
-  <div class="emg-view-tabs" style="margin-bottom:10px">
-    <button class="emg-tab active" id="ordersTabAll" onclick="setOrdersFilter('all')">All orders</button>
-    <button class="emg-tab" id="ordersTabEmg" onclick="setOrdersFilter('emg')">Emergency only</button>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
+    <div class="emg-view-tabs" style="margin-bottom:0">
+      <button class="emg-tab active" id="ordersTabAll" onclick="setOrdersFilter('all')">All orders</button>
+      <button class="emg-tab" id="ordersTabEmg" onclick="setOrdersFilter('emg')">Emergency only</button>
+    </div>
+    <div class="emg-view-tabs" style="margin-bottom:0;margin-left:auto">
+      <button class="emg-tab active" id="ordersSourceAll" onclick="setOrdersSource('all')">All</button>
+      <button class="emg-tab" id="ordersSourceWebsite" onclick="setOrdersSource('website')">Website</button>
+      <button class="emg-tab" id="ordersSourceAmazon" onclick="setOrdersSource('amazon')" style="color:#c07000">🟡 Amazon</button>
+    </div>
   </div>
   <div class="color-chips" id="colorChips"></div>
   <div class="design-groups" id="designGroups">
@@ -917,6 +924,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <button class="emg-tab active" id="emgTabAll" onclick="setEmgView('all')">All open</button>
       <button class="emg-tab" id="emgTabPrinted" onclick="setEmgView('printed')">Printed</button>
       <button class="emg-tab" id="emgTabSent" onclick="setEmgView('sent')">Sent</button>
+    </div>
+    <div class="emg-view-tabs" style="margin-bottom:0">
+      <button class="emg-tab active" id="emgSourceAll" onclick="setEmgSource('all')">All</button>
+      <button class="emg-tab" id="emgSourceWebsite" onclick="setEmgSource('website')">Website</button>
+      <button class="emg-tab" id="emgSourceAmazon" onclick="setEmgSource('amazon')" style="color:#c07000">🟡 Amazon</button>
     </div>
     <button class="btn btn-ghost" onclick="openAddEmgModal()">➕ Add</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
@@ -1669,12 +1681,30 @@ function editStock(handle) {
 // ── ORDERS ────────────────────────────────────────────────────────────────────
 
 let ordersFilter = 'all'; // 'all' | 'emg'
+let ordersSourceFilter = 'all'; // 'all' | 'website' | 'amazon'
+let emgSourceFilter = 'all';   // 'all' | 'website' | 'amazon'
 
 function setOrdersFilter(f) {
   ordersFilter = f;
   document.getElementById('ordersTabAll').classList.toggle('active', f === 'all');
   document.getElementById('ordersTabEmg').classList.toggle('active', f === 'emg');
   renderOrders();
+}
+
+function setOrdersSource(s) {
+  ordersSourceFilter = s;
+  document.getElementById('ordersSourceAll').classList.toggle('active', s === 'all');
+  document.getElementById('ordersSourceWebsite').classList.toggle('active', s === 'website');
+  document.getElementById('ordersSourceAmazon').classList.toggle('active', s === 'amazon');
+  renderOrders();
+}
+
+function setEmgSource(s) {
+  emgSourceFilter = s;
+  document.getElementById('emgSourceAll').classList.toggle('active', s === 'all');
+  document.getElementById('emgSourceWebsite').classList.toggle('active', s === 'website');
+  document.getElementById('emgSourceAmazon').classList.toggle('active', s === 'amazon');
+  renderEmgGroups();
 }
 
 async function debugAmazonOrders() {
@@ -1729,6 +1759,7 @@ function renderOrders() {
   let units = ordersFilter === 'emg'
     ? currentUnits.filter(u => u.is_emergency)
     : currentUnits;
+  if (ordersSourceFilter !== 'all') units = units.filter(u => (u.source || 'website') === ordersSourceFilter);
   if (activeColor) units = units.filter(u => u.color && u.color.toLowerCase().includes(activeColor.toLowerCase()));
 
   // update total
@@ -3032,8 +3063,11 @@ function emgGroupHTML(g, gi, containerId) {
 
 function renderEmgGroups() {
   const q = (document.getElementById('emgSearch')?.value || '').toLowerCase().trim();
-  const groups = q ? allEmgGroups.filter(g => g.title && g.title.toLowerCase().includes(q)) : allEmgGroups;
-  const html = groups.map((g, gi) => emgGroupHTML(g, allEmgGroups.indexOf(g), 'all')).join('');
+  let groups = q ? allEmgGroups.filter(g => g.title && g.title.toLowerCase().includes(q)) : allEmgGroups;
+  if (emgSourceFilter !== 'all') {
+    groups = groups.map(g => ({ ...g, units: g.units.filter(u => (u.source || 'website') === emgSourceFilter) })).filter(g => g.units.length);
+  }
+  const html = groups.map((g, gi) => emgGroupHTML(g, gi, 'all')).join('');
   document.getElementById('emgGroups').innerHTML = html ||
     '<div class="empty-state"><div class="icon">✅</div><p>No outstanding emergencies</p></div>';
 }
