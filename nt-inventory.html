@@ -891,6 +891,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <input type="date" id="ordersDate" onchange="loadOrders()">
     <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
     <button class="btn btn-ghost" onclick="downloadPDF()" style="margin-left:auto">⬇ PDF</button>
+    <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#c07000;border-color:#f5dfa0" title="Test Amazon API">🟡 Amazon Debug</button>
   </div>
   <div class="emg-view-tabs" style="margin-bottom:10px">
     <button class="emg-tab active" id="ordersTabAll" onclick="setOrdersFilter('all')">All orders</button>
@@ -1674,6 +1675,21 @@ function setOrdersFilter(f) {
   document.getElementById('ordersTabAll').classList.toggle('active', f === 'all');
   document.getElementById('ordersTabEmg').classList.toggle('active', f === 'emg');
   renderOrders();
+}
+
+async function debugAmazonOrders() {
+  const date = document.getElementById('ordersDate').value;
+  const res = await api({ action: 'debug_amazon', days_back: 7, ...(date ? { date } : {}) });
+  const msg = [
+    `Token OK: ${res.token_ok ? '✅' : '❌'}`,
+    res.token_preview ? `Token: ${res.token_preview}` : '',
+    `Orders status: ${res.orders_status}`,
+    `Count (7d): ${res.count}`,
+    res.raw_error ? `Error: ${JSON.stringify(res.raw_error)}` : '',
+    res.orders?.length ? 'Orders:\n' + res.orders.map(o => `  ${o.id} | ${o.status} | ${o.purchase_date}`).join('\n') : 'No orders returned',
+    res.error ? `Setup error: ${res.error}` : '',
+  ].filter(Boolean).join('\n');
+  alert(msg);
 }
 
 async function loadOrders() {
