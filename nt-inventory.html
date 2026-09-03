@@ -1844,8 +1844,11 @@ function renderGroup(g) {
     }
   } else {
     const allPicked = pickedCount === total && total > 0;
+    const allEmerg = emergCount === total && total > 0;
     const safeTitle = g.title.replace(/'/g, "\\'");
-    leftBtn  = `<button class="unit-btn nostock" onclick="event.stopPropagation();noStockAll('${safeTitle}')">No Stock All</button>`;
+    leftBtn  = allEmerg
+      ? `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="event.stopPropagation();unmarkAllEmergency('${safeTitle}')">⚠ No stock × All</button>`
+      : `<button class="unit-btn nostock" onclick="event.stopPropagation();noStockAll('${safeTitle}')">No Stock All</button>`;
     rightBtn = `<button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();pickAll('${safeTitle}')">${allPicked ? '✓ All Picked' : 'Pick All'}</button>`;
   }
 
@@ -1949,6 +1952,25 @@ async function noStockAll(title) {
   try {
     await Promise.all(units.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
     toast(`Marked ${units.length} unit${units.length !== 1 ? 's' : ''} as no stock`);
+  } catch { toast('Sync failed'); }
+}
+
+async function unmarkAllEmergency(title) {
+  const date = document.getElementById('ordersDate').value;
+  const units = currentUnits.filter(u => u.title === title && u.is_emergency);
+  if (!units.length) return;
+
+  for (const u of units) {
+    const k = stateKey(u);
+    localState[k] = { ...(localState[k] || {}), is_emergency: false };
+    const idx = currentUnits.findIndex(x => stateKey(x) === k);
+    if (idx >= 0) currentUnits[idx].is_emergency = false;
+  }
+  renderOrders();
+  updateEmergencyBadge();
+  try {
+    await Promise.all(units.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: false })));
+    toast(`Cleared no stock for ${units.length} unit${units.length !== 1 ? 's' : ''}`);
   } catch { toast('Sync failed'); }
 }
 
