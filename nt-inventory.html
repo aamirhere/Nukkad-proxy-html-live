@@ -1077,13 +1077,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   <div class="page-hd" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div>
       <h2>🟡 Amazon SKU Mapping</h2>
-      <p id="skuSubtitle">Match Amazon product titles to your website designs</p>
+      <p id="skuSubtitle">Match your Amazon SKUs to website designs</p>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <input id="skuDaysBack" type="number" value="60" min="1" max="180" style="width:60px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:.85rem" title="Days back to scan Amazon orders">
-      <button class="btn btn-ghost" onclick="fetchSkusFromAmazon()" id="skuFetchBtn">↻ Scan Amazon Orders</button>
-      <button class="btn btn-ghost" onclick="loadAmazonSkuView()">↻ Reload</button>
-    </div>
+    <button class="btn btn-ghost" onclick="loadAmazonSkuView()">↻ Reload</button>
   </div>
 
   <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1809,49 +1805,13 @@ async function loadAmazonSkuView() {
       api({ action: 'load_sku_map' }),
       api({ action: 'load_design_index' }),
     ]);
-    _websiteHandles = mapRes.rows.length
-      ? mapRes.rows.map(r => ({ handle: r.handle || '', title: r.amazon_title || r.sku })) // placeholder until we also load design index
-      : [];
-    // Prefer design index for website titles
     if (handleRes.designs?.length) _websiteHandles = handleRes.designs;
-    _skuData = (mapRes.rows || []).map(r => ({ ...r, count: 0 }));
-    const mapped = _skuData.filter(r => r.handle && r.handle !== 'amazon').length;
+    _skuData = mapRes.rows || [];
+    const mapped = _skuData.filter(r => r.handle && r.handle !== 'amazon' && r.confirmed).length;
     document.getElementById('skuSubtitle').textContent =
-      `${_skuData.length} SKU${_skuData.length !== 1 ? 's' : ''} · ${mapped} mapped · ${_skuData.length - mapped} unmatched`;
+      `${_skuData.length} SKU${_skuData.length !== 1 ? 's' : ''} · ${mapped} confirmed · ${_skuData.length - mapped} unmatched`;
     renderSkuTable();
   } catch(e) { toast('Failed: ' + e.message); }
-}
-
-async function fetchSkusFromAmazon() {
-  const btn = document.getElementById('skuFetchBtn');
-  const days = parseInt(document.getElementById('skuDaysBack').value) || 60;
-  btn.disabled = true; btn.textContent = '⏳ Scanning…';
-  document.getElementById('skuTable').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div>'.repeat(6);
-  try {
-    const res = await api({ action: 'fetch_amazon_skus', days_back: days });
-    if (res.error) { toast('Error: ' + res.error); return; }
-
-    // Merge fetched SKUs with existing map rows
-    const existingMap = res.existing || {};
-    const bySkuArr = (res.skus || []).map(s => ({
-      ...s,
-      handle: existingMap[s.sku]?.handle || '',
-      confirmed: existingMap[s.sku]?.confirmed || false,
-    }));
-
-    // Also include any mapped SKUs not seen in recent orders
-    const seenSkus = new Set(bySkuArr.map(r => r.sku));
-    for (const [sku, row] of Object.entries(existingMap)) {
-      if (!seenSkus.has(sku)) bySkuArr.push({ sku, asin: '', amazon_title: '', handle: row.handle, confirmed: row.confirmed, count: 0 });
-    }
-
-    _skuData = bySkuArr;
-    const mapped = _skuData.filter(r => r.handle && r.handle !== 'amazon').length;
-    document.getElementById('skuSubtitle').textContent =
-      `${_skuData.length} SKU${_skuData.length !== 1 ? 's' : ''} · ${mapped} mapped · ${_skuData.length - mapped} unmatched · ${res.orders_fetched} orders scanned`;
-    renderSkuTable();
-  } catch(e) { toast('Scan failed: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '↻ Scan Amazon Orders'; }
 }
 
 function renderSkuTable() {
@@ -1875,7 +1835,7 @@ function renderSkuTable() {
     const matches = topMatches(r.amazon_title || r.sku, _websiteHandles);
     const isConfirmed = r.confirmed && r.handle && r.handle !== 'amazon';
     const matchChips = matches.map(m =>
-      `<button class="sku-chip${r.handle === m.handle ? ' active' : ''}" onclick="assignSku(${JSON.stringify(r.sku)},${JSON.stringify(m.handle)},${JSON.stringify(m.title)})"
+      `<button class="sku-chip${r.handle === m.handle ? ' active' : ''}" onclick="assignSku(${JSON.stringify(r.sku)},${JSON.stringify(m.handle)})"
         title="${(m.score * 100).toFixed(0)}% match">${m.title}</button>`
     ).join('');
     const handleInput = `<input class="sku-handle-input" placeholder="website handle…" value="${r.handle || ''}"
@@ -1902,12 +1862,10 @@ function renderSkuTable() {
   document.getElementById('skuTable').innerHTML = html;
 }
 
-function assignSku(sku, handle, title) {
+function assignSku(sku, handle) {
   const r = _skuData.find(x => x.sku === sku);
   if (!r) return;
   r.handle = handle;
-  // update the input field
-  const rows = document.querySelectorAll('.sku-row');
   renderSkuTable();
 }
 
