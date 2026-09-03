@@ -1751,7 +1751,7 @@ function renderGroup(g) {
   const colorLine = Object.entries(g.colorCounts)
     .map(([c, n]) => `<span class="dg-color-tag">${n}× ${c}</span>`).join('');
 
-  const orderTag = isSingle ? `<span class="dg-order-tag">${u0.order_name}</span>` : '';
+  const orderTag = isSingle ? `<span class="dg-order-tag">${u0.order_name}</span>${u0.source === 'amazon' ? '<span class="dg-order-tag" style="background:#ff9900;color:#fff;font-weight:700;margin-left:4px">Amazon</span>' : ''}` : '';
 
   const statusParts = [];
   if (emergCount)  statusParts.push(`<span style="color:var(--red)">${emergCount} ⚠ no stock</span>`);
@@ -1806,6 +1806,7 @@ function renderUnit(u) {
   <div class="unit-row${isPicked ? ' picked' : ''}${isEmerg ? ' emergency' : ''}" id="unit-${k}">
     <span class="unit-num">${serialCounter}</span>
     <span class="unit-order">${u.order_name}</span>
+    ${u.source === 'amazon' ? '<span class="unit-color" style="background:#ff9900;color:#fff;font-weight:700">Amazon</span>' : ''}
     ${u.color ? `<span class="unit-color">${u.color}</span>` : ''}
     <div class="unit-status">
       ${isEmerg ? '<span class="emg-label">⚠ No stock</span>' : ''}
