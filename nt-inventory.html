@@ -433,6 +433,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .unit-btn.picked  { background: var(--green); color: #fff; border-color: var(--green); }
 .unit-btn.nostock { color: var(--red); border-color: var(--red); }
 .unit-btn.nostock:hover { background: var(--red); color: #fff; }
+.unit-btn.nostock.active { background: var(--red); color: #fff; }
+.unit-btn.nostock.active:hover { background: #9b1b12; border-color: #9b1b12; }
 
 /* ── emergency view ── */
 .emg-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -1139,6 +1141,7 @@ let allProducts   = [];
 let _designIndex  = []; // handle+title from nt_order_units — canonical for search
 let orderStats    = {}; // handle → order qty for selected period
 let currentUnits  = []; // orders view
+let stockMap      = {}; // handle → stock_count (from nt_inventory, loaded with orders)
 let activeColor   = '';
 let serialCounter = 0;
 const openGroups  = new Set(); // tracks which multi-unit groups are expanded
@@ -1686,11 +1689,23 @@ async function loadOrders() {
 
   try {
     const res = await api({ action: 'load_orders', date });
+    stockMap = res.stockMap || {};
     // merge local state
     currentUnits = (res.units || []).map(u => {
       const ls = localState[stateKey(u)];
       return ls ? { ...u, ...ls } : u;
     });
+    // auto-mark units whose handle stock is 0 as emergency (if not already)
+    const toAutoMark = currentUnits.filter(u => !u.is_emergency && !u.picked && stockMap[u.handle] === 0);
+    if (toAutoMark.length) {
+      for (const u of toAutoMark) {
+        const k = stateKey(u);
+        localState[k] = { ...(localState[k] || {}), is_emergency: true, picked: false };
+        u.is_emergency = true; u.picked = false;
+      }
+      // batch-save to DB quietly in background
+      Promise.allSettled(toAutoMark.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true }))).catch(() => {});
+    }
     renderOrders();
   } catch (e) { toast('Failed to load orders: ' + e.message); }
 }
@@ -1763,7 +1778,7 @@ function renderGroup(g) {
     const isPicked = u0.picked;
     const isEmerg  = u0.is_emergency;
     if (isEmerg) {
-      leftBtn  = `<span class="emg-label">⚠ No stock</span>`;
+      leftBtn  = `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="event.stopPropagation();unmarkEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">⚠ No stock ×</button>`;
       rightBtn = ``;
     } else {
       leftBtn  = `<button class="unit-btn nostock" onclick="event.stopPropagation();markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>`;
@@ -1809,17 +1824,16 @@ function renderUnit(u) {
     ${u.source === 'amazon' ? '<span class="unit-color" style="background:#ff9900;color:#fff;font-weight:700">Amazon</span>' : ''}
     ${u.color ? `<span class="unit-color">${u.color}</span>` : ''}
     <div class="unit-status">
-      ${isEmerg ? '<span class="emg-label">⚠ No stock</span>' : ''}
-      ${!isEmerg ? `
+      ${isEmerg ? `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="unmarkEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">⚠ No stock ×</button>` : `
         <button class="unit-btn nostock"
           onclick="markEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">
-          ✕
+          No Stock
         </button>
         <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
           onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">
           ${isPicked ? '✓' : 'Pick'}
         </button>
-      ` : ''}
+      `}
     </div>
   </div>`;
 }
@@ -1914,6 +1928,21 @@ async function markEmergency(u) {
   try {
     await api({ action: 'save_emergency', ...u, date, is_emergency: true });
     toast(`⚠ Saved: ${u.order_name} → No Stock`);
+  } catch { toast('Save failed — please retry'); }
+}
+
+async function unmarkEmergency(u) {
+  const k = stateKey(u);
+  localState[k] = { ...(localState[k] || {}), is_emergency: false };
+  const idx = currentUnits.findIndex(x => stateKey(x) === k);
+  if (idx >= 0) currentUnits[idx].is_emergency = false;
+
+  const date = document.getElementById('ordersDate').value;
+  renderOrders();
+  updateEmergencyBadge();
+  try {
+    await api({ action: 'save_emergency', ...u, date, is_emergency: false });
+    toast(`Cleared: ${u.order_name} no longer emergency`);
   } catch { toast('Save failed — please retry'); }
 }
 
