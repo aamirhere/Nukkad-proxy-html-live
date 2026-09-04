@@ -447,6 +447,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .sku-chip { padding:3px 10px; border-radius:20px; font-size:.78rem; border:1px solid var(--line); background:#fdf5ec; color:var(--ink2); cursor:pointer; transition:all .15s; }
 .sku-chip:hover { border-color:var(--accent); color:var(--accent); }
 .sku-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.color-pill::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--pill-dot,#ccc); margin-right:5px; vertical-align:middle; }
+.color-pill.active { background:var(--ink); color:#fff; border-color:var(--ink); }
 .sku-handle-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .sku-handle-input { flex:1; min-width:160px; padding:5px 10px; border:1px solid var(--line); border-radius:8px; font-size:.82rem; font-family:monospace; }
 .sku-handle-input:focus { border-color:var(--accent); outline:none; }
@@ -1856,6 +1858,13 @@ function renderSkuTable() {
           title="${(m.score * 100).toFixed(0)}% match">${m.title}</button>`
       ).join('');
 
+      const colorPills = ['Peach','Blue','Orange','Red','White','Yellow','Purple','Green','Gold'].map(c =>
+        `<button class="sku-chip color-pill${r.color === c ? ' active' : ''}"
+          id="${skuId}_cpill_${c}"
+          onclick="pickSkuColor('${r.sku.replace(/'/g,"\\'")}','${c}','${skuId}')"
+          style="--pill-dot:${({Peach:'#f4a070',Blue:'#6baed6',Orange:'#f07030',Red:'#d93025',White:'#ccc',Yellow:'#f5c542',Purple:'#9b59b6',Green:'#27ae60',Gold:'#c9a227'})[c]}">${c}</button>`
+      ).join('');
+
       return `<div class="sku-row${isConfirmed ? ' confirmed' : ''}" id="${skuId}">
         <div class="sku-top">
           <span class="sku-label">${r.sku}</span>
@@ -1865,14 +1874,17 @@ function renderSkuTable() {
           ${isConfirmed ? `<span style="font-size:.72rem;color:var(--green);font-weight:600">✓ Confirmed</span>` : ''}
         </div>
         <div class="sku-amazon-title">${r.amazon_title || '<em style="color:var(--muted)">No title yet — sync Amazon orders</em>'}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:4px">Design match:</div>
         <div class="sku-chips" id="${skuId}_chips">${matchChips || '<span style="color:var(--muted);font-size:.78rem">No suggestions — type handle below</span>'}</div>
-        <div class="sku-handle-row">
+        <div style="font-size:.72rem;color:var(--muted);margin:8px 0 4px">Color / finish:</div>
+        <div class="sku-chips" id="${skuId}_cpills">${colorPills}</div>
+        <div class="sku-handle-row" style="margin-top:8px">
           <input class="sku-handle-input" id="${skuId}_handle" placeholder="website handle…" value="${r.handle || ''}"
             oninput="updateSkuLocal('${r.sku.replace(/'/g,"\\'")}','handle',this.value,'${skuId}')"
             onkeydown="if(event.key==='Enter') document.getElementById('${skuId}_confirm').click()">
-          <input class="sku-handle-input" id="${skuId}_color" placeholder="color / finish…" value="${r.color || ''}"
-            style="max-width:140px"
-            oninput="updateSkuLocal('${r.sku.replace(/'/g,"\\'")}','color',this.value,'${skuId}')"
+          <input class="sku-handle-input" id="${skuId}_color" placeholder="or type color…" value="${r.color || ''}"
+            style="max-width:130px"
+            oninput="updateSkuLocal('${r.sku.replace(/'/g,"\\'")}','color',this.value,'${skuId}');syncColorPills('${r.sku.replace(/'/g,"\\'")}',this.value,'${skuId}')"
             onkeydown="if(event.key==='Enter') document.getElementById('${skuId}_confirm').click()">
           <button class="btn btn-ghost" id="${skuId}_confirm" style="font-size:.78rem;padding:4px 10px;color:var(--green)"
             onclick="confirmSku('${r.sku.replace(/'/g,"\\'")}')">✓ Confirm</button>
@@ -1888,6 +1900,23 @@ function renderSkuTable() {
   }).join('');
 
   document.getElementById('skuTable').innerHTML = html;
+}
+
+function pickSkuColor(sku, color, skuId) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.color = color;
+  const inp = document.getElementById(skuId + '_color');
+  if (inp) inp.value = color;
+  syncColorPills(sku, color, skuId);
+}
+
+function syncColorPills(sku, color, skuId) {
+  const pillsEl = document.getElementById(skuId + '_cpills');
+  if (!pillsEl) return;
+  pillsEl.querySelectorAll('.color-pill').forEach(p => {
+    p.classList.toggle('active', p.id === skuId + '_cpill_' + color);
+  });
 }
 
 function pickSkuHandle(sku, handle, skuId) {
