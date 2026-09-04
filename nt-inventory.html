@@ -450,6 +450,10 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .sku-handle-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .sku-handle-input { flex:1; min-width:160px; padding:5px 10px; border:1px solid var(--line); border-radius:8px; font-size:.82rem; font-family:monospace; }
 .sku-handle-input:focus { border-color:var(--accent); outline:none; }
+.sku-group { border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:12px; }
+.sku-group-label { font-size:.72rem; font-weight:700; color:var(--muted); padding:5px 14px; background:var(--bg2,#f8f3eb); letter-spacing:.04em; }
+.sku-group .sku-row { border:none; border-top:1px solid var(--line); border-radius:0; margin:0; }
+.sku-group .sku-row:first-of-type { border-top:none; }
 
 /* ── emergency view ── */
 .emg-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -1818,70 +1822,110 @@ function renderSkuTable() {
   const filterVal = (document.getElementById('skuFilter')?.value || '').toLowerCase();
   const unmappedOnly = document.getElementById('skuUnmappedOnly')?.checked;
   let rows = _skuData.filter(r => {
-    if (unmappedOnly && r.handle && r.handle !== 'amazon' && r.confirmed) return false;
+    if (unmappedOnly && r.confirmed) return false;
     if (filterVal) {
-      const hay = `${r.sku} ${r.amazon_title} ${r.handle}`.toLowerCase();
+      const hay = `${r.sku} ${r.amazon_title} ${r.handle} ${r.color}`.toLowerCase();
       if (!hay.includes(filterVal)) return false;
     }
     return true;
   });
   document.getElementById('skuCount').textContent = `${rows.length} shown`;
   if (!rows.length) {
-    document.getElementById('skuTable').innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted)">No SKUs found. Click "Scan Amazon Orders" to fetch.</div>`;
+    document.getElementById('skuTable').innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted)">No SKUs yet. Sync Amazon orders first, then reload.</div>`;
     return;
   }
 
-  const html = rows.map(r => {
-    const matches = topMatches(r.amazon_title || r.sku, _websiteHandles);
-    const isConfirmed = r.confirmed && r.handle && r.handle !== 'amazon';
-    const matchChips = matches.map(m =>
-      `<button class="sku-chip${r.handle === m.handle ? ' active' : ''}" onclick="assignSku(${JSON.stringify(r.sku)},${JSON.stringify(m.handle)})"
-        title="${(m.score * 100).toFixed(0)}% match">${m.title}</button>`
-    ).join('');
-    const handleInput = `<input class="sku-handle-input" placeholder="website handle…" value="${r.handle || ''}"
-      onblur="assignSkuManual(${JSON.stringify(r.sku)}, this.value)"
-      onkeydown="if(event.key==='Enter') assignSkuManual(${JSON.stringify(r.sku)}, this.value)">`;
-    return `<div class="sku-row${isConfirmed ? ' confirmed' : ''}">
-      <div class="sku-top">
-        <span class="sku-label">${r.sku}</span>
-        ${r.asin ? `<span class="sku-asin">${r.asin}</span>` : ''}
-        ${r.count ? `<span style="font-size:.72rem;color:var(--muted)">${r.count} orders</span>` : ''}
-        ${isConfirmed ? `<span style="font-size:.72rem;color:var(--green);font-weight:600">✓ Confirmed</span>` : ''}
-      </div>
-      <div class="sku-amazon-title">${r.amazon_title || '<em style="color:var(--muted)">No title</em>'}</div>
-      <div class="sku-chips">${matchChips || '<span style="color:var(--muted);font-size:.78rem">No suggestions — enter handle manually</span>'}</div>
-      <div class="sku-handle-row">
-        ${handleInput}
-        <button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--green)"
-          onclick="confirmSku(${JSON.stringify(r.sku)})">✓ Confirm</button>
-        ${isConfirmed ? `<button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--muted)"
-          onclick="unconfirmSku(${JSON.stringify(r.sku)})">Unconfirm</button>` : ''}
-      </div>
-    </div>`;
+  // Group by base_sku so FBA + self-ship variants are adjacent
+  const groups = [];
+  let lastBase = null;
+  for (const r of rows) {
+    if (r.base_sku !== lastBase) { groups.push({ base: r.base_sku, rows: [] }); lastBase = r.base_sku; }
+    groups[groups.length - 1].rows.push(r);
+  }
+
+  const html = groups.map(g => {
+    const rowsHtml = g.rows.map(r => {
+      const matches = topMatches(r.amazon_title || r.sku, _websiteHandles);
+      const isConfirmed = r.confirmed && r.handle && r.handle !== 'amazon';
+      const skuId = 'sku-' + r.sku.replace(/[^a-zA-Z0-9]/g, '_');
+
+      const matchChips = matches.map(m =>
+        `<button class="sku-chip${r.handle === m.handle ? ' active' : ''}"
+          id="${skuId}_chip_${m.handle.replace(/[^a-zA-Z0-9]/g,'_')}"
+          onclick="pickSkuHandle('${r.sku.replace(/'/g,"\\'")}','${m.handle.replace(/'/g,"\\'")}','${skuId}')"
+          title="${(m.score * 100).toFixed(0)}% match">${m.title}</button>`
+      ).join('');
+
+      return `<div class="sku-row${isConfirmed ? ' confirmed' : ''}" id="${skuId}">
+        <div class="sku-top">
+          <span class="sku-label">${r.sku}</span>
+          ${r.is_fba ? `<span style="font-size:.7rem;font-weight:700;color:#c07000;background:#fff8e1;border:1px solid #f5dfa0;border-radius:4px;padding:1px 6px">FBA</span>` : `<span style="font-size:.7rem;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 6px">Self-ship</span>`}
+          ${r.asin ? `<span class="sku-asin">${r.asin}</span>` : ''}
+          ${r.count ? `<span style="font-size:.72rem;color:var(--muted)">${r.count} orders</span>` : ''}
+          ${isConfirmed ? `<span style="font-size:.72rem;color:var(--green);font-weight:600">✓ Confirmed</span>` : ''}
+        </div>
+        <div class="sku-amazon-title">${r.amazon_title || '<em style="color:var(--muted)">No title yet — sync Amazon orders</em>'}</div>
+        <div class="sku-chips" id="${skuId}_chips">${matchChips || '<span style="color:var(--muted);font-size:.78rem">No suggestions — type handle below</span>'}</div>
+        <div class="sku-handle-row">
+          <input class="sku-handle-input" id="${skuId}_handle" placeholder="website handle…" value="${r.handle || ''}"
+            oninput="updateSkuLocal('${r.sku.replace(/'/g,"\\'")}','handle',this.value,'${skuId}')"
+            onkeydown="if(event.key==='Enter') document.getElementById('${skuId}_confirm').click()">
+          <input class="sku-handle-input" id="${skuId}_color" placeholder="color / finish…" value="${r.color || ''}"
+            style="max-width:140px"
+            oninput="updateSkuLocal('${r.sku.replace(/'/g,"\\'")}','color',this.value,'${skuId}')"
+            onkeydown="if(event.key==='Enter') document.getElementById('${skuId}_confirm').click()">
+          <button class="btn btn-ghost" id="${skuId}_confirm" style="font-size:.78rem;padding:4px 10px;color:var(--green)"
+            onclick="confirmSku('${r.sku.replace(/'/g,"\\'")}')">✓ Confirm</button>
+          ${isConfirmed ? `<button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--muted)"
+            onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Undo</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    return g.rows.length > 1
+      ? `<div class="sku-group"><div class="sku-group-label">Base: ${g.base}</div>${rowsHtml}</div>`
+      : rowsHtml;
   }).join('');
+
   document.getElementById('skuTable').innerHTML = html;
 }
 
-function assignSku(sku, handle) {
+function pickSkuHandle(sku, handle, skuId) {
   const r = _skuData.find(x => x.sku === sku);
   if (!r) return;
   r.handle = handle;
-  renderSkuTable();
+  // Update handle input
+  const inp = document.getElementById(skuId + '_handle');
+  if (inp) inp.value = handle;
+  // Update chip active states (no full re-render)
+  const chipsEl = document.getElementById(skuId + '_chips');
+  if (chipsEl) chipsEl.querySelectorAll('.sku-chip').forEach(c => c.classList.remove('active'));
+  const chipId = skuId + '_chip_' + handle.replace(/[^a-zA-Z0-9]/g,'_');
+  const chip = document.getElementById(chipId);
+  if (chip) chip.classList.add('active');
 }
 
-function assignSkuManual(sku, handle) {
+function updateSkuLocal(sku, field, value, skuId) {
   const r = _skuData.find(x => x.sku === sku);
-  if (r) r.handle = handle.trim();
+  if (r) r[field] = value;
+  // If handle changed, clear chip active states
+  if (field === 'handle') {
+    const chipsEl = document.getElementById(skuId + '_chips');
+    if (chipsEl) chipsEl.querySelectorAll('.sku-chip').forEach(c => {
+      const matches = c.id.endsWith('_chip_' + value.replace(/[^a-zA-Z0-9]/g,'_'));
+      c.classList.toggle('active', matches);
+    });
+  }
 }
 
 async function confirmSku(sku) {
   const r = _skuData.find(x => x.sku === sku);
-  if (!r || !r.handle) { toast('Set a handle first'); return; }
+  if (!r || !r.handle) { toast('Set a website handle first'); return; }
   r.confirmed = true;
   renderSkuTable();
   try {
-    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, confirmed: true });
-    toast(`✓ Saved: ${r.sku} → ${r.handle}`);
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: true });
+    toast(`✓ ${r.sku} → ${r.handle}${r.color ? ' / ' + r.color : ''}`);
   } catch(e) { toast('Save failed: ' + e.message); }
 }
 
@@ -1891,7 +1935,7 @@ async function unconfirmSku(sku) {
   r.confirmed = false;
   renderSkuTable();
   try {
-    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, confirmed: false });
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: false });
   } catch {}
 }
 
