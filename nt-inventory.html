@@ -1849,29 +1849,45 @@ function renderSkuTable() {
 
   document.getElementById('skuCount').textContent = `${confirmed.length} confirmed · ${unconfirmed.length} pending`;
 
-  // ── Confirmed table ──────────────────────────────────────────────────────
-  const confirmedHtml = confirmed.length ? `
+  // ── Confirmed table — grouped by design (handle+color) ───────────────────
+  let confirmedHtml = '';
+  if (confirmed.length) {
+    // Group by handle+color
+    const confGroups = {};
+    for (const r of confirmed) {
+      const key = (r.handle || '') + '|' + (r.color || '');
+      if (!confGroups[key]) confGroups[key] = { handle: r.handle, color: r.color, rows: [] };
+      confGroups[key].rows.push(r);
+    }
+    const confGroupsSorted = Object.values(confGroups).sort((a, b) => (a.handle || '').localeCompare(b.handle || '') || (a.color || '').localeCompare(b.color || ''));
+
+    confirmedHtml = `
     <div style="margin-bottom:18px">
       <div style="font-size:.8rem;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-bottom:8px">✓ CONFIRMED MAPPINGS</div>
       <table class="sku-conf-table">
         <thead><tr><th>SKU</th><th>Type</th><th>Color</th><th>Design</th><th>ASIN</th><th>Orders</th><th></th></tr></thead>
         <tbody>
-          ${confirmed.map(r => {
-            const dot = SKU_COLORS[r.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[r.color]};margin-right:4px;vertical-align:middle"></span>` : '';
-            const designTitle = (_websiteHandles.find(h => h.handle === r.handle) || {}).title || r.handle;
-            return `<tr>
+          ${confGroupsSorted.map(g => {
+            const dot = SKU_COLORS[g.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[g.color]};margin-right:4px;vertical-align:middle"></span>` : '';
+            const designTitle = (_websiteHandles.find(h => h.handle === g.handle) || {}).title || g.handle;
+            const groupHeader = g.rows.length > 1 ? `<tr style="background:rgba(212,84,31,.05)">
+              <td colspan="7" style="font-size:.72rem;font-weight:700;color:var(--accent);padding:4px 10px;letter-spacing:.03em">
+                ${dot}${designTitle}${g.color ? ' · ' + g.color : ''} — ${g.rows.length} listings
+              </td></tr>` : '';
+            return groupHeader + g.rows.map(r => `<tr>
               <td><span class="sku-label" style="font-size:.78rem">${r.sku}</span></td>
               <td>${r.is_fba ? `<span style="font-size:.68rem;font-weight:700;color:#c07000;background:#fff8e1;border:1px solid #f5dfa0;border-radius:3px;padding:1px 5px">FBA</span>` : `<span style="font-size:.68rem;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:1px 5px">Self</span>`}</td>
               <td>${dot}${r.color || '—'}</td>
-              <td style="font-size:.82rem;color:var(--ink)">${designTitle}</td>
+              <td style="font-size:.82rem;color:var(--ink)">${g.rows.length === 1 ? designTitle : ''}</td>
               <td class="sku-asin" style="font-size:.72rem">${r.asin || '—'}</td>
               <td style="font-size:.72rem;color:var(--muted);text-align:center">${r.count || 0}</td>
               <td><button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button></td>
-            </tr>`;
+            </tr>`).join('');
           }).join('')}
         </tbody>
       </table>
-    </div>` : '';
+    </div>`;
+  }
 
   // ── Pending cards ────────────────────────────────────────────────────────
   if (!unconfirmed.length && !confirmed.length) {
@@ -1911,7 +1927,9 @@ function renderSkuTable() {
         return `<div class="sku-row" id="${skuId}">
           <div class="sku-top">
             <span class="sku-label">${r.sku}</span>
-            ${r.is_fba ? `<span style="font-size:.7rem;font-weight:700;color:#c07000;background:#fff8e1;border:1px solid #f5dfa0;border-radius:4px;padding:1px 6px">FBA</span>` : `<span style="font-size:.7rem;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 6px">Self-ship</span>`}
+            <button onclick="toggleSkuFba('${r.sku.replace(/'/g,"\\'")}','${skuId}')" id="${skuId}_fbabtn"
+              style="font-size:.7rem;font-weight:700;border-radius:4px;padding:1px 6px;cursor:pointer;border:1px solid;transition:all .15s;${r.is_fba ? 'color:#c07000;background:#fff8e1;border-color:#f5dfa0' : 'color:var(--muted);background:none;border-color:var(--line)'}">
+              ${r.is_fba ? 'FBA' : 'Self-ship'}</button>
             ${r.asin ? `<span class="sku-asin">${r.asin}</span>` : ''}
             ${r.count ? `<span style="font-size:.72rem;color:var(--muted)">${r.count} orders</span>` : ''}
           </div>
@@ -2007,13 +2025,24 @@ function updateSkuLocal(sku, field, value, skuId) {
   }
 }
 
+function toggleSkuFba(sku, skuId) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.is_fba = !r.is_fba;
+  const btn = document.getElementById(skuId + '_fbabtn');
+  if (btn) {
+    btn.textContent = r.is_fba ? 'FBA' : 'Self-ship';
+    btn.style.cssText = `font-size:.7rem;font-weight:700;border-radius:4px;padding:1px 6px;cursor:pointer;border:1px solid;transition:all .15s;${r.is_fba ? 'color:#c07000;background:#fff8e1;border-color:#f5dfa0' : 'color:var(--muted);background:none;border-color:var(--line)'}`;
+  }
+}
+
 async function confirmSku(sku) {
   const r = _skuData.find(x => x.sku === sku);
   if (!r || !r.handle) { toast('Set a website handle first'); return; }
   r.confirmed = true;
   renderSkuTable();
   try {
-    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: true });
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: true, is_fba: r.is_fba });
     toast(`✓ ${r.sku} → ${r.handle}${r.color ? ' / ' + r.color : ''}`);
   } catch(e) { toast('Save failed: ' + e.message); }
 }
@@ -2024,7 +2053,7 @@ async function unconfirmSku(sku) {
   r.confirmed = false;
   renderSkuTable();
   try {
-    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: false });
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: false, is_fba: r.is_fba });
   } catch {}
 }
 
