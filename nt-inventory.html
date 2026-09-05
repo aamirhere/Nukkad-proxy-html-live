@@ -464,8 +464,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .sku-color-dot { display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid rgba(0,0,0,.15); vertical-align:middle; margin-right:4px; }
 .sku-search-input { width:100%; box-sizing:border-box; padding:6px 10px; border:1px solid var(--line); border-radius:8px; font-size:.82rem; margin-bottom:4px; font-family:var(--fb); }
 .sku-search-input:focus { border-color:var(--accent); outline:none; }
-.sku-search-results { display:none; border:1px solid var(--line); border-radius:8px; background:#fff; max-height:180px; overflow-y:auto; margin-bottom:8px; }
-.sku-search-result { padding:6px 12px; cursor:pointer; font-size:.8rem; color:var(--ink2); }
+.sku-search-results { display:none; position:absolute; top:100%; left:0; right:0; z-index:50; border:1px solid var(--line); border-radius:8px; background:#fff; max-height:200px; overflow-y:auto; box-shadow:0 4px 16px rgba(0,0,0,.10); margin-top:2px; }
+.sku-search-result { padding:7px 12px; cursor:pointer; font-size:.82rem; color:var(--ink2); border-bottom:1px solid var(--line); }
+.sku-search-result:last-child { border-bottom:none; }
 .sku-search-result:hover { background:#fdf5ec; color:var(--accent); }
 
 /* ── emergency view ── */
@@ -1937,10 +1938,11 @@ function renderSkuTable() {
           <div class="sku-amazon-title">${r.amazon_title || '<em style="color:var(--muted)">No title yet — sync Amazon orders</em>'}</div>
           <div style="font-size:.72rem;color:var(--muted);margin-bottom:4px">Design match:</div>
           <div class="sku-chips" id="${skuId}_chips">${matchChips || ''}</div>
-          <div style="margin:6px 0 4px;display:flex;align-items:center;gap:8px">
+          <div style="margin:6px 0 4px;position:relative">
             <input class="sku-search-input" placeholder="🔍 Search designs…" id="${skuId}_search"
-              oninput="searchSkuDesigns('${r.sku.replace(/'/g,"\\'")}','${skuId}',this.value)">
-            <div id="${skuId}_search_res" class="sku-search-results" style="display:none"></div>
+              oninput="searchSkuDesigns('${r.sku.replace(/'/g,"\\'")}','${skuId}',this.value)"
+              onblur="setTimeout(()=>{const el=document.getElementById('${skuId}_search_res');if(el)el.style.display='none'},180)">
+            <div id="${skuId}_search_res" class="sku-search-results"></div>
           </div>
           <div style="font-size:.72rem;color:var(--muted);margin:8px 0 4px">Color / finish:</div>
           <div class="sku-chips" id="${skuId}_cpills">${colorPills}</div>
@@ -1973,11 +1975,11 @@ function searchSkuDesigns(sku, skuId, query) {
   if (!q) { resEl.style.display = 'none'; resEl.innerHTML = ''; return; }
   const matches = _websiteHandles
     .filter(h => h.title.toLowerCase().includes(q) || h.handle.toLowerCase().includes(q))
-    .slice(0, 8);
-  if (!matches.length) { resEl.style.display = 'none'; return; }
-  resEl.style.display = 'flex';
+    .slice(0, 10);
+  if (!matches.length) { resEl.innerHTML = '<div class="sku-search-result" style="color:var(--muted);cursor:default">No matches</div>'; resEl.style.display = 'block'; return; }
+  resEl.style.display = 'block';
   resEl.innerHTML = matches.map(m =>
-    `<button class="sku-chip" onclick="pickSkuHandle('${sku.replace(/'/g,"\\'")}','${m.handle.replace(/'/g,"\\'")}','${skuId}');document.getElementById('${skuId}_search').value='';document.getElementById('${skuId}_search_res').style.display='none'">${m.title}</button>`
+    `<div class="sku-search-result" onmousedown="pickSkuHandle('${sku.replace(/'/g,"\\'")}','${m.handle.replace(/'/g,"\\'")}','${skuId}');document.getElementById('${skuId}_search').value='${m.title.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'">${m.title}</div>`
   ).join('');
 }
 
