@@ -1909,7 +1909,8 @@ function renderSkuTable() {
     <div style="font-size:.8rem;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-bottom:8px">NEEDS MAPPING (${unconfirmed.length})</div>
     ${groups.map(g => {
       const rowsHtml = g.rows.map(r => {
-        const matches = topMatches(r.amazon_title || r.sku, _websiteHandles);
+        // Only chip designs that have a real handle; empty-handle ones appear in search only
+        const matches = topMatches(r.amazon_title || r.sku, _websiteHandles.filter(h => h.handle));
         const skuId = 'sku-' + r.sku.replace(/[^a-zA-Z0-9]/g, '_');
 
         const matchChips = matches.map(m =>
@@ -1978,9 +1979,14 @@ function searchSkuDesigns(sku, skuId, query) {
     .slice(0, 10);
   if (!matches.length) { resEl.innerHTML = '<div class="sku-search-result" style="color:var(--muted);cursor:default">No matches</div>'; resEl.style.display = 'block'; return; }
   resEl.style.display = 'block';
-  resEl.innerHTML = matches.map(m =>
-    `<div class="sku-search-result" onmousedown="pickSkuHandle('${sku.replace(/'/g,"\\'")}','${m.handle.replace(/'/g,"\\'")}','${skuId}');document.getElementById('${skuId}_search').value='${m.title.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'">${m.title}</div>`
-  ).join('');
+  resEl.innerHTML = matches.map(m => {
+    const noHandle = !m.handle;
+    const label = noHandle ? `${m.title} <span style="color:var(--muted);font-size:.72rem">(type handle)</span>` : m.title;
+    const action = noHandle
+      ? `document.getElementById('${skuId}_handle').value='';document.getElementById('${skuId}_handle').focus();document.getElementById('${skuId}_search').value='${m.title.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'`
+      : `pickSkuHandle('${sku.replace(/'/g,"\\'")}','${m.handle.replace(/'/g,"\\'")}','${skuId}');document.getElementById('${skuId}_search').value='${m.title.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'`;
+    return `<div class="sku-search-result" onmousedown="${action}">${label}</div>`;
+  }).join('');
 }
 
 function pickSkuColor(sku, color, skuId) {
