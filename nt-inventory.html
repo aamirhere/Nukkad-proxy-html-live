@@ -1855,11 +1855,11 @@ function renderSkuTable() {
     // Group by handle+color
     const confGroups = {};
     for (const r of confirmed) {
-      const key = (r.handle || '') + '|' + (r.color || '');
-      if (!confGroups[key]) confGroups[key] = { handle: r.handle, color: r.color, rows: [] };
+      const key = r.handle || '';
+      if (!confGroups[key]) confGroups[key] = { handle: r.handle, rows: [] };
       confGroups[key].rows.push(r);
     }
-    const confGroupsSorted = Object.values(confGroups).sort((a, b) => (a.handle || '').localeCompare(b.handle || '') || (a.color || '').localeCompare(b.color || ''));
+    const confGroupsSorted = Object.values(confGroups).sort((a, b) => (a.handle || '').localeCompare(b.handle || ''));
 
     confirmedHtml = `
     <div style="margin-bottom:18px">
@@ -1868,21 +1868,22 @@ function renderSkuTable() {
         <thead><tr><th>SKU</th><th>Type</th><th>Color</th><th>Design</th><th>ASIN</th><th>Orders</th><th></th></tr></thead>
         <tbody>
           ${confGroupsSorted.map(g => {
-            const dot = SKU_COLORS[g.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[g.color]};margin-right:4px;vertical-align:middle"></span>` : '';
             const designTitle = (_websiteHandles.find(h => h.handle === g.handle) || {}).title || g.handle;
             const groupHeader = g.rows.length > 1 ? `<tr style="background:rgba(212,84,31,.05)">
               <td colspan="7" style="font-size:.72rem;font-weight:700;color:var(--accent);padding:4px 10px;letter-spacing:.03em">
-                ${dot}${designTitle}${g.color ? ' · ' + g.color : ''} — ${g.rows.length} listings
+                ${designTitle} — ${g.rows.length} listings
               </td></tr>` : '';
-            return groupHeader + g.rows.map(r => `<tr>
+            return groupHeader + g.rows.map(r => {
+              const rdot = SKU_COLORS[r.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[r.color]};margin-right:4px;vertical-align:middle"></span>` : '';
+              return `<tr>
               <td><span class="sku-label" style="font-size:.78rem">${r.sku}</span></td>
               <td>${r.is_fba ? `<span style="font-size:.68rem;font-weight:700;color:#c07000;background:#fff8e1;border:1px solid #f5dfa0;border-radius:3px;padding:1px 5px">FBA</span>` : `<span style="font-size:.68rem;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:1px 5px">Self</span>`}</td>
-              <td>${dot}${r.color || '—'}</td>
+              <td>${rdot}${r.color || '—'}</td>
               <td style="font-size:.82rem;color:var(--ink)">${g.rows.length === 1 ? designTitle : ''}</td>
               <td class="sku-asin" style="font-size:.72rem">${r.asin || '—'}</td>
               <td style="font-size:.72rem;color:var(--muted);text-align:center">${r.count || 0}</td>
               <td><button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button></td>
-            </tr>`).join('');
+            </tr>`;}).join('');
           }).join('')}
         </tbody>
       </table>
