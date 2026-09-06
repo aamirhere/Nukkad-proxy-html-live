@@ -1523,7 +1523,8 @@ async function recalcStock() {
 }
 
 async function resetEmergencyAll() {
-  if (!confirm('Clear ALL emergency records — open, printed, and sent? This cannot be undone.')) return;
+  const answer = prompt('This will permanently clear ALL emergency records — open, printed, and sent.\n\nType RESET to confirm:');
+  if (answer !== 'RESET') { if (answer !== null) toast('Cancelled — type exactly RESET'); return; }
   const btn = document.getElementById('btnResetEmg');
   btn.disabled = true; btn.textContent = 'Clearing…';
   try {
@@ -2437,7 +2438,7 @@ async function loadPrintedView() {
   document.getElementById('emgPrintedList').innerHTML =
     [...Array(3)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px;margin-bottom:8px"></div>').join('');
   try {
-    const res = await api({ action: 'load_downloaded_emergencies', days: 60 });
+    const res = await api({ action: 'load_downloaded_emergencies' });
     _printedUnits = res.units || [];
     renderPrintedView();
   } catch (e) { document.getElementById('emgPrintedList').innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
@@ -2475,7 +2476,8 @@ function renderPrintedView() {
         <span class="emg-unit-date" title="Order date">📅 ${orderDateStr}</span>
         <span class="emg-unit-order">${u.order_name || u.order_id}</span>
         <span style="font-size:.75rem;color:var(--muted);margin-left:4px">🖨 ${printedDateStr}</span>
-        <button class="ps-sent-btn" style="margin-left:auto;padding:4px 12px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;cursor:pointer">Sent →</button>
+        <button class="ps-reopen-btn" style="margin-left:auto;padding:3px 9px;border-radius:20px;border:1.5px solid var(--muted);background:none;color:var(--ink2);font-size:.72rem;font-weight:700;cursor:pointer">↩ Reopen</button>
+        <button class="ps-sent-btn" style="padding:4px 12px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;cursor:pointer">Sent →</button>
       </div>`;
     }).join('');
     const safeHandleAttr = (g.handle || '').replace(/'/g, '');
@@ -2526,7 +2528,7 @@ async function loadSentView() {
   document.getElementById('emgSentList').innerHTML =
     [...Array(3)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px;margin-bottom:8px"></div>').join('');
   try {
-    const res = await api({ action: 'load_sent_emergencies', days: 30 });
+    const res = await api({ action: 'load_sent_emergencies' });
     _sentGroups = res.byDesign || {};
     renderSentView();
   } catch (e) { document.getElementById('emgSentList').innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
@@ -2570,6 +2572,23 @@ function renderSentView() {
     </div>`;
   }).join('');
   document.getElementById('emgSentList').innerHTML = html || '<div class="empty-state"><div class="icon">📭</div><p>No sent units for this date</p></div>';
+}
+
+async function reopenEmergencyUnit(u, btn, rowPrefix) {
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await api({ action: 'reopen_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    const rowEl = document.getElementById(`${rowPrefix}-${u.order_id}-${u.line_item_id}-${u.unit_index}`);
+    const prefix = rowPrefix === 'prow' ? 'pgroup-' : 'sgroup-';
+    const groupEl = rowEl && rowEl.closest(`[id^="${prefix}"]`);
+    if (rowEl) rowEl.remove();
+    if (groupEl) {
+      const remaining = groupEl.querySelectorAll('.emg-unit-row').length;
+      if (!remaining) groupEl.remove();
+    }
+    toast('↩ Moved back to Open emergency ✓');
+  } catch (e) { btn.disabled = false; btn.textContent = origText; toast('Failed: ' + e.message); }
 }
 
 async function undoSent(u, btn) {
@@ -3966,6 +3985,13 @@ document.addEventListener('click', e => {
     }
     return;
   }
+  // Printed tab: ↩ Reopen (back to open emergency)
+  const reopenBtn = e.target.closest('.ps-reopen-btn');
+  if (reopenBtn) {
+    const row = reopenBtn.closest('.emg-unit-row');
+    if (row && row.dataset.u) { try { reopenEmergencyUnit(JSON.parse(row.dataset.u), reopenBtn, 'prow'); } catch(_) {} }
+    return;
+  }
   // Printed tab: Sent →
   const sentBtn = e.target.closest('.ps-sent-btn');
   if (sentBtn) {
@@ -3973,11 +3999,11 @@ document.addEventListener('click', e => {
     if (row && row.dataset.u) { try { markUnitSent(JSON.parse(row.dataset.u), sentBtn); } catch(_) {} }
     return;
   }
-  // Sent tab: Undo
+  // Sent tab: ↩ Reopen (back to open emergency, not just back to printed)
   const undoBtn = e.target.closest('.ps-undo-btn');
   if (undoBtn) {
     const row = undoBtn.closest('.emg-unit-row');
-    if (row && row.dataset.u) { try { undoSent(JSON.parse(row.dataset.u), undoBtn); } catch(_) {} }
+    if (row && row.dataset.u) { try { reopenEmergencyUnit(JSON.parse(row.dataset.u), undoBtn, 'srow'); } catch(_) {} }
     return;
   }
 });
