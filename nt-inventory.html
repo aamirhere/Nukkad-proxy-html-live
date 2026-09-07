@@ -1801,7 +1801,8 @@ async function debugAmazonOrders() {
 
 let _skuData = [];        // [{sku, asin, amazon_title, count, handle, confirmed}]
 let _websiteHandles = []; // [{handle, title}] — for fuzzy matching suggestions
-let _skuSalesCounts = {}; // sku → date-filtered sold count
+let _skuSalesCounts = {};    // sku → self-fulfilled sold count (date-filtered)
+let _skuFbaCounts = {};     // sku → FBA sold count (date-filtered)
 let _skuFilterMode = 'all'; // 'month' | 'year' | 'custom' | 'all'
 let _skuDateFrom = '';
 let _skuDateTo = '';
@@ -1915,7 +1916,11 @@ function renderSkuTable() {
       if (!confGroups[key]) confGroups[key] = { handle: r.handle, rows: [] };
       confGroups[key].rows.push(r);
     }
-    const groupSold = (g) => g.rows.reduce((s, r) => s + (_skuSalesCounts[r.sku] ?? r.count ?? 0), 0);
+    const groupSold = (g) => g.rows.reduce((s, r) => {
+      const isFiltered = _skuFilterMode !== 'all';
+      const self = isFiltered ? (_skuSalesCounts[r.sku] ?? 0) : (r.is_fba ? 0 : (r.count || 0));
+      return s + self;
+    }, 0);
     const confGroupsSorted = Object.values(confGroups).sort((a, b) => groupSold(b) - groupSold(a) || (a.handle || '').localeCompare(b.handle || ''));
 
     const today = new Date().toISOString().slice(0,10);
@@ -1953,7 +1958,10 @@ function renderSkuTable() {
             const stockEntry = allProducts.find(p => p.handle === g.handle);
             const stockVal = stockEntry?.stock != null ? stockEntry.stock : '—';
             return g.rows.map((r, ri) => {
-              const soldCount = _skuSalesCounts[r.sku] != null ? _skuSalesCounts[r.sku] : (r.count || 0);
+              const isFiltered = _skuFilterMode !== 'all';
+              const selfSold = isFiltered ? (_skuSalesCounts[r.sku] ?? 0) : (r.is_fba ? 0 : (r.count || 0));
+              const fbaSold  = isFiltered ? (_skuFbaCounts[r.sku]   ?? 0) : (r.is_fba ? (r.count || 0) : 0);
+              const soldCount = selfSold + fbaSold;
               const fbaBg = r.is_fba ? 'background:#fffbf0;' : '';
               const fbaPill = `<button onclick="quickFixFba('${r.sku.replace(/'/g,"\\'")}',${!r.is_fba})" style="font-size:.68rem;font-weight:700;border-radius:20px;padding:1px 7px;cursor:pointer;border:1px solid;${r.is_fba ? 'color:#c07000;background:#fff3cc;border-color:#f5dfa0' : 'color:var(--muted);background:none;border-color:var(--line)'}">${r.is_fba ? 'FBA' : 'Self'}</button>`;
               const colorDot = SKU_COLORS[r.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[r.color]};vertical-align:middle;margin-right:3px"></span>` : '';
@@ -1974,7 +1982,9 @@ function renderSkuTable() {
                   </div>
                 </td>
                 <td style="text-align:center;font-size:.82rem;color:var(--ink2);padding:5px 4px">${ri === 0 ? stockVal : ''}</td>
-                <td style="text-align:center;font-size:.82rem;font-weight:600;color:var(--ink);padding:5px 4px">${soldCount}</td>
+                <td style="text-align:center;font-size:.82rem;padding:5px 4px">
+                  ${selfSold > 0 ? `<span style="font-weight:600;color:var(--ink)">${selfSold}</span>` : `<span style="color:var(--muted)">${selfSold}</span>`}${fbaSold > 0 ? ` <span style="font-size:.68rem;color:#c07000;font-weight:600" title="FBA orders (auto-fulfilled)">+${fbaSold}F</span>` : ''}
+                </td>
                 <td style="padding:5px 4px;text-align:right;white-space:nowrap">
                   <button class="btn btn-ghost" style="font-size:.68rem;padding:2px 7px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button>
                   <button title="Archive — removing from Amazon" onclick="archiveSku('${r.sku.replace(/'/g,"\\'")}');event.stopPropagation()" style="font-size:.72rem;padding:2px 6px;border:1px solid var(--line);border-radius:4px;background:none;color:var(--muted);cursor:pointer;margin-left:3px">×</button>
@@ -2257,14 +2267,21 @@ async function setSkuFilter(mode) {
   } else {
     _skuDateFrom = '';
     _skuDateTo = '';
-    _skuSalesCounts = {}; // All Time: fall back to r.count from loadSkuMap (already correct)
+    _skuSalesCounts = {};
+    _skuFbaCounts = {};
     renderSkuTable();
     return;
   }
   try {
     const res = await api({ action: 'load_sku_sales', date_from: _skuDateFrom || undefined, date_to: _skuDateTo || undefined });
     _skuSalesCounts = res.counts || {};
-  } catch(e) { _skuSalesCounts = {}; }
+    _skuFbaCounts   = res.fba_counts || {};
+    // Zero-fill all known SKUs so filtered view doesn't fall back to all-time count
+    _skuData.forEach(r => {
+      if (_skuSalesCounts[r.sku] == null) _skuSalesCounts[r.sku] = 0;
+      if (_skuFbaCounts[r.sku]   == null) _skuFbaCounts[r.sku]   = 0;
+    });
+  } catch(e) { _skuSalesCounts = {}; _skuFbaCounts = {}; }
   renderSkuTable();
 }
 
