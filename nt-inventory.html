@@ -1899,11 +1899,12 @@ function renderSkuTable() {
     return true;
   });
 
-  const skipped     = rows.filter(r => r.handle === '__skip__');
-  const confirmed   = rows.filter(r => r.confirmed && r.handle && r.handle !== 'amazon' && r.handle !== '__skip__');
-  const unconfirmed = rows.filter(r => !r.confirmed || !r.handle || r.handle === 'amazon');
+  const archived    = rows.filter(r => r.removed);
+  const skipped     = rows.filter(r => !r.removed && r.handle === '__skip__');
+  const confirmed   = rows.filter(r => !r.removed && r.confirmed && r.handle && r.handle !== 'amazon' && r.handle !== '__skip__');
+  const unconfirmed = rows.filter(r => !r.removed && (!r.confirmed || !r.handle || r.handle === 'amazon'));
 
-  document.getElementById('skuCount').textContent = `${confirmed.length} confirmed · ${unconfirmed.length} pending · ${skipped.length} skipped`;
+  document.getElementById('skuCount').textContent = `${confirmed.length} confirmed · ${unconfirmed.length} pending · ${skipped.length} skipped${archived.length ? ` · ${archived.length} archived` : ''}`;
 
   // ── Confirmed table — grouped by handle ─────────────────────────────────
   let confirmedHtml = '';
@@ -1974,7 +1975,10 @@ function renderSkuTable() {
                 </td>
                 <td style="text-align:center;font-size:.82rem;color:var(--ink2);padding:5px 4px">${ri === 0 ? stockVal : ''}</td>
                 <td style="text-align:center;font-size:.82rem;font-weight:600;color:var(--ink);padding:5px 4px">${soldCount}</td>
-                <td style="padding:5px 4px;text-align:right"><button class="btn btn-ghost" style="font-size:.68rem;padding:2px 7px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button></td>
+                <td style="padding:5px 4px;text-align:right;white-space:nowrap">
+                  <button class="btn btn-ghost" style="font-size:.68rem;padding:2px 7px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button>
+                  <button title="Archive — removing from Amazon" onclick="archiveSku('${r.sku.replace(/'/g,"\\'")}');event.stopPropagation()" style="font-size:.72rem;padding:2px 6px;border:1px solid var(--line);border-radius:4px;background:none;color:var(--muted);cursor:pointer;margin-left:3px">×</button>
+                </td>
               </tr>`;
             }).join('');
           }).join('')}
@@ -2082,7 +2086,25 @@ function renderSkuTable() {
       </table>
     </details>` : '';
 
-  document.getElementById('skuTable').innerHTML = confirmedHtml + pendingHtml + skippedHtml;
+  const archivedHtml = archived.length ? `
+    <details style="margin-top:18px">
+      <summary style="font-size:.8rem;font-weight:700;color:#b03020;letter-spacing:.05em;cursor:pointer;user-select:none">✕ ARCHIVED — Removed from Amazon (${archived.length})</summary>
+      <table class="sku-conf-table" style="margin-top:8px">
+        <thead><tr><th>SKU</th><th>Design</th><th>ASIN</th><th>Title</th><th></th></tr></thead>
+        <tbody>${archived.map(r => {
+          const designTitle = (_websiteHandles.find(h => h.handle === r.handle) || {}).title || r.handle || '—';
+          return `<tr style="opacity:.7">
+            <td><span class="sku-label" style="font-size:.78rem">${r.sku}</span></td>
+            <td style="font-size:.78rem;color:var(--ink2)">${designTitle}</td>
+            <td class="sku-asin" style="font-size:.72rem">${r.asin || '—'}</td>
+            <td style="font-size:.78rem;color:var(--muted)">${r.amazon_title || '—'}</td>
+            <td><button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;color:var(--accent)" onclick="restoreArchivedSku('${r.sku.replace(/'/g,"\\'")}')">↩ Restore</button></td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </details>` : '';
+
+  document.getElementById('skuTable').innerHTML = confirmedHtml + pendingHtml + skippedHtml + archivedHtml;
 }
 
 function searchSkuDesigns(sku, skuId, query) {
@@ -2244,6 +2266,28 @@ async function setSkuFilter(mode) {
     _skuSalesCounts = res.counts || {};
   } catch(e) { _skuSalesCounts = {}; }
   renderSkuTable();
+}
+
+async function archiveSku(sku) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.removed = true;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle || '', color: r.color || '', confirmed: r.confirmed, is_fba: r.is_fba, removed: true });
+    toast(`✕ ${r.sku} archived`);
+  } catch(e) { r.removed = false; renderSkuTable(); toast('Failed: ' + e.message); }
+}
+
+async function restoreArchivedSku(sku) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.removed = false;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle || '', color: r.color || '', confirmed: r.confirmed, is_fba: r.is_fba, removed: false });
+    toast(`↩ ${r.sku} restored`);
+  } catch(e) { r.removed = true; renderSkuTable(); toast('Failed: ' + e.message); }
 }
 
 async function quickSaveAsin(sku, asin) {
