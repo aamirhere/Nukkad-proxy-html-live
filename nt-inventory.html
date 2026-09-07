@@ -2047,10 +2047,11 @@ function searchSkuDesigns(sku, skuId, query) {
   resEl.style.display = 'block';
   resEl.innerHTML = matches.map(m => {
     const noHandle = !m.handle;
-    const label = noHandle ? `${m.title} <span style="color:var(--muted);font-size:.72rem">(type handle)</span>` : m.title;
-    const action = noHandle
-      ? `document.getElementById('${skuId}_handle').value='';document.getElementById('${skuId}_handle').focus();document.getElementById('${skuId}_search').value='${m.title.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'`
-      : `pickSkuHandle('${sku.replace(/'/g,"\\'")}','${m.handle.replace(/'/g,"\\'")}','${skuId}');document.getElementById('${skuId}_search').value='${m.title.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'`;
+    const resolvedHandle = noHandle
+      ? m.title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      : m.handle;
+    const label = noHandle ? `${m.title} <span style="color:var(--muted);font-size:.72rem">→ ${resolvedHandle}</span>` : m.title;
+    const action = `pickSkuHandle('${sku.replace(/'/g,"\\'")}','${resolvedHandle.replace(/'/g,"\\'")}','${skuId}');document.getElementById('${skuId}_search').value='${m.title.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'`;
     return `<div class="sku-search-result" onmousedown="${action}">${label}</div>`;
   }).join('');
 }
