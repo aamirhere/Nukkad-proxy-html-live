@@ -2510,6 +2510,7 @@ function renderUnit(u) {
     <span class="unit-num">${serialCounter}</span>
     <span class="unit-order">${u.order_name}</span>
     ${u.source === 'amazon' ? '<span class="unit-color" style="background:#ff9900;color:#fff;font-weight:700">Amazon</span>' : ''}
+    ${u.source === 'amazon' && u.order_status ? `<span class="unit-color" style="background:${u.order_status==='Unshipped'?'#1a7f37':u.order_status==='Pending'?'#b05000':'#888'};color:#fff;font-size:.7rem">${u.order_status}</span>` : ''}
     ${u.color ? `<span class="unit-color">${u.color}</span>` : ''}
     <div class="unit-status">
       ${isEmerg ? `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="unmarkEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">⚠ No stock ×</button>` : `
