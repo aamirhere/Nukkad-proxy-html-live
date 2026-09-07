@@ -1877,6 +1877,11 @@ async function loadAmazonSkuView() {
 }
 
 const SKU_COLORS = {Peach:'#f4a070',Blue:'#6baed6',Orange:'#f07030',Red:'#d93025',White:'#ccc',Yellow:'#f5c542',Purple:'#9b59b6',Green:'#27ae60',Gold:'#c9a227'};
+  function detectColor(text) {
+    const t = (text || '').toLowerCase();
+    if (t.includes('pink')) return 'Peach';
+    return Object.keys(SKU_COLORS).find(c => t.includes(c.toLowerCase())) || null;
+  }
 
 function renderSkuTable() {
   const filterVal = (document.getElementById('skuFilter')?.value || '').toLowerCase();
@@ -1922,7 +1927,7 @@ function renderSkuTable() {
             return groupHeader + g.rows.map(r => {
               const rdot = SKU_COLORS[r.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[r.color]};margin-right:4px;vertical-align:middle"></span>` : '';
               const titleLower = (r.amazon_title || r.sku).toLowerCase();
-              const suggested = Object.keys(SKU_COLORS).find(c => titleLower.includes(c.toLowerCase()));
+              const suggested = detectColor(titleLower);
               const colorMismatch = suggested && suggested !== r.color;
               const colorCell = colorMismatch
                 ? `${rdot}${r.color || '—'} <button onclick="quickFixColor('${r.sku.replace(/'/g,"\\'")}','${suggested}')" title="Title suggests ${suggested}" style="font-size:.68rem;background:#fff8e1;border:1px solid #f5dfa0;border-radius:4px;padding:1px 6px;color:#c07000;cursor:pointer;margin-left:4px">→ ${suggested}?</button>`
@@ -1967,7 +1972,7 @@ function renderSkuTable() {
         // Auto-detect color from Amazon title if not already set
         if (!r.color) {
           const titleLower = (r.amazon_title || r.sku).toLowerCase();
-          const autoColor = Object.keys(SKU_COLORS).find(c => titleLower.includes(c.toLowerCase()));
+          const autoColor = detectColor(titleLower);
           if (autoColor) r.color = autoColor;
         }
 
