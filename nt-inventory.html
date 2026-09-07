@@ -1863,7 +1863,9 @@ async function loadAmazonSkuView() {
     _websiteHandles.forEach(h => { if (h.handle) byHandle[h.handle] = true; });
     _skuData.filter(r => r.confirmed && r.handle && r.handle !== 'amazon').forEach(r => {
       if (!byHandle[r.handle]) {
-        _websiteHandles.push({ handle: r.handle, title: r.amazon_title || r.handle });
+        // Use handle as title so fuzzy chips show clean design names, not Amazon listing titles
+        const readableTitle = r.handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        _websiteHandles.push({ handle: r.handle, title: readableTitle });
         byHandle[r.handle] = true;
       }
     });
