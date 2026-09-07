@@ -1936,8 +1936,11 @@ function renderSkuTable() {
               <td><span class="sku-label" style="font-size:.78rem">${r.sku}</span></td>
               <td><button onclick="quickFixFba('${r.sku.replace(/'/g,"\\'")}',${!r.is_fba})" style="font-size:.68rem;font-weight:700;border-radius:3px;padding:1px 5px;cursor:pointer;border:1px solid;${r.is_fba ? 'color:#c07000;background:#fff8e1;border-color:#f5dfa0' : 'color:var(--muted);background:none;border-color:var(--line)'}">${r.is_fba ? 'FBA' : 'Self'}</button></td>
               <td>${colorCell}</td>
-              <td style="font-size:.82rem;color:var(--ink)">${g.rows.length === 1 ? designTitle : ''}</td>
-              <td class="sku-asin" style="font-size:.72rem">${r.asin || '—'}</td>
+              <td style="font-size:.82rem;color:var(--ink)">${designTitle}</td>
+              <td class="sku-asin" style="font-size:.72rem">${r.asin
+                ? r.asin
+                : `<input placeholder="ASIN" style="width:90px;font-size:.72rem;border:1px solid var(--line);border-radius:4px;padding:1px 4px;color:var(--ink)" onblur="quickSaveAsin('${r.sku.replace(/'/g,"\\'")}',this.value.trim())" onkeydown="if(event.key==='Enter')this.blur()">`
+              }</td>
               <td style="font-size:.72rem;color:var(--muted);text-align:center">${r.count || 0}</td>
               <td><button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button></td>
             </tr>`;}).join('');
@@ -2182,6 +2185,18 @@ async function quickFixColor(sku, color) {
     await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color, confirmed: true, is_fba: r.is_fba });
     toast(`✓ ${r.sku} color → ${color}`);
   } catch(e) { toast('Update failed: ' + e.message); }
+}
+
+async function quickSaveAsin(sku, asin) {
+  if (!asin) return;
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.asin = asin;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin, amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: true, is_fba: r.is_fba });
+    toast(`✓ ${r.sku} ASIN → ${asin}`);
+  } catch(e) { toast('Save failed: ' + e.message); }
 }
 
 async function unskipSku(sku) {
