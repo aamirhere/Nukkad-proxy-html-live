@@ -1840,11 +1840,13 @@ async function loadAmazonSkuView() {
   document.getElementById('skuSubtitle').textContent = 'Loading…';
   document.getElementById('skuTable').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div>'.repeat(5);
   try {
-    const [mapRes, handleRes, prodRes] = await Promise.all([
+    const [mapRes, handleRes, prodRes, salesRes] = await Promise.all([
       api({ action: 'load_sku_map' }),
       api({ action: 'load_design_index' }),
       allProducts.length ? Promise.resolve(null) : api({ action: 'load_products' }),
+      api({ action: 'load_sku_sales' }),
     ]);
+    if (salesRes?.counts) _skuSalesCounts = salesRes.counts;
     if (prodRes?.products) allProducts = prodRes.products;
     if (handleRes.designs?.length) _websiteHandles = handleRes.designs;
     // Merge allProducts (Shopify inventory) — fills in handles missing from nt_order_units
@@ -1913,7 +1915,8 @@ function renderSkuTable() {
       if (!confGroups[key]) confGroups[key] = { handle: r.handle, rows: [] };
       confGroups[key].rows.push(r);
     }
-    const confGroupsSorted = Object.values(confGroups).sort((a, b) => (a.handle || '').localeCompare(b.handle || ''));
+    const groupSold = (g) => g.rows.reduce((s, r) => s + (_skuSalesCounts[r.sku] ?? r.count ?? 0), 0);
+    const confGroupsSorted = Object.values(confGroups).sort((a, b) => groupSold(b) - groupSold(a) || (a.handle || '').localeCompare(b.handle || ''));
 
     const today = new Date().toISOString().slice(0,10);
     const thisMonth = today.slice(0,7);
