@@ -2026,7 +2026,22 @@ function renderSkuTable() {
         : rowsHtml;
     }).join('')}` : '';
 
-  document.getElementById('skuTable').innerHTML = confirmedHtml + pendingHtml;
+  const skippedHtml = skipped.length ? `
+    <details style="margin-top:18px">
+      <summary style="font-size:.8rem;font-weight:700;color:var(--muted);letter-spacing:.05em;cursor:pointer;user-select:none">⊘ SKIPPED (${skipped.length})</summary>
+      <table class="sku-conf-table" style="margin-top:8px">
+        <thead><tr><th>SKU</th><th>ASIN</th><th>Title</th><th></th></tr></thead>
+        <tbody>${skipped.map(r => `<tr>
+          <td><span class="sku-label" style="font-size:.78rem">${r.sku}</span></td>
+          <td class="sku-asin" style="font-size:.72rem">${r.asin || '—'}</td>
+          <td style="font-size:.78rem;color:var(--ink2)">${r.amazon_title || '—'}</td>
+          <td><button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;color:var(--accent)" onclick="unskipSku('${r.sku.replace(/'/g,"\\'")}')">↩ Restore</button></td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </details>` : '';
+
+  document.getElementById('skuTable').innerHTML = confirmedHtml + pendingHtml + skippedHtml;
 }
 
 function searchSkuDesigns(sku, skuId, query) {
@@ -2152,6 +2167,18 @@ async function quickFixColor(sku, color) {
     await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color, confirmed: true, is_fba: r.is_fba });
     toast(`✓ ${r.sku} color → ${color}`);
   } catch(e) { toast('Update failed: ' + e.message); }
+}
+
+async function unskipSku(sku) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.handle = '';
+  r.confirmed = false;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: '', color: r.color || '', confirmed: false, is_fba: r.is_fba });
+    toast(`↩ ${r.sku} restored to needs-mapping`);
+  } catch(e) { toast('Restore failed: ' + e.message); }
 }
 
 async function skipSku(sku) {
