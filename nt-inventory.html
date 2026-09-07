@@ -2052,7 +2052,14 @@ function toggleSkuFba(sku, skuId) {
 
 async function confirmSku(sku) {
   const r = _skuData.find(x => x.sku === sku);
-  if (!r || !r.handle) { toast('Set a website handle first'); return; }
+  if (!r) { toast('Set a website handle first'); return; }
+  // Sync from DOM inputs in case in-memory state lagged behind
+  const sid = 'sku-' + sku.replace(/[^a-zA-Z0-9]/g, '_');
+  const hInp = document.getElementById(sid + '_handle');
+  const cInp = document.getElementById(sid + '_color');
+  if (hInp && hInp.value) r.handle = hInp.value.trim();
+  if (cInp && cInp.value) r.color = cInp.value.trim();
+  if (!r.handle) { toast('Set a website handle first'); return; }
   r.confirmed = true;
   renderSkuTable();
   try {
