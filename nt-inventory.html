@@ -2031,7 +2031,13 @@ function searchSkuDesigns(sku, skuId, query) {
   const matches = _websiteHandles
     .filter(h => h.title.toLowerCase().includes(q) || h.handle.toLowerCase().includes(q))
     .slice(0, 10);
-  if (!matches.length) { resEl.innerHTML = '<div class="sku-search-result" style="color:var(--muted);cursor:default">No matches</div>'; resEl.style.display = 'block'; return; }
+  if (!matches.length) {
+    const autoHandle = query.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const action = `pickSkuHandle('${sku.replace(/'/g,"\\'")}','${autoHandle}','${skuId}');document.getElementById('${skuId}_search').value='${query.replace(/'/g,"\\'")}';document.getElementById('${skuId}_search_res').style.display='none'`;
+    resEl.innerHTML = `<div class="sku-search-result" onmousedown="${action}">Use "<b>${autoHandle}</b>" as handle</div>`;
+    resEl.style.display = 'block';
+    return;
+  }
   resEl.style.display = 'block';
   resEl.innerHTML = matches.map(m => {
     const noHandle = !m.handle;
