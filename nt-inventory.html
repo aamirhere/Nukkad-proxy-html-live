@@ -1879,8 +1879,8 @@ async function loadAmazonSkuView() {
 const SKU_COLORS = {Peach:'#f4a070',Blue:'#6baed6',Orange:'#f07030',Red:'#d93025',White:'#ccc',Yellow:'#f5c542',Purple:'#9b59b6',Green:'#27ae60',Gold:'#c9a227'};
   function detectColor(text) {
     const t = (text || '').toLowerCase();
-    if (t.includes('pink')) return 'Peach';
-    return Object.keys(SKU_COLORS).find(c => t.includes(c.toLowerCase())) || null;
+    if (/\bpink\b/.test(t)) return 'Peach';
+    return Object.keys(SKU_COLORS).find(c => new RegExp('\\b' + c.toLowerCase() + '\\b').test(t)) || null;
   }
 
 function renderSkuTable() {
