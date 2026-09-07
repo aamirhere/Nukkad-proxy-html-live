@@ -925,7 +925,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <input type="date" id="ordersDate" onchange="loadOrders()">
     <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
     <button class="btn btn-ghost" onclick="downloadPDF()" style="margin-left:auto">⬇ PDF</button>
-    <button class="btn btn-ghost" id="btnSyncAmz" onclick="syncAmazonNow()" style="color:#c07000;border-color:#f5dfa0" title="Sync last 30 days of Amazon orders">🟡 Sync Amazon</button>
+    <button class="btn btn-ghost" id="btnSyncAmz" onclick="syncAmazonNow()" style="color:#c07000;border-color:#f5dfa0" title="Sync Amazon orders (click to pick days)">🟡 Sync Amazon</button>
     <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#9c8a76;border-color:#e9ddca;font-size:.78rem" title="Test Amazon API">Debug</button>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
@@ -1773,12 +1773,18 @@ function setEmgSource(s) {
   renderEmgGroups();
 }
 
-async function syncAmazonNow() {
+async function syncAmazonNow(daysBack) {
+  if (daysBack == null) {
+    const input = prompt('Sync how many days back?\n(default 7, enter a larger number to catch up historical data)', '7');
+    if (input === null) return; // cancelled
+    daysBack = parseInt(input) || 7;
+  }
   const btn = document.getElementById('btnSyncAmz');
   btn.disabled = true; btn.textContent = '⏳ Syncing…';
   try {
-    const res = await api({ action: 'sync_amazon_orders', days_back: 30 });
-    toast(res.synced > 0 ? `✅ Synced ${res.synced} Amazon orders (30 days)` : (res.message || '⚠ No Amazon orders returned'));
+    const res = await api({ action: 'sync_amazon_orders', days_back: daysBack });
+    toast(res.synced > 0 ? `✅ Synced ${res.synced} Amazon orders (${daysBack} days)` : (res.message || '⚠ No Amazon orders returned'));
+    if (res.synced > 0) loadOrders();
   } catch(e) { toast('Sync failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '🟡 Sync Amazon'; }
 }
