@@ -968,7 +968,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     </div>
     <button class="btn btn-ghost" onclick="openAddEmgModal()">➕ Add</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
-    <button class="btn btn-ghost" id="btnResetEmg" onclick="resetEmergencyAll()" style="color:#c62828;border-color:#f5c6c6" title="Clear emergency queue — un-marks all items, does not delete orders">🗑 Clear Queue</button>
+    <button class="btn btn-ghost" id="btnResetEmg" onclick="resetEmergencyAll()" style="color:#c62828;border-color:#f5c6c6" title="Clear this view — orders page keeps ⚠ markers intact">🗑 Clear Queue</button>
   </div>
   <div id="emgDateFilterRow" style="display:none;padding:0 0 10px;align-items:center;gap:8px">
     <label id="emgDateFilterLabel" style="font-size:.8rem;font-weight:700;color:var(--ink2)">Filter by batch date:</label>
@@ -1529,16 +1529,12 @@ async function recalcStock() {
 }
 
 async function resetEmergencyAll() {
-  const answer = prompt('This will permanently clear ALL emergency records — open, printed, and sent.\n\nType RESET to confirm:');
-  if (answer !== 'RESET') { if (answer !== null) toast('Cancelled — type exactly RESET'); return; }
-  const btn = document.getElementById('btnResetEmg');
-  btn.disabled = true; btn.textContent = 'Clearing…';
-  try {
-    const res = await api({ action: 'reset_emergency' });
-    toast(`Emergency reset — ${res.cleared} unit${res.cleared !== 1 ? 's' : ''} cleared`);
-    await loadAllEmergencies();
-  } catch(e) { toast('Failed: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '🗑 Reset All'; }
+  if (!confirm('Clear the emergency queue view?\n\nOrders will keep their ⚠ marker on the Orders page — this only clears what you see here.')) return;
+  // UI-only clear — does not touch is_emergency in DB so Orders page keeps showing ⚠
+  document.getElementById('emgOpenList').innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>Queue cleared — orders page still shows ⚠ markers</p></div>';
+  document.getElementById('emgPrintedList').innerHTML = '';
+  document.getElementById('emgSentList').innerHTML = '';
+  toast('Emergency queue cleared (orders page unchanged)');
 }
 
 async function resetStock() {
