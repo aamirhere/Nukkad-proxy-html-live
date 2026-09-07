@@ -2432,7 +2432,12 @@ function renderOrders() {
   }
 
   serialCounter = 0;
-  const sorted = Object.values(groups).sort((a, b) => a.title.localeCompare(b.title));
+  // Amazon groups first, then website, alphabetically within each
+  const sorted = Object.values(groups).sort((a, b) => {
+    const aAmz = a.units[0]?.source === 'amazon' ? 0 : 1;
+    const bAmz = b.units[0]?.source === 'amazon' ? 0 : 1;
+    return aAmz - bAmz || a.title.localeCompare(b.title);
+  });
   document.getElementById('designGroups').innerHTML = sorted.map(g => renderGroup(g)).join('');
   restoreOpenGroups();
 }
@@ -2458,13 +2463,10 @@ function renderGroup(g) {
   if (isSingle) {
     const isPicked = u0.picked;
     const isEmerg  = u0.is_emergency;
-    if (isEmerg) {
-      leftBtn  = `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="event.stopPropagation();unmarkEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">⚠ No stock ×</button>`;
-      rightBtn = ``;
-    } else {
-      leftBtn  = `<button class="unit-btn nostock" onclick="event.stopPropagation();markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>`;
-      rightBtn = `<button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">${isPicked ? '✓ Picked' : 'Pick'}</button>`;
-    }
+    leftBtn  = isEmerg
+      ? `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="event.stopPropagation();unmarkEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">⚠ No stock ×</button>`
+      : `<button class="unit-btn nostock" onclick="event.stopPropagation();markEmergency(${JSON.stringify(u0).replace(/"/g,'&quot;')})">No Stock</button>`;
+    rightBtn = `<button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();togglePick(${JSON.stringify(u0).replace(/"/g,'&quot;')})">${isPicked ? '✓ Picked' : 'Pick'}</button>`;
   } else {
     const allPicked = pickedCount === total && total > 0;
     const allEmerg = emergCount === total && total > 0;
@@ -2517,16 +2519,10 @@ function renderUnit(u) {
     ${u.source === 'amazon' && u.order_status ? `<span class="unit-color" style="background:${u.order_status==='Unshipped'?'#1a7f37':u.order_status==='Pending'?'#b05000':'#888'};color:#fff;font-size:.7rem">${u.order_status}</span>` : ''}
     ${u.color ? `<span class="unit-color">${u.color}</span>` : ''}
     <div class="unit-status">
-      ${isEmerg ? `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="unmarkEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">⚠ No stock ×</button>` : `
-        <button class="unit-btn nostock"
-          onclick="markEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">
-          No Stock
-        </button>
-        <button class="unit-btn ${isPicked ? 'picked' : 'pick'}"
-          onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">
-          ${isPicked ? '✓' : 'Pick'}
-        </button>
-      `}
+      ${isEmerg
+        ? `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="unmarkEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">⚠ No stock ×</button>`
+        : `<button class="unit-btn nostock" onclick="markEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">No Stock</button>`}
+      <button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">${isPicked ? '✓' : 'Pick'}</button>
     </div>
   </div>`;
 }
