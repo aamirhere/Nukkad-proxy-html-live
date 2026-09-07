@@ -2479,13 +2479,21 @@ function renderGroup(g) {
     rightBtn = `<button class="unit-btn ${allPicked ? 'picked' : 'pick'}" onclick="event.stopPropagation();pickAll('${safeTitle}')">${allPicked ? '✓ All Picked' : 'Pick All'}</button>`;
   }
 
+  const isAmazonGroup = g.units.every(u => u.source === 'amazon');
+  const isGenericAmazon = isAmazonGroup && /^Amazon Order/.test(g.title);
+  // For generic title groups, show order IDs instead so they're identifiable
+  const displayTitle = isGenericAmazon
+    ? (isSingle ? (u0.order_name || g.title) : g.title)
+    : g.title;
+
   const slug = titleSlug(g.title);
+  const amzGroupStyle = isAmazonGroup ? 'border-left:3px solid #ff9900;background:linear-gradient(135deg,rgba(255,153,0,.07) 0%,transparent 60%)' : '';
   return `
-  <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${slug}">
+  <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${slug}" style="${amzGroupStyle}">
     <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${slug}')" style="cursor:pointer"` : ''}>
       ${leftBtn}
       <div class="dg-info">
-        <div class="dg-title">${g.title} ${colorLine} ${orderTag}</div>
+        <div class="dg-title">${isAmazonGroup ? '<span style="color:#c07000;font-size:.72rem;font-weight:700;letter-spacing:.04em;margin-right:4px">AMZ</span>' : ''}${displayTitle} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
       <div class="dg-actions-row">
