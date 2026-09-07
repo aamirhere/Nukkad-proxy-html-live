@@ -1840,13 +1840,12 @@ async function loadAmazonSkuView() {
   document.getElementById('skuSubtitle').textContent = 'Loading…';
   document.getElementById('skuTable').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div>'.repeat(5);
   try {
-    const [mapRes, handleRes, prodRes, salesRes] = await Promise.all([
+    const [mapRes, handleRes, prodRes] = await Promise.all([
       api({ action: 'load_sku_map' }),
       api({ action: 'load_design_index' }),
       allProducts.length ? Promise.resolve(null) : api({ action: 'load_products' }),
-      api({ action: 'load_sku_sales' }),
     ]);
-    if (salesRes?.counts) _skuSalesCounts = salesRes.counts;
+    _skuSalesCounts = {}; // clear so All Time falls back to r.count from loadSkuMap
     if (prodRes?.products) allProducts = prodRes.products;
     if (handleRes.designs?.length) _websiteHandles = handleRes.designs;
     // Merge allProducts (Shopify inventory) — fills in handles missing from nt_order_units
@@ -2236,6 +2235,9 @@ async function setSkuFilter(mode) {
   } else {
     _skuDateFrom = '';
     _skuDateTo = '';
+    _skuSalesCounts = {}; // All Time: fall back to r.count from loadSkuMap (already correct)
+    renderSkuTable();
+    return;
   }
   try {
     const res = await api({ action: 'load_sku_sales', date_from: _skuDateFrom || undefined, date_to: _skuDateTo || undefined });
