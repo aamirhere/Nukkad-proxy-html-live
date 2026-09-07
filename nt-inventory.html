@@ -1101,6 +1101,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <h2>🟡 Amazon SKU Mapping</h2>
       <p id="skuSubtitle">Match your Amazon SKUs to website designs</p>
     </div>
+    <button class="btn btn-ghost" id="syncCatalogBtn" onclick="syncAmazonCatalog(this)" title="Pull all SKUs from your Amazon seller account">☁ Sync all from Amazon</button>
     <button class="btn btn-ghost" onclick="loadAmazonSkuView()">↻ Reload</button>
   </div>
 
@@ -1818,6 +1819,17 @@ function topMatches(amazonTitle, handles, n = 5) {
     .filter(h => h.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, n);
+}
+
+async function syncAmazonCatalog(btn) {
+  btn.disabled = true; btn.textContent = '☁ Syncing… (may take ~30s)';
+  try {
+    const res = await api({ action: 'fetch_amazon_catalog' });
+    if (res.error) { toast('Error: ' + res.error); return; }
+    toast(`✓ Synced ${res.total} SKUs from Amazon · ${res.new_added} new added`);
+    await loadAmazonSkuView();
+  } catch(e) { toast('Sync failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '☁ Sync all from Amazon'; }
 }
 
 async function loadAmazonSkuView() {
