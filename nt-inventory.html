@@ -933,6 +933,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <button class="emg-tab active" id="ordersTabAll" onclick="setOrdersFilter('all')">All orders</button>
       <button class="emg-tab" id="ordersTabEmg" onclick="setOrdersFilter('emg')">Emergency only</button>
     </div>
+    <button class="btn btn-ghost" id="btnPushEmg" onclick="pushAllToEmergency()" style="color:#b03020;border-color:#f5c6c6;font-size:.8rem" title="Send all unpicked orders for this date to the Emergency tab for production manager">⚠ Push to Emergency</button>
     <div class="emg-view-tabs" style="margin-bottom:0;margin-left:auto">
       <button class="emg-tab active" id="ordersSourceAll" onclick="setOrdersSource('all')">All</button>
       <button class="emg-tab" id="ordersSourceWebsite" onclick="setOrdersSource('website')">Website</button>
@@ -967,7 +968,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     </div>
     <button class="btn btn-ghost" onclick="openAddEmgModal()">➕ Add</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
-    <button class="btn btn-ghost" id="btnResetEmg" onclick="resetEmergencyAll()" style="color:#c62828;border-color:#f5c6c6">🗑 Reset All</button>
+    <button class="btn btn-ghost" id="btnResetEmg" onclick="resetEmergencyAll()" style="color:#c62828;border-color:#f5c6c6" title="Clear emergency queue — un-marks all items, does not delete orders">🗑 Clear Queue</button>
   </div>
   <div id="emgDateFilterRow" style="display:none;padding:0 0 10px;align-items:center;gap:8px">
     <label id="emgDateFilterLabel" style="font-size:.8rem;font-weight:700;color:var(--ink2)">Filter by batch date:</label>
@@ -2579,6 +2580,25 @@ async function noStockAll(title) {
     await Promise.all(units.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
     toast(`Marked ${units.length} unit${units.length !== 1 ? 's' : ''} as no stock`);
   } catch { toast('Sync failed'); }
+}
+
+async function pushAllToEmergency() {
+  const date = document.getElementById('ordersDate').value;
+  if (!date) { toast('Pick a date first'); return; }
+  // All unpicked, non-emergency units for this date (excludes FBA — they have no production need)
+  const targets = currentUnits.filter(u => !u.picked && !u.is_emergency);
+  if (!targets.length) { toast('No unpicked orders to push'); return; }
+  if (!confirm(`Push ${targets.length} unpicked order unit${targets.length !== 1 ? 's' : ''} from ${date} to the Emergency tab?\n\nProduction manager will see them there.`)) return;
+  const btn = document.getElementById('btnPushEmg');
+  btn.disabled = true; btn.textContent = '⏳ Pushing…';
+  targets.forEach(u => { u.is_emergency = true; });
+  renderOrders();
+  updateEmergencyBadge();
+  try {
+    await Promise.all(targets.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
+    toast(`⚠ ${targets.length} unit${targets.length !== 1 ? 's' : ''} pushed to Emergency tab`);
+  } catch(e) { targets.forEach(u => { u.is_emergency = false; }); renderOrders(); toast('Push failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '⚠ Push to Emergency'; }
 }
 
 async function unmarkAllEmergency(title) {
