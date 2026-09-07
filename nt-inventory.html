@@ -1824,11 +1824,27 @@ async function loadAmazonSkuView() {
   document.getElementById('skuSubtitle').textContent = 'Loading…';
   document.getElementById('skuTable').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div>'.repeat(5);
   try {
-    const [mapRes, handleRes] = await Promise.all([
+    const [mapRes, handleRes, prodRes] = await Promise.all([
       api({ action: 'load_sku_map' }),
       api({ action: 'load_design_index' }),
+      allProducts.length ? Promise.resolve(null) : api({ action: 'load_products' }),
     ]);
+    if (prodRes?.products) allProducts = prodRes.products;
     if (handleRes.designs?.length) _websiteHandles = handleRes.designs;
+    // Merge allProducts (Shopify inventory) — fills in handles missing from nt_order_units
+    if (allProducts?.length) {
+      const byTitle = {};
+      _websiteHandles.forEach(h => { byTitle[h.title?.toLowerCase()] = h; });
+      allProducts.forEach(p => {
+        if (!p.handle || !p.title) return;
+        const key = p.title.toLowerCase();
+        if (!byTitle[key]) {
+          _websiteHandles.push({ handle: p.handle, title: p.title });
+        } else if (!byTitle[key].handle) {
+          byTitle[key].handle = p.handle;
+        }
+      });
+    }
     _skuData = mapRes.rows || [];
     const mapped = _skuData.filter(r => r.handle && r.handle !== 'amazon' && r.confirmed).length;
     document.getElementById('skuSubtitle').textContent =
