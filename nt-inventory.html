@@ -1889,10 +1889,11 @@ function renderSkuTable() {
     return true;
   });
 
-  const confirmed   = rows.filter(r => r.confirmed && r.handle && r.handle !== 'amazon');
-  const unconfirmed = unmappedOnly ? rows.filter(r => !r.confirmed || !r.handle || r.handle === 'amazon') : rows.filter(r => !r.confirmed || !r.handle || r.handle === 'amazon');
+  const skipped     = rows.filter(r => r.handle === '__skip__');
+  const confirmed   = rows.filter(r => r.confirmed && r.handle && r.handle !== 'amazon' && r.handle !== '__skip__');
+  const unconfirmed = rows.filter(r => !r.confirmed || !r.handle || r.handle === 'amazon');
 
-  document.getElementById('skuCount').textContent = `${confirmed.length} confirmed · ${unconfirmed.length} pending`;
+  document.getElementById('skuCount').textContent = `${confirmed.length} confirmed · ${unconfirmed.length} pending · ${skipped.length} skipped`;
 
   // ── Confirmed table — grouped by design (handle+color) ───────────────────
   let confirmedHtml = '';
@@ -2001,6 +2002,8 @@ function renderSkuTable() {
               onkeydown="if(event.key==='Enter') document.getElementById('${skuId}_confirm').click()">
             <button class="btn btn-ghost" id="${skuId}_confirm" style="font-size:.78rem;padding:4px 10px;color:var(--green)"
               onclick="confirmSku('${r.sku.replace(/'/g,"\\'")}')">✓ Confirm</button>
+            <button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:var(--muted)"
+              onclick="skipSku('${r.sku.replace(/'/g,"\\'")}')">Skip</button>
           </div>
         </div>`;
       }).join('');
@@ -2118,6 +2121,17 @@ async function confirmSku(sku) {
       toast(`✓ ${r.sku} → ${r.handle}${r.color ? ' / ' + r.color : ''}`);
     }
   } catch(e) { toast('Save failed: ' + e.message); }
+}
+
+async function skipSku(sku) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.handle = '__skip__';
+  r.confirmed = true;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: '__skip__', color: '', confirmed: true, is_fba: false });
+  } catch(e) { toast('Skip failed: ' + e.message); }
 }
 
 async function unconfirmSku(sku) {
