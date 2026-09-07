@@ -1929,7 +1929,7 @@ function renderSkuTable() {
                 : `${rdot}${r.color || '—'}`;
               return `<tr>
               <td><span class="sku-label" style="font-size:.78rem">${r.sku}</span></td>
-              <td>${r.is_fba ? `<span style="font-size:.68rem;font-weight:700;color:#c07000;background:#fff8e1;border:1px solid #f5dfa0;border-radius:3px;padding:1px 5px">FBA</span>` : `<span style="font-size:.68rem;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:1px 5px">Self</span>`}</td>
+              <td><button onclick="quickFixFba('${r.sku.replace(/'/g,"\\'")}',${!r.is_fba})" style="font-size:.68rem;font-weight:700;border-radius:3px;padding:1px 5px;cursor:pointer;border:1px solid;${r.is_fba ? 'color:#c07000;background:#fff8e1;border-color:#f5dfa0' : 'color:var(--muted);background:none;border-color:var(--line)'}">${r.is_fba ? 'FBA' : 'Self'}</button></td>
               <td>${colorCell}</td>
               <td style="font-size:.82rem;color:var(--ink)">${g.rows.length === 1 ? designTitle : ''}</td>
               <td class="sku-asin" style="font-size:.72rem">${r.asin || '—'}</td>
@@ -2156,6 +2156,16 @@ async function confirmSku(sku) {
       toast(`✓ ${r.sku} → ${r.handle}${r.color ? ' / ' + r.color : ''}`);
     }
   } catch(e) { toast('Save failed: ' + e.message); }
+}
+
+async function quickFixFba(sku, is_fba) {
+  const r = _skuData.find(x => x.sku === sku);
+  if (!r) return;
+  r.is_fba = is_fba;
+  renderSkuTable();
+  try {
+    await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: true, is_fba });
+  } catch(e) { toast('Update failed: ' + e.message); }
 }
 
 async function quickFixColor(sku, color) {
