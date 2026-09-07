@@ -1801,6 +1801,10 @@ async function debugAmazonOrders() {
 
 let _skuData = [];        // [{sku, asin, amazon_title, count, handle, confirmed}]
 let _websiteHandles = []; // [{handle, title}] — for fuzzy matching suggestions
+let _skuSalesCounts = {}; // sku → date-filtered sold count
+let _skuFilterMode = 'all'; // 'month' | 'year' | 'custom' | 'all'
+let _skuDateFrom = '';
+let _skuDateTo = '';
 
 function skuScore(amazonTitle, websiteTitle) {
   // Word-overlap Jaccard score, lowercased, stripped of noise words
@@ -1900,10 +1904,9 @@ function renderSkuTable() {
 
   document.getElementById('skuCount').textContent = `${confirmed.length} confirmed · ${unconfirmed.length} pending · ${skipped.length} skipped`;
 
-  // ── Confirmed table — grouped by design (handle+color) ───────────────────
+  // ── Confirmed table — grouped by handle ─────────────────────────────────
   let confirmedHtml = '';
   if (confirmed.length) {
-    // Group by handle+color
     const confGroups = {};
     for (const r of confirmed) {
       const key = r.handle || '';
@@ -1912,38 +1915,66 @@ function renderSkuTable() {
     }
     const confGroupsSorted = Object.values(confGroups).sort((a, b) => (a.handle || '').localeCompare(b.handle || ''));
 
+    const today = new Date().toISOString().slice(0,10);
+    const thisMonth = today.slice(0,7);
+    const thisYear = today.slice(0,4);
+    const activeFilter = (id) => _skuFilterMode === id ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : 'background:none;color:var(--ink2);border-color:var(--line)';
+
+    const filterBar = `
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <span style="font-size:.8rem;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-right:4px">✓ CONFIRMED</span>
+        <button onclick="setSkuFilter('month')" style="font-size:.72rem;padding:2px 10px;border-radius:20px;border:1px solid;cursor:pointer;${activeFilter('month')}">This Month</button>
+        <button onclick="setSkuFilter('year')"  style="font-size:.72rem;padding:2px 10px;border-radius:20px;border:1px solid;cursor:pointer;${activeFilter('year')}">This Year</button>
+        <button onclick="setSkuFilter('all')"   style="font-size:.72rem;padding:2px 10px;border-radius:20px;border:1px solid;cursor:pointer;${activeFilter('all')}">All Time</button>
+        <span style="font-size:.72rem;color:var(--muted);margin-left:4px">Custom:</span>
+        <input type="date" id="skuf-from" value="${_skuDateFrom}" onchange="setSkuFilter('custom')" style="font-size:.72rem;padding:2px 6px;border:1px solid var(--line);border-radius:6px;color:var(--ink)">
+        <span style="font-size:.72rem;color:var(--muted)">–</span>
+        <input type="date" id="skuf-to" value="${_skuDateTo}" onchange="setSkuFilter('custom')" style="font-size:.72rem;padding:2px 6px;border:1px solid var(--line);border-radius:6px;color:var(--ink)">
+      </div>`;
+
     confirmedHtml = `
     <div style="margin-bottom:18px">
-      <div style="font-size:.8rem;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-bottom:8px">✓ CONFIRMED MAPPINGS</div>
-      <table class="sku-conf-table">
-        <thead><tr><th>SKU</th><th>Type</th><th>Color</th><th>Design</th><th>ASIN</th><th>Orders</th><th></th></tr></thead>
+      ${filterBar}
+      <table class="sku-conf-table" style="table-layout:fixed;width:100%">
+        <colgroup><col style="width:28%"><col style="width:38%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:9%"></colgroup>
+        <thead><tr>
+          <th style="text-align:left">Design</th>
+          <th style="text-align:left">Details</th>
+          <th style="text-align:center">Stock</th>
+          <th style="text-align:center">Sold</th>
+          <th></th>
+        </tr></thead>
         <tbody>
           ${confGroupsSorted.map(g => {
             const designTitle = (_websiteHandles.find(h => h.handle === g.handle) || {}).title || g.handle;
-            const groupHeader = g.rows.length > 1 ? `<tr style="background:rgba(212,84,31,.05)">
-              <td colspan="7" style="font-size:.72rem;font-weight:700;color:var(--accent);padding:4px 10px;letter-spacing:.03em">
-                ${designTitle} — ${g.rows.length} listings
-              </td></tr>` : '';
-            return groupHeader + g.rows.map(r => {
-              const rdot = SKU_COLORS[r.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[r.color]};margin-right:4px;vertical-align:middle"></span>` : '';
+            const stockEntry = allProducts.find(p => p.handle === g.handle);
+            const stockVal = stockEntry?.stock != null ? stockEntry.stock : '—';
+            return g.rows.map((r, ri) => {
+              const soldCount = _skuSalesCounts[r.sku] != null ? _skuSalesCounts[r.sku] : (r.count || 0);
+              const fbaBg = r.is_fba ? 'background:#fffbf0;' : '';
+              const fbaPill = `<button onclick="quickFixFba('${r.sku.replace(/'/g,"\\'")}',${!r.is_fba})" style="font-size:.68rem;font-weight:700;border-radius:20px;padding:1px 7px;cursor:pointer;border:1px solid;${r.is_fba ? 'color:#c07000;background:#fff3cc;border-color:#f5dfa0' : 'color:var(--muted);background:none;border-color:var(--line)'}">${r.is_fba ? 'FBA' : 'Self'}</button>`;
+              const colorDot = SKU_COLORS[r.color] ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SKU_COLORS[r.color]};vertical-align:middle;margin-right:3px"></span>` : '';
               const titleLower = (r.amazon_title || r.sku).toLowerCase();
               const suggested = detectColor(titleLower);
               const colorMismatch = suggested && suggested !== r.color;
-              const colorCell = colorMismatch
-                ? `${rdot}${r.color || '—'} <button onclick="quickFixColor('${r.sku.replace(/'/g,"\\'")}','${suggested}')" title="Title suggests ${suggested}" style="font-size:.68rem;background:#fff8e1;border:1px solid #f5dfa0;border-radius:4px;padding:1px 6px;color:#c07000;cursor:pointer;margin-left:4px">→ ${suggested}?</button>`
-                : `${rdot}${r.color || '—'}`;
-              return `<tr>
-              <td><span class="sku-label" style="font-size:.78rem">${r.sku}</span></td>
-              <td><button onclick="quickFixFba('${r.sku.replace(/'/g,"\\'")}',${!r.is_fba})" style="font-size:.68rem;font-weight:700;border-radius:3px;padding:1px 5px;cursor:pointer;border:1px solid;${r.is_fba ? 'color:#c07000;background:#fff8e1;border-color:#f5dfa0' : 'color:var(--muted);background:none;border-color:var(--line)'}">${r.is_fba ? 'FBA' : 'Self'}</button></td>
-              <td>${colorCell}</td>
-              <td style="font-size:.82rem;color:var(--ink)">${designTitle}</td>
-              <td class="sku-asin" style="font-size:.72rem">${r.asin
-                ? r.asin
-                : `<input placeholder="ASIN" style="width:90px;font-size:.72rem;border:1px solid var(--line);border-radius:4px;padding:1px 4px;color:var(--ink)" onblur="quickSaveAsin('${r.sku.replace(/'/g,"\\'")}',this.value.trim())" onkeydown="if(event.key==='Enter')this.blur()">`
-              }</td>
-              <td style="font-size:.72rem;color:var(--muted);text-align:center">${r.count || 0}</td>
-              <td><button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button></td>
-            </tr>`;}).join('');
+              const colorPill = `<span style="font-size:.68rem;border-radius:20px;padding:1px 7px;border:1px solid var(--line);color:var(--ink2)">${colorDot}${r.color || '—'}${colorMismatch ? ` <button onclick="quickFixColor('${r.sku.replace(/'/g,"\\'")}','${suggested}')" style="font-size:.66rem;background:none;border:none;color:#c07000;cursor:pointer;padding:0">→${suggested}?</button>` : ''}</span>`;
+              const asinCell = r.asin
+                ? `<span style="font-size:.68rem;color:var(--muted);font-family:monospace">${r.asin}</span>`
+                : `<input placeholder="ASIN" style="width:80px;font-size:.68rem;border:1px solid var(--line);border-radius:4px;padding:1px 4px;color:var(--ink)" onblur="quickSaveAsin('${r.sku.replace(/'/g,"\\'")}',this.value.trim())" onkeydown="if(event.key==='Enter')this.blur()">`;
+              return `<tr style="${fbaBg}">
+                <td style="padding:5px 8px;vertical-align:middle">${ri === 0 ? `<div style="font-weight:600;font-size:.88rem;color:var(--ink);line-height:1.2">${designTitle}</div>` : ''}</td>
+                <td style="padding:5px 8px;vertical-align:middle">
+                  <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+                    ${fbaPill}${colorPill}
+                    <span style="font-size:.68rem;color:var(--muted);font-family:monospace">${r.sku}</span>
+                    ${asinCell}
+                  </div>
+                </td>
+                <td style="text-align:center;font-size:.82rem;color:var(--ink2);padding:5px 4px">${ri === 0 ? stockVal : ''}</td>
+                <td style="text-align:center;font-size:.82rem;font-weight:600;color:var(--ink);padding:5px 4px">${soldCount}</td>
+                <td style="padding:5px 4px;text-align:right"><button class="btn btn-ghost" style="font-size:.68rem;padding:2px 7px;color:var(--muted)" onclick="unconfirmSku('${r.sku.replace(/'/g,"\\'")}')">Edit</button></td>
+              </tr>`;
+            }).join('');
           }).join('')}
         </tbody>
       </table>
@@ -2185,6 +2216,29 @@ async function quickFixColor(sku, color) {
     await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color, confirmed: true, is_fba: r.is_fba });
     toast(`✓ ${r.sku} color → ${color}`);
   } catch(e) { toast('Update failed: ' + e.message); }
+}
+
+async function setSkuFilter(mode) {
+  _skuFilterMode = mode;
+  const today = new Date().toISOString().slice(0,10);
+  if (mode === 'month') {
+    _skuDateFrom = today.slice(0,7) + '-01';
+    _skuDateTo = today;
+  } else if (mode === 'year') {
+    _skuDateFrom = today.slice(0,4) + '-01-01';
+    _skuDateTo = today;
+  } else if (mode === 'custom') {
+    _skuDateFrom = document.getElementById('skuf-from')?.value || '';
+    _skuDateTo   = document.getElementById('skuf-to')?.value || '';
+  } else {
+    _skuDateFrom = '';
+    _skuDateTo = '';
+  }
+  try {
+    const res = await api({ action: 'load_sku_sales', date_from: _skuDateFrom || undefined, date_to: _skuDateTo || undefined });
+    _skuSalesCounts = res.counts || {};
+  } catch(e) { _skuSalesCounts = {}; }
+  renderSkuTable();
 }
 
 async function quickSaveAsin(sku, asin) {
