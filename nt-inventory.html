@@ -1858,6 +1858,15 @@ async function loadAmazonSkuView() {
       });
     }
     _skuData = mapRes.rows || [];
+    // Also seed _websiteHandles from confirmed SKU mappings — covers draft/unlisted Shopify products
+    const byHandle = {};
+    _websiteHandles.forEach(h => { if (h.handle) byHandle[h.handle] = true; });
+    _skuData.filter(r => r.confirmed && r.handle && r.handle !== 'amazon').forEach(r => {
+      if (!byHandle[r.handle]) {
+        _websiteHandles.push({ handle: r.handle, title: r.amazon_title || r.handle });
+        byHandle[r.handle] = true;
+      }
+    });
     const mapped = _skuData.filter(r => r.handle && r.handle !== 'amazon' && r.confirmed).length;
     document.getElementById('skuSubtitle').textContent =
       `${_skuData.length} SKU${_skuData.length !== 1 ? 's' : ''} · ${mapped} confirmed · ${_skuData.length - mapped} unmatched`;
@@ -2092,7 +2101,20 @@ async function confirmSku(sku) {
   renderSkuTable();
   try {
     await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: true, is_fba: r.is_fba });
-    toast(`✓ ${r.sku} → ${r.handle}${r.color ? ' / ' + r.color : ''}`);
+    // Auto-add to inventory if this handle isn't tracked yet
+    const inInventory = allProducts.find(p => p.handle === r.handle);
+    if (!inInventory) {
+      const title = r.amazon_title || r.handle;
+      try {
+        await api({ action: 'add_product', handle: r.handle, title });
+        allProducts.unshift({ handle: r.handle, title, stock: null, counted_at: null });
+        toast(`✓ ${r.sku} → ${r.handle} · added to inventory tracking`);
+      } catch {
+        toast(`✓ ${r.sku} → ${r.handle} (add to inventory manually)`);
+      }
+    } else {
+      toast(`✓ ${r.sku} → ${r.handle}${r.color ? ' / ' + r.color : ''}`);
+    }
   } catch(e) { toast('Save failed: ' + e.message); }
 }
 
