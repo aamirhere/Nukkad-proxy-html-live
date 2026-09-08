@@ -1060,6 +1060,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
         <button class="emg-tab" data-d="90" onmousedown="event.preventDefault()" onclick="ordersSearchDays(90)">90d</button>
         <button class="emg-tab" data-d="180" onmousedown="event.preventDefault()" onclick="ordersSearchDays(180)">180d</button>
       </div>
+      <button class="btn btn-ghost" onclick="ordersSearch()" style="font-size:.74rem;padding:4px 9px" title="Search">🔍</button>
       <button class="btn btn-ghost" id="ordersSearchClear" onclick="ordersSearchClear()" style="font-size:.74rem;padding:4px 8px;display:none">✕</button>
     </div>
     <button class="btn btn-ghost" onclick="downloadPDF()">⬇ PDF</button>
@@ -4884,7 +4885,7 @@ function renderCutPlan() {
   document.getElementById('cutSummary').innerHTML =
     `<b>${total}</b> pieces today · ${p.emergency_today} emergency + ${p.stock_total} stock` +
     (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">${p.emergency_carry} emergency carry to tomorrow</span>` : '') +
-    ` · range levelled to <b>${p.level_days}d</b>` +
+    (p.stock_mode === 'priority' ? ` · <span style="color:#b05000;font-weight:700">tight day — top sellers first</span>` : ` · range levelled to <b>${p.level_days}d</b>`) +
     (p.uncounted ? ` · <span style="color:#b05000">${p.uncounted} designs not counted</span>` : '');
   document.getElementById('cutPrintDate').textContent = `Cut list · ${d}-${m}-${y} · ${total} pieces`;
 
