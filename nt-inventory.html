@@ -4018,6 +4018,7 @@ async function loadDispatchView() {
         const t = new Date(d.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
         const header = `<div class="dl-entry${applied ? '' : ' na'}">
           <span>List saved ${t}${multi ? ` · ${items.length} design${items.length !== 1 ? 's' : ''} · ${pcs} pcs` : ''}</span>
+          <input type="date" value="${d.dispatch_date}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setDispatchDate('${d.id}',this.value)" title="Change the dispatch date of this list" style="font-size:.7rem;padding:1px 4px;border:1px solid var(--line);border-radius:6px;color:var(--ink2);background:#fff">
           <span class="dl-badge ${applied ? 'ok' : 'na'}">${applied ? 'applied' : 'not applied'}</span>
           ${d.notes ? `<span style="color:var(--muted)">“${d.notes}”</span>` : ''}
           <span style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">
@@ -4130,6 +4131,19 @@ async function restoreDispatchVersion(id, version) {
     document.getElementById('dispatchHistoryModal').style.display = 'none';
     loadDispatchView(); loadAllEmergencies();
   } catch (e) { toast('Restore failed: ' + e.message); }
+}
+
+async function setDispatchDate(id, date) {
+  if (!date) return;
+  try {
+    const rows = await api({ action: 'load_dispatches', days: 3650 });
+    const d = (rows.dispatches || []).find(x => x.id === id);
+    if (!d) throw new Error('List not found');
+    const items = (Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]')).map(it => ({ handle: it.handle, title: it.title, qty: it.qty, type: it.type }));
+    await api({ action: 'update_dispatch_items', id, items, dispatch_date: date, summary: `Date changed to ${date}` });
+    toast(`📅 Moved to ${date}`);
+    loadDispatchView();
+  } catch (e) { toast('Failed: ' + e.message); }
 }
 
 async function setDispatchApplied(id, applied) {
