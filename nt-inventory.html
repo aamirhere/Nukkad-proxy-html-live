@@ -3779,13 +3779,9 @@ async function loadDispatchView() {
       const emgRes = await api({ action: 'load_all_emergencies' });
       allEmgGroups = emgRes.groups || [];
     }
-    const [res, delRes] = await Promise.all([
-      api({ action: 'load_dispatches', days: 90 }),
-      api({ action: 'deleted_dispatches', limit: 30 }).catch(() => ({ deleted: [] })),
-    ]);
+    const res = await api({ action: 'load_dispatches', days: 90 });
     const dispatches = res.dispatches || [];
-    const deletedHTML = renderDeletedDispatches(delRes.deleted || []);
-    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>' + deletedHTML; return; }
+    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>'; return; }
     // merge same-day dispatches into one card
     const byDate = {};
     for (const d of dispatches) {
@@ -3855,32 +3851,10 @@ async function loadDispatchView() {
         </div>
         ${dispatchBlocks}
       </div>`;
-    }).join('') + deletedHTML;
+    }).join('');
   } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
 }
 
-function renderDeletedDispatches(deleted) {
-  if (!deleted.length) return '';
-  const rows = deleted.map(d => {
-    const when = new Date(d.deleted_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const pcs = d.items.reduce((s, i) => s + (i.qty || 0), 0);
-    const items = d.items.map(i => `${i.qty}× ${i.title || i.handle}`).join(', ') || '(empty)';
-    return `<div class="dl-entry" style="background:#fff">
-      <span class="dl-entry-id">#${String(d.id).slice(0, 6)}</span>
-      <span>for ${d.dispatch_date} · ${pcs} pcs · deleted ${when}</span>
-      <span class="dl-badge ${d.applied ? 'ok' : 'na'}">${d.applied ? 'was applied' : 'was not applied'}</span>
-      <span style="flex-basis:100%;font-size:.72rem;color:var(--muted)">${items}</span>
-      <span style="margin-left:auto;display:flex;gap:4px">
-        <button class="btn btn-ghost" onclick="openDispatchHistory('${d.id}')">🕘 History</button>
-        <button class="btn btn-ghost" style="color:var(--green)" onclick="restoreDispatchVersion('${d.id}',${d.version})">↶ Restore</button>
-      </span>
-    </div>`;
-  }).join('');
-  return `<details style="margin-top:14px">
-    <summary style="font-size:.8rem;font-weight:700;color:var(--muted);letter-spacing:.05em;cursor:pointer;user-select:none">🗑 RECENTLY DELETED LISTS (${deleted.length})</summary>
-    <div style="margin-top:8px">${rows}</div>
-  </details>`;
-}
 
 function toggleDispatchCard(card) {
   const body = card.querySelector('.dl-body');
@@ -3966,7 +3940,7 @@ async function setDispatchApplied(id, applied) {
 }
 
 async function deleteDispatch(id, silent = false) {
-  if (!silent && !confirm('Delete this dispatch list?\n\nIf it was applied, its emergency picks and stock are reversed. A version is kept in history and the list can be restored from "Recently deleted".')) return;
+  if (!silent && !confirm('Delete this dispatch list?\n\nIf it was applied, its emergency picks and stock changes are reversed. This cannot be undone.')) return;
   try {
     await api({ action: 'delete_dispatch', id });
     if (!silent) { toast('Deleted ✓'); loadDispatchView(); }
