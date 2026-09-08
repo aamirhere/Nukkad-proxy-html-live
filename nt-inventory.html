@@ -3770,8 +3770,8 @@ function renderDispatchRows() {
   document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
     const pending = emgPendingCount(row.handle, row.title);
     const unmatched = !row.handle && !!row.title;
-    const addChip = unmatched ? `<button type="button" onclick="dAddNewDesign(${i})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #b8e0c0;background:#f6fdf7;color:#1a7f37;cursor:pointer;font-family:inherit;font-weight:700" title="Create this as a new design in Inventory and use it here">➕ Add “${(row.title || '').replace(/"/g, '&quot;')}” as new design</button>` : '';
-    const sug = unmatched && row._suggest?.length ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">Did you mean: ${row._suggest.map(sg => `<button type="button" onclick="dSelect(${i},'${sg.handle.replace(/'/g, "\\'")}',${JSON.stringify(sg.title).replace(/"/g, '&quot;')})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #f2c9b4;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit" title="Use this design">${sg.title}</button>`).join('')}${addChip}</div>` : (unmatched ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">No close match — edit the name to search, or ${addChip}</div>` : '');
+    const addChip = unmatched ? `<button type="button" onclick="dAddNewDesign(${i})" style="font-size:.72rem;padding:2px 8px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700" title="Add “${(row.title || '').replace(/"/g, '&quot;')}” as a new design">+</button>` : '';
+    const sug = unmatched && row._suggest?.length ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">Did you mean: ${row._suggest.map(sg => `<button type="button" onclick="dSelect(${i},'${sg.handle.replace(/'/g, "\\'")}',${JSON.stringify(sg.title).replace(/"/g, '&quot;')})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #f2c9b4;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit" title="Use this design">${sg.title}</button>`).join('')}${addChip}</div>` : (unmatched ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">No close match — edit the name to search ${addChip}</div>` : '');
     return `
     <div data-drow="${i}" style="padding:10px;background:${unmatched ? '#fff3ee' : '#fdf5ec'};border-radius:10px;border:1.5px solid ${unmatched ? '#e65100' : '#e9ddca'}">
       ${unmatched ? `<div style="font-size:.68rem;font-weight:800;color:#e65100;letter-spacing:.05em;margin-bottom:4px">NOT MATCHED</div>` : ''}
@@ -3885,6 +3885,16 @@ function toggleDispatchPaste() {
 }
 
 function _dNorm(t) { return (t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function _dLev(a, b) {
+  const m = a.length, n = b.length; if (!m || !n) return Math.max(m, n);
+  let prev = Array.from({ length: n + 1 }, (_, j) => j), cur = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
 function _dBigrams(t) { const b = new Set(); const x = t.replace(/\s/g, ''); for (let k = 0; k < x.length - 1; k++) b.add(x.slice(k, k + 2)); return b; }
 // Scores a pasted name against the catalogue. Only a normalised exact match is
 // accepted automatically; everything else is offered as suggestions to click.
@@ -3903,7 +3913,8 @@ function dispatchMatch(query, src) {
     const jacc = inter / (new Set([...qw, ...tw]).size || 1);
     const tb = _dBigrams(nt); let common = 0; for (const g of qb) if (tb.has(g)) common++;
     const dice = (2 * common) / ((qb.size + tb.size) || 1);
-    score = Math.max(score, jacc * 0.95, dice * 0.9);
+    const lev = 1 - _dLev(nq.replace(/\s/g, ''), nt.replace(/\s/g, '')) / Math.max(nq.length, nt.length, 1);
+    score = Math.max(score, jacc * 0.95, dice * 0.9, lev * 0.95);
     if (score >= 0.3) scored.push({ p, score });
   }
   scored.sort((a, b) => b.score - a.score);
