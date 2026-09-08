@@ -2621,7 +2621,7 @@ async function loadOrders() {
       return ls ? { ...u, ...ls } : u;
     });
     // auto-mark units whose handle stock is 0 as emergency (if not already)
-    const toAutoMark = currentUnits.filter(u => !u.is_emergency && !u.picked && stockMap[u.handle] === 0);
+    const toAutoMark = currentUnits.filter(u => !u.is_emergency && !u.picked && !u.dismissed && stockMap[u.handle] === 0);
     if (toAutoMark.length) {
       for (const u of toAutoMark) {
         const k = stateKey(u);
@@ -3391,15 +3391,18 @@ function renderEmgDash() {
     const open = _emgDashOpen.has(d.date);
     const detail = open ? `
       <tr class="emg-dash-detail"><td colspan="7">
-        ${d.designs.map(g => `
-          <div class="emg-dash-design">
-            <b>${g.title}</b>
+        ${d.amazon_open ? `<div style="font-size:.7rem;font-weight:800;color:#c07000;letter-spacing:.05em;margin:2px 0 4px">🟡 AMAZON — ${d.amazon_open} to print</div>` : ''}
+        ${[...d.designs].sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0)).map(g => `
+          <div class="emg-dash-design"${g.amazon_open ? ' style="border-left:3px solid #ff9900;padding-left:6px"' : ''}>
+            ${g.amazon_open ? '<span style="color:#c07000;font-size:.68rem;font-weight:800">AMZ</span>' : ''}<b>${g.title}</b>
             ${g.open ? `<span class="emg-badge open">${g.open} to print</span>` : ''}
             ${g.printed ? `<span class="emg-badge printed">${g.printed} printed · not sent</span>` : ''}
             ${g.sent ? `<span class="emg-badge sent">${g.sent} sent</span>` : ''}
             ${(g.open + g.printed) ? `<span style="font-size:.72rem;color:var(--muted)">${Object.entries(g.colors).map(([c, n]) => `${n}× ${c}`).join(', ')}</span>` : ''}
           </div>`).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgPrintDates(['${d.date}'],'amazon')">🟡 PDF Amazon (${d.amazon_open})</button>` : ''}
+          ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'],'amazon')">🟡 Mark Amazon printed (${d.amazon_open})</button>` : ''}
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgPrintDates(['${d.date}'])">🖨 PDF (${d.open})</button>` : ''}
           ${d.open ? `<button class="emg-dash-link" style="color:#1a7f37;border-color:#b8e0c0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'])">✓ Mark all printed (${d.open})</button>` : ''}
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">Open list</button>` : ''}
@@ -3411,7 +3414,7 @@ function renderEmgDash() {
       <tr class="d-row${late ? ' d-late' : ''}${d.pending ? '' : ' d-clear'}" onclick="emgDashToggle('${d.date}')">
         <td><input type="checkbox"${checked}${d.open ? '' : ' disabled'} onclick="event.stopPropagation();emgToggleSel('${d.date}',this.checked)" style="margin-right:6px;vertical-align:middle"> ${open ? '▾' : '▸'} ${fmt(d.date)}</td>
         <td>${age}d</td>
-        <td>${num(d.open, 'n-open')}</td>
+        <td>${num(d.open, 'n-open')}${d.amazon_open ? ` <span title="of which Amazon" style="font-size:.68rem;font-weight:800;color:#c07000;background:#fff3cc;padding:0 6px;border-radius:8px">🟡 ${d.amazon_open}</span>` : ''}</td>
         <td>${num(d.printed, 'n-printed')}</td>
         <td>${num(d.sent, 'n-sent')}</td>
         <td>${num(d.pending, 'n-pending')}</td>
@@ -3451,18 +3454,22 @@ function emgDatesData(dates) {
   return (_emgDash.dates || []).filter(d => dates.includes(d.date) && d.open > 0);
 }
 
-function emgPrintDates(dates) {
+function emgPrintDates(dates, src) {
   const rows = emgDatesData(dates);
   if (!rows.length) { toast('Nothing open to print for that selection'); return; }
   const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
   const sheet = document.getElementById('emgPrintSheet');
   sheet.innerHTML = rows.map(d => {
-    const designs = d.designs.filter(g => g.open > 0).sort((a, b) => b.open - a.open || a.title.localeCompare(b.title));
+    const designs = d.designs
+      .map(g => src === 'amazon' ? { ...g, open: g.amazon_open } : g)
+      .filter(g => g.open > 0)
+      .sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || b.open - a.open || a.title.localeCompare(b.title));
+    const total = designs.reduce((n, g) => n + g.open, 0);
     return `<div class="eps-date">
-      <div class="eps-hd">Emergency · ${fmt(d.date)} · ${d.open} to print</div>
+      <div class="eps-hd">Emergency${src === 'amazon' ? ' · 🟡 AMAZON ONLY' : ''} · ${fmt(d.date)} · ${total} to print</div>
       <div class="eps-sub">${designs.length} designs · printed ${new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
       <div class="eps-grid">${designs.map(g => `
-        <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.title}
+        <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.amazon_open ? '<span style="font-weight:800;color:#c07000">AMZ</span> ' : ''}${g.title}
           <span class="eps-colors">${Object.entries(g.colors).map(([c, n]) => `${n} ${c}`).join(' · ')}</span></div>`).join('')}
       </div>
     </div>`;
@@ -3473,12 +3480,12 @@ function emgPrintDates(dates) {
   window.print();
 }
 
-async function emgMarkPrintedDates(dates) {
+async function emgMarkPrintedDates(dates, src) {
   const rows = emgDatesData(dates);
-  const units = rows.flatMap(d => d.open_units || []);
+  const units = rows.flatMap(d => (d.open_units || []).filter(u => !src || u.src === src));
   if (!units.length) { toast('Nothing open to mark for that selection'); return; }
   const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
-  if (!confirm(`Mark ${units.length} unit${units.length !== 1 ? 's' : ''} as printed for ${rows.map(d => fmt(d.date)).join(', ')}?\n\nThey move to "Printed · not sent". You can undo this one step with "Undo last mark".`)) return;
+  if (!confirm(`Mark ${units.length}${src === 'amazon' ? ' Amazon' : ''} unit${units.length !== 1 ? 's' : ''} as printed for ${rows.map(d => fmt(d.date)).join(', ')}?\n\nThey move to "Printed · not sent". You can undo this one step with "Undo last mark".`)) return;
   try {
     const res = await api({ action: 'mark_printed_batch', units });
     const marked = res.marked || [];
@@ -4376,6 +4383,7 @@ async function markEmgUnitSent(gi, ui, u) {
   if (rowEl) { rowEl.style.opacity = '0.4'; rowEl.style.pointerEvents = 'none'; }
   try {
     await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    loadEmgDashboard();
     const g = allEmgGroups[gi];
     if (g) {
       g.units.splice(ui, 1);
