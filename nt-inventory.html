@@ -2115,7 +2115,8 @@ function renderSkuTable() {
     const groupSold = (g) => g.rows.reduce((s, r) => {
       const isFiltered = _skuFilterMode !== 'all';
       const self = isFiltered ? (_skuSalesCounts[r.sku] ?? 0) : (r.is_fba ? 0 : (r.count || 0));
-      return s + self;
+      const fba  = isFiltered ? (_skuFbaCounts[r.sku] ?? 0) : (r.is_fba ? (r.count || 0) : 0);
+      return s + self + fba;
     }, 0);
     const confGroupsSorted = Object.values(confGroups).sort((a, b) => groupSold(b) - groupSold(a) || (a.handle || '').localeCompare(b.handle || ''));
 
@@ -2153,6 +2154,11 @@ function renderSkuTable() {
             const designTitle = (_websiteHandles.find(h => h.handle === g.handle) || {}).title || g.handle;
             const stockEntry = allProducts.find(p => p.handle === g.handle);
             const stockVal = stockEntry?.stock != null ? stockEntry.stock : '—';
+            // Design-level totals across every listing (self + FBA) for the active date filter
+            const gFiltered = _skuFilterMode !== 'all';
+            const gSelf = g.rows.reduce((s, r) => s + (gFiltered ? (_skuSalesCounts[r.sku] ?? 0) : (r.is_fba ? 0 : (r.count || 0))), 0);
+            const gFba  = g.rows.reduce((s, r) => s + (gFiltered ? (_skuFbaCounts[r.sku] ?? 0) : (r.is_fba ? (r.count || 0) : 0)), 0);
+            const designTotal = `<span title="Self ${gSelf} + FBA ${gFba} across ${g.rows.length} listing${g.rows.length !== 1 ? 's' : ''}" style="display:inline-block;margin-left:6px;font-size:.78rem;font-weight:800;color:#fff;background:var(--accent);padding:1px 8px;border-radius:10px;vertical-align:middle">${gSelf + gFba}</span>`;
             return g.rows.map((r, ri) => {
               const isFiltered = _skuFilterMode !== 'all';
               const selfSold = isFiltered ? (_skuSalesCounts[r.sku] ?? 0) : (r.is_fba ? 0 : (r.count || 0));
@@ -2169,7 +2175,7 @@ function renderSkuTable() {
                 ? `<span style="font-size:.68rem;color:var(--muted);font-family:monospace">${r.asin}</span>`
                 : `<input placeholder="ASIN" style="width:80px;font-size:.68rem;border:1px solid var(--line);border-radius:4px;padding:1px 4px;color:var(--ink)" onblur="quickSaveAsin('${r.sku.replace(/'/g,"\\'")}',this.value.trim())" onkeydown="if(event.key==='Enter')this.blur()">`;
               return `<tr style="${fbaBg}">
-                <td style="padding:5px 8px;vertical-align:middle">${ri === 0 ? `<div style="font-weight:600;font-size:.88rem;color:var(--ink);line-height:1.2">${designTitle}</div>` : ''}</td>
+                <td style="padding:5px 8px;vertical-align:middle">${ri === 0 ? `<div style="font-weight:600;font-size:.88rem;color:var(--ink);line-height:1.2">${designTitle}${designTotal}</div>` : ''}</td>
                 <td style="padding:5px 8px;vertical-align:middle">
                   <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
                     ${fbaPill}${colorPill}
