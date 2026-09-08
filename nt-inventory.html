@@ -883,34 +883,14 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 
 
-/* ── dispatch analytics ── */
-.da-wrap { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:14px; }
-.da-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-.da-tiles { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:12px; }
-.da-tile { background:#fdf9f3; border:1px solid var(--line); border-radius:10px; padding:8px 10px; min-width:0; }
-.da-n { font-family:var(--ff); font-size:1.4rem; font-weight:700; color:var(--ink); line-height:1.1; }
-.da-l { font-size:.7rem; font-weight:700; color:var(--ink2); margin-top:2px; }
-.da-s { font-size:.68rem; color:var(--muted); margin-top:3px; line-height:1.3; }
-.da-muted { color:var(--muted); }
-.da-delta { font-weight:800; font-size:.68rem; }
-.da-delta.up { color:#1a7f37; } .da-delta.down { color:#b03020; }
-.da-chart-wrap { margin-bottom:12px; }
-.da-chart { position:relative; display:flex; align-items:flex-end; gap:2px; height:120px; padding:0 0 16px; border-bottom:1px solid var(--line); overflow-x:auto; }
-.da-bar { flex:1 0 12px; min-width:12px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; position:relative; }
-.da-bar-stack { display:flex; flex-direction:column-reverse; height:100%; justify-content:flex-start; }
-.da-bar-emg { background:#c62828; border-radius:2px 2px 0 0; }
-.da-bar-stock { background:#1a7f37; border-radius:2px 2px 0 0; }
-.da-bar-x { position:absolute; bottom:-16px; left:0; right:0; text-align:center; font-size:.58rem; color:var(--muted); }
-.da-cap { position:absolute; left:0; right:0; border-top:1px dashed #b05000; pointer-events:none; }
-.da-cap span { position:absolute; right:0; top:-14px; font-size:.62rem; color:#b05000; font-weight:700; }
-.da-legend { display:flex; gap:12px; font-size:.68rem; color:var(--ink2); margin-top:18px; }
-.da-sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; }
-.da-sw.emg { background:#c62828; } .da-sw.stock { background:#1a7f37; } .da-sw.cap { border-top:2px dashed #b05000; height:0; width:14px; }
-.da-two { display:grid; grid-template-columns:1.4fr 1fr; gap:14px; }
-.da-kv { display:flex; justify-content:space-between; gap:8px; font-size:.8rem; padding:5px 0; border-bottom:1px solid #f3ece1; }
-.da-kv:last-child { border-bottom:none; }
-@media (max-width:700px) { .da-tiles { grid-template-columns:repeat(2,1fr); } .da-two { grid-template-columns:1fr; } }
-@media print { .da-wrap { display:none !important; } }
+/* ── dispatch counters ── */
+.dc-row { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:14px; }
+.dc-box { background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 12px; }
+.dc-n { font-family:var(--ff); font-size:1.5rem; font-weight:700; color:var(--ink); line-height:1.1; }
+.dc-l { font-size:.72rem; font-weight:700; color:var(--ink2); margin-top:2px; }
+.dc-s { font-size:.66rem; color:var(--muted); margin-top:2px; }
+@media (max-width:700px) { .dc-row { grid-template-columns:repeat(2,1fr); } }
+@media print { .dc-row { display:none !important; } }
 
 /* ── mobile ── */
 @media (max-width: 600px) {
@@ -1384,21 +1364,12 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <button class="btn btn-accent" onclick="openDispatchModal()" style="font-size:.82rem;padding:8px 16px">📤 Record Dispatch</button>
     </div>
   </div>
-  <div class="da-wrap">
-    <div class="da-head">
-      <div class="emg-view-tabs" id="daChips" style="margin:0">
-        <button class="emg-tab active" data-mode="month" onclick="daSet('month')">This month</button>
-        <button class="emg-tab" data-mode="last" onclick="daSet('last')">Last month</button>
-        <button class="emg-tab" data-mode="30d" onclick="daSet('30d')">Last 30 days</button>
-        <button class="emg-tab" data-mode="year" onclick="daSet('year')">This year</button>
-        <button class="emg-tab" data-mode="custom" onclick="daSet('custom')">Custom</button>
-      </div>
-      <div id="daCustom" style="display:none;gap:6px;align-items:center;font-size:.76rem;color:var(--ink2)">
-        <input type="date" id="daFrom" onchange="daSet('custom')" style="font-size:.74rem;padding:3px 6px;border:1px solid var(--line);border-radius:6px"> –
-        <input type="date" id="daTo" onchange="daSet('custom')" style="font-size:.74rem;padding:3px 6px;border:1px solid var(--line);border-radius:6px">
-      </div>
-    </div>
-    <div id="daBody"></div>
+  <div class="dc-row" id="dispatchCounters">
+    <div class="dc-box"><div class="dc-n">–</div><div class="dc-l">Today</div></div>
+    <div class="dc-box"><div class="dc-n">–</div><div class="dc-l">This month</div></div>
+    <div class="dc-box"><div class="dc-n">–</div><div class="dc-l">Last month</div></div>
+    <div class="dc-box"><div class="dc-n">–</div><div class="dc-l">Last 30 days</div></div>
+    <div class="dc-box"><div class="dc-n">–</div><div class="dc-l">This year</div></div>
   </div>
 
   <div style="margin-bottom:12px">
@@ -1484,7 +1455,7 @@ function switchView(view) {
     loadAmazonSkuView();
   }
   if (view === 'dispatch') {
-    loadDispatchAnalytics();
+    loadDispatchCounters();
     if (!Object.keys(_printLinks).length) loadPrintData();
     if (!allEmgGroups.length) loadAllEmergencies();
     if (!_designIndex.length) api({ action: 'load_design_index' }).then(r => { _designIndex = r.designs || []; }).catch(() => {});
@@ -4019,7 +3990,7 @@ async function submitDispatch(btn) {
     const inv = updateInventory ? ` · ${fulfilled} emergency fulfilled · ${stocked} added to stock` : ' · stock not updated';
     toast(`✓ Dispatch saved${inv}`);
     loadAllEmergencies();
-    if (document.getElementById('view-dispatch').classList.contains('active')) loadDispatchView();
+    if (document.getElementById('view-dispatch').classList.contains('active')) { loadDispatchView(); loadDispatchCounters(); }
   } catch(e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = 'Save Dispatch'; }
 }
@@ -4033,10 +4004,9 @@ async function loadDispatchView() {
       const emgRes = await api({ action: 'load_all_emergencies' });
       allEmgGroups = emgRes.groups || [];
     }
-    const r = _daRange || daRangeFor(_daMode);
-    const res = await api({ action: 'load_dispatches', date_from: r.from, date_to: r.to });
+    const res = await api({ action: 'load_dispatches', days: 90 });
     const dispatches = res.dispatches || [];
-    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatch lists in this period</p></div>'; return; }
+    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>'; return; }
     // merge same-day dispatches into one card
     const byDate = {};
     for (const d of dispatches) {
@@ -4872,102 +4842,18 @@ function cutPrint() {
   window.print();
 }
 
-// ── Dispatch analytics (production output) ──────────────────────────────────
-let _daMode = 'month'; // month | last | 30d | year | custom
-let _daRange = null;   // {from,to}
-
-function daRangeFor(mode) {
-  const t = todayIST();
-  const [y, m] = t.split('-').map(Number);
-  const pad = n => String(n).padStart(2, '0');
-  const lastDay = (yy, mm) => new Date(yy, mm, 0).getDate();
-  if (mode === 'month') return { from: `${y}-${pad(m)}-01`, to: t };
-  if (mode === 'last') { const ly = m === 1 ? y - 1 : y, lm = m === 1 ? 12 : m - 1; return { from: `${ly}-${pad(lm)}-01`, to: `${ly}-${pad(lm)}-${pad(lastDay(ly, lm))}` }; }
-  if (mode === '30d') return { from: new Date(Date.now() - 29 * 86400e3).toISOString().slice(0, 10), to: t };
-  if (mode === 'year') return { from: `${y}-01-01`, to: t };
-  if (mode === 'custom') {
-    const f = document.getElementById('daFrom').value, tt = document.getElementById('daTo').value;
-    return { from: f || `${y}-${pad(m)}-01`, to: tt || t };
-  }
-  return { from: `${y}-${pad(m)}-01`, to: t };
-}
-
-function daSet(mode) {
-  _daMode = mode;
-  _daRange = daRangeFor(mode);
-  document.querySelectorAll('#daChips .emg-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  document.getElementById('daCustom').style.display = mode === 'custom' ? 'flex' : 'none';
-  loadDispatchAnalytics();
-  loadDispatchView();
-}
-
-function daFmt(iso) { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; }
-function daDelta(cur, prev, suffix = '') {
-  if (!prev) return cur ? `<span class="da-delta up">new</span>` : '';
-  const pct = Math.round(((cur - prev) / prev) * 100);
-  if (!pct) return `<span class="da-delta">same</span>`;
-  return `<span class="da-delta ${pct > 0 ? 'up' : 'down'}">${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}%${suffix}</span>`;
-}
-
-async function loadDispatchAnalytics() {
-  if (!_daRange) _daRange = daRangeFor(_daMode);
-  const el = document.getElementById('daBody');
-  el.innerHTML = '<div class="loading-row" style="height:90px;border-radius:10px"></div>';
+// ── Dispatch counters ────────────────────────────────────────────────────────
+async function loadDispatchCounters() {
   try {
-    const cap = cutSettings().capacity;
-    const a = await api({ action: 'dispatch_analytics', date_from: _daRange.from, date_to: _daRange.to, capacity: cap });
-    renderDispatchAnalytics(a);
-  } catch (e) { el.innerHTML = `<div style="color:var(--red);font-size:.82rem">Analytics failed: ${e.message}</div>`; }
-}
-
-function renderDispatchAnalytics(a) {
-  const c = a.current, p = a.previous;
-  const emgPct = c.pieces ? Math.round((c.emg / c.pieces) * 100) : 0;
-  const tile = (n, label, sub = '') => `<div class="da-tile"><div class="da-n">${n}</div><div class="da-l">${label}</div>${sub ? `<div class="da-s">${sub}</div>` : ''}</div>`;
-  const tiles = [
-    tile(c.pieces, 'pieces produced', daDelta(c.pieces, p.pieces) + ` <span class="da-muted">vs ${daFmt(a.prev_from)}–${daFmt(a.prev_to)}</span>`),
-    tile(c.per_day, 'per working day', `${c.working_days} day${c.working_days !== 1 ? 's' : ''} with output ${daDelta(c.per_day, p.per_day)}`),
-    tile(`${emgPct}%`, 'went to emergencies', `${c.emg} emergency · ${c.stock} to stock`),
-    tile(`${c.utilisation}%`, `of ${a.capacity}/day capacity`, `${c.days_at_capacity} day${c.days_at_capacity !== 1 ? 's' : ''} at or above ${a.capacity}`),
-    tile(c.designs, 'designs produced', daDelta(c.designs, p.designs)),
-    tile(c.best_day ? c.best_day.total : '—', 'best day', c.best_day ? daFmt(c.best_day.date) : 'no output yet'),
-  ].join('');
-
-  // daily bars: emergency (red) stacked under stock (green); capacity line
-  const max = Math.max(a.capacity, ...c.days.map(d => d.total), 1);
-  const dayMap = {}; for (const d of c.days) dayMap[d.date] = d;
-  const bars = [];
-  for (let t = new Date(a.from); t <= new Date(a.to); t = new Date(t.getTime() + 86400e3)) {
-    const iso = t.toISOString().slice(0, 10);
-    const d = dayMap[iso] || { total: 0, emg: 0, stock: 0 };
-    const h = v => Math.round((v / max) * 100);
-    bars.push(`<div class="da-bar" title="${daFmt(iso)} · ${d.total} pcs (${d.emg} emergency, ${d.stock} stock)">
-      <div class="da-bar-stack"><div class="da-bar-stock" style="height:${h(d.stock)}%"></div><div class="da-bar-emg" style="height:${h(d.emg)}%"></div></div>
-      <div class="da-bar-x">${iso.slice(8)}</div></div>`);
-  }
-  const capTop = 100 - Math.round((a.capacity / max) * 100);
-  const chart = `<div class="da-chart-wrap"><div class="da-chart">${bars.join('')}<div class="da-cap" style="top:${capTop}%"><span>${a.capacity}</span></div></div>
-    <div class="da-legend"><span><i class="da-sw emg"></i>emergency</span><span><i class="da-sw stock"></i>stock</span><span><i class="da-sw cap"></i>capacity</span></div></div>`;
-
-  const top = c.top.slice(0, 12);
-  const topTable = top.length ? `<table class="sku-conf-table" style="font-size:.8rem;margin:0">
-    <thead><tr><th>Design</th><th style="text-align:right">Pieces</th><th style="text-align:right">Share</th><th style="text-align:right">Emergency</th><th style="text-align:right">Stock</th></tr></thead>
-    <tbody>${top.map(g => `<tr><td>${g.title}</td><td style="text-align:right;font-weight:700">${g.total}</td><td style="text-align:right;color:var(--muted)">${Math.round((g.total / c.pieces) * 100)}%</td><td style="text-align:right;color:#b03020">${g.emg || ''}</td><td style="text-align:right;color:#1a7f37">${g.stock || ''}</td></tr>`).join('')}</tbody></table>
-    ${c.top.length > 12 ? `<div style="font-size:.72rem;color:var(--muted);margin-top:4px">+${c.top.length - 12} more designs</div>` : ''}` : '<div style="font-size:.82rem;color:var(--muted)">No applied lists in this period</div>';
-
-  document.getElementById('daBody').innerHTML = `
-    <div class="da-tiles">${tiles}</div>
-    ${chart}
-    <div class="da-two">
-      <div><div class="cut-slot-hd">TOP DESIGNS · ${daFmt(a.from)} – ${daFmt(a.to)}</div>${topTable}</div>
-      <div><div class="cut-slot-hd">PERIOD</div>
-        <div class="da-kv"><span>Lists saved</span><b>${c.lists}${c.unapplied ? ` <span style="color:#b05000;font-weight:600">+${c.unapplied} not applied</span>` : ''}</b></div>
-        <div class="da-kv"><span>Days in period</span><b>${a.span}</b></div>
-        <div class="da-kv"><span>Days with output</span><b>${c.working_days}</b></div>
-        <div class="da-kv"><span>Days at capacity</span><b>${c.days_at_capacity}</b></div>
-        <div class="da-kv"><span>Previous period</span><b>${p.pieces} pcs · ${p.per_day}/day · ${p.designs} designs</b></div>
-      </div>
-    </div>`;
+    const c = await api({ action: 'dispatch_counters' });
+    const box = (k, label) => {
+      const x = c[k] || { pieces: 0, lists: 0, not_applied: 0, days: 0 };
+      const sub = `${x.lists} list${x.lists !== 1 ? 's' : ''}${x.days > 1 ? ` · ${x.days} days` : ''}${x.not_applied ? ` · <span style="color:#b05000">${x.not_applied} not applied</span>` : ''}`;
+      return `<div class="dc-box"><div class="dc-n">${x.pieces}</div><div class="dc-l">${label}</div><div class="dc-s">${sub}</div></div>`;
+    };
+    document.getElementById('dispatchCounters').innerHTML =
+      box('today', 'Today') + box('this_month', 'This month') + box('last_month', 'Last month') + box('last_30d', 'Last 30 days') + box('this_year', 'This year');
+  } catch {}
 }
 
 function todayIST() {
