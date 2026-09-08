@@ -915,6 +915,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 @media (max-width:700px) { .dc-row { grid-template-columns:repeat(2,1fr); } }
 @media print { .dc-row { display:none !important; } }
 
+@keyframes invPulse { 0%,100% { opacity:.35 } 50% { opacity:1 } }
+.inv-count-loading { font-size:.7rem; color:var(--muted); animation: invPulse 1.2s ease-in-out infinite; }
 /* ── mobile ── */
 @media (max-width: 600px) {
   #view-orders .page-hd { margin-bottom: 6px; }
@@ -1481,7 +1483,8 @@ const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt
 
 let allProducts   = [];
 let _designIndex  = []; // handle+title from nt_order_units — canonical for search
-let orderStats    = {}; // handle → order qty for selected period
+let orderStats    = {}; // handle → order qty for selected period (website + amazon)
+let orderStatsAmz = {}; // handle → amazon self-ship qty per month (subset of orderStats)
 let currentUnits  = []; // orders view
 let stockMap      = {}; // handle → stock_count (from nt_inventory, loaded with orders)
 let activeColor   = '';
@@ -1586,8 +1589,8 @@ function sumStatsForPeriod(monthlyMap) {
 
 function setOrderBadgesLoading() {
   document.querySelectorAll('.inv-order-count').forEach(el => {
-    el.textContent = '…';
-    el.style.opacity = '0.5';
+    el.innerHTML = '<span class="inv-count-loading">counting…</span>';
+    el.style.opacity = '';
   });
 }
 
@@ -1626,8 +1629,10 @@ function applyOrderBadges() {
 
     const cur  = sumForMonths(orderStats[handle], currentMonths);
     const prev = prevMonths ? sumForMonths(orderStats[handle], prevMonths) : null;
+    const amz  = sumForMonths(orderStatsAmz[handle], currentMonths);
+    const web  = Math.max(0, cur - amz);
 
-    let html = `<span>${cur > 0 ? `${cur} orders` : '—'}</span>`;
+    let html = `<span>${cur > 0 ? `${cur} orders <span style="font-weight:600;color:var(--muted);font-size:.68rem">${web}w · ${amz}a</span>` : '—'}</span>`;
     if (prev !== null && (cur > 0 || prev > 0)) {
       const diff = cur - prev;
       const pct  = prev > 0 ? Math.round((diff / prev) * 100) : null;
