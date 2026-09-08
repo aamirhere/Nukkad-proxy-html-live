@@ -503,6 +503,23 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-dash-link { font-size: .72rem; color: var(--accent); background: none; border: 1px solid #f2c9b4; border-radius: 8px; padding: 2px 8px; cursor: pointer; font-family: var(--fb); }
 .emg-dash-link:hover { background: var(--accent); color: #fff; }
 @media (max-width: 600px) { .emg-dash-tiles { grid-template-columns: repeat(2, 1fr); } }
+.emg-todo { background: #fff6f5; border: 1px solid #f5c6c6; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.emg-todo-hd { font-size: .72rem; font-weight: 800; color: var(--red); letter-spacing: .06em; margin-bottom: 6px; }
+.emg-todo-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: .84rem; color: var(--ink); flex-wrap: wrap; }
+.emg-todo-row b { color: var(--red); }
+/* dispatch ledger */
+.dl-entry { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 8px; margin: 6px 0; border-radius: 8px; background: #faf6f0; font-size: .74rem; color: var(--ink2); }
+.dl-entry.na { background: #fff3e0; border: 1px dashed #f0b060; }
+.dl-entry-id { font-family: monospace; font-weight: 700; color: var(--ink); }
+.dl-badge { padding: 1px 8px; border-radius: 10px; font-weight: 700; font-size: .68rem; }
+.dl-badge.ok { background: #e4f5ea; color: #1a7f37; }
+.dl-badge.na { background: #fdebd3; color: #b05000; }
+.dl-entry .btn { font-size: .7rem; padding: 2px 8px; }
+.dl-na-tag { font-size: .66rem; color: #b05000; background: #fdebd3; padding: 1px 6px; border-radius: 8px; font-weight: 700; }
+.hist-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: .82rem; }
+.hist-row:last-child { border-bottom: none; }
+.hist-v { font-family: monospace; font-weight: 800; color: var(--ink); min-width: 32px; }
+.hist-items { font-size: .74rem; color: var(--muted); margin-top: 2px; }
 
 .emg-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .emg-view-tabs { display: flex; gap: 4px; }
@@ -801,7 +818,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   .dg-color-tag { font-size: .68rem; padding: 1px 5px; border: 1px solid #999; border-radius: 10px; }
   .dg-order-tag { display: none; }
   .dg-status-line { display: none; }
-  #ordersSubtitle, #view-orders .page-hd h2, .orders-tabs-row { display: none !important; }
+  #ordersSubtitle, #view-orders .page-hd h2, .orders-tabs-row, #ordersPendingBanner, #emgDash, #emgTodo { display: none !important; }
   .print-date { display: block !important; font-size: .9rem; font-weight: 700; margin: 0 0 6px; }
 }
 .dg-print-qty, .print-date { display: none; }
@@ -958,6 +975,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <p id="ordersSubtitle">Pick a date to load orders</p>
     <p class="print-date" id="ordersPrintDate"></p>
   </div>
+  <div id="ordersPendingBanner" style="display:none;margin-bottom:10px;padding:8px 12px;border:1px solid #f5c6c6;background:#fff6f5;border-radius:10px;font-size:.82rem;color:var(--ink);cursor:pointer" onclick="switchView('emergency')" title="Open the Emergency dashboard"></div>
   <div class="date-bar">
     <input type="date" id="ordersDate" onchange="loadOrders()">
     <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
@@ -992,6 +1010,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
   <!-- dashboard: numbers first, tabs below are the detail -->
   <div id="emgDash" style="margin-bottom:16px">
+    <div id="emgTodo" class="emg-todo" style="display:none"></div>
     <div class="emg-dash-tiles">
       <button class="emg-tile" onclick="setEmgView('all')" title="Flagged, not yet printed">
         <span class="emg-tile-n" id="emgDashOpen">–</span><span class="emg-tile-l">To print</span>
@@ -1037,6 +1056,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     </div>
     <button class="btn btn-ghost" onclick="openAddEmgModal()">➕ Add</button>
     <button class="btn btn-ghost" onclick="loadAllEmergencies()">↻ Refresh</button>
+    <button class="btn btn-ghost" id="btnDigest" onclick="sendDigestNow()" title="Preview and send the ops digest to Telegram now">📨 Digest</button>
     <button class="btn btn-ghost" id="btnResetEmg" onclick="resetEmergencyAll()" style="color:#c62828;border-color:#f5c6c6" title="Clear this view — orders page keeps ⚠ markers intact">🗑 Clear Queue</button>
   </div>
   <div id="emgDateFilterRow" style="display:none;padding:0 0 10px;align-items:center;gap:8px">
@@ -1240,6 +1260,17 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 </div>
 
 <!-- ── DISPATCH HISTORY ───────────────────────────────────────────────────── -->
+<!-- dispatch history modal (centered overlay) -->
+<div id="dispatchHistoryModal" style="display:none;position:fixed;inset:0;background:rgba(58,43,29,.45);z-index:1000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)">
+      <div><div style="font-weight:800;font-size:.95rem">🕘 Dispatch history</div><div id="dispatchHistorySub" style="font-size:.74rem;color:var(--muted)"></div></div>
+      <button onclick="document.getElementById('dispatchHistoryModal').style.display='none'" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div id="dispatchHistoryBody" style="padding:10px 18px;overflow-y:auto"></div>
+  </div>
+</div>
+
 <div class="view" id="view-dispatch">
   <div class="page-hd" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div>
@@ -2517,10 +2548,27 @@ async function unconfirmSku(sku) {
   } catch {}
 }
 
+// User 1 sees, on their own page, when earlier dates they flagged are still open
+async function refreshOrdersPendingBanner(currentDate) {
+  const el = document.getElementById('ordersPendingBanner');
+  try {
+    const dash = await api({ action: 'emergency_dashboard' });
+    const earlier = (dash.dates || []).filter(d => d.pending > 0 && d.date < currentDate);
+    const units = earlier.reduce((s, d) => s + d.pending, 0);
+    if (!units) { el.style.display = 'none'; return; }
+    const oldest = earlier[0];
+    const [y, m, d] = oldest.date.split('-');
+    const age = Math.round((new Date(todayIST()) - new Date(oldest.date)) / 86400e3);
+    el.innerHTML = `⚠ <b>${units}</b> unit${units !== 1 ? 's' : ''} still pending from <b>${earlier.length}</b> earlier date${earlier.length !== 1 ? 's' : ''} (oldest ${d}-${m}-${y}, ${age}d) · ${dash.totals.open} to print, ${dash.totals.printed} printed not sent — <u>open dashboard</u>`;
+    el.style.display = '';
+  } catch { el.style.display = 'none'; }
+}
+
 async function loadOrders() {
   const date = document.getElementById('ordersDate').value;
   if (!date) return;
   openGroups.clear();
+  refreshOrdersPendingBanner(date);
 
   document.getElementById('designGroups').innerHTML =
     [...Array(5)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px"></div>').join('');
@@ -2760,7 +2808,9 @@ async function pushAllToEmergency() {
   // All unpicked, non-emergency units for this date (excludes FBA — they have no production need)
   const targets = currentUnits.filter(u => !u.picked && !u.is_emergency);
   if (!targets.length) { toast('No unpicked orders to push'); return; }
-  if (!confirm(`Push ${targets.length} unpicked order unit${targets.length !== 1 ? 's' : ''} from ${date} to the Emergency tab?\n\nProduction manager will see them there.`)) return;
+  const designs = new Set(targets.map(u => u.title)).size;
+  const amz = targets.filter(u => u.source === 'amazon').length;
+  if (!confirm(`Push to Emergency for ${date}?\n\n${targets.length} unit${targets.length !== 1 ? 's' : ''} across ${designs} design${designs !== 1 ? 's' : ''}${amz ? ` (${amz} Amazon)` : ''}.\n\nThey will appear on the production dashboard as "to print" for this date.`)) return;
   const btn = document.getElementById('btnPushEmg');
   btn.disabled = true; btn.textContent = '⏳ Pushing…';
   targets.forEach(u => { u.is_emergency = true; });
@@ -3266,6 +3316,23 @@ function renderEmgDash() {
   set('emgDashSent', totals.sent);
   set('emgDashDates', totals.dates_pending ? `across ${totals.dates_pending} date${totals.dates_pending !== 1 ? 's' : ''}` : 'nothing pending');
 
+  // "What to do now": the three things that actually go wrong, each with a one-click fix
+  {
+    const now = Date.now();
+    const todayD = new Date(todayIST());
+    const fmtD = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+    const overdue = dates.filter(d => d.open > 0 && Math.round((todayD - new Date(d.date)) / 86400e3) >= 3);
+    const stalePrinted = dates.filter(d => d.printed > 0 && d.printed_oldest && (now - new Date(d.printed_oldest)) >= 2 * 86400e3);
+    const unapplied = _emgDash.unapplied || [];
+    const rows = [];
+    for (const d of overdue) rows.push(`<div class="emg-todo-row">🖨 <b>${d.open}</b> to print from <b>${fmtD(d.date)}</b> — overdue <button class="emg-dash-link" onclick="emgDashGo('all','${d.date}')">Print now</button></div>`);
+    for (const d of stalePrinted) rows.push(`<div class="emg-todo-row">📋 <b>${d.printed}</b> printed for <b>${fmtD(d.date)}</b>, no dispatch for 2+ days <button class="emg-dash-link" onclick="switchView('dispatch')">Record dispatch</button> <button class="emg-dash-link" onclick="emgDashGo('printed','${d.date}')">View</button></div>`);
+    for (const u of unapplied) rows.push(`<div class="emg-todo-row">⚠ Dispatch list of <b>${fmtD(u.dispatch_date)}</b> (${u.pieces} pcs) saved but <b>not applied</b> <button class="emg-dash-link" onclick="setDispatchApplied('${u.id}',true)">Apply now</button> <button class="emg-dash-link" onclick="switchView('dispatch')">Open</button></div>`);
+    const el = document.getElementById('emgTodo');
+    el.style.display = rows.length ? '' : 'none';
+    el.innerHTML = rows.length ? `<div class="emg-todo-hd">WHAT TO DO NOW</div>${rows.join('')}` : '';
+  }
+
   const showCleared = document.getElementById('emgDashShowCleared').checked;
   const today = new Date(todayIST());
   const rows = dates.filter(d => showCleared || d.pending > 0);
@@ -3307,6 +3374,21 @@ function renderEmgDash() {
         <td style="font-size:.72rem;color:var(--muted)">${d.pending ? (late ? '⚠ overdue' : 'in progress') : 'cleared'}</td>
       </tr>${detail}`;
   }).join('');
+}
+
+async function sendDigestNow() {
+  const btn = document.getElementById('btnDigest');
+  btn.disabled = true;
+  try {
+    const preview = await api({ action: 'send_tg_digest', dry_run: true, label: 'Ops digest' });
+    const plain = (preview.text || '').replace(/<[^>]+>/g, '');
+    if (!preview.configured) { alert('Telegram is not configured on the server (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID).\n\nMessage that would be sent:\n\n' + plain); return; }
+    if (!confirm('Send this to Telegram now?\n\n' + plain)) return;
+    const res = await api({ action: 'send_tg_digest', label: 'Ops digest' });
+    if (res.ok) toast('📨 Digest sent');
+    else toast('Digest failed: ' + (res.message || (res.results || []).map(r => r.error).filter(Boolean).join('; ') || 'unknown'));
+  } catch (e) { toast('Digest failed: ' + e.message); }
+  finally { btn.disabled = false; }
 }
 
 function emgDashToggle(date) {
@@ -3712,9 +3794,27 @@ async function loadDispatchView() {
         const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
         return items.map((it, ii) => ({ it, ii, d, safeItems: JSON.stringify(items).replace(/"/g, '&quot;') }));
       });
+      const entriesHTML = dayDispatches.map(d => {
+        const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
+        const pcs = items.reduce((s, it) => s + (it.qty || 0), 0);
+        const applied = d.applied !== false;
+        const t = new Date(d.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        return `<div class="dl-entry${applied ? '' : ' na'}">
+          <span class="dl-entry-id">#${String(d.id).slice(0, 6)}</span>
+          <span>${t} · ${items.length} design${items.length !== 1 ? 's' : ''} · ${pcs} pcs</span>
+          <span class="dl-badge ${applied ? 'ok' : 'na'}">${applied ? 'applied' : 'not applied'}</span>
+          ${d.notes ? `<span style="color:var(--muted)">“${d.notes}”</span>` : ''}
+          <span style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">
+            <button class="btn btn-ghost" onclick="event.stopPropagation();openDispatchHistory('${d.id}')">🕘 History</button>
+            <button class="btn btn-ghost" onclick="event.stopPropagation();setDispatchApplied('${d.id}',${applied ? 'false' : 'true'})" style="color:${applied ? '#b05000' : '#1a7f37'}">${applied ? '↩ Unapply' : '✓ Apply now'}</button>
+            <button class="btn btn-ghost" onclick="event.stopPropagation();deleteDispatch('${d.id}')" style="color:#c62828">🗑</button>
+          </span>
+        </div>`;
+      }).join('');
       const rowsHTML = flatRows.map(({ it, ii, d, safeItems }) => {
         const itPending = emgPendingCount(it.handle, it.title);
-        const statusLine = itPending > 0 ? `<span style="color:#c62828;font-weight:700">🚨 ${itPending} pending</span>` : '';
+        const statusLine = (itPending > 0 ? `<span style="color:#c62828;font-weight:700">🚨 ${itPending} pending</span>` : '')
+          + (d.applied === false ? ` <span class="dl-na-tag">not applied</span>` : '');
         return `<div class="dl-row" data-title="${(it.title || it.handle || '').toLowerCase()}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #faf6f0">
             <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
               <span style="font-size:.85rem;font-weight:600;color:#3a2b1d;white-space:nowrap">${it.title || it.handle}</span>
@@ -3729,6 +3829,7 @@ async function loadDispatchView() {
           <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
             <button onclick="deleteAllForDay(${JSON.stringify(dayDispatches.map(d=>d.id))},this)" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.7rem;cursor:pointer;padding:2px 8px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑 Delete all</button>
           </div>
+          ${entriesHTML}
           ${rowsHTML}
         </div>`;
       return `<div class="dl-card" data-date="${date}" style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
@@ -3777,6 +3878,58 @@ function filterDispatchLog(q) {
       if (body) body.style.display = '';
     }
   });
+}
+
+// ── Dispatch ledger UI ────────────────────────────────────────────────────────
+async function openDispatchHistory(id) {
+  const modal = document.getElementById('dispatchHistoryModal');
+  const body = document.getElementById('dispatchHistoryBody');
+  document.getElementById('dispatchHistorySub').textContent = `Entry #${String(id).slice(0, 6)} — every saved version, newest first`;
+  body.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:10px 0">Loading…</div>';
+  modal.style.display = 'flex';
+  try {
+    const res = await api({ action: 'dispatch_versions', id });
+    const versions = res.versions || [];
+    if (!versions.length) { body.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:10px 0">No history recorded for this entry (created before versioning).</div>'; return; }
+    const icon = { create: '🆕', edit: '✏️', delete: '🗑', apply: '✓', unapply: '↩' };
+    body.innerHTML = versions.map((v, i) => {
+      const s = v.snapshot || {};
+      const items = (s.items || []).map(it => `${it.qty}× ${it.title || it.handle}`).join(', ') || '(empty)';
+      const when = new Date(v.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      return `<div class="hist-row">
+        <span class="hist-v">v${v.version}</span>
+        <div style="flex:1;min-width:0">
+          <div><b>${icon[v.action] || '•'} ${v.summary || v.action}</b> <span style="color:var(--muted);font-size:.74rem">· ${when} · ${s.dispatch_date || ''} · ${s.applied === false ? 'not applied' : 'applied'}</span></div>
+          <div class="hist-items">${items}</div>
+        </div>
+        ${i === 0 && v.action !== 'delete' ? '<span style="font-size:.7rem;color:var(--green);font-weight:700">current</span>'
+          : `<button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px" onclick="restoreDispatchVersion('${id}',${v.version})">↶ Restore</button>`}
+      </div>`;
+    }).join('');
+  } catch (e) { body.innerHTML = `<div style="color:var(--red);font-size:.82rem">${e.message}</div>`; }
+}
+
+async function restoreDispatchVersion(id, version) {
+  if (!confirm(`Restore version ${version}? Current effects are reversed and this version is re-applied.`)) return;
+  try {
+    await api({ action: 'restore_dispatch_version', id, version });
+    toast(`↶ Restored v${version}`);
+    document.getElementById('dispatchHistoryModal').style.display = 'none';
+    loadDispatchView(); loadAllEmergencies();
+  } catch (e) { toast('Restore failed: ' + e.message); }
+}
+
+async function setDispatchApplied(id, applied) {
+  const msg = applied
+    ? 'Apply this dispatch list now? It will fulfil open emergencies (oldest first) and add the remainder to stock.'
+    : 'Reverse this dispatch list but keep it as a record? Its emergency picks and stock will be undone.';
+  if (!confirm(msg)) return;
+  try {
+    await api({ action: 'set_dispatch_applied', id, applied });
+    toast(applied ? '✓ Applied' : '↩ Reversed, record kept');
+    if (document.getElementById('view-dispatch').classList.contains('active')) loadDispatchView();
+    loadAllEmergencies();
+  } catch (e) { toast('Failed: ' + e.message); }
 }
 
 async function deleteDispatch(id, silent = false) {
