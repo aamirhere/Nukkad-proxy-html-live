@@ -3438,7 +3438,12 @@ function renderEmgDash() {
     const rows = [];
     for (const d of overdue) rows.push(`<div class="emg-todo-row">🖨 <b>${d.open}</b> to print from <b>${fmtD(d.date)}</b> — overdue <button class="emg-dash-link" onclick="emgDashGo('all','${d.date}')">Print now</button></div>`);
     for (const d of stalePrinted) rows.push(`<div class="emg-todo-row">📋 <b>${d.printed}</b> printed for <b>${fmtD(d.date)}</b>, no dispatch for 2+ days <button class="emg-dash-link" onclick="switchView('dispatch')">Record dispatch</button> <button class="emg-dash-link" onclick="emgDashGo('printed','${d.date}')">View</button></div>`);
-    for (const u of unapplied) rows.push(`<div class="emg-todo-row">⚠ Dispatch list of <b>${fmtD(u.dispatch_date)}</b> (${u.pieces} pcs) saved but <b>not applied</b> <button class="emg-dash-link" onclick="setDispatchApplied('${u.id}',true)">Apply now</button> <button class="emg-dash-link" onclick="emgTodoSkip('${u.id}');switchView('dispatch')">Open</button> <button class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="emgTodoSkip('${u.id}')">Skip</button></div>`);
+    // One line for all of them; old lists being back-filled would otherwise stack up here
+    if (unapplied.length) {
+      const pcs = unapplied.reduce((n, u) => n + (u.pieces || 0), 0);
+      const newest = unapplied[0];
+      rows.push(`<div class="emg-todo-row">⚠ <b>${unapplied.length}</b> dispatch list${unapplied.length !== 1 ? 's' : ''} saved but <b>not applied</b> (${pcs} pcs, latest ${fmtD(newest.dispatch_date)}) <button class="emg-dash-link" onclick="switchView('dispatch')">Open dispatch</button> <button class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="${unapplied.map(u => `emgTodoSkip('${u.id}')`).join(';')}">Skip all</button></div>`);
+    }
     // Strip retired: the date table already states the duty. Keep only the unapplied-dispatch reminder.
     const el = document.getElementById('emgTodo');
     const keep = rows.filter(r => r.includes('not applied'));
