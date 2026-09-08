@@ -4941,7 +4941,10 @@ function renderCutPlan() {
     `<b>${total}</b> pieces today · ${p.emergency_today} emergency + ${p.stock_total} stock` +
     (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">${p.emergency_carry} emergency carry to tomorrow</span>` : '') +
     (p.stock_mode === 'priority' ? ` · <span style="color:#b05000;font-weight:700">tight day — top sellers first</span>` : ` · range levelled to <b>${p.level_days}d</b>`) +
-    (p.uncounted ? ` · <span style="color:#b05000">${p.uncounted} designs not counted</span>` : '');
+    (p.uncounted ? ` · <span style="color:#b05000">${p.uncounted} designs not counted</span>` : '') +
+    (p.demand_source ? (p.demand_source.website_error
+      ? ` · <span style="color:var(--red);font-weight:700">⚠ website orders failed to load (${p.demand_source.website_error}) — plan is Amazon-only, tap ↻</span>`
+      : ` · <span style="color:var(--muted)">demand: ${p.demand_source.website_orders ?? '?'} website orders + ${p.demand_source.amazon_units ?? '?'} Amazon units, 30d</span>`) : '');
   document.getElementById('cutPrintDate').textContent = `Cut list · ${d}-${m}-${y} · ${total} pieces`;
 
   const row = (x, kind) => {
