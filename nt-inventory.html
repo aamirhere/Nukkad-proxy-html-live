@@ -1955,7 +1955,7 @@ function renderInventory() {
         : `<div class="inv-thumb-placeholder">${p.amazon_only ? '🟡' : '📦'}</div>`
       }
       <div class="inv-title">
-        ${p.title}${p.amazon_only ? ' <span style="font-size:.64rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Sold on Amazon only — no website product">Amazon only</span>' : ''}${p.manual ? ' <span style="font-size:.64rem;font-weight:800;color:#1a7f37;background:#e4f5ea;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Created from the ops tool — no website or Amazon listing">Manual</span>' : ''}
+        ${p.title}${p.amazon_only ? ' <span style="font-size:.64rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Sold on Amazon only — no website product">Amazon only</span>' : ''}${p.manual ? ' <span style="font-size:.64rem;font-weight:800;color:#1a7f37;background:#e4f5ea;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Created from the ops tool — no website or Amazon listing">Manual</span>' : ''}${p.status && p.status !== 'active' ? ` <span style="font-size:.64rem;font-weight:800;color:#6f5b46;background:#efe7db;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Not live on the website">${p.status === 'draft' ? 'Draft' : 'Archived'}</span>` : ''}
         <div class="inv-handle">${p.handle}${p.updated_at ? ` · <span style="color:var(--muted);font-size:.68rem" title="Stock last updated">${fmtTs(p.updated_at)}</span>` : ''}</div>
       </div>
       <span class="inv-order-count">${ordersLabel}</span>
