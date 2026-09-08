@@ -825,20 +825,23 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
 /* emergency print sheet: one page per order date, design ×qty + colours */
 @media print {
+  body.emg-printing, body.emg-printing html { height: auto !important; min-height: 0 !important; margin: 0 !important; }
   body.emg-printing .app-header, body.emg-printing .view { display: none !important; }
-  body.emg-printing #view-emergency { display: block !important; padding: 0 !important; }
+  body.emg-printing #view-emergency { display: block !important; padding: 0 !important; margin: 0 !important; min-height: 0 !important; height: auto !important; }
   body.emg-printing #view-emergency > *:not(#emgPrintSheet) { display: none !important; }
   body.emg-printing #emgPrintSheet { display: block !important; }
-  .eps-date { break-after: page; page-break-after: always; }
-  .eps-date:last-child { break-after: auto; page-break-after: auto; }
+  body.emg-printing { zoom: .85; }
+  @page { margin: 8mm; }
+  /* dates flow one after another; a date block stays whole where possible */
+  .eps-date { break-inside: avoid; margin-bottom: 8px; }
 }
-.eps-hd { font-family: var(--ff); font-size: 1rem; font-weight: 700; margin: 0 0 6px; }
-.eps-sub { font-size: .78rem; color: #444; margin-bottom: 8px; }
-.eps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.eps-row { display: flex; align-items: center; gap: 6px; border: 1px solid #bbb; border-radius: 4px; padding: 4px 8px; font-size: .8rem; }
-.eps-row b { font-weight: 800; min-width: 26px; }
-.eps-colors { font-size: .7rem; color: #333; }
-.eps-box { width: 12px; height: 12px; border: 1.5px solid #333; border-radius: 2px; flex-shrink: 0; }
+.eps-hd { font-family: var(--ff); font-size: .92rem; font-weight: 700; margin: 0 0 2px; }
+.eps-sub { font-size: .68rem; color: #444; margin-bottom: 4px; }
+.eps-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; }
+.eps-row { display: flex; align-items: center; gap: 5px; border: 1px solid #bbb; border-radius: 3px; padding: 2px 6px; font-size: .72rem; line-height: 1.2; }
+.eps-row b { font-weight: 800; min-width: 22px; }
+.eps-colors { font-size: .62rem; color: #333; }
+.eps-box { width: 10px; height: 10px; border: 1.5px solid #333; border-radius: 2px; flex-shrink: 0; }
 
 /* ── mobile ── */
 @media (max-width: 600px) {
@@ -3370,9 +3373,11 @@ function renderEmgDash() {
     for (const d of overdue) rows.push(`<div class="emg-todo-row">🖨 <b>${d.open}</b> to print from <b>${fmtD(d.date)}</b> — overdue <button class="emg-dash-link" onclick="emgDashGo('all','${d.date}')">Print now</button></div>`);
     for (const d of stalePrinted) rows.push(`<div class="emg-todo-row">📋 <b>${d.printed}</b> printed for <b>${fmtD(d.date)}</b>, no dispatch for 2+ days <button class="emg-dash-link" onclick="switchView('dispatch')">Record dispatch</button> <button class="emg-dash-link" onclick="emgDashGo('printed','${d.date}')">View</button></div>`);
     for (const u of unapplied) rows.push(`<div class="emg-todo-row">⚠ Dispatch list of <b>${fmtD(u.dispatch_date)}</b> (${u.pieces} pcs) saved but <b>not applied</b> <button class="emg-dash-link" onclick="setDispatchApplied('${u.id}',true)">Apply now</button> <button class="emg-dash-link" onclick="emgTodoSkip('${u.id}');switchView('dispatch')">Open</button> <button class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="emgTodoSkip('${u.id}')">Skip</button></div>`);
+    // Strip retired: the date table already states the duty. Keep only the unapplied-dispatch reminder.
     const el = document.getElementById('emgTodo');
-    el.style.display = rows.length ? '' : 'none';
-    el.innerHTML = rows.length ? `<div class="emg-todo-hd">WHAT TO DO NOW</div>${rows.join('')}` : '';
+    const keep = rows.filter(r => r.includes('not applied'));
+    el.style.display = keep.length ? '' : 'none';
+    el.innerHTML = keep.length ? keep.join('') : '';
   }
 
   const showCleared = document.getElementById('emgDashShowCleared').checked;
