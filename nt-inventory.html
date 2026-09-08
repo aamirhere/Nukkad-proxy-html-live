@@ -860,6 +860,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .cut-colors { font-size:.76rem; color:var(--ink2); white-space:nowrap; }
 .cut-have { font-size:.68rem; color:var(--muted); background:none; border:1px solid var(--line); border-radius:8px; padding:1px 7px; cursor:pointer; font-family:var(--fb); }
 .cut-have:hover { color:#fff; background:var(--accent); border-color:var(--accent); }
+.cut-have.has { color:#1a7f37; border-color:#b8e0c0; background:#f6fdf7; font-weight:700; }
 .cut-tag { font-size:.62rem; font-weight:800; padding:1px 6px; border-radius:8px; vertical-align:middle; }
 .cut-tag.new { background:#e3efff; color:#1565c0; }
 .cut-tag.amz { background:#ff9900; color:#fff; }
@@ -4811,7 +4812,7 @@ function renderCutPlan() {
       <span class="cut-qty">${kind === 'emg' ? x.today : x.qty}</span>
       <span class="cut-name">${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${kind === 'emg' && x.amazon ? ' <span class="cut-tag amz">Amazon</span>' : ''}${x.count_needed ? ' <span class="cut-tag cnt" title="Stock not counted — treated as 0">count</span>' : ''}</span>
       <span class="cut-colors">${cutColors(x.colors)}</span>
-      <button type="button" class="cut-have" onclick="event.preventDefault();cutHave('${x.handle.replace(/'/g, "\\'")}','${x.title.replace(/'/g, "\\'")}')" title="We already have some cut for this design">have already</button>
+      <button type="button" class="cut-have${x.in_hand ? ' has' : ''}" onclick="event.preventDefault();cutHave('${x.handle.replace(/'/g, "\\'")}','${x.title.replace(/'/g, "\\'")}')" title="Pieces already cut or in production for this design — click to change">${x.in_hand ? `in hand ${x.in_hand}` : 'in hand 0'}</button>
     </label>`;
   };
   let html = '';
