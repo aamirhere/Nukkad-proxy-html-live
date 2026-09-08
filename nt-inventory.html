@@ -1107,7 +1107,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     </div>
     <button class="btn btn-ghost" id="syncCatalogBtn" onclick="syncAmazonCatalog(this)" title="Pull all SKUs from your Amazon seller account">☁ Sync all from Amazon</button>
     <button class="btn btn-ghost" onclick="loadAmazonSkuView()">↻ Reload</button>
+    <button class="btn btn-ghost" id="btnBackfill" onclick="backfillAmazonHistory()" style="color:#c07000;border-color:#f5dfa0" title="Import the last 2 years of Amazon orders via order reports (runs in 30-day chunks, safe to resume)">📥 Backfill 2 years</button>
   </div>
+  <div id="backfillStatus" style="display:none;margin-bottom:12px;padding:8px 12px;border:1px solid #f5dfa0;background:#fff8e6;border-radius:8px;font-size:.82rem;color:var(--ink2)"></div>
 
   <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <input id="skuFilter" type="text" placeholder="Filter SKU or title…" oninput="renderSkuTable()"
@@ -1841,6 +1843,97 @@ async function syncAmazonCatalog(btn) {
     await loadAmazonSkuView();
   } catch(e) { toast('Sync failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '☁ Sync all from Amazon'; }
+}
+
+// ── Amazon history backfill (Reports API, 30-day windows) ────────────────────
+const BACKFILL_KEY = 'nt_amz_backfill_v1';
+let _backfillAbort = false;
+
+function backfillWindows(daysBack = 730, step = 30) {
+  const wins = [];
+  const end = new Date(Date.now() + 5.5 * 3600e3); // IST "today"
+  let to = new Date(end);
+  while (daysBack > 0) {
+    const span = Math.min(step, daysBack);
+    const from = new Date(to.getTime() - (span - 1) * 86400e3);
+    wins.push({ from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+    to = new Date(from.getTime() - 86400e3);
+    daysBack -= span;
+  }
+  return wins; // newest first
+}
+
+function backfillSay(msg, done = false) {
+  const el = document.getElementById('backfillStatus');
+  el.style.display = '';
+  el.innerHTML = msg + (done ? '' : ` &nbsp;<button class="btn btn-ghost" style="font-size:.72rem;padding:2px 8px" onclick="_backfillAbort=true">Stop</button>`);
+}
+
+async function backfillAmazonHistory() {
+  const btn = document.getElementById('btnBackfill');
+  if (btn.disabled) return;
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem(BACKFILL_KEY) || '{}'); } catch {}
+  const wins = backfillWindows();
+  const done = new Set(state.done || []);
+  const pending = wins.filter(w => !done.has(w.from));
+  if (!pending.length) {
+    if (!confirm('All 2 years already imported. Run again from scratch?')) return;
+    done.clear(); pending.push(...wins);
+  } else if (done.size && !confirm(`Resume backfill? ${done.size}/${wins.length} windows already imported.`)) {
+    return;
+  }
+  _backfillAbort = false;
+  btn.disabled = true; btn.textContent = '⏳ Backfilling…';
+  let totalUnits = 0;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  try {
+    for (let i = 0; i < pending.length; i++) {
+      if (_backfillAbort) break;
+      const w = pending[i];
+      const label = `Window ${done.size + 1}/${wins.length} · ${w.from} → ${w.to}`;
+      backfillSay(`${label}<br>Requesting report…`);
+      let created = await api({ action: 'amazon_report_create', date_from: w.from, date_to: w.to });
+      // createReport is rate-limited (~1/min after a burst); wait and retry rather than fail
+      for (let tries = 0; !created.ok && /throttl|429|quota/i.test(created.message || '') && tries < 5; tries++) {
+        backfillSay(`${label}<br>Amazon rate limit — waiting 65s…`);
+        await sleep(65000);
+        if (_backfillAbort) break;
+        created = await api({ action: 'amazon_report_create', date_from: w.from, date_to: w.to });
+      }
+      if (!created.ok) { backfillSay(`${label}<br>❌ ${created.message || 'create failed'} — stopped`, true); break; }
+
+      let st = { status: 'IN_QUEUE' }, waited = 0;
+      while (!_backfillAbort && !['DONE', 'CANCELLED', 'FATAL'].includes(st.status) && waited < 15 * 60e3) {
+        await sleep(10000); waited += 10000;
+        st = await api({ action: 'amazon_report_status', report_id: created.report_id });
+        backfillSay(`${label}<br>Report ${st.status || '…'} (${Math.round(waited / 1000)}s)`);
+      }
+      if (_backfillAbort) break;
+      if (st.status === 'DONE' && st.document_id) {
+        backfillSay(`${label}<br>Importing…`);
+        const imp = await api({ action: 'amazon_report_import', document_id: st.document_id });
+        if (!imp.ok) { backfillSay(`${label}<br>❌ ${imp.message || 'import failed'} — stopped`, true); break; }
+        totalUnits += imp.units || 0;
+        backfillSay(`${label}<br>✅ ${imp.units} units from ${imp.orders} orders (${imp.skipped_known} already synced)`);
+      } else if (st.status === 'CANCELLED') {
+        // Amazon cancels reports that would be empty
+        backfillSay(`${label}<br>No orders in this window`);
+      } else {
+        backfillSay(`${label}<br>❌ Report ${st.status} — stopped`, true); break;
+      }
+      done.add(w.from);
+      localStorage.setItem(BACKFILL_KEY, JSON.stringify({ done: [...done], at: Date.now() }));
+      await sleep(1500);
+    }
+    const finished = done.size >= wins.length;
+    backfillSay(`${finished ? '🎉 Backfill complete' : '⏸ Stopped'} — ${done.size}/${wins.length} windows, ${totalUnits} units imported this run. ${finished ? '' : 'Click Backfill again to resume.'}`, true);
+    if (totalUnits) loadAmazonSkuView();
+  } catch (e) {
+    backfillSay(`❌ ${e.message} — click Backfill again to resume`, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '📥 Backfill 2 years';
+  }
 }
 
 async function loadAmazonSkuView() {
