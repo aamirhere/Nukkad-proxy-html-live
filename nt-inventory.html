@@ -3250,7 +3250,7 @@ function addEmgSearchFn(inp) {
   const q = inp.value.trim().toLowerCase();
   const dd = document.getElementById('addEmgDropdown');
   if (q.length < 1) { dd.style.display = 'none'; return; }
-  const src = allProducts.length ? allProducts : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  const src = dispatchDesignSource();
   const matches = src.filter(p => p.title && p.title.toLowerCase().includes(q)).slice(0, 12);
   if (!matches.length) { dd.style.display = 'none'; return; }
   dd.innerHTML = matches.map(p =>
@@ -3711,7 +3711,30 @@ function renderDispatchTypePills() {
   ).join('');
 }
 
+let _amazonOnlyDesigns = []; // [{handle, title, amazon_only:true}]
+async function loadAmazonOnlyDesigns() {
+  if (_amazonOnlyDesigns.length) return;
+  try {
+    const res = await api({ action: 'load_sku_map' });
+    const web = new Set(allProducts.map(p => p.handle));
+    const seen = new Set();
+    for (const r of (res.rows || [])) {
+      const h = r.handle;
+      if (!r.confirmed || !h || h === 'amazon' || h === '__skip__' || web.has(h) || seen.has(h)) continue;
+      seen.add(h);
+      _amazonOnlyDesigns.push({ handle: h, title: h.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), amazon_only: true });
+    }
+  } catch {}
+}
+function dispatchDesignSource() {
+  const base = allProducts.length ? allProducts
+    : _designIndex.length ? _designIndex
+    : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  return [...base, ..._amazonOnlyDesigns];
+}
+
 function openDispatchModal() {
+  loadAmazonOnlyDesigns();
   if (!Object.keys(_printLinks).length) loadPrintData();
   _dispatchRows = [{}];
   _dispatchType = 'emg';
@@ -3778,9 +3801,7 @@ function dSearch(i, inp) {
   const q = _normSearch(raw);
   const dd = document.getElementById(`ddd-${i}`);
   if (q.length < 1) { dd.style.display = 'none'; return; }
-  const src = allProducts.length ? allProducts
-    : _designIndex.length ? _designIndex
-    : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  const src = dispatchDesignSource();
   // deduplicate by normalized title
   const seen = new Set();
   const matches = [];
@@ -3799,7 +3820,7 @@ function dSearch(i, inp) {
     return `<div onmousedown="event.preventDefault()" onclick="dSelect(${i},'${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})"
       style="padding:8px 12px;font-size:.83rem;cursor:pointer;border-bottom:1px solid #f5f0e8;display:flex;align-items:center;justify-content:space-between;gap:8px"
       onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''"
-    ><span>${p.title}</span>${pendingBadge}</div>`;
+    ><span>${p.title}${p.amazon_only ? ' <span style="font-size:.66rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle">Amazon only</span>' : ''}</span>${pendingBadge}</div>`;
   }).join('');
   dd.style.display = 'block';
 }
@@ -3877,9 +3898,7 @@ function dispatchMatch(query, src) {
 function parsePastedList() {
   const raw = document.getElementById('dispatchPasteText').value;
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const src = allProducts.length ? allProducts
-    : _designIndex.length ? _designIndex
-    : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
+  const src = dispatchDesignSource();
   const parsed = [];
   for (const line of lines) {
     const m = line.match(/^(.+?)\s+(\d+)\s*(?:pes|pcs|pc|pieces?|p\.?)?\s*$/i);
