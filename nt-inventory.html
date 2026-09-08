@@ -3947,7 +3947,7 @@ function dispatchMatch(query, src) {
     if (score >= 0.3) scored.push({ p, score });
   }
   scored.sort((a, b) => b.score - a.score);
-  return { exact: null, suggestions: scored.slice(0, 3).map(x => ({ handle: x.p.handle, title: x.p.title, score: Math.round(x.score * 100) })) };
+  return { exact: null, suggestions: scored.slice(0, 1).map(x => ({ handle: x.p.handle, title: x.p.title, score: Math.round(x.score * 100) })) };
 }
 
 function parsePastedList() {
