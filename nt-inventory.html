@@ -1136,7 +1136,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
       <label style="font-size:.8rem;font-weight:600;color:#6f5b46;white-space:nowrap">Dispatch date</label>
       <input type="date" id="dispatchDate" style="flex:1;border:1.5px solid #e9ddca;border-radius:8px;padding:7px 10px;font-size:.84rem">
     </div>
-    <div id="dispatchTypeRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <!-- type pills retired: allocation is automatic (open emergencies first, remainder to stock) -->
+    <div id="dispatchTypeRow" style="display:none"></div>
     <div id="dispatchPasteArea" style="display:none;margin-bottom:14px">
       <textarea id="dispatchPasteText" rows="8" placeholder="Paste WhatsApp list here…&#10;e.g. Slow down here 2 pes&#10;Dog Mom 7 pes" style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:10px;font-size:.82rem;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
       <button onclick="parsePastedList()" style="margin-top:8px;width:100%;padding:9px;border:none;border-radius:8px;background:#d4541f;color:#fff;font-weight:700;font-size:.84rem;cursor:pointer">Parse & fill rows</button>
@@ -3804,18 +3805,16 @@ async function loadDispatchView() {
       const total = allItems.reduce((s, it) => s + (it.qty || 0), 0);
       const totalEmg = allItems.reduce((s, it) => s + (it.emergency || 0), 0);
       const totalStk = allItems.reduce((s, it) => s + (it.stock || 0), 0);
-      const flatRows = dayDispatches.flatMap(d => {
+      const multi = dayDispatches.length > 1;
+      // One block per list: slim header, then that list's items directly under it
+      const listBlocks = dayDispatches.map(d => {
         const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
-        return items.map((it, ii) => ({ it, ii, d, safeItems: JSON.stringify(items).replace(/"/g, '&quot;') }));
-      });
-      const entriesHTML = dayDispatches.map(d => {
-        const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
+        if (!items.length) return '';
+        const safeItems = JSON.stringify(items).replace(/"/g, '&quot;');
         const pcs = items.reduce((s, it) => s + (it.qty || 0), 0);
         const applied = d.applied !== false;
         const t = new Date(d.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        // Counts only matter when a day holds more than one list; the day header already shows the day total
-        const multi = dayDispatches.length > 1;
-        return `<div class="dl-entry${applied ? '' : ' na'}">
+        const header = `<div class="dl-entry${applied ? '' : ' na'}">
           <span>List saved ${t}${multi ? ` · ${items.length} design${items.length !== 1 ? 's' : ''} · ${pcs} pcs` : ''}</span>
           <span class="dl-badge ${applied ? 'ok' : 'na'}">${applied ? 'applied' : 'not applied'}</span>
           ${d.notes ? `<span style="color:var(--muted)">“${d.notes}”</span>` : ''}
@@ -3824,24 +3823,24 @@ async function loadDispatchView() {
             <button class="btn btn-ghost" onclick="event.stopPropagation();deleteDispatch('${d.id}')" style="color:#c62828" title="Delete this list — its effects are reversed and a version is kept in history">🗑 Delete list</button>
           </span>
         </div>`;
-      }).join('');
-      const rowsHTML = flatRows.map(({ it, ii, d, safeItems }) => {
-        const itPending = emgPendingCount(it.handle, it.title);
-        const statusLine = (itPending > 0 ? `<span style="color:#c62828;font-weight:700">🚨 ${itPending} pending</span>` : '')
-          + (d.applied === false ? ` <span class="dl-na-tag">not applied</span>` : '');
-        return `<div class="dl-row" data-title="${(it.title || it.handle || '').toLowerCase()}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #faf6f0">
+        const rows = items.map((it, ii) => {
+          const itPending = emgPendingCount(it.handle, it.title);
+          const statusLine = (itPending > 0 ? `<span style="color:#c62828;font-weight:700">🚨 ${itPending} pending</span>` : '')
+            + (applied ? '' : ` <span class="dl-na-tag">not applied</span>`);
+          return `<div class="dl-row" data-title="${(it.title || it.handle || '').toLowerCase()}" style="display:flex;align-items:center;gap:10px;padding:6px 0 6px 8px;border-bottom:1px solid #faf6f0">
             <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
               <span style="font-size:.85rem;font-weight:600;color:#3a2b1d;white-space:nowrap">${it.title || it.handle}</span>
               <span style="font-size:.72rem">${statusLine}</span>
             </div>
             <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center;flex-shrink:0">
             <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
-        </div>`;
+          </div>`;
+        }).join('');
+        return header + rows;
       }).join('');
       const dispatchBlocks = `
         <div class="dl-body" style="${isOpen ? '' : 'display:none;'}border-top:1px solid #f0ebe0;margin-top:8px;padding-top:8px">
-          ${entriesHTML}
-          ${rowsHTML}
+          ${listBlocks}
         </div>`;
       return `<div class="dl-card" data-date="${date}" style="background:#fff;border:1px solid #e9ddca;border-radius:12px;padding:14px 16px;margin-bottom:10px">
         <div onclick="toggleDispatchCard(this.closest('.dl-card'))" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:${isOpen?'10px':'0'};cursor:pointer;user-select:none">
