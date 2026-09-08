@@ -845,6 +845,43 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .eps-colors { font-size: .62rem; color: #333; }
 .eps-box { width: 10px; height: 10px; border: 1.5px solid #333; border-radius: 2px; flex-shrink: 0; }
 
+
+/* ── cut list (daily plan) ── */
+.cut-slot { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:10px; }
+.cut-slot.emg { border-color:#f5c6c6; background:#fff8f7; }
+.cut-slot-hd { font-size:.72rem; font-weight:800; letter-spacing:.06em; color:var(--muted); margin-bottom:6px; }
+.cut-slot.emg .cut-slot-hd { color:var(--red); }
+.cut-line { display:flex; align-items:center; gap:10px; padding:7px 4px; border-bottom:1px solid #f3ece1; cursor:pointer; font-size:.92rem; }
+.cut-line:last-child { border-bottom:none; }
+.cut-line input { width:18px; height:18px; accent-color:#1a7f37; flex-shrink:0; }
+.cut-line.done { opacity:.45; text-decoration:line-through; }
+.cut-qty { font-family:var(--ff); font-weight:800; font-size:1.05rem; min-width:34px; text-align:right; color:var(--ink); }
+.cut-name { font-weight:700; color:var(--ink); flex:1; min-width:0; }
+.cut-colors { font-size:.76rem; color:var(--ink2); white-space:nowrap; }
+.cut-have { font-size:.68rem; color:var(--muted); background:none; border:1px solid var(--line); border-radius:8px; padding:1px 7px; cursor:pointer; font-family:var(--fb); }
+.cut-have:hover { color:#fff; background:var(--accent); border-color:var(--accent); }
+.cut-tag { font-size:.62rem; font-weight:800; padding:1px 6px; border-radius:8px; vertical-align:middle; }
+.cut-tag.new { background:#e3efff; color:#1565c0; }
+.cut-tag.amz { background:#ff9900; color:#fff; }
+.cut-tag.cnt { background:#fdebd3; color:#b05000; }
+.cut-empty { font-size:.82rem; color:var(--muted); padding:6px 4px; }
+.cut-up-row { display:flex; gap:10px; align-items:baseline; padding:5px 4px; border-bottom:1px solid #f3ece1; font-size:.84rem; }
+.cut-up-row:last-child { border-bottom:none; }
+.cut-up-day { font-weight:700; min-width:82px; color:var(--ink); }
+.cut-up-total { font-weight:800; min-width:44px; color:var(--ink2); }
+.cut-up-names { color:var(--ink2); }
+@media print {
+  body.cut-printing .app-header, body.cut-printing .view { display:none !important; }
+  body.cut-printing #view-cutlist { display:block !important; padding:0 !important; min-height:0 !important; }
+  body.cut-printing .cut-controls, body.cut-printing #cutDetailsWrap, body.cut-printing .cut-have, body.cut-printing #view-cutlist .btn { display:none !important; }
+  body.cut-printing #view-cutlist h2, body.cut-printing #cutSummary { display:none; }
+  body.cut-printing .print-date { display:block !important; font-size:1rem; font-weight:800; margin:0 0 6px; }
+  body.cut-printing .cut-slot { break-inside:avoid; padding:6px 8px; margin-bottom:6px; }
+  body.cut-printing .cut-line { padding:3px 2px; font-size:.82rem; }
+  body.cut-printing .cut-line input { width:12px; height:12px; }
+  body.cut-printing .cut-slot.up { display:none; }
+}
+
 /* ── mobile ── */
 @media (max-width: 600px) {
   .app-header { gap: 8px; padding: 0 10px; }
@@ -1242,26 +1279,31 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
 <!-- ── CUT LIST ───────────────────────────────────────────────────────────── -->
 <div class="view" id="view-cutlist">
-  <div class="page-hd">
-    <h2>Cut List</h2>
-    <p>What to produce today — sorted by urgency</p>
-  </div>
-  <div class="cut-controls">
-    <div class="cut-cap-wrap">
-      <label for="cutCapacity">Capacity today:</label>
-      <input id="cutCapacity" type="number" min="1" max="500" value="150" oninput="renderCutList()">
-      <span style="color:var(--muted)">units</span>
+  <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2>✂ Cut List</h2>
+      <p id="cutSummary">Loading today's plan…</p>
+      <p class="print-date" id="cutPrintDate"></p>
     </div>
-    <button class="btn btn-ghost" onclick="renderCutList()">↻ Recalculate</button>
-    <button class="btn btn-primary" onclick="sendCutListToProduction()">→ Send to Production</button>
+    <div class="cut-controls" style="margin:0">
+      <div class="cut-cap-wrap"><label for="cutCapacity">Capacity</label><input id="cutCapacity" type="number" min="10" max="1000" value="150" onchange="cutSaveSettings()"></div>
+      <div class="cut-cap-wrap"><label for="cutMinBatch">Min batch</label><input id="cutMinBatch" type="number" min="1" max="50" value="5" onchange="cutSaveSettings()"></div>
+      <div class="cut-cap-wrap"><label for="cutMaxDesigns">Max designs</label><input id="cutMaxDesigns" type="number" min="1" max="100" value="20" onchange="cutSaveSettings()"></div>
+      <button class="btn btn-ghost" onclick="loadCutPlan()">↻</button>
+      <button class="btn btn-ghost" onclick="cutPrint()">🖨 Print</button>
+      <button class="btn btn-ghost" onclick="cutUndoLast()" style="color:var(--muted)">↶ Undo last</button>
+      <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--ink2);cursor:pointer"><input type="checkbox" id="cutDetailsToggle" onchange="cutToggleDetails(this)"> details</label>
+    </div>
   </div>
-  <p class="cut-summary" id="cutSummary"></p>
-  <div id="cutListContainer">
-    <div class="empty-state"><div class="icon">📊</div><p>Load inventory and order stats first</p></div>
-  </div>
-  <div class="cut-actions" id="cutActions" style="display:none">
-    <a class="prod-link" href="nt-production-prints.html?mode=cutlist" id="prodPrintsLink">🖨 Open Production Prints</a>
-    <a class="prod-link ghost" href="nt-production-queue.html" target="_blank">📋 Production Queue</a>
+
+  <div id="cutToday"></div>
+  <div style="display:flex;justify-content:flex-end;margin:8px 0 18px"><button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button></div>
+
+  <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
+
+  <div id="cutDetailsWrap" style="display:none;margin-top:18px">
+    <div class="cut-slot-hd" style="margin-bottom:6px">DETAILS — for planning, not for the cutter</div>
+    <div id="cutDetails" style="overflow-x:auto"></div>
   </div>
 </div>
 
@@ -1387,16 +1429,9 @@ function switchView(view) {
     loadEmergencyView();
   }
   if (view === 'cutlist') {
-    // load emergencies if not yet loaded, then render
-    if (!allEmgGroups.length) {
-      api({ action: 'load_all_emergencies' }).then(res => {
-        allEmgGroups = res.groups || [];
-        syncRecvBadges();
-        renderCutList();
-      }).catch(() => renderCutList());
-    } else {
-      renderCutList();
-    }
+    try { document.getElementById('cutDetailsToggle').checked = localStorage.getItem('nt_cut_details') === '1'; } catch {}
+    cutToggleDetails(document.getElementById('cutDetailsToggle'));
+    loadCutPlan();
   }
   if (view === 'amazon-skus') {
     loadAmazonSkuView();
@@ -4582,6 +4617,148 @@ function downloadPDF() {
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
 
+// ── Cut List (daily plan) ───────────────────────────────────────────────────
+let _cutPlan = null;
+const CUT_SETTINGS_KEY = 'nt_cut_settings_v1';
+
+function cutSettings() {
+  let s = { capacity: 150, min_batch: 5, max_designs: 20 };
+  try { s = { ...s, ...JSON.parse(localStorage.getItem(CUT_SETTINGS_KEY) || '{}') }; } catch {}
+  return s;
+}
+function cutSaveSettings() {
+  const s = {
+    capacity: parseInt(document.getElementById('cutCapacity').value) || 150,
+    min_batch: parseInt(document.getElementById('cutMinBatch').value) || 5,
+    max_designs: parseInt(document.getElementById('cutMaxDesigns').value) || 20,
+  };
+  try { localStorage.setItem(CUT_SETTINGS_KEY, JSON.stringify(s)); } catch {}
+  loadCutPlan();
+}
+
+async function loadCutPlan() {
+  const s = cutSettings();
+  document.getElementById('cutCapacity').value = s.capacity;
+  document.getElementById('cutMinBatch').value = s.min_batch;
+  document.getElementById('cutMaxDesigns').value = s.max_designs;
+  document.getElementById('cutToday').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div><div class="loading-row" style="height:60px;border-radius:10px;margin-top:8px"></div>';
+  try {
+    _cutPlan = await api({ action: 'cut_plan', ...s });
+    renderCutPlan();
+  } catch (e) {
+    document.getElementById('cutToday').innerHTML = `<div class="empty-state"><p>Could not build the plan: ${e.message}</p></div>`;
+  }
+}
+
+function cutColors(list) {
+  return (list || []).map(c => `${c.qty} ${c.color}`).join(' · ');
+}
+
+function renderCutPlan() {
+  const p = _cutPlan; if (!p) return;
+  const [y, m, d] = p.date.split('-');
+  const emgLines = p.emergency.filter(x => x.today > 0);
+  const total = p.emergency_today + p.stock_total;
+  document.getElementById('cutSummary').innerHTML =
+    `<b>${total}</b> pieces today · ${p.emergency_today} emergency + ${p.stock_total} stock` +
+    (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">${p.emergency_carry} emergency carry to tomorrow</span>` : '') +
+    ` · range levelled to <b>${p.level_days}d</b>` +
+    (p.uncounted ? ` · <span style="color:#b05000">${p.uncounted} designs not counted</span>` : '');
+  document.getElementById('cutPrintDate').textContent = `Cut list · ${d}-${m}-${y} · ${total} pieces`;
+
+  const row = (x, kind) => {
+    const key = `${kind}:${x.handle}`;
+    return `<label class="cut-line" id="cl-${key.replace(/[^a-z0-9]/gi, '_')}">
+      <input type="checkbox" onchange="cutTick('${kind}','${x.handle.replace(/'/g, "\\'")}',${kind === 'emg' ? x.today : x.qty},this)">
+      <span class="cut-qty">${kind === 'emg' ? x.today : x.qty}</span>
+      <span class="cut-name">${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${kind === 'emg' && x.amazon ? ' <span class="cut-tag amz">Amazon</span>' : ''}${x.count_needed ? ' <span class="cut-tag cnt" title="Stock not counted — treated as 0">count</span>' : ''}</span>
+      <span class="cut-colors">${cutColors(x.colors)}</span>
+      <button type="button" class="cut-have" onclick="event.preventDefault();cutHave('${x.handle.replace(/'/g, "\\'")}','${x.title.replace(/'/g, "\\'")}')" title="We already have some cut for this design">have already</button>
+    </label>`;
+  };
+  let html = '';
+  html += `<div class="cut-slot emg"><div class="cut-slot-hd">🚨 EMERGENCY FIRST — ${p.emergency_today}</div>${emgLines.length ? emgLines.map(x => row(x, 'emg')).join('') : '<div class="cut-empty">No emergency to cut</div>'}</div>`;
+  html += `<div class="cut-slot"><div class="cut-slot-hd">📦 STOCK — ${p.stock_total}</div>${p.stock.length ? p.stock.map(x => row(x, 'stock')).join('') : '<div class="cut-empty">Capacity used by emergency, or every design is above the ceiling</div>'}</div>`;
+  document.getElementById('cutToday').innerHTML = html;
+
+  const labels = ['Tomorrow', 'Day after'];
+  document.getElementById('cutUpcoming').innerHTML = p.upcoming.map((u, i) =>
+    `<div class="cut-up-row"><span class="cut-up-day">${labels[i] || `Day ${u.day}`}</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">${u.designs.slice(0, 8).join(', ')}${u.designs.length > 8 ? ` +${u.designs.length - 8} more` : ''}</span></div>`
+  ).join('') || '<div class="cut-empty">Nothing further needed</div>';
+
+  // details table (user 1)
+  const det = p.details.filter(x => x.demand > 0 || x.in_hand > 0 || (x.stock ?? 0) > 0);
+  document.getElementById('cutDetails').innerHTML = `
+    <table class="sku-conf-table" style="font-size:.78rem">
+      <thead><tr><th>Design</th><th>Demand/day</th><th>Stock</th><th>In hand</th><th>Cover now</th><th>Cut today</th><th>Cover after</th></tr></thead>
+      <tbody>${det.map(x => {
+        const line = p.stock.find(s => s.handle === x.handle);
+        const emgL = p.emergency.find(s => s.handle === x.handle);
+        return `<tr>
+          <td>${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}</td>
+          <td>${x.demand}</td>
+          <td>${x.stock == null ? '<span style="color:#b05000">N/A</span>' : x.stock}</td>
+          <td>${x.in_hand || 0}</td>
+          <td>${x.cover == null ? '—' : x.cover + 'd'}</td>
+          <td>${(line ? line.qty : 0) + (emgL ? emgL.today : 0) || ''}${emgL ? ` <span class="cut-tag amz" style="background:#fde8e6;color:#b03020">${emgL.today} emg</span>` : ''}</td>
+          <td>${line?.cover_after != null ? line.cover_after + 'd' : (x.cover == null ? '—' : x.cover + 'd')}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+async function cutTick(kind, handle, qty, cb) {
+  cb.disabled = true;
+  try {
+    await api({ action: 'cut_mark', handle, qty, note: kind === 'emg' ? 'emergency' : 'stock' });
+    cb.closest('.cut-line').classList.add('done');
+    toast(`✂ ${qty} cut → in hand`);
+  } catch (e) { cb.checked = false; toast('Failed: ' + e.message); }
+  finally { cb.disabled = false; }
+}
+
+async function cutHave(handle, title) {
+  const cur = _cutPlan?.details.find(x => x.handle === handle)?.in_hand || 0;
+  const v = prompt(`${title}\n\nHow many are already cut or in production (not yet in the rack)?`, String(cur));
+  if (v === null) return;
+  const n = parseInt(v, 10);
+  if (Number.isNaN(n) || n < 0) { toast('Enter a number'); return; }
+  try {
+    await api({ action: 'cut_set_wip', handle, qty: n });
+    toast(`✓ ${title}: ${n} in hand`);
+    loadCutPlan();
+  } catch (e) { toast('Failed: ' + e.message); }
+}
+
+async function cutMarkAll() {
+  const boxes = [...document.querySelectorAll('#cutToday input[type=checkbox]:not(:checked)')];
+  if (!boxes.length) { toast('Everything is already ticked'); return; }
+  if (!confirm(`Mark all ${boxes.length} remaining lines as cut?`)) return;
+  for (const b of boxes) { b.checked = true; b.dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 80)); }
+}
+
+async function cutUndoLast() {
+  if (!confirm('Undo the last in-hand change (last tick, "have already" or dispatch)?')) return;
+  try {
+    const r = await api({ action: 'cut_undo_last' });
+    if (!r.ok) { toast(r.message || 'Nothing to undo'); return; }
+    toast(`↶ ${r.undone.handle}: ${r.before} → ${r.after} in hand`);
+    loadCutPlan();
+  } catch (e) { toast('Undo failed: ' + e.message); }
+}
+
+function cutToggleDetails(cb) {
+  document.getElementById('cutDetailsWrap').style.display = cb.checked ? '' : 'none';
+  try { localStorage.setItem('nt_cut_details', cb.checked ? '1' : '0'); } catch {}
+}
+
+function cutPrint() {
+  document.body.classList.add('cut-printing');
+  const done = () => { document.body.classList.remove('cut-printing'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
+}
+
 function todayIST() {
   const d = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
   return d.toISOString().slice(0, 10);
@@ -4619,196 +4796,8 @@ async function api(body) {
 
 // ── CUT LIST ──────────────────────────────────────────────────────────────────
 
-function computePredictions() {
-  const now = new Date();
-  const nowMs = now.getTime();
 
-  // last 30 days and last 60 days in IST months (for recent trend)
-  function getLast30Months() {
-    const result = new Set();
-    for (let i = 0; i < 3; i++) {
-      const d = new Date(nowMs - i * 30 * 86400000);
-      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
-      result.add(`${ist.getUTCFullYear()}-${String(ist.getUTCMonth()+1).padStart(2,'0')}`);
-    }
-    return [...result];
-  }
-  function getLast60Months() {
-    const result = new Set();
-    for (let i = 0; i < 4; i++) {
-      const d = new Date(nowMs - i * 30 * 86400000);
-      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
-      result.add(`${ist.getUTCFullYear()}-${String(ist.getUTCMonth()+1).padStart(2,'0')}`);
-    }
-    return [...result];
-  }
 
-  const months30 = getLast30Months();
-  const months60 = getLast60Months();
-
-  return allProducts.map(p => {
-    const map = orderStats[p.handle] || {};
-    const qty30 = months30.reduce((s, m) => s + (map[m] || 0), 0);
-    const qty60 = months60.reduce((s, m) => s + (map[m] || 0), 0);
-
-    const vel30 = qty30 / 30;   // orders per day (last ~30d)
-    const vel60 = qty60 / 60;   // orders per day (last ~60d)
-
-    const stock = p.stock;
-    const daysToEmpty = (stock !== null && vel30 > 0) ? stock / vel30 : null;
-    const suggested = Math.ceil(vel30 * 14);   // 2-week buffer
-    const toProduce = stock !== null ? Math.max(0, suggested - stock) : suggested || 0;
-
-    const trendUp = vel60 > 0 && vel30 > vel60 * 1.5;
-
-    // urgency score for sorting
-    let score = 0;
-    if (toProduce > 0) {
-      if (daysToEmpty !== null && daysToEmpty < 1)  score += 1000;
-      else if (daysToEmpty !== null && daysToEmpty < 3)  score += 200;
-      else if (daysToEmpty !== null && daysToEmpty < 7)  score += 50;
-      else if (daysToEmpty !== null && daysToEmpty < 14) score += 10;
-      score += vel30 * 3;
-      if (trendUp) score *= 1.5;
-    }
-
-    return { ...p, vel30, vel60, daysToEmpty, suggested, toProduce, trendUp, score };
-  });
-}
-
-function renderCutList() {
-  if (!allProducts.length) return;
-  const capacity = parseInt(document.getElementById('cutCapacity')?.value || 150);
-  const preds = computePredictions();
-
-  // Build emergency section from allEmgGroups (handle→count of outstanding units)
-  const emgByHandle = {};
-  for (const g of allEmgGroups) emgByHandle[g.handle] = g.units.length;
-
-  // Emergency items: must produce first, before capacity counting
-  const emgItems = [];
-  for (const p of preds) {
-    const emgCount = emgByHandle[p.handle] || 0;
-    if (emgCount > 0) emgItems.push({ ...p, cutQty: emgCount, isEmgSection: true });
-  }
-  const emgTotal = emgItems.reduce((s, x) => s + x.cutQty, 0);
-
-  // Regular stock items: sort by urgency, fill remaining capacity
-  const alreadyInEmg = new Set(emgItems.map(x => x.handle));
-  const needsWork = preds
-    .filter(p => p.toProduce > 0 && !alreadyInEmg.has(p.handle))
-    .sort((a, b) => b.score - a.score);
-
-  let remaining = Math.max(0, capacity - emgTotal);
-  const stockItems = [];
-  for (const p of needsWork) {
-    if (remaining <= 0) break;
-    const qty = Math.min(p.toProduce, remaining);
-    stockItems.push({ ...p, cutQty: qty });
-    remaining -= qty;
-  }
-
-  const cutItems = [...emgItems, ...stockItems];
-  const totalCut = cutItems.reduce((s, x) => s + x.cutQty, 0);
-
-  const sumEl = document.getElementById('cutSummary');
-  sumEl.innerHTML =
-    (emgItems.length ? `<span style="color:var(--red);font-weight:700">⚠ ${emgItems.length} emergency design${emgItems.length !== 1 ? 's' : ''} (${emgTotal} units)</span> · ` : '') +
-    `${stockItems.length} stock design${stockItems.length !== 1 ? 's' : ''} · <strong>${totalCut}</strong> total units`;
-
-  if (!cutItems.length) {
-    document.getElementById('cutListContainer').innerHTML =
-      '<div class="empty-state"><div class="icon">✅</div><p>Stock levels look healthy — nothing urgent to produce</p></div>';
-    document.getElementById('cutActions').style.display = 'none';
-    return;
-  }
-
-  let rows = '';
-  let rank = 0;
-  let shownStockHeader = false;
-  for (const p of cutItems) {
-    rank++;
-    if (!p.isEmgSection && !shownStockHeader) {
-      shownStockHeader = true;
-      if (emgItems.length) {
-        rows += `<tr><td colspan="7" style="padding:10px 10px 4px;font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-top:2px solid var(--line)">Stock replenishment</td></tr>`;
-      }
-    }
-    if (p.isEmgSection && rank === 1) {
-      rows += `<tr><td colspan="7" style="padding:10px 10px 4px;font-size:.7rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em">🚨 Emergency — fulfil first</td></tr>`;
-    }
-    const urgency = p.isEmgSection ? 'emg'
-      : p.daysToEmpty !== null && p.daysToEmpty < 3 ? 'emg'
-      : p.daysToEmpty !== null && p.daysToEmpty < 7 ? 'low'
-      : 'ok';
-    const trClass = urgency === 'emg' ? 'emg-row-tr' : urgency === 'low' ? 'low-row-tr' : '';
-    const badgeLabel = p.isEmgSection ? '🚨 Emergency' : urgency === 'emg' ? '⚠ Urgent' : urgency === 'low' ? '↓ Low' : '✓ OK';
-    const stockLabel = p.stock === null ? '<span style="color:var(--muted)">—</span>'
-      : `<span class="${urgency === 'emg' ? 'warn' : urgency === 'low' ? '' : 'ok'}">${p.stock}</span>`;
-    const dteLabel = p.isEmgSection ? '—'
-      : p.daysToEmpty === null ? '—'
-      : p.daysToEmpty < 1 ? '<span class="warn">&lt;1d</span>'
-      : `<span class="${p.daysToEmpty < 3 ? 'warn' : p.daysToEmpty < 7 ? '' : 'ok'}">${Math.round(p.daysToEmpty)}d</span>`;
-    const velLabel = p.vel30 > 0 ? p.vel30.toFixed(2) + '/d' : '—';
-    const trend = p.trendUp ? '<span class="trend-up">↑ trend</span>' : '<span class="trend-flat">—</span>';
-    const thumb = p.image
-      ? `<img class="cut-thumb" src="${p.image}" alt="" loading="lazy" onerror="this.style.display='none'">`
-      : `<div class="cut-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--line)">📦</div>`;
-
-    rows += `<tr class="${trClass}">
-      <td class="cut-rank">${rank}</td>
-      <td>
-        <div class="cut-thumb-wrap">
-          ${thumb}
-          <div>
-            <div class="cut-title">${p.title}</div>
-            <span class="cut-badge ${urgency}">${badgeLabel}</span>
-            ${p.trendUp && !p.isEmgSection ? ' <span class="cut-badge low">↑ trending</span>' : ''}
-          </div>
-        </div>
-      </td>
-      <td class="cut-stat">${stockLabel}</td>
-      <td class="cut-stat">${dteLabel}</td>
-      <td class="cut-stat">${velLabel} ${p.isEmgSection ? '' : trend}</td>
-      <td class="cut-stat">${p.isEmgSection ? '—' : p.suggested}</td>
-      <td class="cut-produce">${p.cutQty}</td>
-    </tr>`;
-  }
-
-  document.getElementById('cutListContainer').innerHTML = `
-    <div style="overflow-x:auto">
-    <table class="cut-table">
-      <thead><tr>
-        <th>#</th>
-        <th>Design</th>
-        <th class="cut-stat">Stock</th>
-        <th class="cut-stat">Days left</th>
-        <th class="cut-stat">Velocity</th>
-        <th class="cut-stat">Target</th>
-        <th class="cut-produce">Produce</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </div>`;
-
-  document.getElementById('cutActions').style.display = 'flex';
-
-  // persist cut list for production page
-  localStorage.setItem('nt_cut_list', JSON.stringify(cutItems.map(p => ({
-    handle: p.handle,
-    title: p.title,
-    image: p.image,
-    cutQty: p.cutQty,
-    stock: p.stock,
-    daysToEmpty: p.daysToEmpty,
-    vel30: p.vel30,
-  }))));
-}
-
-function sendCutListToProduction() {
-  renderCutList(); // ensure localStorage is fresh
-  window.open('nt-production-prints.html?mode=cutlist', '_blank');
-}
 
 // ── START ─────────────────────────────────────────────────────────────────────
 
