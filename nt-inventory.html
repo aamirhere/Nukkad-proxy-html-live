@@ -1050,7 +1050,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <input type="date" id="ordersDate" onchange="loadOrders()">
     <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
     <div id="ordersSearchWrap" style="margin-left:auto;display:flex;align-items:center;gap:6px;position:relative">
-      <input id="ordersSearchQ" type="search" placeholder="find design…" onfocus="ordersSearchFocus(true)" onblur="setTimeout(()=>ordersSearchFocus(false),200)" onkeydown="if(event.key==='Enter')ordersSearch()" style="width:130px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;font-size:.76rem;font-family:inherit;background:transparent;color:var(--ink2)">
+      <input id="ordersSearchQ" type="search" placeholder="find design…" autocomplete="off" onfocus="ordersSearchFocus(true);ordersSuggest(this.value)" oninput="ordersSuggest(this.value)" onblur="setTimeout(()=>{ordersSearchFocus(false);document.getElementById('ordersSuggest').style.display='none'},200)" onkeydown="if(event.key==='Enter'){document.getElementById('ordersSuggest').style.display='none';ordersSearch()}" style="width:130px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;font-size:.76rem;font-family:inherit;background:transparent;color:var(--ink2)">
+      <div id="ordersSuggest" style="display:none;position:absolute;top:100%;left:0;min-width:240px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);z-index:60;max-height:240px;overflow-y:auto;margin-top:2px"></div>
       <div class="emg-view-tabs" id="ordersSearchDays" style="margin:0;display:none">
         <button class="emg-tab" data-d="7" onmousedown="event.preventDefault()" onclick="ordersSearchDays(7)">7d</button>
         <button class="emg-tab" data-d="15" onmousedown="event.preventDefault()" onclick="ordersSearchDays(15)">15d</button>
@@ -2669,6 +2670,30 @@ async function unconfirmSku(sku) {
 
 // ── Orders: search a design across dates ────────────────────────────────────
 let _ordersSearchDays = 30;
+async function ordersSuggest(v) {
+  const box = document.getElementById('ordersSuggest');
+  if (!allProducts.length) { try { const r = await api({ action: 'load_products' }); allProducts = r.products || []; } catch {} }
+  const q = _dNorm(v);
+  if (!q) { box.style.display = 'none'; return; }
+  const seen = new Set();
+  const hits = [];
+  for (const p of dispatchDesignSource()) {
+    if (!p.title) continue;
+    const nt = _dNorm(p.title);
+    if (!nt.includes(q) || seen.has(nt)) continue;
+    seen.add(nt); hits.push(p);
+    if (hits.length >= 8) break;
+  }
+  if (!hits.length) { box.style.display = 'none'; return; }
+  box.innerHTML = hits.map(p => `<div onmousedown="event.preventDefault()" onclick="ordersPick(${JSON.stringify(p.title).replace(/"/g, '&quot;')})" style="padding:7px 12px;font-size:.8rem;cursor:pointer;border-bottom:1px solid #f5f0e8" onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''">${p.title}${p.amazon_only ? ' <span style="font-size:.64rem;font-weight:800;color:#c07000">Amazon only</span>' : ''}</div>`).join('');
+  box.style.display = '';
+}
+function ordersPick(title) {
+  const q = document.getElementById('ordersSearchQ');
+  q.value = title;
+  document.getElementById('ordersSuggest').style.display = 'none';
+  ordersSearch();
+}
 function ordersSearchFocus(on) {
   const q = document.getElementById('ordersSearchQ');
   document.getElementById('ordersSearchDays').style.display = (on || q.value.trim()) ? '' : 'none';
