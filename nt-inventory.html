@@ -763,12 +763,14 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   .dg-card .dg-body { display: none !important; }
   .dg-head { padding: 3px 6px; }
   .dg-title { font-size: .78rem; gap: 4px; font-weight: 700; }
-  .dg-print-qty { display: inline; font-weight: 700; color: #000; }
+  .dg-print-qty { display: inline !important; font-weight: 800; color: #000; min-width: 22px; }
   .dg-color-tag { font-size: .68rem; padding: 1px 5px; border: 1px solid #999; border-radius: 10px; }
   .dg-order-tag { display: none; }
   .dg-status-line { display: none; }
+  #ordersSubtitle { display: none; }
+  .print-date { display: block !important; font-size: .9rem; font-weight: 700; margin: 0 0 6px; }
 }
-.dg-print-qty { display: none; }
+.dg-print-qty, .print-date { display: none; }
 
 /* ── mobile ── */
 @media (max-width: 600px) {
@@ -920,6 +922,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   <div class="page-hd">
     <h2>Orders</h2>
     <p id="ordersSubtitle">Pick a date to load orders</p>
+    <p class="print-date" id="ordersPrintDate"></p>
   </div>
   <div class="date-bar">
     <input type="date" id="ordersDate" onchange="loadOrders()">
@@ -2397,6 +2400,14 @@ function renderOrders() {
   if (ordersSourceFilter !== 'all') units = units.filter(u => (u.source || 'website') === ordersSourceFilter);
   if (activeColor) units = units.filter(u => u.color && u.color.toLowerCase().includes(activeColor.toLowerCase()));
 
+  // print header: date + which view was printed
+  {
+    const [y, m, d] = (document.getElementById('ordersDate').value || '').split('-');
+    const label = ordersFilter === 'emg' ? 'Emergency (to make)' : 'All orders';
+    document.getElementById('ordersPrintDate').textContent =
+      d ? `${label} · ${d}-${m}-${y} · ${units.length} units` : '';
+  }
+
   // update total
   const pill = document.getElementById('ordersTotalPill');
   pill.textContent = `${units.length} unit${units.length !== 1 ? 's' : ''}`;
@@ -2492,7 +2503,7 @@ function renderGroup(g) {
     <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${slug}')" style="cursor:pointer"` : ''}>
       ${leftBtn}
       <div class="dg-info">
-        <div class="dg-title">${isAmazonGroup ? '<span style="color:#c07000;font-size:.72rem;font-weight:700;letter-spacing:.04em;margin-right:4px">AMZ</span>' : ''}${displayTitle} <span class="dg-print-qty">×${total}</span> ${colorLine} ${orderTag}</div>
+        <div class="dg-title"><span class="dg-print-qty">${total}×</span> ${isAmazonGroup ? '<span style="color:#c07000;font-size:.72rem;font-weight:700;letter-spacing:.04em;margin-right:4px">AMZ</span>' : ''}${displayTitle} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
       <div class="dg-actions-row">
