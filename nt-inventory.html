@@ -1863,7 +1863,7 @@ function renderInventory() {
         : `<div class="inv-thumb-placeholder">${p.amazon_only ? '🟡' : '📦'}</div>`
       }
       <div class="inv-title">
-        ${p.title}${p.amazon_only ? ' <span style="font-size:.64rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Sold on Amazon only — no website product">Amazon only</span>' : ''}
+        ${p.title}${p.amazon_only ? ' <span style="font-size:.64rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Sold on Amazon only — no website product">Amazon only</span>' : ''}${p.manual ? ' <span style="font-size:.64rem;font-weight:800;color:#1a7f37;background:#e4f5ea;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Created from the ops tool — no website or Amazon listing">Manual</span>' : ''}
         <div class="inv-handle">${p.handle}${p.updated_at ? ` · <span style="color:var(--muted);font-size:.68rem" title="Stock last updated">${fmtTs(p.updated_at)}</span>` : ''}</div>
       </div>
       <span class="inv-order-count">${ordersLabel}</span>
@@ -3770,7 +3770,8 @@ function renderDispatchRows() {
   document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
     const pending = emgPendingCount(row.handle, row.title);
     const unmatched = !row.handle && !!row.title;
-    const sug = unmatched && row._suggest?.length ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">Did you mean: ${row._suggest.map(sg => `<button type="button" onclick="dSelect(${i},'${sg.handle.replace(/'/g, "\\'")}',${JSON.stringify(sg.title).replace(/"/g, '&quot;')})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #f2c9b4;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit" title="Use this design">${sg.title}</button>`).join('')}</div>` : (unmatched ? `<div id="dsug-${i}" style="margin-top:6px;font-size:.72rem;color:var(--ink2)">No close match — edit the name to search</div>` : '');
+    const addChip = unmatched ? `<button type="button" onclick="dAddNewDesign(${i})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #b8e0c0;background:#f6fdf7;color:#1a7f37;cursor:pointer;font-family:inherit;font-weight:700" title="Create this as a new design in Inventory and use it here">➕ Add “${(row.title || '').replace(/"/g, '&quot;')}” as new design</button>` : '';
+    const sug = unmatched && row._suggest?.length ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">Did you mean: ${row._suggest.map(sg => `<button type="button" onclick="dSelect(${i},'${sg.handle.replace(/'/g, "\\'")}',${JSON.stringify(sg.title).replace(/"/g, '&quot;')})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #f2c9b4;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit" title="Use this design">${sg.title}</button>`).join('')}${addChip}</div>` : (unmatched ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">No close match — edit the name to search, or ${addChip}</div>` : '');
     return `
     <div data-drow="${i}" style="padding:10px;background:${unmatched ? '#fff3ee' : '#fdf5ec'};border-radius:10px;border:1.5px solid ${unmatched ? '#e65100' : '#e9ddca'}">
       ${unmatched ? `<div style="font-size:.68rem;font-weight:800;color:#e65100;letter-spacing:.05em;margin-bottom:4px">NOT MATCHED</div>` : ''}
@@ -3823,6 +3824,20 @@ function dSearch(i, inp) {
     ><span>${p.title}${p.amazon_only ? ' <span style="font-size:.66rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle">Amazon only</span>' : ''}</span>${pendingBadge}</div>`;
   }).join('');
   dd.style.display = 'block';
+}
+
+async function dAddNewDesign(i) {
+  const inp = document.querySelector(`.disp-search[data-di="${i}"]`);
+  const title = (inp?.value || _dispatchRows[i]?.title || '').trim();
+  if (!title) { toast('Type the design name first'); return; }
+  if (!confirm(`Create “${title}” as a new design in Inventory?\n\nIt will appear on the Inventory page (stock N/A) and be usable for dispatch, emergency and the cut list from now on.`)) return;
+  try {
+    const r = await api({ action: 'add_product', handle: title, title });
+    const p = { handle: r.handle, title: r.title || title, manual: true, image: null, stock: null };
+    if (!allProducts.some(x => x.handle === p.handle)) allProducts.push(p);
+    dSelect(i, p.handle, p.title);
+    toast(`✓ “${p.title}” added to Inventory`);
+  } catch (e) { toast('Could not add: ' + e.message); }
 }
 
 function dSelect(i, handle, title) {
