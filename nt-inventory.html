@@ -470,6 +470,40 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .sku-search-result:hover { background:#fdf5ec; color:var(--accent); }
 
 /* ── emergency view ── */
+/* ── emergency dashboard ── */
+.emg-dash-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.emg-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; font-family: var(--fb); text-align: left; }
+.emg-tile:hover { border-color: var(--accent); }
+.emg-tile-n { font-family: var(--ff); font-size: 1.6rem; font-weight: 700; color: var(--ink); line-height: 1; }
+.emg-tile-l { font-size: .74rem; color: var(--ink2); font-weight: 700; }
+.emg-tile-sub { font-size: .7rem; color: var(--muted); }
+.emg-tile-pending { border-color: #f5c6c6; background: #fff6f5; }
+.emg-tile-pending .emg-tile-n { color: var(--red); }
+.emg-dash-table-wrap { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; overflow-x: auto; }
+.emg-dash-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.emg-dash-table th { text-align: left; font-size: .7rem; color: var(--muted); font-weight: 700; padding: 4px 8px; border-bottom: 2px solid var(--line); }
+.emg-dash-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.emg-dash-table tr.d-row { cursor: pointer; }
+.emg-dash-table tr.d-row:hover td { background: rgba(212,84,31,.04); }
+.emg-dash-table tr.d-late td:first-child { color: var(--red); font-weight: 700; }
+.emg-dash-table tr.d-clear td { color: var(--muted); }
+.emg-dash-table .n-open { color: #b05000; font-weight: 700; }
+.emg-dash-table .n-printed { color: #1565c0; font-weight: 700; }
+.emg-dash-table .n-sent { color: var(--green); }
+.emg-dash-table .n-pending { font-weight: 800; color: var(--red); }
+.emg-dash-table .n-zero { color: var(--muted); font-weight: 400; }
+.emg-dash-detail td { background: #fdf9f3; padding: 6px 8px 10px; }
+.emg-dash-design { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: .8rem; flex-wrap: wrap; }
+.emg-dash-design b { color: var(--ink); }
+.emg-badge { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+.emg-badge.open { background: #fdebd3; color: #b05000; }
+.emg-badge.printed { background: #e3efff; color: #1565c0; }
+.emg-badge.sent { background: #e4f5ea; color: #1a7f37; }
+.emg-dash-link { font-size: .72rem; color: var(--accent); background: none; border: 1px solid #f2c9b4; border-radius: 8px; padding: 2px 8px; cursor: pointer; font-family: var(--fb); }
+.emg-dash-link:hover { background: var(--accent); color: #fff; }
+@media (max-width: 600px) { .emg-dash-tiles { grid-template-columns: repeat(2, 1fr); } }
+
 .emg-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .emg-view-tabs { display: flex; gap: 4px; }
 .emg-tab {
@@ -955,6 +989,38 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <h2>Emergency Units</h2>
     <p id="emgSubtitle">Items that couldn't be fulfilled from stock</p>
   </div>
+
+  <!-- dashboard: numbers first, tabs below are the detail -->
+  <div id="emgDash" style="margin-bottom:16px">
+    <div class="emg-dash-tiles">
+      <button class="emg-tile" onclick="setEmgView('all')" title="Flagged, not yet printed">
+        <span class="emg-tile-n" id="emgDashOpen">–</span><span class="emg-tile-l">To print</span>
+      </button>
+      <button class="emg-tile" onclick="setEmgView('printed')" title="Printed, dispatch not recorded">
+        <span class="emg-tile-n" id="emgDashPrinted">–</span><span class="emg-tile-l">Printed · not sent</span>
+      </button>
+      <button class="emg-tile emg-tile-pending" onclick="toggleEmgDashTable(true)" title="Open + printed, across all dates">
+        <span class="emg-tile-n" id="emgDashPending">–</span><span class="emg-tile-l">Pending total</span>
+        <span class="emg-tile-sub" id="emgDashDates"></span>
+      </button>
+      <button class="emg-tile" onclick="setEmgView('sent')" title="Dispatch recorded">
+        <span class="emg-tile-n" id="emgDashSent">–</span><span class="emg-tile-l">Sent</span>
+      </button>
+    </div>
+    <div class="emg-dash-table-wrap">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:.05em">PENDING BY ORDER DATE</span>
+        <label style="font-size:.76rem;color:var(--ink2);margin-left:auto;cursor:pointer;display:flex;gap:5px;align-items:center">
+          <input type="checkbox" id="emgDashShowCleared" onchange="renderEmgDash()"> show cleared dates
+        </label>
+      </div>
+      <table class="emg-dash-table" id="emgDashTable">
+        <thead><tr><th>Order date</th><th>Age</th><th>Open</th><th>Printed</th><th>Sent</th><th>Pending</th><th></th></tr></thead>
+        <tbody><tr><td colspan="7" style="color:var(--muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <div style="margin-bottom:10px">
     <input id="emgSearch" type="search" placeholder="Search designs across all tabs…" oninput="filterEmgSearch(this.value)" style="width:100%;padding:9px 14px;border:1.5px solid #e9ddca;border-radius:10px;font-size:.88rem;font-family:inherit;box-sizing:border-box;background:#fff">
   </div>
@@ -3171,9 +3237,95 @@ async function loadPrintData() {
   } catch(e) { console.warn('Could not load print links:', e.message); }
 }
 
+// ── Emergency dashboard ──────────────────────────────────────────────────────
+let _emgDash = null;
+const _emgDashOpen = new Set();
+
+async function loadEmgDashboard() {
+  try {
+    _emgDash = await api({ action: 'emergency_dashboard' });
+    renderEmgDash();
+  } catch (e) {
+    document.querySelector('#emgDashTable tbody').innerHTML =
+      `<tr><td colspan="7" style="color:var(--red)">Dashboard failed: ${e.message}</td></tr>`;
+  }
+}
+
+function toggleEmgDashTable(show) {
+  const el = document.querySelector('.emg-dash-table-wrap');
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderEmgDash() {
+  if (!_emgDash) return;
+  const { dates, totals } = _emgDash;
+  const set = (id, v) => { document.getElementById(id).textContent = v; };
+  set('emgDashOpen', totals.open);
+  set('emgDashPrinted', totals.printed);
+  set('emgDashPending', totals.pending);
+  set('emgDashSent', totals.sent);
+  set('emgDashDates', totals.dates_pending ? `across ${totals.dates_pending} date${totals.dates_pending !== 1 ? 's' : ''}` : 'nothing pending');
+
+  const showCleared = document.getElementById('emgDashShowCleared').checked;
+  const today = new Date(todayIST());
+  const rows = dates.filter(d => showCleared || d.pending > 0);
+  const tbody = document.querySelector('#emgDashTable tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--green);font-weight:700">✅ Nothing pending — every flagged unit has a dispatch recorded</td></tr>';
+    return;
+  }
+  const fmt = iso => { const [y, m, d] = iso.split('-'); return d ? `${d}-${m}-${y}` : iso; };
+  const num = (n, cls) => `<span class="${n ? cls : 'n-zero'}">${n}</span>`;
+  tbody.innerHTML = rows.map(d => {
+    const age = Math.max(0, Math.round((today - new Date(d.date)) / 86400e3));
+    const late = d.pending > 0 && age >= 3;
+    const open = _emgDashOpen.has(d.date);
+    const detail = open ? `
+      <tr class="emg-dash-detail"><td colspan="7">
+        ${d.designs.map(g => `
+          <div class="emg-dash-design">
+            <b>${g.title}</b>
+            ${g.open ? `<span class="emg-badge open">${g.open} to print</span>` : ''}
+            ${g.printed ? `<span class="emg-badge printed">${g.printed} printed · not sent</span>` : ''}
+            ${g.sent ? `<span class="emg-badge sent">${g.sent} sent</span>` : ''}
+            ${(g.open + g.printed) ? `<span style="font-size:.72rem;color:var(--muted)">${Object.entries(g.colors).map(([c, n]) => `${n}× ${c}`).join(', ')}</span>` : ''}
+          </div>`).join('')}
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">🖨 Open to print (${d.open})</button>` : ''}
+          ${d.printed ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('printed','${d.date}')">📋 Printed · not sent (${d.printed})</button>` : ''}
+          ${d.pending ? `<button class="emg-dash-link" onclick="event.stopPropagation();switchView('dispatch')">📤 Record dispatch</button>` : ''}
+        </div>
+      </td></tr>` : '';
+    return `
+      <tr class="d-row${late ? ' d-late' : ''}${d.pending ? '' : ' d-clear'}" onclick="emgDashToggle('${d.date}')">
+        <td>${open ? '▾' : '▸'} ${fmt(d.date)}</td>
+        <td>${age}d</td>
+        <td>${num(d.open, 'n-open')}</td>
+        <td>${num(d.printed, 'n-printed')}</td>
+        <td>${num(d.sent, 'n-sent')}</td>
+        <td>${num(d.pending, 'n-pending')}</td>
+        <td style="font-size:.72rem;color:var(--muted)">${d.pending ? (late ? '⚠ overdue' : 'in progress') : 'cleared'}</td>
+      </tr>${detail}`;
+  }).join('');
+}
+
+function emgDashToggle(date) {
+  if (_emgDashOpen.has(date)) _emgDashOpen.delete(date); else _emgDashOpen.add(date);
+  renderEmgDash();
+}
+
+// Jump into the detail tab already filtered to that order date
+function emgDashGo(view, date) {
+  setEmgView(view);
+  const setDate = () => { document.getElementById('emgDateFilter').value = date; applyEmgDateFilter(); };
+  if (view === 'all') setDate(); else setTimeout(setDate, 400);
+  document.querySelector('.emg-toolbar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function loadAllEmergencies() {
   document.getElementById('emgGroups').innerHTML =
     [...Array(3)].map(() => '<div class="loading-row" style="height:68px;border-radius:10px"></div>').join('');
+  loadEmgDashboard();
   try {
     const hadLinks = Object.keys(_printLinks).length > 0;
     const [res] = await Promise.all([
@@ -3923,6 +4075,7 @@ async function markUnitPrinted(gi, ui, u) {
     }
     updateEmergencyBadge(allEmgGroups.reduce((s, x) => s + x.units.filter(u2 => !u2.downloaded_at).length, 0));
     toast('Marked as printed ✓');
+    loadEmgDashboard();
   } catch (e) {
     if (rowEl) { rowEl.style.opacity = ''; rowEl.style.pointerEvents = ''; }
     toast('Failed: ' + e.message);
