@@ -854,7 +854,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .cut-line { display:flex; align-items:center; gap:10px; padding:7px 4px; border-bottom:1px solid #f3ece1; cursor:pointer; font-size:.92rem; }
 .cut-line:last-child { border-bottom:none; }
 .cut-line input { width:18px; height:18px; accent-color:#1a7f37; flex-shrink:0; }
-.cut-line.done { opacity:.45; text-decoration:line-through; }
+.cut-line.done { opacity:.6; } .cut-line.done .cut-name, .cut-line.done .cut-qty { text-decoration:line-through; }
 .cut-qty { font-family:var(--ff); font-weight:800; font-size:1.05rem; min-width:34px; text-align:right; color:var(--ink); }
 .cut-name { font-weight:700; color:var(--ink); flex:1; min-width:0; }
 .cut-colors { font-size:.76rem; color:var(--ink2); white-space:nowrap; }
@@ -4904,12 +4904,20 @@ function renderCutPlan() {
 }
 
 async function cutTick(kind, handle, qty, cb) {
+  const on = cb.checked;
   cb.disabled = true;
   try {
-    await api({ action: 'cut_mark', handle, qty, note: kind === 'emg' ? 'emergency' : 'stock' });
-    cb.closest('.cut-line').classList.add('done');
-    toast(`✂ ${qty} cut → in hand`);
-  } catch (e) { cb.checked = false; toast('Failed: ' + e.message); }
+    if (on) {
+      await api({ action: 'cut_mark', handle, qty, note: kind === 'emg' ? 'emergency' : 'stock' });
+      cb.closest('.cut-line').classList.add('done');
+      toast(`✂ ${qty} cut → in hand`);
+    } else {
+      // untick = take it back out of in hand
+      await api({ action: 'cut_mark', handle, qty: -qty, note: 'unticked' });
+      cb.closest('.cut-line').classList.remove('done');
+      toast(`↶ ${qty} removed from in hand`);
+    }
+  } catch (e) { cb.checked = !on; toast('Failed: ' + e.message); }
   finally { cb.disabled = false; }
 }
 
