@@ -4047,7 +4047,7 @@ async function loadDispatchView() {
     const latestDate = sortedDates[0];
     el.innerHTML = sortedDates.map((date, di) => {
       const dayDispatches = byDate[date];
-      const isOpen = date === latestDate;
+      const isOpen = false; // every day card starts collapsed
       const dateStr = new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
       const allItems = dayDispatches.flatMap(d => {
         const items = Array.isArray(d.items) ? d.items : JSON.parse(d.items || '[]');
