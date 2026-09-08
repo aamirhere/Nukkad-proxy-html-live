@@ -3746,8 +3746,11 @@ const DISPATCH_TYPES = [
 function renderDispatchRows() {
   document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
     const pending = emgPendingCount(row.handle, row.title);
+    const unmatched = !row.handle && !!row.title;
+    const sug = unmatched && row._suggest?.length ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">Did you mean: ${row._suggest.map(sg => `<button type="button" onclick="dSelect(${i},'${sg.handle.replace(/'/g, "\\'")}',${JSON.stringify(sg.title).replace(/"/g, '&quot;')})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #f2c9b4;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit" title="${sg.score}% similar">${sg.title} <span style="color:var(--muted)">${sg.score}%</span></button>`).join('')}</div>` : (unmatched ? `<div id="dsug-${i}" style="margin-top:6px;font-size:.72rem;color:var(--ink2)">No close match — edit the name to search</div>` : '');
     return `
-    <div data-drow="${i}" style="padding:10px;background:#fdf5ec;border-radius:10px;border:1.5px solid #e9ddca">
+    <div data-drow="${i}" style="padding:10px;background:${unmatched ? '#fff3ee' : '#fdf5ec'};border-radius:10px;border:1.5px solid ${unmatched ? '#e65100' : '#e9ddca'}">
+      ${unmatched ? `<div style="font-size:.68rem;font-weight:800;color:#e65100;letter-spacing:.05em;margin-bottom:4px">NOT MATCHED</div>` : ''}
       <div style="display:flex;gap:8px;align-items:center">
         <div style="position:relative;flex:1">
           <input type="text" data-di="${i}" class="disp-search" autocomplete="off"
@@ -3764,6 +3767,7 @@ function renderDispatchRows() {
         ${_dispatchRows.length > 1 ? `<button onclick="_dispatchRows.splice(${i},1);renderDispatchRows()" style="background:none;border:none;color:#9c8a76;font-size:1.1rem;cursor:pointer;padding:4px 6px">✕</button>` : ''}
       </div>
       ${pending ? `<div style="margin-top:5px;font-size:.72rem;color:#e65100;font-weight:600">🚨 ${pending} still pending</div>` : ''}
+      ${sug}
     </div>`;
   }).join('');
 }
@@ -3803,6 +3807,10 @@ function dSearch(i, inp) {
 function dSelect(i, handle, title) {
   _dispatchRows[i].handle = handle;
   _dispatchRows[i].title = title;
+  delete _dispatchRows[i]._suggest;
+  { const sg = document.getElementById(`dsug-${i}`); if (sg) sg.remove();
+    const card = document.querySelector(`[data-drow="${i}"]`);
+    if (card) { card.style.background = '#fdf5ec'; card.style.borderColor = '#e9ddca'; const tag = card.firstElementChild; if (tag && tag.textContent === 'NOT MATCHED') tag.remove(); } }
   const inp = document.querySelector(`.disp-search[data-di="${i}"]`);
   if (inp) inp.value = title;
   const dd = document.getElementById(`ddd-${i}`);
@@ -3840,71 +3848,68 @@ function toggleDispatchPaste() {
   if (el.style.display === 'block') document.getElementById('dispatchPasteText').focus();
 }
 
+function _dNorm(t) { return (t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function _dBigrams(t) { const b = new Set(); const x = t.replace(/\s/g, ''); for (let k = 0; k < x.length - 1; k++) b.add(x.slice(k, k + 2)); return b; }
+// Scores a pasted name against the catalogue. Only a normalised exact match is
+// accepted automatically; everything else is offered as suggestions to click.
+function dispatchMatch(query, src) {
+  const nq = _dNorm(query); if (!nq) return { exact: null, suggestions: [] };
+  const qb = _dBigrams(nq), qw = new Set(nq.split(' ').filter(w => w.length > 1));
+  const seen = new Set(); const scored = [];
+  for (const p of src) {
+    if (!p.title || !p.handle) continue;
+    const nt = _dNorm(p.title); if (seen.has(nt)) continue; seen.add(nt);
+    if (nt === nq) return { exact: p, suggestions: [] };
+    let score = 0;
+    if (nt.includes(nq) || nq.includes(nt)) score = Math.min(nq.length, nt.length) / Math.max(nq.length, nt.length);
+    const tw = new Set(nt.split(' ').filter(w => w.length > 1));
+    const inter = [...qw].filter(w => tw.has(w)).length;
+    const jacc = inter / (new Set([...qw, ...tw]).size || 1);
+    const tb = _dBigrams(nt); let common = 0; for (const g of qb) if (tb.has(g)) common++;
+    const dice = (2 * common) / ((qb.size + tb.size) || 1);
+    score = Math.max(score, jacc * 0.95, dice * 0.9);
+    if (score >= 0.3) scored.push({ p, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return { exact: null, suggestions: scored.slice(0, 3).map(x => ({ handle: x.p.handle, title: x.p.title, score: Math.round(x.score * 100) })) };
+}
+
 function parsePastedList() {
   const raw = document.getElementById('dispatchPasteText').value;
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const src = _designIndex.length ? _designIndex
+  const src = allProducts.length ? allProducts
+    : _designIndex.length ? _designIndex
     : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
-
-  function normStr(s) {
-    return (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
-  }
-  function bestMatch(query) {
-    const nq = normStr(query);
-    let best = null, bestScore = 0;
-    for (const p of src) {
-      const nt = normStr(p.title);
-      // score: length of longest common substring relative to query length
-      let score = 0;
-      if (nt === nq) { score = 1; }
-      else if (nt.includes(nq) || nq.includes(nt)) {
-        score = Math.min(nq.length, nt.length) / Math.max(nq.length, nt.length);
-      } else {
-        // word overlap
-        const qw = nq.split(' '), tw = nt.split(' ');
-        const overlap = qw.filter(w => w.length > 2 && tw.includes(w)).length;
-        score = overlap / Math.max(qw.length, tw.length) * 0.9;
-      }
-      if (score > bestScore) { bestScore = score; best = p; }
-    }
-    return bestScore >= 0.5 ? best : null;
-  }
-
   const parsed = [];
   for (const line of lines) {
-    // extract last number before optional unit word
     const m = line.match(/^(.+?)\s+(\d+)\s*(?:pes|pcs|pc|pieces?|p\.?)?\s*$/i);
     if (!m) continue;
     const designName = m[1].trim();
     const qty = parseInt(m[2], 10);
     if (!qty || !designName) continue;
-    const match = bestMatch(designName);
-    parsed.push({ title: match ? match.title : designName, handle: match ? match.handle : '', qty, _guessed: designName });
+    const { exact, suggestions } = dispatchMatch(designName, src);
+    parsed.push(exact
+      ? { title: exact.title, handle: exact.handle, qty }
+      : { title: designName, handle: '', qty, _suggest: suggestions });
   }
-
-  if (!parsed.length) { toast('Could not parse any lines — check the format'); return; }
+  if (!parsed.length) { toast('Could not parse any lines — format is "Design name 3"'); return; }
   _dispatchRows = parsed;
   renderDispatchRows();
-  // show mismatch warnings inline
-  setTimeout(() => {
-    parsed.forEach((p, i) => {
-      if (!p.handle) {
-        const inp = document.querySelector(`.disp-search[data-di="${i}"]`);
-        if (inp) { inp.style.border = '1.5px solid #e65100'; inp.title = `No match found for "${p._guessed}" — please select manually`; }
-      }
-    });
-  }, 100);
   document.getElementById('dispatchPasteArea').style.display = 'none';
   document.getElementById('dispatchPasteText').value = '';
   const unmatched = parsed.filter(p => !p.handle).length;
-  toast(`✓ ${parsed.length} items loaded${unmatched ? ` · ${unmatched} unmatched (shown in orange — select manually)` : ''}`);
+  toast(unmatched
+    ? `${parsed.length} lines · ${unmatched} not matched — pick a suggestion or edit the name`
+    : `✓ ${parsed.length} items matched`);
 }
 
 async function submitDispatch(btn) {
   // include rows that have at least a title (backend does handle fallback via title ilike)
+  const unmatched = _dispatchRows.filter(r => r.title && !r.handle && r.qty > 0);
+  if (unmatched.length) { toast(`${unmatched.length} line${unmatched.length !== 1 ? 's' : ''} not matched — pick a suggestion or remove them`); return; }
   const items = _dispatchRows
-    .filter(r => (r.handle || r.title) && r.qty > 0)
-    .map(r => ({ ...r, type: _dispatchType }));
+    .filter(r => r.handle && r.qty > 0)
+    .map(r => ({ handle: r.handle, title: r.title, qty: r.qty, type: _dispatchType }));
   if (!items.length) { toast('Add at least one design with qty'); return; }
   const updateInventory = document.getElementById('dispatchUpdateInventory').checked;
   btn.disabled = true; btn.textContent = 'Saving…';
