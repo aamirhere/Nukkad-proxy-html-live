@@ -1631,12 +1631,16 @@ async function recalcStock() {
 }
 
 async function resetEmergencyAll() {
-  if (!confirm('Clear the emergency queue view?\n\nOrders will keep their ⚠ marker on the Orders page — this only clears what you see here.')) return;
-  // UI-only clear — does not touch is_emergency in DB so Orders page keeps showing ⚠
-  document.getElementById('emgOpenList').innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>Queue cleared — orders page still shows ⚠ markers</p></div>';
-  document.getElementById('emgPrintedList').innerHTML = '';
-  document.getElementById('emgSentList').innerHTML = '';
-  toast('Emergency queue cleared (orders page unchanged)');
+  const answer = prompt('Clear the whole emergency queue?\n\nEvery unit leaves this tab (open, printed and sent, all dates). The ⚠ No-stock markers on the Orders page are kept, so any date can be pushed back here with "Push to Emergency" and sorted fresh.\n\nType CLEAR to confirm:');
+  if (answer !== 'CLEAR') { if (answer !== null) toast('Cancelled — type exactly CLEAR'); return; }
+  const btn = document.getElementById('btnResetEmg');
+  btn.disabled = true; btn.textContent = 'Clearing…';
+  try {
+    const res = await api({ action: 'reset_emergency' });
+    toast(`Queue cleared — ${res.cleared} unit${res.cleared !== 1 ? 's' : ''} removed from this tab`);
+    await loadAllEmergencies();
+  } catch (e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🗑 Clear Queue'; }
 }
 
 async function resetStock() {
