@@ -4406,6 +4406,7 @@ async function markEmgUnitSent(gi, ui, u) {
 async function markEmgUnitSentDate(u) {
   try {
     await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    loadEmgDashboard();
     toast('Marked as sent ✓');
     loadEmgDateView();
   } catch (e) { toast('Failed: ' + e.message); }
@@ -4417,6 +4418,7 @@ async function dismissEmgUnit(gi, ui, u) {
   if (rowEl) { rowEl.style.opacity = '0.4'; rowEl.style.pointerEvents = 'none'; }
   try {
     await api({ action: 'dismiss_emergency', order_id: u.order_id, line_item_id: u.line_item_id, unit_index: u.unit_index, date: u.date });
+    loadEmgDashboard();
     const g = allEmgGroups[gi];
     if (g) g.units.splice(ui, 1);
     // remove just this row in place — don't collapse the group
