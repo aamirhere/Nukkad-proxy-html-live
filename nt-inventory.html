@@ -759,16 +759,16 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     align-items: start;
   }
   .dg-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; border-radius: 4px; }
-  .dg-card .dg-body { display: block !important; }
-  .dg-head { padding: 4px 8px; }
-  .dg-title { font-size: .75rem; gap: 4px; }
-  .dg-color-tag { font-size: .65rem; padding: 1px 4px; }
-  .dg-order-tag { font-size: .65rem; }
+  /* One line per design: name ×qty + colour pills. Unit rows and order IDs are noise on paper. */
+  .dg-card .dg-body { display: none !important; }
+  .dg-head { padding: 3px 6px; }
+  .dg-title { font-size: .78rem; gap: 4px; font-weight: 700; }
+  .dg-print-qty { display: inline; font-weight: 700; color: #000; }
+  .dg-color-tag { font-size: .68rem; padding: 1px 5px; border: 1px solid #999; border-radius: 10px; }
+  .dg-order-tag { display: none; }
   .dg-status-line { display: none; }
-  .unit-row { padding: 2px 8px; font-size: .72rem; }
-  .unit-row.picked { opacity: 1; background: #f0f9f4; }
-  .unit-serial { min-width: 14px; font-size: .65rem; }
 }
+.dg-print-qty { display: none; }
 
 /* ── mobile ── */
 @media (max-width: 600px) {
@@ -2390,8 +2390,9 @@ async function loadOrders() {
 }
 
 function renderOrders() {
+  // Emergency view = still needs production: flagged and not yet picked
   let units = ordersFilter === 'emg'
-    ? currentUnits.filter(u => u.is_emergency)
+    ? currentUnits.filter(u => u.is_emergency && !u.picked)
     : currentUnits;
   if (ordersSourceFilter !== 'all') units = units.filter(u => (u.source || 'website') === ordersSourceFilter);
   if (activeColor) units = units.filter(u => u.color && u.color.toLowerCase().includes(activeColor.toLowerCase()));
@@ -2491,7 +2492,7 @@ function renderGroup(g) {
     <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${slug}')" style="cursor:pointer"` : ''}>
       ${leftBtn}
       <div class="dg-info">
-        <div class="dg-title">${isAmazonGroup ? '<span style="color:#c07000;font-size:.72rem;font-weight:700;letter-spacing:.04em;margin-right:4px">AMZ</span>' : ''}${displayTitle} ${colorLine} ${orderTag}</div>
+        <div class="dg-title">${isAmazonGroup ? '<span style="color:#c07000;font-size:.72rem;font-weight:700;letter-spacing:.04em;margin-right:4px">AMZ</span>' : ''}${displayTitle} <span class="dg-print-qty">×${total}</span> ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
       <div class="dg-actions-row">
