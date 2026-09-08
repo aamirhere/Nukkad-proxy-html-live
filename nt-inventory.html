@@ -3334,11 +3334,14 @@ function renderEmgDash() {
     const fmtD = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
     const overdue = dates.filter(d => d.open > 0 && Math.round((todayD - new Date(d.date)) / 86400e3) >= 3);
     const stalePrinted = dates.filter(d => d.printed > 0 && d.printed_oldest && (now - new Date(d.printed_oldest)) >= 2 * 86400e3);
-    const unapplied = _emgDash.unapplied || [];
+    // Unapplied-list reminders can be skipped; the dismissal is remembered per list in this browser
+    let skipped = [];
+    try { skipped = JSON.parse(localStorage.getItem('nt_emg_todo_skip') || '[]'); } catch {}
+    const unapplied = (_emgDash.unapplied || []).filter(u => !skipped.includes(u.id));
     const rows = [];
     for (const d of overdue) rows.push(`<div class="emg-todo-row">🖨 <b>${d.open}</b> to print from <b>${fmtD(d.date)}</b> — overdue <button class="emg-dash-link" onclick="emgDashGo('all','${d.date}')">Print now</button></div>`);
     for (const d of stalePrinted) rows.push(`<div class="emg-todo-row">📋 <b>${d.printed}</b> printed for <b>${fmtD(d.date)}</b>, no dispatch for 2+ days <button class="emg-dash-link" onclick="switchView('dispatch')">Record dispatch</button> <button class="emg-dash-link" onclick="emgDashGo('printed','${d.date}')">View</button></div>`);
-    for (const u of unapplied) rows.push(`<div class="emg-todo-row">⚠ Dispatch list of <b>${fmtD(u.dispatch_date)}</b> (${u.pieces} pcs) saved but <b>not applied</b> <button class="emg-dash-link" onclick="setDispatchApplied('${u.id}',true)">Apply now</button> <button class="emg-dash-link" onclick="switchView('dispatch')">Open</button></div>`);
+    for (const u of unapplied) rows.push(`<div class="emg-todo-row">⚠ Dispatch list of <b>${fmtD(u.dispatch_date)}</b> (${u.pieces} pcs) saved but <b>not applied</b> <button class="emg-dash-link" onclick="setDispatchApplied('${u.id}',true)">Apply now</button> <button class="emg-dash-link" onclick="emgTodoSkip('${u.id}');switchView('dispatch')">Open</button> <button class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="emgTodoSkip('${u.id}')">Skip</button></div>`);
     const el = document.getElementById('emgTodo');
     el.style.display = rows.length ? '' : 'none';
     el.innerHTML = rows.length ? `<div class="emg-todo-hd">WHAT TO DO NOW</div>${rows.join('')}` : '';
@@ -3400,6 +3403,14 @@ async function sendDigestNow() {
     else toast('Digest failed: ' + (res.message || (res.results || []).map(r => r.error).filter(Boolean).join('; ') || 'unknown'));
   } catch (e) { toast('Digest failed: ' + e.message); }
   finally { btn.disabled = false; }
+}
+
+function emgTodoSkip(id) {
+  let skipped = [];
+  try { skipped = JSON.parse(localStorage.getItem('nt_emg_todo_skip') || '[]'); } catch {}
+  if (!skipped.includes(id)) skipped.push(id);
+  try { localStorage.setItem('nt_emg_todo_skip', JSON.stringify(skipped.slice(-100))); } catch {}
+  renderEmgDash();
 }
 
 function emgDashToggle(date) {
