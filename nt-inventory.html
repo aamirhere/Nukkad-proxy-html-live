@@ -823,6 +823,23 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 .dg-print-qty, .print-date { display: none; }
 
+/* emergency print sheet: one page per order date, design ×qty + colours */
+@media print {
+  body.emg-printing .app-header, body.emg-printing .view { display: none !important; }
+  body.emg-printing #view-emergency { display: block !important; padding: 0 !important; }
+  body.emg-printing #view-emergency > *:not(#emgPrintSheet) { display: none !important; }
+  body.emg-printing #emgPrintSheet { display: block !important; }
+  .eps-date { break-after: page; page-break-after: always; }
+  .eps-date:last-child { break-after: auto; page-break-after: auto; }
+}
+.eps-hd { font-family: var(--ff); font-size: 1rem; font-weight: 700; margin: 0 0 6px; }
+.eps-sub { font-size: .78rem; color: #444; margin-bottom: 8px; }
+.eps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.eps-row { display: flex; align-items: center; gap: 6px; border: 1px solid #bbb; border-radius: 4px; padding: 4px 8px; font-size: .8rem; }
+.eps-row b { font-weight: 800; min-width: 26px; }
+.eps-colors { font-size: .7rem; color: #333; }
+.eps-box { width: 12px; height: 12px; border: 1.5px solid #333; border-radius: 2px; flex-shrink: 0; }
+
 /* ── mobile ── */
 @media (max-width: 600px) {
   .app-header { gap: 8px; padding: 0 10px; }
@@ -1033,12 +1050,20 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
           <input type="checkbox" id="emgDashShowCleared" onchange="renderEmgDash()"> show cleared dates
         </label>
       </div>
+      <div id="emgSelBar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:.78rem;color:var(--ink2)">
+        <span id="emgSelCount">Tick dates to print or mark several at once</span>
+        <button class="emg-dash-link" onclick="emgPrintDates(emgSelectedDates())">🖨 PDF selected</button>
+        <button class="emg-dash-link" onclick="emgMarkPrintedDates(emgSelectedDates())">✓ Mark selected printed</button>
+        <button class="emg-dash-link" id="emgUndoBtn" style="color:var(--muted);border-color:var(--line);margin-left:auto" onclick="emgUndoLastPrint()">↶ Undo last mark</button>
+      </div>
       <table class="emg-dash-table" id="emgDashTable">
         <thead><tr><th>Order date</th><th>Age</th><th>Open</th><th>Printed</th><th>Sent</th><th>Pending</th><th></th></tr></thead>
         <tbody><tr><td colspan="7" style="color:var(--muted)">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
+
+  <div id="emgPrintSheet" style="display:none"></div>
 
   <div style="margin-bottom:10px">
     <input id="emgSearch" type="search" placeholder="Search designs across all tabs…" oninput="filterEmgSearch(this.value)" style="width:100%;padding:9px 14px;border:1.5px solid #e9ddca;border-radius:10px;font-size:.88rem;font-family:inherit;box-sizing:border-box;background:#fff">
@@ -3375,14 +3400,16 @@ function renderEmgDash() {
             ${(g.open + g.printed) ? `<span style="font-size:.72rem;color:var(--muted)">${Object.entries(g.colors).map(([c, n]) => `${n}× ${c}`).join(', ')}</span>` : ''}
           </div>`).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-          ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">🖨 Open to print (${d.open})</button>` : ''}
+          ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgPrintDates(['${d.date}'])">🖨 PDF (${d.open})</button>` : ''}
+          ${d.open ? `<button class="emg-dash-link" style="color:#1a7f37;border-color:#b8e0c0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'])">✓ Mark all printed (${d.open})</button>` : ''}
+          ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">Open list</button>` : ''}
           ${d.printed ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('printed','${d.date}')">📋 Printed · not sent (${d.printed})</button>` : ''}
-          ${d.pending ? `<button class="emg-dash-link" onclick="event.stopPropagation();switchView('dispatch')">📤 Record dispatch</button>` : ''}
         </div>
       </td></tr>` : '';
+    const checked = _emgSel.has(d.date) ? ' checked' : '';
     return `
       <tr class="d-row${late ? ' d-late' : ''}${d.pending ? '' : ' d-clear'}" onclick="emgDashToggle('${d.date}')">
-        <td>${open ? '▾' : '▸'} ${fmt(d.date)}</td>
+        <td><input type="checkbox"${checked}${d.open ? '' : ' disabled'} onclick="event.stopPropagation();emgToggleSel('${d.date}',this.checked)" style="margin-right:6px;vertical-align:middle"> ${open ? '▾' : '▸'} ${fmt(d.date)}</td>
         <td>${age}d</td>
         <td>${num(d.open, 'n-open')}</td>
         <td>${num(d.printed, 'n-printed')}</td>
@@ -3406,6 +3433,75 @@ async function sendDigestNow() {
     else toast('Digest failed: ' + (res.message || (res.results || []).map(r => r.error).filter(Boolean).join('; ') || 'unknown'));
   } catch (e) { toast('Digest failed: ' + e.message); }
   finally { btn.disabled = false; }
+}
+
+// ── Print / mark-printed by order date ──────────────────────────────────────
+const _emgSel = new Set();
+const EMG_LAST_PRINT_KEY = 'nt_emg_last_print_batch';
+
+function emgToggleSel(date, on) {
+  if (on) _emgSel.add(date); else _emgSel.delete(date);
+  const n = _emgSel.size;
+  document.getElementById('emgSelCount').textContent = n ? `${n} date${n !== 1 ? 's' : ''} selected` : 'Tick dates to print or mark several at once';
+}
+function emgSelectedDates() { return [..._emgSel]; }
+
+function emgDatesData(dates) {
+  if (!_emgDash) return [];
+  return (_emgDash.dates || []).filter(d => dates.includes(d.date) && d.open > 0);
+}
+
+function emgPrintDates(dates) {
+  const rows = emgDatesData(dates);
+  if (!rows.length) { toast('Nothing open to print for that selection'); return; }
+  const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+  const sheet = document.getElementById('emgPrintSheet');
+  sheet.innerHTML = rows.map(d => {
+    const designs = d.designs.filter(g => g.open > 0).sort((a, b) => b.open - a.open || a.title.localeCompare(b.title));
+    return `<div class="eps-date">
+      <div class="eps-hd">Emergency · ${fmt(d.date)} · ${d.open} to print</div>
+      <div class="eps-sub">${designs.length} designs · printed ${new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="eps-grid">${designs.map(g => `
+        <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.title}
+          <span class="eps-colors">${Object.entries(g.colors).map(([c, n]) => `${n} ${c}`).join(' · ')}</span></div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  document.body.classList.add('emg-printing');
+  const done = () => { document.body.classList.remove('emg-printing'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
+}
+
+async function emgMarkPrintedDates(dates) {
+  const rows = emgDatesData(dates);
+  const units = rows.flatMap(d => d.open_units || []);
+  if (!units.length) { toast('Nothing open to mark for that selection'); return; }
+  const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+  if (!confirm(`Mark ${units.length} unit${units.length !== 1 ? 's' : ''} as printed for ${rows.map(d => fmt(d.date)).join(', ')}?\n\nThey move to "Printed · not sent". You can undo this one step with "Undo last mark".`)) return;
+  try {
+    const res = await api({ action: 'mark_printed_batch', units });
+    const marked = res.marked || [];
+    try { localStorage.setItem(EMG_LAST_PRINT_KEY, JSON.stringify({ units: marked, at: res.at, dates: rows.map(d => d.date) })); } catch {}
+    _emgSel.clear(); emgToggleSel('', false);
+    toast(`✓ ${marked.length} unit${marked.length !== 1 ? 's' : ''} marked printed`);
+    loadAllEmergencies();
+  } catch (e) { toast('Failed: ' + e.message); }
+}
+
+async function emgUndoLastPrint() {
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(EMG_LAST_PRINT_KEY) || 'null'); } catch {}
+  if (!last || !last.units?.length) { toast('Nothing to undo'); return; }
+  const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+  const when = new Date(last.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  if (!confirm(`Undo the last mark?\n\n${last.units.length} unit${last.units.length !== 1 ? 's' : ''} for ${(last.dates || []).map(fmt).join(', ')}, marked ${when}, go back to "To print".`)) return;
+  try {
+    await api({ action: 'unmark_printed_batch', units: last.units });
+    try { localStorage.removeItem(EMG_LAST_PRINT_KEY); } catch {}
+    toast(`↶ ${last.units.length} unit${last.units.length !== 1 ? 's' : ''} back to "To print"`);
+    loadAllEmergencies();
+  } catch (e) { toast('Undo failed: ' + e.message); }
 }
 
 function emgTodoSkip(id) {
