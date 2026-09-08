@@ -1045,26 +1045,25 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <p id="ordersSubtitle">Pick a date to load orders</p>
     <p class="print-date" id="ordersPrintDate"></p>
   </div>
-  <div id="ordersPendingBanner" style="display:none;margin-bottom:10px;padding:8px 12px;border:1px solid #f5c6c6;background:#fff6f5;border-radius:10px;font-size:.82rem;color:var(--ink);cursor:pointer" onclick="switchView('emergency')" title="Open the Emergency dashboard"></div>
+
   <div class="date-bar">
     <input type="date" id="ordersDate" onchange="loadOrders()">
     <span class="total-pill" id="ordersTotalPill" style="display:none"></span>
-    <button class="btn btn-ghost" onclick="downloadPDF()" style="margin-left:auto">⬇ PDF</button>
+    <div id="ordersSearchWrap" style="margin-left:auto;display:flex;align-items:center;gap:6px;position:relative">
+      <input id="ordersSearchQ" type="search" placeholder="find design…" onfocus="ordersSearchFocus(true)" onblur="setTimeout(()=>ordersSearchFocus(false),200)" onkeydown="if(event.key==='Enter')ordersSearch()" style="width:130px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;font-size:.76rem;font-family:inherit;background:transparent;color:var(--ink2)">
+      <div class="emg-view-tabs" id="ordersSearchDays" style="margin:0;display:none">
+        <button class="emg-tab" data-d="7" onmousedown="event.preventDefault()" onclick="ordersSearchDays(7)">7d</button>
+        <button class="emg-tab" data-d="15" onmousedown="event.preventDefault()" onclick="ordersSearchDays(15)">15d</button>
+        <button class="emg-tab active" data-d="30" onmousedown="event.preventDefault()" onclick="ordersSearchDays(30)">30d</button>
+        <button class="emg-tab" data-d="60" onmousedown="event.preventDefault()" onclick="ordersSearchDays(60)">60d</button>
+        <button class="emg-tab" data-d="90" onmousedown="event.preventDefault()" onclick="ordersSearchDays(90)">90d</button>
+        <button class="emg-tab" data-d="180" onmousedown="event.preventDefault()" onclick="ordersSearchDays(180)">180d</button>
+      </div>
+      <button class="btn btn-ghost" id="ordersSearchClear" onclick="ordersSearchClear()" style="font-size:.74rem;padding:4px 8px;display:none">✕</button>
+    </div>
+    <button class="btn btn-ghost" onclick="downloadPDF()">⬇ PDF</button>
     <button class="btn btn-ghost" id="btnSyncAmz" onclick="syncAmazonNow()" style="color:#c07000;border-color:#f5dfa0" title="Sync Amazon orders (click to pick days)">🟡 Sync Amazon</button>
     <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#9c8a76;border-color:#e9ddca;font-size:.78rem" title="Test Amazon API">Debug</button>
-  </div>
-  <div class="orders-tabs-row" id="ordersSearchRow" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
-    <input id="ordersSearchQ" type="search" placeholder="Find a design across dates…" onkeydown="if(event.key==='Enter')ordersSearch()" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.86rem;font-family:inherit;background:#fff">
-    <div class="emg-view-tabs" id="ordersSearchDays" style="margin:0">
-      <button class="emg-tab" data-d="7" onclick="ordersSearchDays(7)">7d</button>
-      <button class="emg-tab" data-d="15" onclick="ordersSearchDays(15)">15d</button>
-      <button class="emg-tab active" data-d="30" onclick="ordersSearchDays(30)">30d</button>
-      <button class="emg-tab" data-d="60" onclick="ordersSearchDays(60)">60d</button>
-      <button class="emg-tab" data-d="90" onclick="ordersSearchDays(90)">90d</button>
-      <button class="emg-tab" data-d="180" onclick="ordersSearchDays(180)">180d</button>
-    </div>
-    <button class="btn btn-ghost" onclick="ordersSearch()" style="font-size:.8rem">🔍 Search</button>
-    <button class="btn btn-ghost" id="ordersSearchClear" onclick="ordersSearchClear()" style="font-size:.8rem;display:none">✕ Back to date</button>
   </div>
   <div id="ordersSearchResults" style="display:none;margin-bottom:12px"></div>
   <div class="orders-tabs-row" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
@@ -2670,6 +2669,11 @@ async function unconfirmSku(sku) {
 
 // ── Orders: search a design across dates ────────────────────────────────────
 let _ordersSearchDays = 30;
+function ordersSearchFocus(on) {
+  const q = document.getElementById('ordersSearchQ');
+  document.getElementById('ordersSearchDays').style.display = (on || q.value.trim()) ? '' : 'none';
+  q.style.width = (on || q.value.trim()) ? '180px' : '130px';
+}
 function ordersSearchDays(d) {
   _ordersSearchDays = d;
   document.querySelectorAll('#ordersSearchDays .emg-tab').forEach(b => b.classList.toggle('active', +b.dataset.d === d));
@@ -2728,7 +2732,6 @@ async function loadOrders() {
   const date = document.getElementById('ordersDate').value;
   if (!date) return;
   openGroups.clear();
-  refreshOrdersPendingBanner(date);
 
   document.getElementById('designGroups').innerHTML =
     [...Array(5)].map(() => '<div class="loading-row" style="height:56px;border-radius:10px"></div>').join('');
@@ -2792,7 +2795,8 @@ function renderOrders() {
 
   // color chips
   // Exclude Amazon city-name "colors" — only show finish/variant colors from website orders
-  const colors = [...new Set(currentUnits.filter(u => u.source !== 'amazon').map(u => u.color).filter(Boolean))].sort();
+  const isColour = c => /^[A-Za-z]+$/.test(c.trim());
+  const colors = [...new Set(currentUnits.filter(u => u.source !== 'amazon').map(u => u.color).filter(c => c && isColour(c)))].sort();
   document.getElementById('colorChips').innerHTML = [
     `<button class="color-chip${!activeColor ? ' active' : ''}" onclick="setColor('')">All</button>`,
     ...colors.map(c => `<button class="color-chip${activeColor === c ? ' active' : ''}" onclick="setColor('${c}')">${c}</button>`),
