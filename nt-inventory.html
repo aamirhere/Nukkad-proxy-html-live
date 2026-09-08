@@ -1654,6 +1654,7 @@ async function loadOrderStats() {
   try {
     const res = await api({ action: 'load_order_stats' });
     orderStats = res.stats || {};
+    orderStatsAmz = res.stats_amz || {};
     applyOrderBadges();
     updatePeriodLabel();
     if (res.truncated) toast('Order counts are approximate — very large order history');
@@ -1944,7 +1945,9 @@ function renderInventory() {
     const isZero = p.stock === 0;
     const chipClass = isNA ? 'na' : isZero ? 'zero' : 'counted';
     const orders = sumStatsForPeriod(orderStats[p.handle]);
-    const ordersLabel = orders > 0 ? `${orders} orders` : '—';
+    const ordersAmz = sumStatsForPeriod(orderStatsAmz[p.handle]);
+    const ordersWeb = Math.max(0, orders - ordersAmz);
+    const ordersLabel = orders > 0 ? `${orders} orders <span style="font-weight:600;color:var(--muted);font-size:.68rem">${ordersWeb}w · ${ordersAmz}a</span>` : '—';
     const chipInner = isNA
       ? `<span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">N/A — tap to count</span>`
       : `<span class="qty-lbl">qty</span><span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">${p.stock}</span>`;
@@ -1952,10 +1955,10 @@ function renderInventory() {
     <div class="inv-row" id="inv-${p.handle}">
       ${p.image
         ? `<img class="inv-thumb" src="${p.image}" alt="" loading="lazy" onerror="this.style.display='none'">`
-        : `<div class="inv-thumb-placeholder">${p.amazon_only ? '🟡' : '📦'}</div>`
+        : `<div class="inv-thumb-placeholder">📦</div>`
       }
       <div class="inv-title">
-        ${p.title}${p.amazon_only ? ' <span style="font-size:.64rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Sold on Amazon only — no website product">Amazon only</span>' : ''}${p.manual ? ' <span style="font-size:.64rem;font-weight:800;color:#1a7f37;background:#e4f5ea;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Created from the ops tool — no website or Amazon listing">Manual</span>' : ''}${p.status && p.status !== 'active' ? ` <span style="font-size:.64rem;font-weight:800;color:#6f5b46;background:#efe7db;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Not live on the website">${p.status === 'draft' ? 'Draft' : 'Archived'}</span>` : ''}
+        ${p.title}${p.manual ? ' <span style="font-size:.64rem;font-weight:800;color:#1a7f37;background:#e4f5ea;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Created from the ops tool — no website or Amazon listing">Manual</span>' : ''}${p.status && p.status !== 'active' ? ` <span style="font-size:.64rem;font-weight:800;color:#6f5b46;background:#efe7db;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Not live on the website">${p.status === 'draft' ? 'Draft' : 'Archived'}</span>` : ''}
         <div class="inv-handle">${p.handle}${p.updated_at ? ` · <span style="color:var(--muted);font-size:.68rem" title="Stock last updated">${fmtTs(p.updated_at)}</span>` : ''}</div>
       </div>
       <span class="inv-order-count">${ordersLabel}</span>
@@ -3053,7 +3056,9 @@ async function pushAllToEmergency() {
   const date = document.getElementById('ordersDate').value;
   if (!date) { toast('Pick a date first'); return; }
   // All unpicked, non-emergency units for this date (excludes FBA — they have no production need)
-  const targets = currentUnits.filter(u => !u.picked && !u.is_emergency);
+  const notADesign = u => /gift[\s-]*wrap|wrapping|packag|gift[\s-]*box|add[\s-]*on|shipping|sample|custom/i.test(`${u.title || ''} ${u.handle || ''}`);
+  // flagged-but-cleared units (is_emergency true, not queued) must come back into the queue
+  const targets = currentUnits.filter(u => !u.picked && (!u.is_emergency || u.emg_queued === false) && !notADesign(u));
   if (!targets.length) { toast('No unpicked orders to push'); return; }
   const designs = new Set(targets.map(u => u.title)).size;
   const amz = targets.filter(u => u.source === 'amazon').length;
