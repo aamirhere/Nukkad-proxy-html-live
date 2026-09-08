@@ -3778,9 +3778,13 @@ async function loadDispatchView() {
       const emgRes = await api({ action: 'load_all_emergencies' });
       allEmgGroups = emgRes.groups || [];
     }
-    const res = await api({ action: 'load_dispatches', days: 90 });
+    const [res, delRes] = await Promise.all([
+      api({ action: 'load_dispatches', days: 90 }),
+      api({ action: 'deleted_dispatches', limit: 30 }).catch(() => ({ deleted: [] })),
+    ]);
     const dispatches = res.dispatches || [];
-    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>'; return; }
+    const deletedHTML = renderDeletedDispatches(delRes.deleted || []);
+    if (!dispatches.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>No dispatches yet in the last 90 days</p></div>' + deletedHTML; return; }
     // merge same-day dispatches into one card
     const byDate = {};
     for (const d of dispatches) {
@@ -3817,7 +3821,7 @@ async function loadDispatchView() {
           <span style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn btn-ghost" onclick="event.stopPropagation();openDispatchHistory('${d.id}')">🕘 History</button>
             <button class="btn btn-ghost" onclick="event.stopPropagation();setDispatchApplied('${d.id}',${applied ? 'false' : 'true'})" style="color:${applied ? '#b05000' : '#1a7f37'}">${applied ? '↩ Unapply' : '✓ Apply now'}</button>
-            <button class="btn btn-ghost" onclick="event.stopPropagation();deleteDispatch('${d.id}')" style="color:#c62828">🗑</button>
+            <button class="btn btn-ghost" onclick="event.stopPropagation();deleteDispatch('${d.id}')" style="color:#c62828" title="Delete this list — its effects are reversed and a version is kept in history">🗑 Delete list</button>
           </span>
         </div>`;
       }).join('');
@@ -3836,9 +3840,6 @@ async function loadDispatchView() {
       }).join('');
       const dispatchBlocks = `
         <div class="dl-body" style="${isOpen ? '' : 'display:none;'}border-top:1px solid #f0ebe0;margin-top:8px;padding-top:8px">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-            <button onclick="deleteAllForDay(${JSON.stringify(dayDispatches.map(d=>d.id))},this)" style="background:none;border:1.5px solid #f5c6c6;color:#c62828;font-size:.7rem;cursor:pointer;padding:2px 8px;border-radius:6px;white-space:nowrap;font-weight:600;font-family:inherit" onmouseover="this.style.background='#fff0ee'" onmouseout="this.style.background='none'">🗑 Delete all</button>
-          </div>
           ${entriesHTML}
           ${rowsHTML}
         </div>`;
@@ -3855,8 +3856,31 @@ async function loadDispatchView() {
         </div>
         ${dispatchBlocks}
       </div>`;
-    }).join('');
+    }).join('') + deletedHTML;
   } catch(e) { el.innerHTML = `<div class="empty-state"><p>Load failed: ${e.message}</p></div>`; }
+}
+
+function renderDeletedDispatches(deleted) {
+  if (!deleted.length) return '';
+  const rows = deleted.map(d => {
+    const when = new Date(d.deleted_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const pcs = d.items.reduce((s, i) => s + (i.qty || 0), 0);
+    const items = d.items.map(i => `${i.qty}× ${i.title || i.handle}`).join(', ') || '(empty)';
+    return `<div class="dl-entry" style="background:#fff">
+      <span class="dl-entry-id">#${String(d.id).slice(0, 6)}</span>
+      <span>for ${d.dispatch_date} · ${pcs} pcs · deleted ${when}</span>
+      <span class="dl-badge ${d.applied ? 'ok' : 'na'}">${d.applied ? 'was applied' : 'was not applied'}</span>
+      <span style="flex-basis:100%;font-size:.72rem;color:var(--muted)">${items}</span>
+      <span style="margin-left:auto;display:flex;gap:4px">
+        <button class="btn btn-ghost" onclick="openDispatchHistory('${d.id}')">🕘 History</button>
+        <button class="btn btn-ghost" style="color:var(--green)" onclick="restoreDispatchVersion('${d.id}',${d.version})">↶ Restore</button>
+      </span>
+    </div>`;
+  }).join('');
+  return `<details style="margin-top:14px">
+    <summary style="font-size:.8rem;font-weight:700;color:var(--muted);letter-spacing:.05em;cursor:pointer;user-select:none">🗑 RECENTLY DELETED LISTS (${deleted.length})</summary>
+    <div style="margin-top:8px">${rows}</div>
+  </details>`;
 }
 
 function toggleDispatchCard(card) {
@@ -3943,7 +3967,7 @@ async function setDispatchApplied(id, applied) {
 }
 
 async function deleteDispatch(id, silent = false) {
-  if (!silent && !confirm('Delete this dispatch entry?')) return;
+  if (!silent && !confirm('Delete this dispatch list?\n\nIf it was applied, its emergency picks and stock are reversed. A version is kept in history and the list can be restored from "Recently deleted".')) return;
   try {
     await api({ action: 'delete_dispatch', id });
     if (!silent) { toast('Deleted ✓'); loadDispatchView(); }
