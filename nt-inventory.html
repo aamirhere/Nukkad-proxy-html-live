@@ -1645,12 +1645,12 @@ async function resetEmergencyAll() {
 }
 
 async function resetStock() {
-  if (!confirm('Set ALL stock counts to 0? Do this before Recalc.')) return;
+  if (!confirm('Reset ALL stock to N/A (not counted)?\n\nEvery design shows "—" until you enter a physical count for it. Uncounted designs are never auto-flagged as emergency. Dispatch and pick history is kept; stock is rebuilt from your count onward.')) return;
   const btn = document.getElementById('btnResetStock');
   btn.disabled = true; btn.textContent = 'Resetting…';
   try {
     await api({ action: 'reset_stock' });
-    toast('All stock reset to 0');
+    toast('All stock reset to N/A — enter counts to start the ledger');
     const res = await api({ action: 'load_products' });
     allProducts = res.products || [];
     renderInventory();
@@ -2603,8 +2603,11 @@ async function loadOrders() {
         localState[k] = { ...(localState[k] || {}), is_emergency: true, picked: false };
         u.is_emergency = true; u.picked = false;
       }
-      // batch-save to DB quietly in background
+      // Only fires for designs with a real counted stock of 0 (N/A never auto-flags).
+      // Say so out loud: silent flags were confusing both users.
       Promise.allSettled(toAutoMark.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true }))).catch(() => {});
+      const designs = new Set(toAutoMark.map(u => u.title)).size;
+      toast(`⚠ ${toAutoMark.length} unit${toAutoMark.length !== 1 ? 's' : ''} across ${designs} design${designs !== 1 ? 's' : ''} auto-flagged: counted stock is 0`);
     }
     renderOrders();
   } catch (e) { toast('Failed to load orders: ' + e.message); }
