@@ -1053,6 +1053,20 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
     <button class="btn btn-ghost" id="btnSyncAmz" onclick="syncAmazonNow()" style="color:#c07000;border-color:#f5dfa0" title="Sync Amazon orders (click to pick days)">🟡 Sync Amazon</button>
     <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#9c8a76;border-color:#e9ddca;font-size:.78rem" title="Test Amazon API">Debug</button>
   </div>
+  <div class="orders-tabs-row" id="ordersSearchRow" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
+    <input id="ordersSearchQ" type="search" placeholder="Find a design across dates…" onkeydown="if(event.key==='Enter')ordersSearch()" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:.86rem;font-family:inherit;background:#fff">
+    <div class="emg-view-tabs" id="ordersSearchDays" style="margin:0">
+      <button class="emg-tab" data-d="7" onclick="ordersSearchDays(7)">7d</button>
+      <button class="emg-tab" data-d="15" onclick="ordersSearchDays(15)">15d</button>
+      <button class="emg-tab active" data-d="30" onclick="ordersSearchDays(30)">30d</button>
+      <button class="emg-tab" data-d="60" onclick="ordersSearchDays(60)">60d</button>
+      <button class="emg-tab" data-d="90" onclick="ordersSearchDays(90)">90d</button>
+      <button class="emg-tab" data-d="180" onclick="ordersSearchDays(180)">180d</button>
+    </div>
+    <button class="btn btn-ghost" onclick="ordersSearch()" style="font-size:.8rem">🔍 Search</button>
+    <button class="btn btn-ghost" id="ordersSearchClear" onclick="ordersSearchClear()" style="font-size:.8rem;display:none">✕ Back to date</button>
+  </div>
+  <div id="ordersSearchResults" style="display:none;margin-bottom:12px"></div>
   <div class="orders-tabs-row" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
     <div class="emg-view-tabs" style="margin-bottom:0">
       <button class="emg-tab active" id="ordersTabAll" onclick="setOrdersFilter('all')">All orders</button>
@@ -2652,6 +2666,46 @@ async function unconfirmSku(sku) {
   try {
     await api({ action: 'save_sku_map', sku: r.sku, asin: r.asin || '', amazon_title: r.amazon_title || '', handle: r.handle, color: r.color || '', confirmed: false, is_fba: r.is_fba });
   } catch {}
+}
+
+// ── Orders: search a design across dates ────────────────────────────────────
+let _ordersSearchDays = 30;
+function ordersSearchDays(d) {
+  _ordersSearchDays = d;
+  document.querySelectorAll('#ordersSearchDays .emg-tab').forEach(b => b.classList.toggle('active', +b.dataset.d === d));
+  if (document.getElementById('ordersSearchQ').value.trim()) ordersSearch();
+}
+async function ordersSearch() {
+  const q = document.getElementById('ordersSearchQ').value.trim();
+  const box = document.getElementById('ordersSearchResults');
+  if (!q) { ordersSearchClear(); return; }
+  box.style.display = ''; box.innerHTML = '<div class="loading-row" style="height:56px;border-radius:10px"></div>';
+  document.getElementById('designGroups').style.display = 'none';
+  document.getElementById('ordersSearchClear').style.display = '';
+  try {
+    const r = await api({ action: 'search_orders', q, days: _ordersSearchDays });
+    const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+    if (!r.dates.length) { box.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No orders for “${q}” in the last ${r.days} days</p></div>`; return; }
+    box.innerHTML = `<div style="font-size:.8rem;color:var(--ink2);margin-bottom:8px"><b>${r.total}</b> unit${r.total !== 1 ? 's' : ''} of “${q}” across <b>${r.dates.length}</b> date${r.dates.length !== 1 ? 's' : ''} · last ${r.days} days</div>` +
+      r.dates.map(d => `<div class="dg-card" style="margin-bottom:8px">
+        <div class="dg-head" style="cursor:pointer" onclick="ordersSearchOpen('${d.date}')" title="Open this date">
+          <div class="dg-info"><div class="dg-title">${fmt(d.date)} <span class="dg-color-tag">${d.count}× ${q}</span></div>
+            <div class="dg-status-line">${d.units.map(u => `<span style="display:inline-block;margin:2px 8px 2px 0">${u.source === 'amazon' ? '<span style="color:#c07000;font-weight:800;font-size:.68rem">AMZ</span> ' : ''}<b>${u.order_name}</b>${u.color ? ` · ${u.color}` : ''}${u.picked ? ' <span style="color:var(--green)">✓ picked</span>' : ''}${u.is_emergency ? ' <span style="color:var(--red)">⚠</span>' : ''}</span>`).join('')}</div>
+          </div>
+          <div class="dg-actions-row"><span class="dg-chevron">›</span></div>
+        </div></div>`).join('');
+  } catch (e) { box.innerHTML = `<div class="empty-state"><p>Search failed: ${e.message}</p></div>`; }
+}
+function ordersSearchOpen(date) {
+  ordersSearchClear(false);
+  document.getElementById('ordersDate').value = date;
+  loadOrders();
+}
+function ordersSearchClear(clearInput = true) {
+  if (clearInput) document.getElementById('ordersSearchQ').value = '';
+  document.getElementById('ordersSearchResults').style.display = 'none';
+  document.getElementById('ordersSearchClear').style.display = 'none';
+  document.getElementById('designGroups').style.display = '';
 }
 
 // User 1 sees, on their own page, when earlier dates they flagged are still open
