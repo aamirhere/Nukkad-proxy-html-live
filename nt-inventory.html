@@ -907,6 +907,24 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 @media print { .dc-row { display:none !important; } }
 
 /* ── mobile ── */
+@media (max-width: 600px) {
+  #view-orders .page-hd { margin-bottom: 6px; }
+  #view-orders .page-hd h2 { font-size: 1.15rem; }
+  #ordersSubtitle { display: none; }
+  #view-orders .date-bar { gap: 6px; margin-bottom: 8px; }
+  #view-orders .date-bar input[type=date] { padding: 6px 8px; font-size: .8rem; max-width: 128px; }
+  #view-orders .date-bar .btn { padding: 6px 9px; font-size: .8rem; }
+  #view-orders .tb-txt { display: none; }
+  #ordersSearchWrap { margin-left: 0; }
+  #ordersSearchQ { display: none; }
+  #ordersSearchQ.open { display: block; width: 150px !important; }
+  #view-orders .orders-tabs-row { gap: 4px; margin-bottom: 6px; }
+  #view-orders .orders-tabs-row .emg-tab { padding: 5px 9px; font-size: .74rem; }
+  #view-orders .orders-tabs-row .btn { padding: 5px 9px; font-size: .74rem; }
+  #view-orders .orders-tabs-row .emg-view-tabs { margin-left: 0 !important; }
+  #btnPushEmg { font-size: .74rem !important; }
+  .color-chips { margin-bottom: 8px; }
+}
 html, body { max-width: 100vw; overflow-x: hidden; }
 .view { max-width: 100vw; overflow-x: hidden; box-sizing: border-box; }
 .app-header { max-width: 100vw; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; box-sizing: border-box; }
@@ -1079,12 +1097,11 @@ html, body { max-width: 100vw; overflow-x: hidden; }
         <button class="emg-tab" data-d="90" onmousedown="event.preventDefault()" onclick="ordersSearchDays(90)">90d</button>
         <button class="emg-tab" data-d="180" onmousedown="event.preventDefault()" onclick="ordersSearchDays(180)">180d</button>
       </div>
-      <button class="btn btn-ghost" onclick="ordersSearch()" style="font-size:.74rem;padding:4px 9px" title="Search">🔍</button>
+      <button class="btn btn-ghost" onclick="ordersSearchIcon()" style="font-size:.74rem;padding:4px 9px" title="Search">🔍</button>
       <button class="btn btn-ghost" id="ordersSearchClear" onclick="ordersSearchClear()" style="font-size:.74rem;padding:4px 8px;display:none">✕</button>
     </div>
-    <button class="btn btn-ghost" onclick="downloadPDF()">⬇ PDF</button>
-    <button class="btn btn-ghost" id="btnSyncAmz" onclick="syncAmazonNow()" style="color:#c07000;border-color:#f5dfa0" title="Sync Amazon orders (click to pick days)">🟡 Sync Amazon</button>
-    <button class="btn btn-ghost" onclick="debugAmazonOrders()" style="color:#9c8a76;border-color:#e9ddca;font-size:.78rem" title="Test Amazon API">Debug</button>
+    <button class="btn btn-ghost" onclick="downloadPDF()" title="Print / PDF">🖨<span class="tb-txt"> PDF</span></button>
+    <button class="btn btn-ghost" id="btnSyncAmz" onclick="syncAmazonNow()" style="color:#c07000;border-color:#f5dfa0" title="Sync Amazon orders">🟡<span class="tb-txt"> Sync Amazon</span></button>
   </div>
   <div id="ordersSearchResults" style="display:none;margin-bottom:12px"></div>
   <div class="orders-tabs-row" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
@@ -2019,7 +2036,7 @@ async function syncAmazonNow(daysBack) {
     toast(res.synced > 0 ? `✅ Synced ${res.synced} Amazon orders (${daysBack} days)` : (res.message || '⚠ No Amazon orders returned'));
     if (res.synced > 0) loadOrders();
   } catch(e) { toast('Sync failed: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '🟡 Sync Amazon'; }
+  finally { btn.disabled = false; btn.innerHTML = '🟡<span class="tb-txt"> Sync Amazon</span>'; }
 }
 
 async function debugAmazonOrders() {
@@ -2690,6 +2707,13 @@ async function unconfirmSku(sku) {
 
 // ── Orders: search a design across dates ────────────────────────────────────
 let _ordersSearchDays = 30;
+// On phones the search box is hidden until the icon is tapped; on desktop the icon just runs the search
+function ordersSearchIcon() {
+  const q = document.getElementById('ordersSearchQ');
+  const collapsed = window.matchMedia('(max-width: 600px)').matches && !q.classList.contains('open');
+  if (collapsed) { q.classList.add('open'); q.focus(); return; }
+  if (q.value.trim()) ordersSearch(); else q.focus();
+}
 async function ordersSuggest(v) {
   const box = document.getElementById('ordersSuggest');
   if (!allProducts.length) { try { const r = await api({ action: 'load_products' }); allProducts = r.products || []; } catch {} }
