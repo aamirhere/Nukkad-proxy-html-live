@@ -3396,22 +3396,23 @@ function renderEmgDash() {
     const open = _emgDashOpen.has(d.date);
     const detail = open ? `
       <tr class="emg-dash-detail"><td colspan="7">
-        ${d.amazon_open ? `<div style="font-size:.7rem;font-weight:800;color:#c07000;letter-spacing:.05em;margin:2px 0 4px">🟡 AMAZON — ${d.amazon_open} to print</div>` : ''}
-        ${[...d.designs].sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0)).map(g => `
-          <div class="emg-dash-design"${g.amazon_open ? ' style="border-left:3px solid #ff9900;padding-left:6px"' : ''}>
-            ${g.amazon_open ? '<span style="color:#c07000;font-size:.68rem;font-weight:800">AMZ</span>' : ''}<b>${g.title}</b>
+        ${[...d.designs].sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || (b.open + b.printed) - (a.open + a.printed)).map(g => `
+          <div class="emg-dash-design"${g.amazon_open ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
+            ${g.amazon_open ? '<span style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px">Amazon</span>' : ''}<b>${g.title}</b>
             ${g.open ? `<span class="emg-badge open">${g.open} to print</span>` : ''}
             ${g.printed ? `<span class="emg-badge printed">${g.printed} printed · not sent</span>` : ''}
             ${g.sent ? `<span class="emg-badge sent">${g.sent} sent</span>` : ''}
             ${(g.open + g.printed) ? `<span style="font-size:.72rem;color:var(--muted)">${Object.entries(g.colors).map(([c, n]) => `${n}× ${c}`).join(', ')}</span>` : ''}
           </div>`).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-          ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgPrintDates(['${d.date}'],'amazon')">🟡 PDF Amazon (${d.amazon_open})</button>` : ''}
-          ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'],'amazon')">🟡 Mark Amazon printed (${d.amazon_open})</button>` : ''}
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgPrintDates(['${d.date}'])">🖨 PDF (${d.open})</button>` : ''}
-          ${d.open ? `<button class="emg-dash-link" style="color:#1a7f37;border-color:#b8e0c0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'])">✓ Mark all printed (${d.open})</button>` : ''}
+          ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgPrintDates(['${d.date}'],'amazon')">🖨 PDF Amazon (${d.amazon_open})</button>` : ''}
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">Open list</button>` : ''}
           ${d.printed ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('printed','${d.date}')">📋 Printed · not sent (${d.printed})</button>` : ''}
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'],'amazon')">✓ Mark Amazon printed (${d.amazon_open})</button>` : ''}
+            ${d.open ? `<button class="emg-dash-link" style="color:#1a7f37;border-color:#b8e0c0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'])">✓ Mark all printed (${d.open})</button>` : ''}
+          </span>
         </div>
       </td></tr>` : '';
     const checked = _emgSel.has(d.date) ? ' checked' : '';
@@ -3474,7 +3475,7 @@ function emgPrintDates(dates, src) {
       <div class="eps-hd">Emergency${src === 'amazon' ? ' · 🟡 AMAZON ONLY' : ''} · ${fmt(d.date)} · ${total} to print</div>
       <div class="eps-sub">${designs.length} designs · printed ${new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
       <div class="eps-grid">${designs.map(g => `
-        <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.amazon_open ? '<span style="font-weight:800;color:#c07000">AMZ</span> ' : ''}${g.title}
+        <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.amazon_open ? '<span style="font-weight:800;color:#c07000">Amazon</span> ' : ''}${g.title}
           <span class="eps-colors">${Object.entries(g.colors).map(([c, n]) => `${n} ${c}`).join(' · ')}</span></div>`).join('')}
       </div>
     </div>`;
