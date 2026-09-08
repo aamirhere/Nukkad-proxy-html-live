@@ -501,7 +501,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-badge.printed { background: #e3efff; color: #1565c0; }
 .emg-badge.sent { background: #e4f5ea; color: #1a7f37; }
 .emg-dash-link { font-size: .72rem; color: var(--accent); background: none; border: 1px solid #f2c9b4; border-radius: 8px; padding: 2px 8px; cursor: pointer; font-family: var(--fb); }
-.emg-dash-link:hover { background: var(--accent); color: #fff; }
+.emg-dash-link:hover, .emg-dash-link:active, .emg-dash-link:focus-visible { background: var(--accent); color: #fff; border-color: var(--accent); }
+.emg-dash-link.ok { color: #1a7f37; border-color: #b8e0c0; }
+.emg-dash-link.ok:hover, .emg-dash-link.ok:active, .emg-dash-link.ok:focus-visible { background: #1a7f37; color: #fff; border-color: #1a7f37; }
 @media (max-width: 600px) { .emg-dash-tiles { grid-template-columns: repeat(2, 1fr); } }
 .emg-todo { background: #fff6f5; border: 1px solid #f5c6c6; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
 .emg-todo-hd { font-size: .72rem; font-weight: 800; color: var(--red); letter-spacing: .06em; margin-bottom: 6px; }
@@ -3402,17 +3404,13 @@ function renderEmgDash() {
             ${g.open ? `<span class="emg-badge open">${g.open} to print</span>` : ''}
             ${g.printed ? `<span class="emg-badge printed">${g.printed} printed · not sent</span>` : ''}
             ${g.sent ? `<span class="emg-badge sent">${g.sent} sent</span>` : ''}
-            ${(g.open + g.printed) ? `<span style="font-size:.72rem;color:var(--muted)">${Object.entries(g.colors).map(([c, n]) => `${n}× ${c}`).join(', ')}</span>` : ''}
+
           </div>`).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgPrintDates(['${d.date}'])">🖨 PDF (${d.open})</button>` : ''}
-          ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgPrintDates(['${d.date}'],'amazon')">🖨 PDF Amazon (${d.amazon_open})</button>` : ''}
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">Open list</button>` : ''}
-          ${d.printed ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('printed','${d.date}')">📋 Printed · not sent (${d.printed})</button>` : ''}
-          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-            ${d.amazon_open ? `<button class="emg-dash-link" style="color:#c07000;border-color:#f5dfa0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'],'amazon')">✓ Mark Amazon printed (${d.amazon_open})</button>` : ''}
-            ${d.open ? `<button class="emg-dash-link" style="color:#1a7f37;border-color:#b8e0c0" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'])">✓ Mark all printed (${d.open})</button>` : ''}
-          </span>
+          ${d.printed ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('printed','${d.date}')">Printed · not sent (${d.printed})</button>` : ''}
+          ${d.open ? `<button class="emg-dash-link ok" style="margin-left:auto" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'])">✓ Mark all printed (${d.open})</button>` : ''}
         </div>
       </td></tr>` : '';
     const checked = _emgSel.has(d.date) ? ' checked' : '';
@@ -3476,7 +3474,7 @@ function emgPrintDates(dates, src) {
       <div class="eps-sub">${designs.length} designs · printed ${new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
       <div class="eps-grid">${designs.map(g => `
         <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.amazon_open ? '<span style="font-weight:800;color:#c07000">Amazon</span> ' : ''}${g.title}
-          <span class="eps-colors">${Object.entries(g.colors).map(([c, n]) => `${n} ${c}`).join(' · ')}</span></div>`).join('')}
+</div>`).join('')}
       </div>
     </div>`;
   }).join('');
