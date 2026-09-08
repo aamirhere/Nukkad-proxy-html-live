@@ -3813,13 +3813,13 @@ async function loadDispatchView() {
         const pcs = items.reduce((s, it) => s + (it.qty || 0), 0);
         const applied = d.applied !== false;
         const t = new Date(d.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        // Counts only matter when a day holds more than one list; the day header already shows the day total
+        const multi = dayDispatches.length > 1;
         return `<div class="dl-entry${applied ? '' : ' na'}">
-          <span class="dl-entry-id">#${String(d.id).slice(0, 6)}</span>
-          <span>${t} · ${items.length} design${items.length !== 1 ? 's' : ''} · ${pcs} pcs</span>
+          <span>List saved ${t}${multi ? ` · ${items.length} design${items.length !== 1 ? 's' : ''} · ${pcs} pcs` : ''}</span>
           <span class="dl-badge ${applied ? 'ok' : 'na'}">${applied ? 'applied' : 'not applied'}</span>
           ${d.notes ? `<span style="color:var(--muted)">“${d.notes}”</span>` : ''}
           <span style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">
-            <button class="btn btn-ghost" onclick="event.stopPropagation();openDispatchHistory('${d.id}')">🕘 History</button>
             <button class="btn btn-ghost" onclick="event.stopPropagation();setDispatchApplied('${d.id}',${applied ? 'false' : 'true'})" style="color:${applied ? '#b05000' : '#1a7f37'}">${applied ? '↩ Unapply' : '✓ Apply now'}</button>
             <button class="btn btn-ghost" onclick="event.stopPropagation();deleteDispatch('${d.id}')" style="color:#c62828" title="Delete this list — its effects are reversed and a version is kept in history">🗑 Delete list</button>
           </span>
