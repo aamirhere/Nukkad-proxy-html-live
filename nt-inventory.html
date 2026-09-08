@@ -4811,7 +4811,6 @@ function renderCutPlan() {
       <input type="checkbox" onchange="cutTick('${kind}','${x.handle.replace(/'/g, "\\'")}',${kind === 'emg' ? x.today : x.qty},this)">
       <span class="cut-qty">${kind === 'emg' ? x.today : x.qty}</span>
       <span class="cut-name">${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${kind === 'emg' && x.amazon ? ' <span class="cut-tag amz">Amazon</span>' : ''}${x.count_needed ? ' <span class="cut-tag cnt" title="Stock not counted — treated as 0">count</span>' : ''}</span>
-      <span class="cut-colors">${cutColors(x.colors)}</span>
       <button type="button" class="cut-have${x.in_hand ? ' has' : ''}" onclick="event.preventDefault();cutHave('${x.handle.replace(/'/g, "\\'")}','${x.title.replace(/'/g, "\\'")}')" title="Pieces already cut or in production for this design — click to change">${x.in_hand ? `in hand ${x.in_hand}` : 'in hand 0'}</button>
     </label>`;
   };
