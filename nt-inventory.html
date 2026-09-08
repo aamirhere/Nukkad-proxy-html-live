@@ -1860,10 +1860,10 @@ function renderInventory() {
     <div class="inv-row" id="inv-${p.handle}">
       ${p.image
         ? `<img class="inv-thumb" src="${p.image}" alt="" loading="lazy" onerror="this.style.display='none'">`
-        : `<div class="inv-thumb-placeholder">📦</div>`
+        : `<div class="inv-thumb-placeholder">${p.amazon_only ? '🟡' : '📦'}</div>`
       }
       <div class="inv-title">
-        ${p.title}
+        ${p.title}${p.amazon_only ? ' <span style="font-size:.64rem;font-weight:800;color:#fff;background:#ff9900;padding:1px 6px;border-radius:8px;vertical-align:middle" title="Sold on Amazon only — no website product">Amazon only</span>' : ''}
         <div class="inv-handle">${p.handle}${p.updated_at ? ` · <span style="color:var(--muted);font-size:.68rem" title="Stock last updated">${fmtTs(p.updated_at)}</span>` : ''}</div>
       </div>
       <span class="inv-order-count">${ordersLabel}</span>
