@@ -4155,7 +4155,7 @@ function toggleDispatchPaste() {
   if (el.style.display === 'block') document.getElementById('dispatchPasteText').focus();
 }
 
-function _dNorm(t) { return (t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function _dNorm(t) { return (t || '').toLowerCase().replace(/['’`]/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
 function _dLev(a, b) {
   const m = a.length, n = b.length; if (!m || !n) return Math.max(m, n);
   let prev = Array.from({ length: n + 1 }, (_, j) => j), cur = new Array(n + 1);
