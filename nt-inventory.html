@@ -496,6 +496,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-dash-detail td { background: #fdf9f3; padding: 6px 8px 10px; }
 .emg-dash-design { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: .8rem; flex-wrap: wrap; }
 .emg-dash-design b { color: var(--ink); }
+.emg-dash-design { cursor: pointer; }
+.emg-dash-design input { width: 16px; height: 16px; accent-color: #1a7f37; flex-shrink: 0; }
+.emg-dash-design.printed { opacity: .5; }
+.emg-dash-design.printed b { text-decoration: line-through; }
+.emg-dd-qty { font-weight: 800; color: var(--ink); min-width: 28px; text-align: right; }
 .emg-badge { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
 .emg-badge.open { background: #fdebd3; color: #b05000; }
 .emg-badge.printed { background: #e3efff; color: #1565c0; }
@@ -3618,14 +3623,18 @@ function renderEmgDash() {
     const detail = open ? `
       <tr class="emg-dash-detail"><td colspan="7">
         <div style="font-size:.7rem;color:var(--muted);margin-bottom:4px">${age}d old · ${d.printed} printed · ${d.sent} sent</div>
-        ${[...d.designs].sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || (b.open + b.printed) - (a.open + a.printed)).map(g => `
-          <div class="emg-dash-design"${g.amazon_open ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
+        ${[...d.designs].filter(g => g.open + g.printed > 0).sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || (b.open + b.printed) - (a.open + a.printed)).map((g, gi) => {
+          const allPrinted = g.open === 0 && g.printed > 0;
+          const part = g.open > 0 && g.printed > 0;
+          const total = g.open + g.printed;
+          return `
+          <label class="emg-dash-design${allPrinted ? ' printed' : ''}"${g.amazon_open || (g.printed && !g.open && (g.amazon_open || 0)) ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
+            <input type="checkbox" ${allPrinted ? 'checked' : ''} data-part="${part ? 1 : 0}" onclick="event.stopPropagation()" onchange="emgDesignTick('${d.date}',${gi},this)" title="${allPrinted ? 'Printed — untick to put back to print' : 'Tick when printed'}">
+            <span class="emg-dd-qty">${total}×</span>
             ${g.amazon_open ? '<span style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px">Amazon</span>' : ''}<b>${g.title}</b>
-            ${g.open ? `<span class="emg-badge open">${g.open} to print</span>` : ''}
-            ${g.printed ? `<span class="emg-badge printed">${g.printed} printed · not sent</span>` : ''}
-            ${g.sent ? `<span class="emg-badge sent">${g.sent} sent</span>` : ''}
+            ${part ? `<span class="emg-badge printed">${g.printed} of ${total} printed</span>` : ''}
 
-          </div>`).join('')}
+          </label>`; }).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgPrintDates(['${d.date}'])">🖨 PDF (${d.open})</button>` : ''}
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">Open list</button>` : ''}
@@ -3743,10 +3752,40 @@ function emgTodoSkip(id) {
   renderEmgDash();
 }
 
+// Tick a design line = all its open units for that date are printed; untick = back to print.
+async function emgDesignTick(date, gi, cb) {
+  const d = (_emgDash?.dates || []).find(x => x.date === date); if (!d) return;
+  const designs = [...d.designs].filter(g => g.open + g.printed > 0).sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || (b.open + b.printed) - (a.open + a.printed));
+  const g = designs[gi]; if (!g) return;
+  cb.disabled = true;
+  try {
+    if (cb.checked) {
+      const units = g.open_units || [];
+      if (units.length) {
+        const res = await api({ action: 'mark_printed_batch', units });
+        try { localStorage.setItem(EMG_LAST_PRINT_KEY, JSON.stringify({ units: res.marked || units, at: res.at, dates: [date] })); } catch {}
+      }
+      toast(`✓ ${g.title}: ${units.length} printed`);
+    } else {
+      const units = g.printed_units || [];
+      if (units.length) await api({ action: 'unmark_printed_batch', units });
+      toast(`↶ ${g.title}: back to print`);
+    }
+    await loadEmgDashboard();
+    updateEmergencyBadge && loadAllEmergencies();
+  } catch (e) { cb.checked = !cb.checked; toast('Failed: ' + e.message); }
+  finally { cb.disabled = false; }
+}
+
 function emgDashToggle(date) {
   if (_emgDashOpen.has(date)) _emgDashOpen.delete(date); else _emgDashOpen.add(date);
   renderEmgDash();
 }
+const _renderEmgDashBase = renderEmgDash;
+renderEmgDash = function () {
+  _renderEmgDashBase();
+  document.querySelectorAll('.emg-dash-design input[data-part="1"]').forEach(cb => { cb.indeterminate = true; });
+};
 
 // Jump into the detail tab already filtered to that order date
 function emgDashGo(view, date) {
