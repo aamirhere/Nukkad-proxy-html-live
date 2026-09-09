@@ -1832,7 +1832,7 @@ async function loadIncoming() {
   if (!_incoming.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = '';
   const allCard = _incoming.length > 1 ? `<div class="inc-card" style="background:#fff;border-color:var(--accent)" onclick="dvOpenAll()">
-      <div class="inc-hd">📦📦 Count all cartons <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:var(--accent);background:#fdf5ec;border:1px solid #f2c9b4;border-radius:8px;padding:1px 7px">${_incoming.length} lists</span></div>
+      <div class="inc-hd">📦📦 Count all cartons <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:var(--accent);background:#fdf5ec;border:1px solid #f2c9b4;border-radius:8px;padding:1px 7px">${(() => { try { return localStorage.getItem(dvDraftKey(_incoming.map(l => l.id))) ? 'counting…' : _incoming.length + ' lists'; } catch { return _incoming.length + ' lists'; } })()}</span></div>
       <div class="inc-sub"><b>${_incoming.reduce((s, l) => s + l.pieces, 0)}</b> pcs together · one count per design, no need to know which carton is which</div>
       <div class="inc-names">${_incoming.map(l => { const [y, m, d] = l.dispatch_date.split('-'); return `${d}-${m}`; }).join(' + ')}</div>
     </div>` : '';
@@ -1840,7 +1840,7 @@ async function loadIncoming() {
     const [y, m, d] = l.dispatch_date.split('-');
     const emg = l.items.reduce((s, i) => s + (i.emergency || 0), 0), fba = l.items.reduce((s, i) => s + (i.fba || 0), 0);
     return `<div class="inc-card" onclick="dvOpen('${l.id}')">
-      <div class="inc-hd">📦 Carton ${d}-${m} <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:#a56400;background:#fff;border:1px solid #f0c36d;border-radius:8px;padding:1px 7px">count</span></div>
+      <div class="inc-hd">📦 Carton ${d}-${m} <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:#a56400;background:#fff;border:1px solid #f0c36d;border-radius:8px;padding:1px 7px">${(() => { try { return localStorage.getItem(dvDraftKey([l.id])) ? 'counting…' : 'count'; } catch { return 'count'; } })()}</span></div>
       <div class="inc-sub"><b>${l.pieces}</b> pcs · ${l.designs} design${l.designs !== 1 ? 's' : ''}${emg ? ` · <span style="color:#b03020;font-weight:700">${emg} emergency</span>` : ''}${fba ? ` · <span style="color:#a56400;font-weight:700">${fba} Amazon/Zepto</span>` : ''}</div>
       <div class="inc-names">${l.items.slice(0, 5).map(i => `${i.qty} ${i.title}`).join(', ')}${l.items.length > 5 ? ` +${l.items.length - 5} more` : ''}</div>
     </div>`;
@@ -1879,14 +1879,27 @@ function dvRender(v) {
         <td style="text-align:right"><input type="number" min="0" inputmode="numeric" pattern="[0-9]*" class="dv-in" data-h="${it.handle}" data-sent="${it.qty}" value="${it.qty}" oninput="dvChanged(${i},this)" onfocus="this.select()" onclick="this.select()"></td>
       </tr>`; }).join('')}
   </tbody></table>`;
+  // restore a half-done count from this device
+  try {
+    const draft = JSON.parse(localStorage.getItem(dvDraftKey(v.ids)) || 'null');
+    if (draft) document.querySelectorAll('#dvBody .dv-in').forEach((inp, i) => { if (draft[inp.dataset.h] != null) { inp.value = draft[inp.dataset.h]; dvChanged(i, inp); } });
+  } catch {}
   dvTotals();
   document.getElementById('dvModal').classList.add('open');
+}
+function dvDraftKey(ids) { return 'nt_carton_draft_' + [...ids].sort().join('_'); }
+function dvSaveDraft() {
+  if (!_dvList) return;
+  const d = {}; let any = false;
+  document.querySelectorAll('#dvBody .dv-in').forEach(inp => { d[inp.dataset.h] = inp.value; if ((parseInt(inp.value, 10) || 0) !== parseInt(inp.dataset.sent, 10)) any = true; });
+  try { if (any) localStorage.setItem(dvDraftKey(_dvList.ids), JSON.stringify(d)); else localStorage.removeItem(dvDraftKey(_dvList.ids)); } catch {}
 }
 function dvChanged(i, inp) {
   const diff = (parseInt(inp.value, 10) || 0) !== parseInt(inp.dataset.sent, 10);
   inp.classList.toggle('diff', diff);
   const row = document.getElementById(`dv-${i}`); row.classList.toggle('diff', diff); row.classList.toggle('ok', !diff);
   dvTotals();
+  dvSaveDraft();
 }
 function dvTotals() {
   const ins = [...document.querySelectorAll('#dvBody .dv-in')];
@@ -1894,7 +1907,7 @@ function dvTotals() {
   const diffs = ins.filter(i => (parseInt(i.value, 10) || 0) !== parseInt(i.dataset.sent, 10)).length;
   document.getElementById('dvTotals').innerHTML = diffs ? `<b>${counted}</b> counted vs ${sent} sent · <span style="color:#b05000;font-weight:700">${diffs} design${diffs !== 1 ? 's' : ''} differ</span>` : `<b>${counted}</b> counted · matches what was sent`;
 }
-function dvClose() { document.getElementById('dvModal').classList.remove('open'); }
+function dvClose() { dvSaveDraft(); document.getElementById('dvModal').classList.remove('open'); loadIncoming(); }
 async function dvConfirm() {
   if (!_dvList) return;
   const counts = [...document.querySelectorAll('#dvBody .dv-in')].map(i => ({ handle: i.dataset.h, counted: parseInt(i.value, 10) || 0 }));
@@ -1902,7 +1915,8 @@ async function dvConfirm() {
   try {
     const r = _dvList.ids.length > 1 ? await api({ action: 'dispatch_verify_multi', ids: _dvList.ids, counts }) : await api({ action: 'dispatch_verify', id: _dvList.ids[0], counts });
     toast(r.changed ? `✓ Confirmed — ${r.changed} line${r.changed !== 1 ? 's' : ''} corrected` : '✓ Confirmed — matches');
-    dvClose(); loadIncoming();
+    try { localStorage.removeItem(dvDraftKey(_dvList.ids)); for (const id of _dvList.ids) localStorage.removeItem(dvDraftKey([id])); } catch {}
+    _dvList = null; document.getElementById('dvModal').classList.remove('open'); loadIncoming();
     const res = await api({ action: 'load_products' }); allProducts = res.products || []; renderInventory();
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '✓ Confirm list'; }
