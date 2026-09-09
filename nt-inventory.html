@@ -501,6 +501,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-dash-design.printed { opacity: .5; }
 .emg-dash-design.printed b { text-decoration: line-through; }
 .emg-dash-design.sent { opacity: .45; cursor: default; }
+.emg-dd-x { margin-left: auto; border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 8px; width: 22px; height: 22px; line-height: 1; font-size: .8rem; cursor: pointer; flex-shrink: 0; }
+.emg-dd-x:hover { color: var(--red); border-color: var(--red); }
 .emg-dash-design.sent b, .emg-dash-design.sent .emg-dd-qty { text-decoration: line-through; }
 .emg-dd-qty { font-weight: 800; color: var(--ink); min-width: 28px; text-align: right; }
 .emg-badge { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
@@ -3686,6 +3688,7 @@ function renderEmgDash() {
             <span class="emg-dd-qty">${remaining}×</span>
             ${g.amazon_open ? '<span style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px">Amazon</span>' : ''}<b>${g.title}</b>
             ${partSent ? `<span class="emg-badge sent" title="${g.sent} of ${total} dispatched, ${remaining} still to send">◐ ${g.sent} of ${total} sent</span>` : ''}
+            <button type="button" class="emg-dd-x" onclick="event.preventDefault();event.stopPropagation();emgRemoveDesign('${d.date}',${gi})" title="Remove from emergency (all or some units)">✕</button>
 
           </label>`; }).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
@@ -3805,6 +3808,22 @@ function emgTodoSkip(id) {
 }
 
 // Tick a design line = all its open units for that date are printed; untick = back to print.
+async function emgRemoveDesign(date, gi) {
+  const d = (_emgDash?.dates || []).find(x => x.date === date); if (!d) return;
+  const g = d.designs[gi]; if (!g) return;
+  const units = [...(g.open_units || []), ...(g.printed_units || [])];
+  if (!units.length) { toast('Nothing left to remove — these are already sent'); return; }
+  const v = prompt(`${g.title} · ${date.split('-').reverse().join('-')}\n\nRemove how many of ${units.length} from emergency? (${units.length} = all)`, String(units.length));
+  if (v === null) return;
+  const n = parseInt(v, 10);
+  if (!n || n < 1 || n > units.length) { toast(`Enter 1 to ${units.length}`); return; }
+  try {
+    await api({ action: 'dismiss_emergency_batch', units: units.slice(0, n) });
+    toast(`✕ ${g.title}: ${n} removed from emergency`);
+    await loadEmgDashboard();
+  } catch (e) { toast('Failed: ' + e.message); }
+}
+
 async function emgDesignTick(date, gi, cb) {
   const d = (_emgDash?.dates || []).find(x => x.date === date); if (!d) return;
   const g = d.designs[gi]; if (!g) return;
