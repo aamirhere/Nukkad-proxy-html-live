@@ -5055,8 +5055,13 @@ function cutSaveSettings() {
   loadCutPlan();
 }
 
-async function loadCutPlan() {
-  const s = cutSettings();
+async function cutRebuild() {
+  if (!confirm('Rebuild the frozen plan from current stock and demand? Quantities on the list will change.')) return;
+  loadCutPlan({ rebuild: true });
+}
+
+async function loadCutPlan(extra = {}) {
+  const s = { ...cutSettings(), ...extra };
   document.getElementById('cutCapacity').value = s.capacity;
   document.getElementById('cutMinBatch').value = s.min_batch;
   document.getElementById('cutMaxDesigns').value = s.max_designs;
@@ -5115,8 +5120,14 @@ function renderCutPlan() {
   const [y, m, d] = p.date.split('-');
   const emgLines = p.emergency.filter(x => x.today > 0);
   const total = p.emergency_today + p.stock_total;
-  document.getElementById('cutSummary').innerHTML =
-    `<b>${total}</b> pieces today · ${p.emergency_today} emergency + ${p.stock_total} stock` +
+  const frozenNote = p.frozen_at ? (() => {
+    const t = new Date(p.frozen_at);
+    const dd = t.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Kolkata' });
+    const hh = t.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+    return `<span style="color:var(--ink2)">Plan for <b>${d}-${m}</b> · frozen ${dd} ${hh} · next freeze ${p.freeze_hour > 12 ? p.freeze_hour - 12 : p.freeze_hour} pm</span> <button class="emg-dash-link" onclick="cutRebuild()" title="Regenerate from current stock and demand">rebuild</button><br>`;
+  })() : '';
+  document.getElementById('cutSummary').innerHTML = frozenNote +
+    `<b>${total}</b> pieces · ${p.emergency_today} emergency + ${p.stock_total} stock` +
     (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">${p.emergency_carry} emergency carry to tomorrow</span>` : '') +
     (p.stock_mode === 'priority' ? ` · <span style="color:#b05000;font-weight:700">tight day — top sellers first</span>` : ` · range levelled to <b>${p.level_days}d</b>`) +
     (p.uncounted ? ` · <span style="color:#b05000">${p.uncounted} designs not counted</span>` : '') +
@@ -5147,6 +5158,16 @@ function renderCutPlan() {
     ? p.more.map(x => cutLine(x, 'more')).join('')
     : '<div class="cut-empty">Every regular design is already covered</div>';
   document.getElementById('cutMoreBtn').textContent = `${document.getElementById('cutMore').style.display === 'none' ? '▾' : '▴'} ${(p.more || []).length} more designs`;
+  // ticks are logged per plan date, so they survive a reload of the frozen plan
+  const ticked = new Set(p.ticked || []);
+  if (ticked.size) {
+    document.querySelectorAll('#cutToday .cut-line, #cutMoreList .cut-line').forEach(l => {
+      if (ticked.has(l.dataset.handle)) { l.classList.add('done'); const cb = l.querySelector('input[type=checkbox]'); if (cb) cb.checked = true; }
+    });
+    const emgAll = emgLines.length && emgLines.every(x => ticked.has(x.handle));
+    const emgCb = document.querySelector('#cutToday .cut-emg-line input[type=checkbox]');
+    if (emgCb && emgAll) emgCb.checked = true;
+  }
 
   const labels = ['Tomorrow', 'Day after'];
   document.getElementById('cutUpcoming').innerHTML = p.upcoming.map((u, i) =>
