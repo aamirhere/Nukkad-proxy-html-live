@@ -156,6 +156,17 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
 /* ── inventory list ── */
 .inv-list { display: flex; flex-direction: column; gap: 1px; }
+.inc-strip { display:flex; gap:10px; overflow-x:auto; padding:2px 2px 8px; margin-bottom:10px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+.inc-card { flex:0 0 auto; min-width:220px; max-width:280px; background:#fff7e0; border:2px solid #f0a500; border-radius:12px; padding:10px 12px; cursor:pointer; scroll-snap-align:start; }
+.inc-card:hover { box-shadow:0 4px 14px rgba(240,165,0,.25); }
+.inc-card .inc-hd { font-weight:800; font-size:.86rem; color:var(--ink); display:flex; align-items:center; gap:6px; }
+.inc-card .inc-sub { font-size:.74rem; color:var(--ink2); margin-top:3px; }
+.inc-card .inc-names { font-size:.7rem; color:var(--muted); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dv-row td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; font-size:.82rem; }
+.dv-row.diff td { background:#fff3e0; }
+.dv-row.ok td { background:#f2fbf4; }
+.dv-in { width:64px; padding:5px; border:1.5px solid var(--line); border-radius:6px; text-align:right; font-family:inherit; font-weight:700; }
+.dv-in.diff { border-color:#e08a00; background:#fff7e0; }
 .inv-row {
   display: flex;
   align-items: center;
@@ -1064,6 +1075,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <p id="invSubtitle">Loading products…</p>
     <p id="periodLabel" style="font-size:.75rem;color:var(--muted);margin-top:2px"></p>
   </div>
+  <div id="invIncoming" class="inc-strip" style="display:none"></div>
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
@@ -1440,6 +1452,19 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   </div>
 </div>
 
+<div class="modal-backdrop" id="dvModal" onclick="if(event.target===this)dvClose()">
+  <div class="modal" style="width:min(680px,94vw);max-height:92vh;overflow:auto;border-radius:16px;padding:18px 20px">
+    <h3 id="dvTitle">Carton check</h3>
+    <p id="dvSub" style="margin-bottom:10px"></p>
+    <div id="dvBody"></div>
+    <div id="dvTotals" style="font-size:.8rem;color:var(--ink2);margin:8px 0"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="dvClose()">Later</button>
+      <button class="btn btn-primary" id="dvConfirmBtn" onclick="dvConfirm()">✓ Confirm list</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="fbaRecvModal" onclick="if(event.target===this)document.getElementById('fbaRecvModal').classList.remove('open')">
   <div class="modal" style="width:min(520px,94vw);max-height:90vh;overflow:auto;border-radius:16px">
     <h3>Mark received</h3>
@@ -1620,6 +1645,7 @@ function switchView(view) {
   document.getElementById(`view-${view}`).classList.add('active');
   document.querySelector(`[onclick="switchView('${view}')"]`).classList.add('active');
 
+  if (view === 'inventory') loadIncoming();
   if (view === 'inventory' && allProducts.length) {
     // stock moves on other tabs (dispatch applied, rack picks); re-read it on return
     api({ action: 'load_products' }).then(r => {
@@ -1789,6 +1815,7 @@ async function loadOrderStats() {
 }
 
 async function init() {
+  loadIncoming();
   try {
     const res = await api({ action: 'load_products' });
     allProducts = res.products || [];
@@ -1796,6 +1823,68 @@ async function init() {
   } catch (e) { toast('Failed to load products: ' + e.message); }
   loadOrderStats();
 }
+
+// ── Carton check: applied lists waiting for user 1 to count ──────────────────
+let _incoming = [], _dvList = null;
+async function loadIncoming() {
+  const el = document.getElementById('invIncoming');
+  try { _incoming = (await api({ action: 'dispatch_incoming' })).lists || []; } catch { _incoming = []; }
+  if (!_incoming.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  el.innerHTML = _incoming.map(l => {
+    const [y, m, d] = l.dispatch_date.split('-');
+    const emg = l.items.reduce((s, i) => s + (i.emergency || 0), 0), fba = l.items.reduce((s, i) => s + (i.fba || 0), 0);
+    return `<div class="inc-card" onclick="dvOpen('${l.id}')">
+      <div class="inc-hd">📦 Carton ${d}-${m} <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:#a56400;background:#fff;border:1px solid #f0c36d;border-radius:8px;padding:1px 7px">count</span></div>
+      <div class="inc-sub"><b>${l.pieces}</b> pcs · ${l.designs} design${l.designs !== 1 ? 's' : ''}${emg ? ` · <span style="color:#b03020;font-weight:700">${emg} emergency</span>` : ''}${fba ? ` · <span style="color:#a56400;font-weight:700">${fba} Amazon/Zepto</span>` : ''}</div>
+      <div class="inc-names">${l.items.slice(0, 5).map(i => `${i.qty} ${i.title}`).join(', ')}${l.items.length > 5 ? ` +${l.items.length - 5} more` : ''}</div>
+    </div>`;
+  }).join('');
+}
+function dvOpen(id) {
+  _dvList = _incoming.find(l => l.id === id); if (!_dvList) return;
+  const l = _dvList, [y, m, d] = l.dispatch_date.split('-');
+  document.getElementById('dvTitle').textContent = `Carton check · sent ${d}-${m}-${y}`;
+  document.getElementById('dvSub').textContent = `${l.pieces} pcs across ${l.designs} designs. Count each design; change the number if the carton has less or more. Emergency pieces show their colours so they can be set aside straight away.`;
+  document.getElementById('dvBody').innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:.7rem;color:var(--muted);padding:4px 8px">Design</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Sent</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Counted</th></tr></thead><tbody>
+    ${l.items.map((it, i) => {
+      const byColor = {}; for (const u of it.units) { const c = u.color || 'no colour'; byColor[c] = (byColor[c] || 0) + 1; }
+      const chips = Object.entries(byColor).map(([c, n]) => `<span style="${colorPillStyle(c)};font-size:.68rem;padding:1px 8px;border-radius:9px;font-weight:700;margin-right:4px">${n} ${c}</span>`).join('');
+      return `<tr class="dv-row ok" id="dv-${i}">
+        <td><b>${it.title}</b>${it.emergency ? `<div style="margin-top:3px"><span style="font-size:.68rem;color:#b03020;font-weight:700;margin-right:4px">🚨 ${it.emergency} emergency:</span>${chips}</div>` : ''}${it.fba ? `<div style="font-size:.68rem;color:#a56400;font-weight:700;margin-top:2px">📦 ${it.fba} for Amazon/Zepto</div>` : ''}${it.stock ? `<div style="font-size:.68rem;color:var(--muted);margin-top:2px">${it.stock} to rack</div>` : ''}</td>
+        <td style="text-align:right;color:var(--muted)">${it.qty}</td>
+        <td style="text-align:right"><input type="number" min="0" class="dv-in" data-h="${it.handle}" data-sent="${it.qty}" value="${it.qty}" oninput="dvChanged(${i},this)"></td>
+      </tr>`; }).join('')}
+  </tbody></table>`;
+  dvTotals();
+  document.getElementById('dvModal').classList.add('open');
+}
+function dvChanged(i, inp) {
+  const diff = (parseInt(inp.value, 10) || 0) !== parseInt(inp.dataset.sent, 10);
+  inp.classList.toggle('diff', diff);
+  const row = document.getElementById(`dv-${i}`); row.classList.toggle('diff', diff); row.classList.toggle('ok', !diff);
+  dvTotals();
+}
+function dvTotals() {
+  const ins = [...document.querySelectorAll('#dvBody .dv-in')];
+  const counted = ins.reduce((s, i) => s + (parseInt(i.value, 10) || 0), 0), sent = ins.reduce((s, i) => s + parseInt(i.dataset.sent, 10), 0);
+  const diffs = ins.filter(i => (parseInt(i.value, 10) || 0) !== parseInt(i.dataset.sent, 10)).length;
+  document.getElementById('dvTotals').innerHTML = diffs ? `<b>${counted}</b> counted vs ${sent} sent · <span style="color:#b05000;font-weight:700">${diffs} design${diffs !== 1 ? 's' : ''} differ</span> — the list will be corrected to the counted numbers` : `<b>${counted}</b> counted · matches what was sent`;
+}
+function dvClose() { document.getElementById('dvModal').classList.remove('open'); }
+async function dvConfirm() {
+  if (!_dvList) return;
+  const counts = [...document.querySelectorAll('#dvBody .dv-in')].map(i => ({ handle: i.dataset.h, counted: parseInt(i.value, 10) || 0 }));
+  const btn = document.getElementById('dvConfirmBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await api({ action: 'dispatch_verify', id: _dvList.id, counts });
+    toast(r.changed ? `✓ Confirmed — ${r.changed} design${r.changed !== 1 ? 's' : ''} corrected, stock updated` : '✓ Confirmed — carton matches');
+    dvClose(); loadIncoming();
+    const res = await api({ action: 'load_products' }); allProducts = res.products || []; renderInventory();
+  } catch (e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '✓ Confirm list'; }
+}
+
 
 // ── ADD PRODUCT MODAL ─────────────────────────────────────────────────────────
 
@@ -4480,6 +4569,7 @@ async function loadDispatchView() {
           <span>List saved ${t}${multi ? ` · ${items.length} design${items.length !== 1 ? 's' : ''} · ${pcs} pcs` : ''}</span>
           <input type="date" value="${d.dispatch_date}" onclick="event.stopPropagation()" onchange="event.stopPropagation();setDispatchDate('${d.id}',this.value)" title="Change the dispatch date of this list" style="font-size:.7rem;padding:1px 4px;border:1px solid var(--line);border-radius:6px;color:var(--ink2);background:#fff">
           <span class="dl-badge ${applied ? 'ok' : 'na'}">${applied ? 'applied' : 'not applied'}</span>
+          ${d.verified_at ? (() => { const v = Array.isArray(d.verification) ? d.verification.filter(x => x.counted !== x.sent) : []; return `<span class="dl-badge ok" title="Counted by user 1">📦 counted${v.length ? ` · <span style="color:#b05000">${v.map(x => `${x.title || x.handle} ${x.sent}→${x.counted}`).join(', ')}</span>` : ' ✓'}</span>`; })() : (applied ? '<span class="dl-badge na" title="Carton not counted yet — see Inventory">not counted</span>' : '')}
           ${d.notes ? `<span style="color:var(--muted)">“${d.notes}”</span>` : ''}
           <span style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn btn-ghost" onclick="event.stopPropagation();setDispatchApplied('${d.id}',${applied ? 'false' : 'true'})" style="color:${applied ? '#b05000' : '#1a7f37'}">${applied ? '↩ Unapply' : '✓ Apply now'}</button>
