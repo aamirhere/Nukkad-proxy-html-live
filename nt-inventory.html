@@ -1831,7 +1831,12 @@ async function loadIncoming() {
   try { _incoming = (await api({ action: 'dispatch_incoming' })).lists || []; } catch { _incoming = []; }
   if (!_incoming.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = '';
-  el.innerHTML = _incoming.map(l => {
+  const allCard = _incoming.length > 1 ? `<div class="inc-card" style="background:#fff;border-color:var(--accent)" onclick="dvOpenAll()">
+      <div class="inc-hd">📦📦 Count all cartons <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:var(--accent);background:#fdf5ec;border:1px solid #f2c9b4;border-radius:8px;padding:1px 7px">${_incoming.length} lists</span></div>
+      <div class="inc-sub"><b>${_incoming.reduce((s, l) => s + l.pieces, 0)}</b> pcs together · one count per design, no need to know which carton is which</div>
+      <div class="inc-names">${_incoming.map(l => { const [y, m, d] = l.dispatch_date.split('-'); return `${d}-${m}`; }).join(' + ')}</div>
+    </div>` : '';
+  el.innerHTML = allCard + _incoming.map(l => {
     const [y, m, d] = l.dispatch_date.split('-');
     const emg = l.items.reduce((s, i) => s + (i.emergency || 0), 0), fba = l.items.reduce((s, i) => s + (i.fba || 0), 0);
     return `<div class="inc-card" onclick="dvOpen('${l.id}')">
@@ -1842,16 +1847,30 @@ async function loadIncoming() {
   }).join('');
 }
 function dvOpen(id) {
-  _dvList = _incoming.find(l => l.id === id); if (!_dvList) return;
-  const l = _dvList, [y, m, d] = l.dispatch_date.split('-');
-  document.getElementById('dvTitle').textContent = `Carton check · sent ${d}-${m}-${y}`;
-  document.getElementById('dvSub').textContent = `${l.pieces} pcs across ${l.designs} designs. Count each design; change the number if the carton has less or more. Emergency pieces show their colours so they can be set aside straight away.`;
+  const l = _incoming.find(x => x.id === id); if (!l) return;
+  const [y, m, d] = l.dispatch_date.split('-');
+  dvRender({ ids: [l.id], title: `Carton check · sent ${d}-${m}-${y}`, sub: `${l.pieces} pcs across ${l.designs} designs. Count each design and change the number if the carton has less or more.`, items: l.items });
+}
+function dvOpenAll() {
+  const merged = {};
+  for (const l of _incoming) for (const it of l.items) {
+    const m = merged[it.handle] || (merged[it.handle] = { handle: it.handle, title: it.title, qty: 0, emergency: 0, fba: 0, stock: 0, units: [] });
+    m.qty += it.qty; m.emergency += it.emergency || 0; m.fba += it.fba || 0; m.stock += it.stock || 0; m.units.push(...(it.units || []));
+  }
+  const items = Object.values(merged).sort((a, b) => b.qty - a.qty);
+  const pcs = items.reduce((s, i) => s + i.qty, 0);
+  dvRender({ ids: _incoming.map(l => l.id), title: `Carton check · ${_incoming.length} lists together`, sub: `${pcs} pcs across ${items.length} designs from ${_incoming.map(l => { const [y, m, d] = l.dispatch_date.split('-'); return d + '-' + m; }).join(' + ')}. Count each design once; the numbers are matched back to the lists for you.`, items });
+}
+function dvRender(v) {
+  _dvList = v;
+  document.getElementById('dvTitle').textContent = v.title;
+  document.getElementById('dvSub').textContent = v.sub;
   document.getElementById('dvBody').innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:.7rem;color:var(--muted);padding:4px 8px">Design</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Sent</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Counted</th></tr></thead><tbody>
-    ${l.items.map((it, i) => {
+    ${v.items.map((it, i) => {
       const byColor = {}; for (const u of it.units) { const c = u.color || 'no colour'; byColor[c] = (byColor[c] || 0) + 1; }
       const chips = Object.entries(byColor).map(([c, n]) => `<span style="${colorPillStyle(c)};font-size:.68rem;padding:1px 8px;border-radius:9px;font-weight:700;margin-right:4px">${n} ${c}</span>`).join('');
       return `<tr class="dv-row ok" id="dv-${i}">
-        <td><b>${it.title}</b>${it.emergency ? `<div style="margin-top:3px"><span style="font-size:.68rem;color:#b03020;font-weight:700;margin-right:4px">🚨 ${it.emergency} emergency:</span>${chips}</div>` : ''}${it.fba ? `<div style="font-size:.68rem;color:#a56400;font-weight:700;margin-top:2px">📦 ${it.fba} for Amazon/Zepto</div>` : ''}${it.stock ? `<div style="font-size:.68rem;color:var(--muted);margin-top:2px">${it.stock} to rack</div>` : ''}</td>
+        <td><b>${it.title}</b>${it.emergency ? `<div style="margin-top:3px"><span style="font-size:.68rem;color:#b03020;font-weight:700;margin-right:4px">🚨 ${it.emergency} emergency:</span>${chips}</div>` : ''}${it.fba ? `<div style="font-size:.68rem;color:#a56400;font-weight:700;margin-top:2px">📦 ${it.fba} for Amazon/Zepto</div>` : ''}</td>
         <td style="text-align:right;color:var(--muted)">${it.qty}</td>
         <td style="text-align:right"><input type="number" min="0" class="dv-in" data-h="${it.handle}" data-sent="${it.qty}" value="${it.qty}" oninput="dvChanged(${i},this)"></td>
       </tr>`; }).join('')}
@@ -1869,7 +1888,7 @@ function dvTotals() {
   const ins = [...document.querySelectorAll('#dvBody .dv-in')];
   const counted = ins.reduce((s, i) => s + (parseInt(i.value, 10) || 0), 0), sent = ins.reduce((s, i) => s + parseInt(i.dataset.sent, 10), 0);
   const diffs = ins.filter(i => (parseInt(i.value, 10) || 0) !== parseInt(i.dataset.sent, 10)).length;
-  document.getElementById('dvTotals').innerHTML = diffs ? `<b>${counted}</b> counted vs ${sent} sent · <span style="color:#b05000;font-weight:700">${diffs} design${diffs !== 1 ? 's' : ''} differ</span> — the list will be corrected to the counted numbers` : `<b>${counted}</b> counted · matches what was sent`;
+  document.getElementById('dvTotals').innerHTML = diffs ? `<b>${counted}</b> counted vs ${sent} sent · <span style="color:#b05000;font-weight:700">${diffs} design${diffs !== 1 ? 's' : ''} differ</span>` : `<b>${counted}</b> counted · matches what was sent`;
 }
 function dvClose() { document.getElementById('dvModal').classList.remove('open'); }
 async function dvConfirm() {
@@ -1877,8 +1896,8 @@ async function dvConfirm() {
   const counts = [...document.querySelectorAll('#dvBody .dv-in')].map(i => ({ handle: i.dataset.h, counted: parseInt(i.value, 10) || 0 }));
   const btn = document.getElementById('dvConfirmBtn'); btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const r = await api({ action: 'dispatch_verify', id: _dvList.id, counts });
-    toast(r.changed ? `✓ Confirmed — ${r.changed} design${r.changed !== 1 ? 's' : ''} corrected, stock updated` : '✓ Confirmed — carton matches');
+    const r = _dvList.ids.length > 1 ? await api({ action: 'dispatch_verify_multi', ids: _dvList.ids, counts }) : await api({ action: 'dispatch_verify', id: _dvList.ids[0], counts });
+    toast(r.changed ? `✓ Confirmed — ${r.changed} line${r.changed !== 1 ? 's' : ''} corrected` : '✓ Confirmed — matches');
     dvClose(); loadIncoming();
     const res = await api({ action: 'load_products' }); allProducts = res.products || []; renderInventory();
   } catch (e) { toast('Failed: ' + e.message); }
