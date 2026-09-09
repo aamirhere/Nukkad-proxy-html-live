@@ -172,7 +172,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .zen-chip small { font-weight:600; color:var(--muted); }
 @keyframes zenIn { from { opacity:0; transform:translateY(120px) scale(1.4); } to { opacity:1; transform:translateY(0) scale(1); } }
 .zen-exit { border:1.5px solid var(--line); background:#fff; border-radius:10px; padding:7px 12px; font-family:inherit; font-weight:700; color:var(--ink2); cursor:pointer; }
-.zen-mid { flex:1; display:flex; align-items:center; justify-content:center; padding:0 16px; }
+.zen-mid { flex:1; display:flex; align-items:flex-start; justify-content:center; padding:6vh 16px 0; overflow:auto; }
 .zen-card { width:min(520px,100%); text-align:center; transition:transform .3s, opacity .3s; }
 .zen-card.fly { transform:translateY(-40vh) scale(.6); opacity:0; }
 .zen-lbl { font-size:.72rem; letter-spacing:.12em; color:var(--muted); font-weight:800; margin-bottom:8px; }
@@ -180,10 +180,12 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .zen-in:focus { border-bottom-color:var(--accent); }
 .zen-qty { font-size:3.2rem; width:200px; font-family:var(--fb); font-weight:800; -moz-appearance:textfield; }
 .zen-qty::-webkit-outer-spin-button, .zen-qty::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-.zen-sugg { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; min-height:34px; }
-.zen-sugg button { border:1.5px solid var(--line); background:#fff; border-radius:16px; padding:5px 12px; font-family:inherit; font-size:.86rem; color:var(--ink); cursor:pointer; }
-.zen-sugg button.top { border-color:var(--accent); background:#fdf5ec; color:var(--accent); font-weight:700; }
-.zen-sugg button small { color:var(--muted); margin-left:6px; }
+.zen-sugg { margin-top:6px; display:flex; flex-direction:column; min-height:34px; background:#fff; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.08); overflow:hidden; text-align:left; }
+.zen-sugg:empty { box-shadow:none; background:transparent; }
+.zen-sugg button { display:flex; justify-content:space-between; align-items:center; width:100%; border:none; border-bottom:1px solid var(--line); background:#fff; padding:11px 14px; font-family:inherit; font-size:1rem; color:var(--ink); cursor:pointer; text-align:left; }
+.zen-sugg button:last-child { border-bottom:none; }
+.zen-sugg button.top { background:#fdf5ec; color:var(--accent); font-weight:700; }
+.zen-sugg button small { color:var(--muted); font-size:.8rem; margin-left:10px; white-space:nowrap; }
 .zen-pick { margin-top:6px; animation:zenIn .3s; }
 .zen-pick-name { font-family:var(--ff); font-size:1.7rem; color:var(--ink); }
 .zen-pick-sub { font-size:.8rem; color:var(--muted); margin-top:2px; }
