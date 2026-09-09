@@ -2908,7 +2908,7 @@ function renderOrders() {
   const colors = [...new Set(currentUnits.filter(u => u.source !== 'amazon').map(u => u.color).filter(c => c && isColour(c)))].sort();
   document.getElementById('colorChips').innerHTML = [
     `<button class="color-chip${!activeColor ? ' active' : ''}" onclick="setColor('')">All</button>`,
-    ...colors.map(c => `<button class="color-chip${activeColor === c ? ' active' : ''}" onclick="setColor('${c}')">${c}</button>`),
+    ...colors.map(c => `<button class="color-chip${activeColor === c ? ' active' : ''}" style="${activeColor === c ? '' : colorPillStyle(c)}" onclick="setColor('${c}')">${c}</button>`),
   ].join('');
 
   if (!units.length) {
@@ -2945,7 +2945,7 @@ function renderGroup(g) {
   const u0          = g.units[0];
 
   const colorLine = Object.entries(g.colorCounts)
-    .map(([c, n]) => `<span class="dg-color-tag">${n}× ${c}</span>`).join('');
+    .map(([c, n]) => `<span class="dg-color-tag" style="${colorPillStyle(c)}">${n}× ${c}</span>`).join('');
 
   const orderTag = isSingle ? `<span class="dg-order-tag">${u0.order_name}</span>` : '';
 
@@ -3012,7 +3012,7 @@ function renderUnit(u) {
     <span class="unit-order">${u.order_name}</span>
     ${u.source === 'amazon' ? '<span class="unit-color" style="background:#ff9900;color:#fff;font-weight:700">Amazon</span>' : ''}
     ${u.source === 'amazon' && u.order_status ? `<span class="unit-color" style="background:${u.order_status==='Unshipped'?'#1a7f37':u.order_status==='Pending'?'#b05000':'#888'};color:#fff;font-size:.7rem">${u.order_status}</span>` : ''}
-    ${u.color ? `<span class="unit-color">${u.color}</span>` : ''}
+    ${u.color ? `<span class="unit-color" style="${colorPillStyle(u.color)}">${u.color}</span>` : ''}
     <div class="unit-status">
       ${isEmerg
         ? `<button class="unit-btn nostock active" title="Click to undo No Stock" onclick="unmarkEmergency(${JSON.stringify(u).replace(/"/g,'&quot;')})">⚠ No stock ×</button>`
@@ -3020,6 +3020,19 @@ function renderUnit(u) {
       <button class="unit-btn ${isPicked ? 'picked' : 'pick'}" onclick="togglePick(${JSON.stringify(u).replace(/"/g,'&quot;')})">${isPicked ? '✓' : 'Pick'}</button>
     </div>
   </div>`;
+}
+
+// Pill painted in the finish colour with readable text; unknown names fall back to the neutral pill
+const COLOR_SWATCH = {
+  peach:  ['#f4b183', '#5a2e12'], blue:   ['#3b6fc4', '#fff'],   white:  ['#f5f5f5', '#333'],
+  red:    ['#c62828', '#fff'],   orange: ['#f57c00', '#fff'],   yellow: ['#f9d84a', '#5a4a00'],
+  green:  ['#2e8b57', '#fff'],   purple: ['#7b3fa0', '#fff'],   gold:   ['#c9a227', '#3a2b00'],
+  pink:   ['#e57aa6', '#fff'],   black:  ['#222', '#fff'],      brown:  ['#7a4a2a', '#fff'],
+};
+function colorPillStyle(c) {
+  const key = String(c || '').toLowerCase().replace(/\s*\(.*\)\s*$/, '').trim();
+  const sw = COLOR_SWATCH[key];
+  return sw ? `background:${sw[0]};color:${sw[1]};border-color:${sw[0]}` : '';
 }
 
 function titleSlug(title) {
