@@ -924,6 +924,19 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .inv-count-loading { font-size:.7rem; color:var(--muted); animation: invPulse 1.2s ease-in-out infinite; }
 /* ── mobile ── */
 @media (max-width: 600px) {
+  /* order cards: line 1 = design + colour, line 2 = No Stock (left) … Pick (right) */
+  .dg-card { padding: 6px 8px; margin-bottom: 6px; }
+  .dg-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 2px 0; }
+  .dg-head .dg-info { order: -1; flex: 1 0 100%; }
+  .dg-head > .unit-btn:first-child { order: 1; margin-right: auto; }
+  .dg-head .dg-actions-row { order: 2; }
+  .dg-title { font-size: .92rem; line-height: 1.25; gap: 6px; }
+  .dg-color-tag { font-size: .68rem; padding: 1px 6px; }
+  .dg-order-tag { font-size: .66rem; }
+  .dg-order-tag[style*="ff9900"] { display: none; }   /* 'Amazon' pill: AMZ prefix already says it */
+  .dg-status-line { font-size: .7rem; margin-top: 1px; }
+  .dg-head .unit-btn { padding: 6px 12px; font-size: .8rem; }
+  .unit-row { padding: 5px 6px; gap: 6px; }
   #view-orders .page-hd { margin-bottom: 6px; }
   #view-orders .page-hd h2 { font-size: 1.15rem; }
   #ordersSubtitle { display: none; }
