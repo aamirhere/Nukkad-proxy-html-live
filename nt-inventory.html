@@ -192,6 +192,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .zen-qtyrow { margin-top:22px; animation:zenIn .3s; }
 .zen-tick { width:64px; height:64px; border-radius:50%; border:none; background:#1a7f37; color:#fff; font-size:1.8rem; font-weight:900; cursor:pointer; box-shadow:0 6px 18px rgba(26,127,55,.35); transition:transform .15s; }
 .zen-tick:active { transform:scale(.92); }
+.zen-mode { display:inline-flex; border:1.5px solid var(--line); border-radius:20px; overflow:hidden; margin-bottom:10px; }
+.zen-mode button { border:none; background:#fff; padding:6px 14px; font-family:inherit; font-size:.78rem; font-weight:700; color:var(--muted); cursor:pointer; }
+.zen-mode button.on { background:var(--accent); color:#fff; }
+.zen-sum { font-size:1rem; color:var(--ink2); margin-top:8px; min-height:1.3em; }
+.zen-sum b { color:#1a7f37; font-size:1.2rem; }
 .zen-link { margin-top:12px; background:none; border:none; color:var(--muted); font-family:inherit; font-size:.8rem; cursor:pointer; }
 .zen-hint { text-align:center; font-size:.72rem; color:var(--muted); padding:12px; }
 @media (max-width:600px) { .zen-in { font-size:1.4rem; } .zen-qty { font-size:2.6rem; width:160px; } .zen-pick-name { font-size:1.3rem; } .zen-hint { display:none; } }
@@ -1518,11 +1523,14 @@ html, body { max-width: 100vw; overflow-x: hidden; }
         <div class="zen-pick-sub" id="zenPickSub"></div>
       </div>
       <div class="zen-qtyrow" id="zenQtyRow" hidden>
-        <div class="zen-lbl">Counted</div>
+        <div class="zen-mode" id="zenMode">
+          <button type="button" class="on" data-m="add" onclick="zenSetMode('add')">+ add to stock</button><button type="button" data-m="set" onclick="zenSetMode('set')">= set total</button>
+        </div>
         <div style="display:flex;gap:10px;align-items:center;justify-content:center">
-          <input id="zenQty" class="zen-in zen-qty" type="number" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="0" onkeydown="if(event.key==='Enter'){event.preventDefault();zenSave()}if(event.key==='Escape'){zenBackToName()}">
+          <input id="zenQty" class="zen-in zen-qty" type="number" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="0" oninput="zenSum()" onkeydown="if(event.key==='Enter'){event.preventDefault();zenSave()}if(event.key==='Escape'){zenBackToName()}">
           <button class="zen-tick" onclick="zenSave()" title="Save and next">✓</button>
         </div>
+        <div class="zen-sum" id="zenSum"></div>
         <button class="zen-link" onclick="zenBackToName()">← change design</button>
       </div>
     </div>
@@ -2346,9 +2354,9 @@ function editStock(handle) {
 
 
 // ── Zen count: one design, one number, tick, next ────────────────────────────
-let _zen = { picked: null, n: 0, last: null };
+let _zen = { picked: null, n: 0, last: null, mode: 'add' };
 function zenOpen() {
-  _zen = { picked: null, n: 0, last: null };
+  _zen = { picked: null, n: 0, last: null, mode: 'add' };
   document.getElementById('zenCount').textContent = '0 counted';
   document.getElementById('zenLast').innerHTML = '';
   document.getElementById('zen').hidden = false;
@@ -2386,36 +2394,65 @@ function zenNameKey(e) {
   if (e.key === 'Enter') { e.preventDefault(); const first = zenMatches(document.getElementById('zenName').value)[0]; if (first) zenPickHandle(first.handle); }
   if (e.key === 'Escape') { zenClose(); }
 }
+function zenSetMode(m) {
+  _zen.mode = m;
+  document.querySelectorAll('#zenMode button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  try { localStorage.setItem('nt_zen_mode', m); } catch {}
+  zenSum();
+  document.getElementById('zenQty').focus();
+}
+function zenSum() {
+  const p = _zen.picked; if (!p) return;
+  const raw = document.getElementById('zenQty').value.trim();
+  const n = raw === '' ? null : Math.max(0, parseInt(raw, 10) || 0);
+  const cur = _zen.base ?? (p.stock == null ? 0 : p.stock);
+  const el = document.getElementById('zenSum');
+  if (n == null) { el.innerHTML = _zen.mode === 'add' ? `${cur} now` : ''; return; }
+  el.innerHTML = _zen.mode === 'add' ? `${cur} now + ${n} = <b>${cur + n}</b>` : `total becomes <b>${n}</b>`;
+}
+function zenTotal() {
+  const raw = document.getElementById('zenQty').value.trim();
+  const n = Math.max(0, parseInt(raw, 10) || 0);
+  const p = _zen.picked;
+  const cur = _zen.base ?? (p.stock == null ? 0 : p.stock);
+  return _zen.mode === 'add' ? cur + n : n;
+}
 function zenPickHandle(handle) {
   const p = allProducts.find(x => x.handle === handle); if (!p) return;
   _zen.picked = p;
+  // re-editing the last entry: work from the stock as it was before that entry
+  _zen.base = (_zen.last && _zen.last.handle === handle) ? _zen.last.base : null;
+  try { zenSetMode(localStorage.getItem('nt_zen_mode') || _zen.mode); } catch { zenSetMode(_zen.mode); }
   document.getElementById('zenName').hidden = true;
   document.getElementById('zenSugg').innerHTML = '';
   document.getElementById('zenPickName').textContent = p.title;
   document.getElementById('zenPickSub').textContent = p.stock == null ? 'not counted yet' : `currently ${p.stock} in stock`;
   document.getElementById('zenPick').hidden = false;
   const q = document.getElementById('zenQty');
-  q.value = _zen.last && _zen.last.handle === handle ? _zen.last.qty : '';
+  q.value = _zen.last && _zen.last.handle === handle ? _zen.last.typed : '';
   document.getElementById('zenQtyRow').hidden = false;
+  zenSum();
   setTimeout(() => { q.focus(); q.select(); }, 30);
 }
 async function zenSave() {
   const p = _zen.picked; if (!p) return;
   const raw = document.getElementById('zenQty').value.trim();
   if (raw === '') { document.getElementById('zenQty').focus(); return; }
-  const val = Math.max(0, parseInt(raw, 10) || 0);
+  const typed = Math.max(0, parseInt(raw, 10) || 0);
   const wasRecount = _zen.last && _zen.last.handle === p.handle;
+  const base = _zen.base ?? (p.stock == null ? 0 : p.stock);
+  const val = zenTotal();
   p.stock = val; p.stock_count = val;
   const card = document.getElementById('zenCard');
   card.classList.add('fly');
   api({ action: 'update_stock', handle: p.handle, stock_count: val }).catch(() => toast(`Save failed for ${p.title}`));
   if (!wasRecount) { _zen.n++; document.getElementById('zenCount').textContent = `${_zen.n} counted`; }
-  _zen.last = { handle: p.handle, title: p.title, qty: val };
+  _zen.last = { handle: p.handle, title: p.title, qty: val, typed, base };
   const lastEl = document.getElementById('zenLast');
   const old = lastEl.firstElementChild; if (old) { old.classList.add('leave'); setTimeout(() => old.remove(), 300); }
   setTimeout(() => {
     const chip = document.createElement('div');
-    chip.className = 'zen-chip enter'; chip.innerHTML = `${p.title} <b>${val}</b> <small>✎</small>`;
+    chip.className = 'zen-chip enter'; chip.innerHTML = `${p.title} <b>${val}</b>${_zen.mode === 'add' && base ? ` <small>(${base}+${typed})</small>` : ''} <small>✎</small>`;
     chip.onclick = () => zenEditLast();
     lastEl.appendChild(chip);
     card.classList.remove('fly');
