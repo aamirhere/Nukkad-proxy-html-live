@@ -1549,6 +1549,15 @@ function switchView(view) {
   document.getElementById(`view-${view}`).classList.add('active');
   document.querySelector(`[onclick="switchView('${view}')"]`).classList.add('active');
 
+  if (view === 'inventory' && allProducts.length) {
+    // stock moves on other tabs (dispatch applied, rack picks); re-read it on return
+    api({ action: 'load_products' }).then(r => {
+      const fresh = {}; for (const p of (r.products || [])) fresh[p.handle] = p;
+      let changed = false;
+      for (const p of allProducts) { const f = fresh[p.handle]; if (f && (f.stock_count !== p.stock_count || f.counted_at !== p.counted_at)) { p.stock_count = f.stock_count; p.counted_at = f.counted_at; p.updated_at = f.updated_at; changed = true; } }
+      if (changed) renderInventory();
+    }).catch(() => {});
+  }
   if (view === 'orders') {
     if (!document.getElementById('ordersDate').value) {
       document.getElementById('ordersDate').value = todayIST();
