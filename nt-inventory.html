@@ -1258,6 +1258,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div id="emgSent" style="display:none">
     <div id="emgSentList"><div class="empty-state"><div class="icon">📦</div><p>Loading…</p></div></div>
   </div>
+  </div><!-- /emgDetail -->
 </div>
 
 <!-- ── ADD EMERGENCY MODAL ─────────────────────────────────────────────── -->
@@ -1352,7 +1353,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <button class="btn btn-primary" id="recvSubmitBtn" onclick="submitRecv()">Save</button>
     </div>
   </div>
-</div><!-- /emgDetail -->
 </div>
 
 <!-- ── AMAZON SKU MAP ─────────────────────────────────────────────────────── -->
@@ -4221,8 +4221,22 @@ function parsePastedList() {
 
 async function submitDispatch(btn) {
   // include rows that have at least a title (backend does handle fallback via title ilike)
+  // Typed names that were never picked from the dropdown: resolve exact matches
+  // here; anything else gets suggestions on its row and blocks the save.
+  const src = dispatchDesignSource();
+  for (const r of _dispatchRows) {
+    if (r.handle || !r.title) continue;
+    const { exact, suggestions } = dispatchMatch(r.title, src);
+    if (exact) { r.handle = exact.handle; r.title = exact.title; }
+    else r._suggest = suggestions;
+  }
   const unmatched = _dispatchRows.filter(r => r.title && !r.handle && r.qty > 0);
-  if (unmatched.length) { toast(`${unmatched.length} line${unmatched.length !== 1 ? 's' : ''} not matched — pick a suggestion or remove them`); return; }
+  if (unmatched.length) {
+    renderDispatchRows();
+    toast(`${unmatched.length} line${unmatched.length !== 1 ? 's' : ''} not matched — pick a suggestion, + Add, or remove them`);
+    document.querySelector('#dispatchRows [data-drow]')?.scrollIntoView({ block: 'nearest' });
+    return;
+  }
   const items = _dispatchRows
     .filter(r => r.handle && r.qty > 0)
     .map(r => ({ handle: r.handle, title: r.title, qty: r.qty, type: _dispatchType }));
