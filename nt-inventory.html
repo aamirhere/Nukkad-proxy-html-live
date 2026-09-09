@@ -1096,7 +1096,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     </label>
     <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
     <button class="btn btn-ghost" id="btnResetStock" onclick="resetStock()" style="color:#c62828;border-color:#f5c6c6">↺ Reset stock</button>
-    <button class="btn btn-ghost" id="btnRecalcStock" onclick="recalcStock()" style="color:#2d7a4f;border-color:#c8e6c9">⟳ Recalc from dispatch</button>
   </div>
   <div class="inv-list" id="invList">
     <div class="loading-row"></div>
@@ -1821,19 +1820,6 @@ async function refreshProducts() {
   } catch (e) { toast('Sync failed: ' + e.message); }
 }
 
-async function recalcStock() {
-  const btn = document.getElementById('btnRecalcStock');
-  btn.disabled = true; btn.textContent = 'Calculating…';
-  try {
-    const res = await api({ action: 'recalc_stock' });
-    toast(`Done — ${res.handles_updated} designs updated`);
-    const res2 = await api({ action: 'load_products' });
-    allProducts = res2.products || [];
-    renderInventory();
-  } catch (e) { toast('Failed: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '⟳ Recalc from dispatch'; }
-}
-
 async function resetEmergencyAll() {
   const answer = prompt('Clear the whole emergency queue?\n\nEvery unit leaves this tab (open, printed and sent, all dates). The ⚠ No-stock markers on the Orders page are kept, so any date can be pushed back here with "Push to Emergency" and sorted fresh.\n\nType CLEAR to confirm:');
   if (answer !== 'CLEAR') { if (answer !== null) toast('Cancelled — type exactly CLEAR'); return; }
@@ -1859,19 +1845,6 @@ async function resetStock() {
     renderInventory();
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '↺ Reset stock'; }
-}
-
-async function recalcStock() {
-  const btn = document.getElementById('btnRecalcStock');
-  btn.disabled = true; btn.textContent = 'Calculating…';
-  try {
-    const res = await api({ action: 'recalc_stock' });
-    toast(`Done — ${res.handles_updated} designs updated`);
-    const res2 = await api({ action: 'load_products' });
-    allProducts = res2.products || [];
-    renderInventory();
-  } catch (e) { toast('Failed: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '⟳ Recalc from dispatch'; }
 }
 
 async function deleteProduct(handle, title, event) {
@@ -2010,7 +1983,6 @@ function renderInventory() {
       <div class="stock-chip ${chipClass}" id="chip-${p.handle}">
         ${chipInner}
       </div>
-      <button class="inv-recv" id="recv-${p.handle}" onclick="openRecvModal('${p.handle}', event)" title="Stock received">📦</button>
       <button class="inv-del" onclick="deleteProduct('${p.handle}', '${p.title.replace(/'/g,"\\'")}', event)" title="Remove from inventory">✕</button>
     </div>`;
   }).join('');
