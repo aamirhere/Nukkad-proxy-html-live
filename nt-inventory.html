@@ -5056,7 +5056,7 @@ function cutSaveSettings() {
 }
 
 async function cutRebuild() {
-  if (!confirm('Rebuild the frozen plan from current stock and demand? Quantities on the list will change.')) return;
+  if (!confirm("Rebuild today's plan (and tomorrow's, if already set) from current stock and demand? Quantities will change.")) return;
   loadCutPlan({ rebuild: true });
 }
 
@@ -5120,12 +5120,11 @@ function renderCutPlan() {
   const [y, m, d] = p.date.split('-');
   const emgLines = p.emergency.filter(x => x.today > 0);
   const total = p.emergency_today + p.stock_total;
-  const frozenNote = p.frozen_at ? (() => {
-    const t = new Date(p.frozen_at);
-    const dd = t.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Kolkata' });
-    const hh = t.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-    return `<span style="color:var(--ink2)">Plan for <b>${d}-${m}</b> · frozen ${dd} ${hh} · next freeze ${p.freeze_hour > 12 ? p.freeze_hour - 12 : p.freeze_hour} pm</span> <button class="emg-dash-link" onclick="cutRebuild()" title="Regenerate from current stock and demand">rebuild</button><br>`;
-  })() : '';
+  const fmtAt = iso => { const t = new Date(iso); return t.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Kolkata' }) + ' ' + t.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' }); };
+  const fh = p.freeze_hour > 12 ? `${p.freeze_hour - 12} pm` : `${p.freeze_hour} am`;
+  const frozenNote = p.frozen_at
+    ? `<span style="color:var(--ink2)">Today's plan <b>${d}-${m}</b> · set ${fmtAt(p.frozen_at)}${p.tomorrow ? ` · tomorrow's set ${fmtAt(p.tomorrow.frozen_at)}` : ` · tomorrow's sets at ${fh}`}</span> <button class="emg-dash-link" onclick="cutRebuild()" title="Regenerate from current stock and demand">rebuild</button><br>`
+    : '';
   document.getElementById('cutSummary').innerHTML = frozenNote +
     `<b>${total}</b> pieces · ${p.emergency_today} emergency + ${p.stock_total} stock` +
     (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">${p.emergency_carry} emergency carry to tomorrow</span>` : '') +
@@ -5169,10 +5168,14 @@ function renderCutPlan() {
     if (emgCb && emgAll) emgCb.checked = true;
   }
 
-  const labels = ['Tomorrow', 'Day after'];
-  document.getElementById('cutUpcoming').innerHTML = p.upcoming.map((u, i) =>
-    `<div class="cut-up-row"><span class="cut-up-day">${labels[i] || `Day ${u.day}`}</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">${u.designs.slice(0, 10).join(', ')}${u.designs.length > 10 ? ` +${u.designs.length - 10} more` : ''}</span></div>`
-  ).join('') || '<div class="cut-empty">Nothing further needed</div>';
+  const upEl = document.getElementById('cutUpcoming');
+  if (p.tomorrow) {
+    const t = p.tomorrow, [ty, tm, td] = t.date.split('-');
+    upEl.innerHTML = `<div class="cut-up-row"><span class="cut-up-day">Tomorrow ${td}-${tm}</span><span class="cut-up-total">${(t.emergency_today || 0) + (t.stock_total || 0)}</span><span class="cut-up-names">${t.emergency_today ? `🚨 ${t.emergency_today} emergency · ` : ''}${t.stock.map(x => `${x.qty} ${x.title}`).join(', ') || 'no stock lines'}</span></div>`;
+  } else {
+    const u = p.upcoming[0];
+    upEl.innerHTML = u ? `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Tomorrow</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">sets at ${fh} · likely ${u.designs.slice(0, 10).join(', ')}${u.designs.length > 10 ? ` +${u.designs.length - 10} more` : ''}</span></div>` : '<div class="cut-empty">Nothing further needed</div>';
+  }
   if (p.skipped?.length) {
     document.getElementById('cutUpcoming').innerHTML += `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Parked</span><span class="cut-up-total"></span><span class="cut-up-names">${p.skipped.map(x => `${x.title} <span style="font-size:.68rem">(back ${x.skip_until.split('-').reverse().slice(0,2).join('-')})</span>`).join(', ')}</span></div>`;
   }
