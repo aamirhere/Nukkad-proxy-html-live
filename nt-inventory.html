@@ -1133,6 +1133,16 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <p id="periodLabel" style="font-size:.75rem;color:var(--muted);margin-top:2px"></p>
   </div>
   <div id="invIncoming" class="inc-strip two" style="display:none"></div>
+  <div class="csv-bar">
+    <button class="btn btn-ghost" onclick="downloadCSV()">⬇ Export CSV</button>
+    <label class="btn btn-ghost">
+      ⬆ Import CSV
+      <input type="file" accept=".csv" style="display:none" onchange="uploadCSV(this.files[0]);this.value=''">
+    </label>
+    <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
+    <button class="btn btn-primary" onclick="zenOpen()" title="Full-screen counting: type a design, type the number, tick, next">🧘 Count stock</button>
+    <button class="btn btn-ghost" id="btnResetStock" onclick="resetStock()" style="color:#c62828;border-color:#f5c6c6">↺ Reset stock</button>
+  </div>
   <div class="toolbar">
     <select id="invFilter" onchange="renderInventory()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
       <option value="all">All</option>
@@ -1159,16 +1169,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <option value="all_time">All time</option>
     </select>
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
-  </div>
-  <div class="csv-bar">
-    <button class="btn btn-ghost" onclick="downloadCSV()">⬇ Export CSV</button>
-    <label class="btn btn-ghost">
-      ⬆ Import CSV
-      <input type="file" accept=".csv" style="display:none" onchange="uploadCSV(this.files[0]);this.value=''">
-    </label>
-    <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
-    <button class="btn btn-primary" onclick="zenOpen()" title="Full-screen counting: type a design, type the number, tick, next">🧘 Count stock</button>
-    <button class="btn btn-ghost" id="btnResetStock" onclick="resetStock()" style="color:#c62828;border-color:#f5c6c6">↺ Reset stock</button>
   </div>
   <div class="search-wrap" style="margin:6px 0 10px">
     <span class="search-icon">🔍</span>
