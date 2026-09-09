@@ -5062,11 +5062,37 @@ async function loadCutPlan() {
   document.getElementById('cutMaxDesigns').value = s.max_designs;
   document.getElementById('cutToday').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div><div class="loading-row" style="height:60px;border-radius:10px;margin-top:8px"></div>';
   try {
-    _cutPlan = await api({ action: 'cut_plan', ...s });
+    try { _cutPlan = await api({ action: 'cut_plan', ...s }); }
+    catch (e) {
+      if (!/fetch|network|timeout/i.test(e.message)) throw e;
+      document.getElementById('cutSummary').innerHTML = '<span style="color:var(--muted)">Slow response — trying again…</span>';
+      await new Promise(r => setTimeout(r, 2500));
+      _cutPlan = await api({ action: 'cut_plan', ...s });
+    }
     renderCutPlan();
+    if (_cutPlan.demand_source?.stale) cutRefreshDemand(s);
   } catch (e) {
-    document.getElementById('cutToday').innerHTML = `<div class="empty-state"><p>Could not build the plan: ${e.message}</p></div>`;
+    document.getElementById('cutToday').innerHTML = `<div class="empty-state"><p>Could not build the plan: ${e.message}</p><p><button class="btn btn-ghost" onclick="loadCutPlan()">↻ Try again</button></p></div>`;
   }
+}
+
+// The plan renders from yesterday's demand snapshot immediately; the fresh 30-day
+// rebuild is slow, so it runs separately and re-renders when done.
+let _cutRefreshing = false;
+async function cutRefreshDemand(s) {
+  if (_cutRefreshing) return;
+  _cutRefreshing = true;
+  const el = document.getElementById('cutSummary');
+  const note = document.createElement('span');
+  note.style.cssText = 'color:var(--muted);margin-left:6px';
+  note.textContent = '· refreshing demand…';
+  el.appendChild(note);
+  try {
+    const r = await api({ action: 'cut_demand_refresh' });
+    if (r.ok) { _cutPlan = await api({ action: 'cut_plan', ...s }); renderCutPlan(); }
+    else note.textContent = `· demand refresh failed (${r.error || 'unknown'})`;
+  } catch (e) { note.textContent = `· demand refresh failed (${e.message})`; }
+  finally { _cutRefreshing = false; }
 }
 
 function cutColors(list) { return (list || []).map(c => `${c.qty} ${c.color}`).join(' · '); }
