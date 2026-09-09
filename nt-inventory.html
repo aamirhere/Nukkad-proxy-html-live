@@ -1038,6 +1038,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <button class="nav-btn" onclick="switchView('dispatch')">📤 Dispatch</button>
     <!-- desktop-only -->
     <button class="nav-btn nav-desktop" onclick="switchView('amazon-skus')" style="color:#c07000">🟡 Amazon SKUs</button>
+    <button class="nav-btn nav-desktop" onclick="switchView('fba')">📦 FBA</button>
     <button class="nav-btn" onclick="switchView('cutlist')">✂ Cut List</button>
     <a class="nav-btn nav-desktop" href="nt-production-prints.html" style="text-decoration:none">🖨 Print</a>
   </nav>
@@ -1045,6 +1046,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div class="nav-more" id="navMore">
     <button class="nav-more-btn" onclick="toggleNavMenu()" aria-label="More">⋯</button>
     <div class="nav-menu" id="navMenu">
+      <button onclick="switchView('fba');closeNavMenu()">📦 FBA / Zepto</button>
       <a href="nt-production-prints.html">🖨 Print</a>
     </div>
   </div>
@@ -1376,6 +1378,65 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div id="skuTable"></div>
 </div>
 
+<!-- ── FBA / CHANNEL STOCK ────────────────────────────────────────────────── -->
+<div class="view" id="view-fba">
+  <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2>🟡 Amazon &amp; Zepto</h2>
+      <p id="fbaSummary">Loading…</p>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="loadFba()">↻</button>
+      <button class="btn btn-primary" onclick="openFbaModal()">+ Appointment</button>
+    </div>
+  </div>
+
+  <div class="cut-slot" id="fbaApptsWrap"><div class="cut-slot-hd">📅 APPOINTMENTS</div><div id="fbaAppts"></div></div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-bottom:10px">
+    <div class="cut-slot" style="margin:0"><div class="cut-slot-hd">📦 AT AMAZON (FBA)</div><div id="fbaAmazonStock"></div></div>
+    <div class="cut-slot" style="margin:0"><div class="cut-slot-hd">🟣 AT ZEPTO</div><div id="fbaZeptoStock"></div></div>
+  </div>
+
+  <div class="cut-slot"><div class="cut-slot-hd">💡 PUT ON AMAZON — selling on the website, no Amazon SKU yet</div><div id="fbaSuggestAdd"></div></div>
+  <div class="cut-slot"><div class="cut-slot-hd">🧹 CLEAN UP — Amazon SKUs with no orders in 180 days</div><div id="fbaSuggestRemove"></div></div>
+</div>
+
+<div class="modal-backdrop" id="fbaModal" onclick="if(event.target===this)closeFbaModal()">
+  <div class="modal" style="width:min(640px,94vw);max-height:90vh;overflow:auto;border-radius:16px">
+    <h3 id="fbaModalTitle">New appointment</h3>
+    <p>Book pieces for a channel. What the rack can spare after a week of orders is reserved now; the rest goes to the Cut List with this due date.</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+      <div class="modal-field" style="margin:0"><label style="font-size:.72rem;color:var(--muted);font-weight:700">Channel</label><select id="fbaChannel" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit"><option value="amazon">Amazon FBA</option><option value="zepto">Zepto</option></select></div>
+      <div class="modal-field" style="margin:0"><label style="font-size:.72rem;color:var(--muted);font-weight:700">Appointment</label><input type="date" id="fbaApptDate" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit;box-sizing:border-box"></div>
+      <div class="modal-field" style="margin:0"><label style="font-size:.72rem;color:var(--muted);font-weight:700">Ready by</label><input type="date" id="fbaDueDate" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit;box-sizing:border-box"></div>
+    </div>
+    <input type="text" id="fbaNote" placeholder="Note (shipment id, box count…)" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit;box-sizing:border-box;margin-bottom:10px">
+    <div style="position:relative;margin-bottom:8px">
+      <input type="text" id="fbaSearch" placeholder="Add design… type to search" oninput="fbaSearchInput(this.value)" autocomplete="off" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit;box-sizing:border-box">
+      <div id="fbaSearchList" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:5;max-height:220px;overflow:auto"></div>
+    </div>
+    <div id="fbaItems"></div>
+    <div id="fbaTotals" style="font-size:.78rem;color:var(--ink2);margin:8px 0"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-ghost" onclick="closeFbaModal()">Cancel</button>
+      <button class="btn btn-primary" id="fbaSaveBtn" onclick="fbaSave()">Save appointment</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="fbaRecvModal" onclick="if(event.target===this)document.getElementById('fbaRecvModal').classList.remove('open')">
+  <div class="modal" style="width:min(520px,94vw);max-height:90vh;overflow:auto;border-radius:16px">
+    <h3>Mark received</h3>
+    <p>Enter what actually reached the channel. Rack stock is not touched; these pieces move into channel stock.</p>
+    <div id="fbaRecvItems"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-ghost" onclick="document.getElementById('fbaRecvModal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="fbaReceiveSave()">Received ✓</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── CUT LIST ───────────────────────────────────────────────────────────── -->
 <div class="view" id="view-cutlist">
   <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -1397,6 +1458,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   </div>
 
   <div id="cutToday"></div>
+  <div id="cutFba"></div>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0 18px;flex-wrap:wrap">
     <button class="btn btn-ghost" id="cutMoreBtn" onclick="cutToggleMore()">▾ Show more designs</button>
     <button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button>
@@ -1569,6 +1631,7 @@ function switchView(view) {
   if (view === 'amazon-skus') {
     loadAmazonSkuView();
   }
+  if (view === 'fba') loadFba();
   if (view === 'dispatch') {
     loadDispatchCounters();
     if (!Object.keys(_printLinks).length) loadPrintData();
@@ -5155,6 +5218,7 @@ function renderCutPlan() {
     : `<div class="cut-slot emg"><div class="cut-empty">🚨 No emergency to cut</div></div>`;
   const stockHtml = `<div class="cut-slot"><div class="cut-slot-hd">📦 STOCK — ${p.stock_total}</div>${p.stock.length ? p.stock.map(x => cutLine(x, 'stock')).join('') : '<div class="cut-empty">Nothing suggested — tick the emergency line if it is cut, or open Show more</div>'}</div>`;
   document.getElementById('cutToday').innerHTML = emgHtml + stockHtml;
+  renderCutFba(p);
 
   document.getElementById('cutMoreList').innerHTML = (p.more || []).length
     ? p.more.map(x => cutLine(x, 'more')).join('')
@@ -5350,6 +5414,172 @@ async function api(body) {
   const data = await r.json();
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+
+// ── FBA / CHANNEL APPOINTMENTS ────────────────────────────────────────────────
+let _fba = null, _fbaItems = [], _fbaEditId = null, _fbaRecvId = null, _fbaSearchT = null;
+const fmtDM = iso => { const [y, m, d] = (iso || '').split('-'); return d ? `${d}-${m}` : iso; };
+const chLabel = ch => ch === 'zepto' ? '🟣 Zepto' : '🟡 Amazon';
+
+async function loadFba() {
+  document.getElementById('fbaAppts').innerHTML = '<div class="loading-row" style="height:50px;border-radius:10px"></div>';
+  try { _fba = await api({ action: 'fba_load' }); renderFba(); }
+  catch (e) { document.getElementById('fbaAppts').innerHTML = `<div class="cut-empty" style="color:var(--red)">Failed: ${e.message}</div>`; }
+}
+
+function renderFba() {
+  const f = _fba; if (!f) return;
+  const open = f.appointments.filter(a => a.status === 'open');
+  const done = f.appointments.filter(a => a.status === 'received').slice(-6).reverse();
+  document.getElementById('fbaSummary').innerHTML = `<b>${open.length}</b> open appointment${open.length !== 1 ? 's' : ''} · ${open.reduce((s, a) => s + a.qty, 0)} pcs booked · ${open.reduce((s, a) => s + (a.to_cut - a.cut_qty), 0)} still to cut`;
+  const today = todayIST();
+  const card = a => {
+    const left = a.to_cut - a.cut_qty;
+    const late = a.status === 'open' && a.due_date < today;
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px;${a.status === 'received' ? 'opacity:.6' : ''}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b>${chLabel(a.channel)}</b>
+        <span style="font-size:.8rem">appointment <b>${fmtDM(a.appointment_date)}</b> · ready by <b style="${late ? 'color:var(--red)' : ''}">${fmtDM(a.due_date)}</b>${late ? ' ⚠ overdue' : ''}</span>
+        <span style="font-size:.74rem;color:var(--muted)">${a.qty} pcs · ${a.from_stock} from stock · ${a.to_cut} to cut${a.status === 'open' ? ` · <b style="color:${left ? '#b05000' : '#1a7f37'}">${left ? left + ' left' : 'all cut'}</b>` : ` · received ${a.received_qty}`}</span>
+        ${a.note ? `<span style="font-size:.74rem;color:var(--muted)">· ${a.note}</span>` : ''}
+        <span style="margin-left:auto;display:flex;gap:6px">
+          ${a.status === 'open' ? `<button class="emg-dash-link" onclick="openFbaModal('${a.id}')">edit</button><button class="emg-dash-link ok" onclick="openFbaRecv('${a.id}')">received</button><button class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="fbaCancel('${a.id}')">cancel</button>` : `<button class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="fbaUnreceive('${a.id}')">undo received</button>`}
+        </span>
+      </div>
+      <div style="font-size:.78rem;margin-top:4px;color:var(--ink2)">${a.items.map(i => `<span style="display:inline-block;margin:2px 8px 2px 0"><b>${i.qty}</b> ${i.title}${i.sku ? ` <span style="color:var(--muted);font-size:.68rem">${i.sku}</span>` : ''}${i.to_cut ? ` <span style="font-size:.68rem;color:#b05000">(${i.cut_qty}/${i.to_cut} cut)</span>` : ''}${a.status === 'received' && i.received_qty !== i.qty ? ` <span style="font-size:.68rem;color:var(--red)">got ${i.received_qty ?? 0}</span>` : ''}</span>`).join('')}</div>
+    </div>`;
+  };
+  document.getElementById('fbaAppts').innerHTML = (open.length ? open.map(card).join('') : '<div class="cut-empty">No open appointments — press + Appointment to book one</div>') + (done.length ? `<div class="cut-slot-hd" style="margin-top:8px">RECEIVED</div>${done.map(card).join('')}` : '');
+
+  const stockTbl = rows => rows.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Design</th><th style="text-align:right">At channel</th><th style="text-align:right">Received</th><th style="text-align:right">Sold</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.title}</td><td style="text-align:right;font-weight:700">${r.qty}</td><td style="text-align:right;color:var(--muted)">${r.received}</td><td style="text-align:right;color:var(--muted)">${r.sold || ''}</td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">Nothing received yet</div>';
+  document.getElementById('fbaAmazonStock').innerHTML = stockTbl(f.amazon_stock);
+  document.getElementById('fbaZeptoStock').innerHTML = stockTbl(f.zepto_stock);
+
+  const add = f.suggestions.add;
+  document.getElementById('fbaSuggestAdd').innerHTML = add.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Design</th><th style="text-align:right">7d</th><th style="text-align:right">30d website</th><th style="text-align:right">Stock</th><th></th></tr></thead><tbody>${add.map(r => `<tr><td>${r.title}</td><td style="text-align:right">${r.q7}</td><td style="text-align:right;font-weight:700">${r.q30}</td><td style="text-align:right">${r.stock == null ? '<span style="color:#b05000">N/A</span>' : r.stock}</td><td style="text-align:right"><button class="emg-dash-link" onclick="fbaQuickAdd('${r.handle}','${r.title.replace(/'/g, "\\'")}')">book</button></td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">Every design selling on the website already has an Amazon SKU</div>';
+  const rem = f.suggestions.remove;
+  document.getElementById('fbaSuggestRemove').innerHTML = rem.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Design</th><th>SKU</th><th style="text-align:right">At FBA</th></tr></thead><tbody>${rem.map(r => `<tr><td>${r.title}</td><td style="color:var(--muted)">${r.sku}</td><td style="text-align:right">${r.fba_qty || ''}</td></tr>`).join('')}</tbody></table><div style="font-size:.72rem;color:var(--muted);margin-top:6px">${rem.length} SKU${rem.length !== 1 ? 's' : ''} — close these listings on Seller Central, then mark them removed on the Amazon SKUs page.</div>` : '<div class="cut-empty">Every mapped SKU sold something in the last 180 days</div>';
+}
+
+function openFbaModal(id = null) {
+  _fbaEditId = id; _fbaItems = [];
+  const a = id ? _fba?.appointments.find(x => x.id === id) : null;
+  document.getElementById('fbaModalTitle').textContent = a ? 'Edit appointment' : 'New appointment';
+  document.getElementById('fbaChannel').value = a?.channel || 'amazon';
+  document.getElementById('fbaApptDate').value = a?.appointment_date || '';
+  document.getElementById('fbaDueDate').value = a?.due_date || '';
+  document.getElementById('fbaNote').value = a?.note || '';
+  document.getElementById('fbaSearch').value = '';
+  document.getElementById('fbaSearchList').style.display = 'none';
+  if (a) _fbaItems = a.items.map(i => ({ handle: i.handle, title: i.title, sku: i.sku, qty: i.qty }));
+  document.getElementById('fbaModal').classList.add('open');
+  fbaRefreshPreview();
+  setTimeout(() => document.getElementById(a ? 'fbaSearch' : 'fbaApptDate').focus(), 50);
+}
+function closeFbaModal() { document.getElementById('fbaModal').classList.remove('open'); }
+
+function fbaQuickAdd(handle, title) { openFbaModal(); _fbaItems.push({ handle, title, sku: null, qty: 10 }); fbaRefreshPreview(); }
+
+function fbaSearchInput(v) {
+  clearTimeout(_fbaSearchT);
+  const box = document.getElementById('fbaSearchList');
+  if (!v.trim()) { box.style.display = 'none'; return; }
+  _fbaSearchT = setTimeout(async () => {
+    try {
+      const r = await api({ action: 'fba_search', q: v });
+      const have = new Set(_fbaItems.map(i => i.handle));
+      box.innerHTML = r.designs.filter(d => !have.has(d.handle)).map(d => `<div onclick="fbaPick('${d.handle}','${d.title.replace(/'/g, "\\'")}','${(d.skus[0] || '').replace(/'/g, '')}')" style="padding:7px 10px;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--line)"><b>${d.title}</b> <span style="color:var(--muted);font-size:.7rem">stock ${d.stock == null ? 'N/A' : d.stock}${d.skus.length ? ' · ' + d.skus.join(', ') : ' · no Amazon SKU'}</span></div>`).join('') || '<div style="padding:8px;font-size:.8rem;color:var(--muted)">No match</div>';
+      box.style.display = 'block';
+    } catch {}
+  }, 220);
+}
+function fbaPick(handle, title, sku) {
+  _fbaItems.push({ handle, title, sku: sku || null, qty: 10 });
+  document.getElementById('fbaSearch').value = ''; document.getElementById('fbaSearchList').style.display = 'none';
+  fbaRefreshPreview();
+  setTimeout(() => document.querySelector(`#fbaItems input[data-h="${handle}"]`)?.select(), 30);
+}
+function fbaQty(handle, v) { const it = _fbaItems.find(i => i.handle === handle); if (it) it.qty = Math.max(0, parseInt(v, 10) || 0); clearTimeout(_fbaSearchT); _fbaSearchT = setTimeout(fbaRefreshPreview, 350); }
+function fbaRemove(handle) { _fbaItems = _fbaItems.filter(i => i.handle !== handle); fbaRefreshPreview(); }
+
+async function fbaRefreshPreview() {
+  const el = document.getElementById('fbaItems');
+  if (!_fbaItems.length) { el.innerHTML = '<div class="cut-empty">No designs yet — search above or use a suggestion</div>'; document.getElementById('fbaTotals').textContent = ''; return; }
+  let prev = {};
+  try { const r = await api({ action: 'fba_preview', items: _fbaItems }); for (const p of r.items) prev[p.handle] = p; } catch {}
+  el.innerHTML = `<table class="sku-conf-table" style="font-size:.8rem;margin:0"><thead><tr><th>Design</th><th style="text-align:right">Qty</th><th style="text-align:right">Stock</th><th style="text-align:right">From stock</th><th style="text-align:right">To cut</th><th></th></tr></thead><tbody>${_fbaItems.map(i => { const p = prev[i.handle] || {}; return `<tr>
+    <td>${i.title}${i.sku ? ` <span style="color:var(--muted);font-size:.68rem">${i.sku}</span>` : ' <span style="color:#b05000;font-size:.68rem">no SKU</span>'}</td>
+    <td style="text-align:right"><input type="number" min="0" data-h="${i.handle}" value="${i.qty}" oninput="fbaQty('${i.handle}',this.value)" style="width:58px;padding:4px;border:1.5px solid var(--line);border-radius:6px;text-align:right;font-family:inherit"></td>
+    <td style="text-align:right;color:var(--muted)">${p.stock == null ? 'N/A' : p.stock}${p.reserve ? `<div style="font-size:.64rem">keep ${p.reserve}</div>` : ''}</td>
+    <td style="text-align:right;color:#1a7f37;font-weight:700">${p.from_stock ?? '…'}</td>
+    <td style="text-align:right;color:#b05000;font-weight:700">${p.to_cut ?? '…'}</td>
+    <td style="text-align:right"><button class="emg-dd-x" onclick="fbaRemove('${i.handle}')">✕</button></td></tr>`; }).join('')}</tbody></table>`;
+  const t = Object.values(prev);
+  document.getElementById('fbaTotals').innerHTML = `<b>${_fbaItems.reduce((s, i) => s + i.qty, 0)}</b> pcs · <span style="color:#1a7f37">${t.reduce((s, p) => s + p.from_stock, 0)} from stock</span> · <span style="color:#b05000">${t.reduce((s, p) => s + p.to_cut, 0)} to cut</span> <span style="color:var(--muted)">(keeping 7 days of orders on the rack)</span>`;
+}
+
+async function fbaSave() {
+  const appointment_date = document.getElementById('fbaApptDate').value, due_date = document.getElementById('fbaDueDate').value;
+  if (!appointment_date || !due_date) { toast('Enter appointment and ready-by dates'); return; }
+  const items = _fbaItems.filter(i => i.qty > 0);
+  if (!items.length) { toast('Add at least one design'); return; }
+  const btn = document.getElementById('fbaSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await api({ action: 'fba_save', id: _fbaEditId, channel: document.getElementById('fbaChannel').value, appointment_date, due_date, note: document.getElementById('fbaNote').value.trim() || null, items });
+    toast('✓ Appointment saved — stock reserved, rest sent to Cut List');
+    closeFbaModal(); loadFba();
+  } catch (e) { toast('Failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Save appointment'; }
+}
+
+async function fbaCancel(id) {
+  if (!confirm('Cancel this appointment? Reserved stock goes back to the rack and its cut lines are removed.')) return;
+  try { await api({ action: 'fba_cancel', id }); toast('Appointment cancelled'); loadFba(); } catch (e) { toast('Failed: ' + e.message); }
+}
+async function fbaUnreceive(id) {
+  if (!confirm('Undo received? The pieces leave channel stock and the appointment reopens.')) return;
+  try { await api({ action: 'fba_unreceive', id }); loadFba(); } catch (e) { toast('Failed: ' + e.message); }
+}
+
+function openFbaRecv(id) {
+  const a = _fba?.appointments.find(x => x.id === id); if (!a) return;
+  _fbaRecvId = id;
+  document.getElementById('fbaRecvItems').innerHTML = `<table class="sku-conf-table" style="font-size:.8rem;margin:0"><thead><tr><th>Design</th><th style="text-align:right">Booked</th><th style="text-align:right">Received</th></tr></thead><tbody>${a.items.map(i => `<tr><td>${i.title}</td><td style="text-align:right;color:var(--muted)">${i.qty}</td><td style="text-align:right"><input type="number" min="0" data-id="${i.id}" value="${i.qty}" style="width:64px;padding:4px;border:1.5px solid var(--line);border-radius:6px;text-align:right;font-family:inherit"></td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('fbaRecvModal').classList.add('open');
+}
+async function fbaReceiveSave() {
+  const items = [...document.querySelectorAll('#fbaRecvItems input')].map(i => ({ id: i.dataset.id, received_qty: parseInt(i.value, 10) || 0 }));
+  try { await api({ action: 'fba_receive', id: _fbaRecvId, items }); document.getElementById('fbaRecvModal').classList.remove('open'); toast('✓ Received — added to channel stock'); loadFba(); }
+  catch (e) { toast('Failed: ' + e.message); }
+}
+
+// Cut List: one slot per open appointment, separate from the daily plan
+function renderCutFba(p) {
+  const el = document.getElementById('cutFba'); if (!el) return;
+  const list = (p.fba || []).filter(a => a.left > 0 || a.items.some(i => i.to_cut));
+  if (!list.length) { el.innerHTML = ''; return; }
+  el.innerHTML = list.map(a => `<div class="cut-slot" style="border-color:${a.channel === 'zepto' ? '#c9a8e8' : '#f0c36d'}">
+    <div class="cut-slot-hd">${chLabel(a.channel).toUpperCase()} — ready by ${fmtDM(a.due_date)}${a.overdue ? ' <span style="color:var(--red)">OVERDUE</span>' : ` · ${a.days_left} day${a.days_left !== 1 ? 's' : ''}`} · <b>${a.left}</b> left${a.left ? ` · ~${a.per_day}/day keeps pace` : ''}${a.note ? ` · ${a.note}` : ''}</div>
+    ${a.items.map(i => `<label class="cut-line${i.left ? '' : ' done'}" data-handle="${i.handle}">
+      <input type="checkbox" ${i.left ? '' : 'checked disabled'} onchange="cutFbaTick('${i.id}',${i.left},this,'${(i.title || '').replace(/'/g, "\\'")}')">
+      <span class="cut-qty">${i.left || i.to_cut}</span>
+      <span class="cut-name">${i.title}${i.cut_qty && i.left ? ` <span class="cut-week">${i.cut_qty} of ${i.to_cut} cut</span>` : ''}</span>
+      ${i.left > 1 ? `<button type="button" class="cut-skip" onclick="event.preventDefault();cutFbaPart('${i.id}',${i.left},'${(i.title || '').replace(/'/g, "\\'")}')">part</button>` : ''}
+    </label>`).join('')}
+  </div>`).join('');
+}
+async function cutFbaTick(itemId, qty, cb, title) {
+  if (!cb.checked) return;
+  cb.disabled = true;
+  try { await api({ action: 'fba_cut_mark', item_id: itemId, qty, title }); cb.closest('.cut-line').classList.add('done'); toast(`✂ ${qty} ${title} cut for channel`); }
+  catch (e) { cb.checked = false; cb.disabled = false; toast('Failed: ' + e.message); }
+}
+async function cutFbaPart(itemId, left, title) {
+  const v = prompt(`${title}\n\nHow many cut now? (${left} left)`, String(left));
+  if (v === null) return;
+  const n = parseInt(v, 10); if (!n || n < 1 || n > left) { toast(`Enter 1 to ${left}`); return; }
+  try { await api({ action: 'fba_cut_mark', item_id: itemId, qty: n, title }); toast(`✂ ${n} ${title} cut`); loadCutPlan(); } catch (e) { toast('Failed: ' + e.message); }
 }
 
 // ── CUT LIST ──────────────────────────────────────────────────────────────────
