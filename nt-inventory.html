@@ -1187,6 +1187,10 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 
   <div id="emgPrintSheet" style="display:none"></div>
 
+  <div style="display:flex;justify-content:flex-end;margin:4px 0 10px">
+    <button class="btn btn-ghost" id="emgDetailToggle" onclick="emgToggleDetail()" style="font-size:.74rem;color:var(--muted)">⋯ detail lists</button>
+  </div>
+  <div id="emgDetail" style="display:none">
   <div style="margin-bottom:10px">
     <input id="emgSearch" type="search" placeholder="Search designs across all tabs…" oninput="filterEmgSearch(this.value)" style="width:100%;padding:9px 14px;border:1.5px solid #e9ddca;border-radius:10px;font-size:.88rem;font-family:inherit;box-sizing:border-box;background:#fff">
   </div>
@@ -1330,6 +1334,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <button class="btn btn-primary" id="recvSubmitBtn" onclick="submitRecv()">Save</button>
     </div>
   </div>
+</div><!-- /emgDetail -->
 </div>
 
 <!-- ── AMAZON SKU MAP ─────────────────────────────────────────────────────── -->
@@ -3639,8 +3644,7 @@ function renderEmgDash() {
           </label>`; }).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
           ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgPrintDates(['${d.date}'])">🖨 PDF (${d.open})</button>` : ''}
-          ${d.open ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('all','${d.date}')">Open list</button>` : ''}
-          ${d.printed ? `<button class="emg-dash-link" onclick="event.stopPropagation();emgDashGo('printed','${d.date}')">Printed · not sent (${d.printed})</button>` : ''}
+          ${d.printed ? `<span style="font-size:.72rem;color:#1565c0;font-weight:700;align-self:center">${d.printed} printed · not sent</span>` : ''}
           ${d.open ? `<button class="emg-dash-link ok" style="margin-left:auto" onclick="event.stopPropagation();emgMarkPrintedDates(['${d.date}'])">✓ Mark all printed (${d.open})</button>` : ''}
         </div>
       </td></tr>` : '';
@@ -3779,6 +3783,14 @@ async function emgDesignTick(date, gi, cb) {
   finally { cb.disabled = false; }
 }
 
+function emgToggleDetail(force) {
+  const el = document.getElementById('emgDetail');
+  const show = force != null ? force : el.style.display === 'none';
+  el.style.display = show ? '' : 'none';
+  document.getElementById('emgDetailToggle').textContent = show ? '⋯ hide detail lists' : '⋯ detail lists';
+  try { localStorage.setItem('nt_emg_detail', show ? '1' : '0'); } catch {}
+}
+
 function emgDashToggle(date) {
   if (_emgDashOpen.has(date)) _emgDashOpen.delete(date); else _emgDashOpen.add(date);
   renderEmgDash();
@@ -3787,6 +3799,7 @@ function emgDashToggle(date) {
 
 // Jump into the detail tab already filtered to that order date
 function emgDashGo(view, date) {
+  emgToggleDetail(true);
   setEmgView(view);
   const setDate = () => { document.getElementById('emgDateFilter').value = date; applyEmgDateFilter(); };
   if (view === 'all') setDate(); else setTimeout(setDate, 400);
