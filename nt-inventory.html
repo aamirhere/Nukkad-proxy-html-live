@@ -199,7 +199,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .zen-base input { width:64px; font-family:var(--fb); font-size:1.1rem; font-weight:800; color:var(--ink); text-align:center; border:none; border-bottom:2px solid var(--line); background:transparent; outline:none; padding:2px; -moz-appearance:textfield; }
 .zen-base input::-webkit-outer-spin-button, .zen-base input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
 .zen-base input:focus { border-bottom-color:var(--accent); }
-.zen-base-pen { font-size:.8rem; }
+.zen-base-pen { font-size:.8rem; border:none; background:none; color:var(--muted); cursor:pointer; padding:2px 4px; font-family:inherit; transition:transform .15s; }
+.zen-base-pen.save { color:#fff; background:#1a7f37; border-radius:50%; width:26px; height:26px; font-weight:900; transform:scale(1.1); }
 .zen-sum { font-size:1rem; color:var(--ink2); margin-top:8px; min-height:1.3em; }
 .zen-sum b { color:#1a7f37; font-size:1.2rem; }
 .zen-link { margin-top:12px; background:none; border:none; color:var(--muted); font-family:inherit; font-size:.8rem; cursor:pointer; }
@@ -1544,7 +1545,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
         <div class="zen-base">
           <span>in stock now</span>
           <input id="zenBase" type="number" min="0" inputmode="numeric" pattern="[0-9]*" oninput="zenSum()" onfocus="this.select()" onclick="this.select()" title="Tap to correct the existing count">
-          <span class="zen-base-pen">✎</span>
+          <button type="button" class="zen-base-pen" id="zenBasePen" onclick="zenSave()" title="Save this count">✎</button>
         </div>
         <div class="zen-sum" id="zenSum"></div>
         <button class="zen-link" onclick="zenBackToName()">← change design</button>
@@ -2429,6 +2430,7 @@ function zenSum() {
   const n = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0);
   const cur = zenBase();
   const changedBase = _zen.base != null && cur !== _zen.base;
+  const pen = document.getElementById('zenBasePen'); pen.textContent = changedBase ? '✓' : '✎'; pen.classList.toggle('save', changedBase);
   document.getElementById('zenSum').innerHTML = n ? `${cur} + ${n} = <b>${cur + n}</b>` : (changedBase ? `total becomes <b>${cur}</b>` : '');
 }
 function zenTotal() {
