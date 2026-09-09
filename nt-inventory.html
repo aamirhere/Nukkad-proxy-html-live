@@ -193,7 +193,16 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .zen-link { margin-top:12px; background:none; border:none; color:var(--muted); font-family:inherit; font-size:.8rem; cursor:pointer; }
 .zen-hint { text-align:center; font-size:.72rem; color:var(--muted); padding:12px; }
 @media (max-width:600px) { .zen-in { font-size:1.4rem; } .zen-qty { font-size:2.6rem; width:160px; } .zen-pick-name { font-size:1.3rem; } .zen-hint { display:none; } }
-.inc-strip.two { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); overflow:visible; }
+.inc-strip.two { display:grid; grid-template-columns:1fr 1fr; overflow:visible; }
+@media (max-width:600px) {
+  .inc-strip.two { gap:8px; }
+  .inc-card.inc-fixed { padding:8px 9px; }
+  .inc-card .inc-hd { font-size:.78rem; gap:4px; }
+  .inc-card .inc-hd span { font-size:.6rem !important; padding:1px 5px !important; }
+  .inc-list { font-size:.7rem; max-height:80px; }
+  .inc-line { padding:2px 4px; }
+  .inc-foot { display:none; }
+}
 .inc-card.inc-fixed { min-width:0; max-width:none; }
 .inc-list { max-height:96px; overflow-y:auto; margin-top:4px; font-size:.76rem; color:var(--ink2); }
 .inc-line { padding:3px 6px; border-radius:6px; cursor:pointer; }
