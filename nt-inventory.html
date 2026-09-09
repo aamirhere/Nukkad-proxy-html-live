@@ -879,6 +879,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 
 /* ── cut list (daily plan) ── */
 .cut-slot { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:10px; }
+.cut-slot.cut-fba.amazon { background:#fff7e0; border:2px solid #f0a500; }
+.cut-slot.cut-fba.amazon .cut-slot-hd { color:#a56400; }
+.cut-slot.cut-fba.zepto { background:#f6efff; border:2px solid #9b5de5; }
+.cut-slot.cut-fba.zepto .cut-slot-hd { color:#6a3bb0; }
+.cut-slot.cut-fba .cut-line { background:rgba(255,255,255,.7); border-radius:8px; padding:4px 6px; margin:3px 0; }
 .cut-slot.emg { border-color:#f5c6c6; background:#fff8f7; }
 .cut-slot-hd { font-size:.72rem; font-weight:800; letter-spacing:.06em; color:var(--muted); margin-bottom:6px; }
 .cut-slot.emg .cut-slot-hd { color:var(--red); }
@@ -5559,7 +5564,7 @@ function renderCutFba(p) {
   const el = document.getElementById('cutFba'); if (!el) return;
   const list = (p.fba || []).filter(a => a.left > 0 || a.items.some(i => i.to_cut));
   if (!list.length) { el.innerHTML = ''; return; }
-  el.innerHTML = list.map(a => `<div class="cut-slot" style="border-color:${a.channel === 'zepto' ? '#c9a8e8' : '#f0c36d'}">
+  el.innerHTML = list.map(a => `<div class="cut-slot cut-fba ${a.channel}">
     <div class="cut-slot-hd">${chLabel(a.channel).toUpperCase()} — ready by ${fmtDM(a.due_date)}${a.overdue ? ' <span style="color:var(--red)">OVERDUE</span>' : ` · ${a.days_left} day${a.days_left !== 1 ? 's' : ''}`} · <b>${a.left}</b> left${a.left ? ` · ~${a.per_day}/day keeps pace` : ''}${a.note ? ` · ${a.note}` : ''}</div>
     ${a.items.map(i => `<label class="cut-line${i.left ? '' : ' done'}" data-handle="${i.handle}">
       <input type="checkbox" ${i.left ? '' : 'checked disabled'} onchange="cutFbaTick('${i.id}',${i.left},this,'${(i.title || '').replace(/'/g, "\\'")}')">
