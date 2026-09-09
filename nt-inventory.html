@@ -139,6 +139,9 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 }
 .search-wrap input:focus { border-color: var(--accent); }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .8rem; }
+.search-wrap input { padding-right: 34px; }
+.search-x { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; border: none; background: var(--line); color: var(--ink2); font-size: .8rem; cursor: pointer; line-height: 1; }
+.search-x[hidden] { display: none; }
 .btn {
   padding: 7px 14px;
   border-radius: 8px;
@@ -1131,10 +1134,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   </div>
   <div id="invIncoming" class="inc-strip two" style="display:none"></div>
   <div class="toolbar">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input id="invSearch" type="text" placeholder="Search designs…" oninput="renderInventory()">
-    </div>
     <select id="invFilter" onchange="renderInventory()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
       <option value="all">All</option>
       <option value="na">Not counted</option>
@@ -1170,6 +1169,11 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
     <button class="btn btn-primary" onclick="zenOpen()" title="Full-screen counting: type a design, type the number, tick, next">🧘 Count stock</button>
     <button class="btn btn-ghost" id="btnResetStock" onclick="resetStock()" style="color:#c62828;border-color:#f5c6c6">↺ Reset stock</button>
+  </div>
+  <div class="search-wrap" style="margin:6px 0 10px">
+    <span class="search-icon">🔍</span>
+    <input id="invSearch" type="text" placeholder="Search designs…" autocomplete="off" oninput="renderInventory();invSearchX()" onfocus="this.select()" onclick="this.select()">
+    <button type="button" class="search-x" id="invSearchX" onclick="document.getElementById('invSearch').value='';renderInventory();invSearchX();document.getElementById('invSearch').focus()" hidden>✕</button>
   </div>
   <div class="inv-list" id="invList">
     <div class="loading-row"></div>
@@ -2362,6 +2366,8 @@ function editStock(handle) {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') input.blur(); });
 }
 
+
+function invSearchX() { const i = document.getElementById('invSearch'); document.getElementById('invSearchX').hidden = !i.value; }
 
 // ── Zen count: one design, one number, tick, next ────────────────────────────
 let _zen = { picked: null, n: 0, last: null, mode: 'add' };
