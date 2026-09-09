@@ -1542,6 +1542,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div class="modal" style="width:min(680px,94vw);max-height:92vh;overflow:auto;border-radius:16px;padding:18px 20px">
     <h3 id="dvTitle">Carton check</h3>
     <p id="dvSub" style="margin-bottom:10px"></p>
+    <input type="search" id="dvSearch" placeholder="Find a design in this list…" oninput="dvFilter(this.value)" autocomplete="off" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font-family:inherit;font-size:.9rem;margin-bottom:8px">
     <div id="dvBody"></div>
     <div id="dvTotals" style="font-size:.8rem;color:var(--ink2);margin:8px 0"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap">
@@ -2008,6 +2009,7 @@ function dvRender(v) {
     if (draft) document.querySelectorAll('#dvBody .dv-in').forEach((inp, i) => { if (draft[inp.dataset.h] != null) { inp.value = draft[inp.dataset.h]; dvChanged(i, inp); } });
   } catch {}
   dvTotals();
+  const sb = document.getElementById('dvSearch'); sb.value = ''; dvFilter('');
   document.getElementById('dvModal').classList.add('open');
 }
 function dvDraftKey(ids) { return 'nt_carton_draft_' + [...ids].sort().join('_'); }
@@ -2016,6 +2018,14 @@ function dvSaveDraft() {
   const d = {}; let any = false;
   document.querySelectorAll('#dvBody .dv-in').forEach(inp => { d[inp.dataset.h] = inp.value; if ((parseInt(inp.value, 10) || 0) !== parseInt(inp.dataset.sent, 10)) any = true; });
   try { if (any) localStorage.setItem(dvDraftKey(_dvList.ids), JSON.stringify(d)); else localStorage.removeItem(dvDraftKey(_dvList.ids)); } catch {}
+}
+function dvFilter(q) {
+  const n = _dNorm(q);
+  document.querySelectorAll('#dvBody tbody tr').forEach(tr => {
+    if (!tr.classList.contains('dv-row')) { tr.style.display = n ? 'none' : ''; return; }
+    const t = _dNorm(tr.querySelector('td b')?.textContent || '');
+    tr.style.display = !n || t.includes(n) ? '' : 'none';
+  });
 }
 function dvChanged(i, inp) {
   const diff = (parseInt(inp.value, 10) || 0) !== parseInt(inp.dataset.sent, 10);
@@ -2294,7 +2304,7 @@ function renderInventory() {
     const ordersWeb = Math.max(0, orders - ordersAmz);
     const ordersLabel = orders > 0 ? `${orders} orders <span style="font-weight:600;color:var(--muted);font-size:.68rem">${ordersWeb}w · ${ordersAmz}a</span>` : '—';
     const chipInner = isNA
-      ? `<span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">N/A — tap to count</span>`
+      ? `<span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">N/A</span>`
       : `<span class="qty-lbl">qty</span><span class="stock-num" id="stocklabel-${p.handle}" onclick="editStock('${p.handle}')">${p.stock}</span>`;
     return `
     <div class="inv-row" id="inv-${p.handle}">
@@ -2338,7 +2348,7 @@ function editStock(handle) {
     const raw = input.value.trim();
     const val = raw === '' ? null : parseInt(raw, 10);
     chip.innerHTML = val === null
-      ? `<span class="stock-num" id="stocklabel-${handle}" onclick="editStock('${handle}')">N/A — tap to count</span>`
+      ? `<span class="stock-num" id="stocklabel-${handle}" onclick="editStock('${handle}')">N/A</span>`
       : `<span class="qty-lbl">qty</span><span class="stock-num" id="stocklabel-${handle}" onclick="editStock('${handle}')">${val}</span>`;
     chip.className = `stock-chip ${val === null ? 'na' : val === 0 ? 'zero' : 'counted'}`;
     if (p) p.stock = val;
