@@ -4205,11 +4205,16 @@ function parsePastedList() {
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   const src = dispatchDesignSource();
   const parsed = [];
+  // WhatsApp lines often run together without Enter: "Design A 7 pes Design B 6"
+  const parts = [];
   for (const line of lines) {
-    const m = line.match(/^(.+?)\s+(\d+)\s*(?:pes|pcs|pc|pieces?|p\.?)?\s*$/i);
-    if (!m) continue;
-    const designName = m[1].trim();
-    const qty = parseInt(m[2], 10);
+    // mid-line split only on "<n> pes/pcs"; a bare number ends a row only at line end (keeps "Top 10 Dad 3" whole)
+    const re = /(.+?)\s+(\d+)\s*(?:(?:pes|pcs|pc|pieces?|p\b\.?)\s*(?=$|[A-Za-z])|$)/gi;
+    let m, any = false;
+    while ((m = re.exec(line))) { any = true; parts.push([m[1].trim(), parseInt(m[2], 10)]); }
+    if (!any) { const t = line.match(/^(.+?)\s+(\d+)\s*(?:pes|pcs|pc|pieces?|p\.?)?\s*$/i); if (t) parts.push([t[1].trim(), parseInt(t[2], 10)]); }
+  }
+  for (const [designName, qty] of parts) {
     if (!qty || !designName) continue;
     const { exact, suggestions } = dispatchMatch(designName, src);
     parsed.push(exact
