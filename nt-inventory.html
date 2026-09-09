@@ -2836,7 +2836,8 @@ async function loadOrders() {
       return ls ? { ...u, ...ls } : u;
     });
     // auto-mark units whose handle stock is 0 as emergency (if not already)
-    const toAutoMark = currentUnits.filter(u => !u.is_emergency && !u.picked && !u.dismissed && stockMap[u.handle] === 0);
+    const notProd = u => /gift[\s-]*wrap|wrapping|packag|gift[\s-]*box|add[\s-]*on|shipping|sample|custom/i.test(`${u.title || ''} ${u.handle || ''}`);
+    const toAutoMark = currentUnits.filter(u => !u.is_emergency && !u.picked && !u.dismissed && !notProd(u) && stockMap[u.handle] === 0);
     if (toAutoMark.length) {
       for (const u of toAutoMark) {
         const k = stateKey(u);
@@ -4625,6 +4626,7 @@ function emgGroupHTML(g, gi, containerId) {
 }
 
 function renderEmgGroups() {
+  allEmgGroups = allEmgGroups.filter(g => (g.units || []).length > 0);
   const q = (document.getElementById('emgSearch')?.value || '').toLowerCase().trim();
   let groups = q ? allEmgGroups.filter(g => g.title && g.title.toLowerCase().includes(q)) : allEmgGroups;
   if (emgSourceFilter !== 'all') {
