@@ -4177,19 +4177,28 @@ function dispatchMatch(query, src) {
     if (!p.title || !p.handle) continue;
     const nt = _dNorm(p.title); if (seen.has(nt)) continue; seen.add(nt);
     if (nt === nq) return { exact: p, suggestions: [] };
-    let score = 0;
+    let score = 0, shortened = false;
     if (nt.includes(nq) || nq.includes(nt)) score = Math.min(nq.length, nt.length) / Math.max(nq.length, nt.length);
+    // "Lets grow" for "Lets Grow Old Together": the typed words open the title, in order
+    if (nt.startsWith(nq + ' ') || nt.startsWith(nq)) { shortened = true; score = Math.max(score, 0.85); }
     const tw = new Set(nt.split(' ').filter(w => w.length > 1));
     const inter = [...qw].filter(w => tw.has(w)).length;
     const jacc = inter / (new Set([...qw, ...tw]).size || 1);
     const tb = _dBigrams(nt); let common = 0; for (const g of qb) if (tb.has(g)) common++;
     const dice = (2 * common) / ((qb.size + tb.size) || 1);
     const lev = 1 - _dLev(nq.replace(/\s/g, ''), nt.replace(/\s/g, '')) / Math.max(nq.length, nt.length, 1);
+    // every typed word appears in the title (any order) → probably a shortened name
+    if (!shortened && qw.size && [...qw].every(w => tw.has(w))) { shortened = true; score = Math.max(score, 0.8); }
     score = Math.max(score, jacc * 0.95, dice * 0.9, lev * 0.95);
-    if (score >= 0.3) scored.push({ p, score });
+    if (score >= 0.3) scored.push({ p, score, shortened });
   }
   scored.sort((a, b) => b.score - a.score);
-  return { exact: null, suggestions: scored.slice(0, 1).map(x => ({ handle: x.p.handle, title: x.p.title, score: Math.round(x.score * 100) })) };
+  // one suggestion normally; a second when the name looks shortened and the
+  // best shortened candidate is not already first
+  const out = scored.slice(0, 1);
+  const sh = scored.find(x => x.shortened && x !== out[0]);
+  if (sh) out.push(sh);
+  return { exact: null, suggestions: out.map(x => ({ handle: x.p.handle, title: x.p.title, score: Math.round(x.score * 100) })) };
 }
 
 function parsePastedList() {
