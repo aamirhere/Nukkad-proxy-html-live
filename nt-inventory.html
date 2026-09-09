@@ -161,6 +161,38 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .inc-card:hover { box-shadow:0 4px 14px rgba(240,165,0,.25); }
 .inc-card .inc-hd { font-weight:800; font-size:.86rem; color:var(--ink); display:flex; align-items:center; gap:6px; }
 .inc-card .inc-sub { font-size:.74rem; color:var(--ink2); margin-top:3px; }
+.zen { position:fixed; inset:0; z-index:400; background:rgba(255,255,255,.96); backdrop-filter:blur(6px); display:flex; flex-direction:column; font-family:var(--fb); }
+.zen[hidden] { display:none; }
+.zen-top { display:flex; align-items:center; gap:10px; padding:12px 16px; min-height:56px; }
+.zen-count { font-size:.78rem; color:var(--muted); font-weight:700; white-space:nowrap; }
+.zen-last { flex:1; display:flex; justify-content:center; min-height:34px; }
+.zen-chip { display:inline-flex; align-items:center; gap:8px; background:#f2fbf4; border:1.5px solid #b8e0c0; color:#1a7f37; border-radius:20px; padding:5px 14px; font-size:.86rem; font-weight:700; cursor:pointer; transform:translateY(0); transition:transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s; }
+.zen-chip.enter { animation:zenIn .45s cubic-bezier(.2,.8,.2,1); }
+.zen-chip.leave { opacity:0; transform:translateY(-14px) scale(.9); }
+.zen-chip small { font-weight:600; color:var(--muted); }
+@keyframes zenIn { from { opacity:0; transform:translateY(120px) scale(1.4); } to { opacity:1; transform:translateY(0) scale(1); } }
+.zen-exit { border:1.5px solid var(--line); background:#fff; border-radius:10px; padding:7px 12px; font-family:inherit; font-weight:700; color:var(--ink2); cursor:pointer; }
+.zen-mid { flex:1; display:flex; align-items:center; justify-content:center; padding:0 16px; }
+.zen-card { width:min(520px,100%); text-align:center; transition:transform .3s, opacity .3s; }
+.zen-card.fly { transform:translateY(-40vh) scale(.6); opacity:0; }
+.zen-lbl { font-size:.72rem; letter-spacing:.12em; color:var(--muted); font-weight:800; margin-bottom:8px; }
+.zen-in { width:100%; box-sizing:border-box; font-family:var(--ff); font-size:1.9rem; text-align:center; padding:14px 12px; border:none; border-bottom:3px solid var(--line); background:transparent; color:var(--ink); outline:none; transition:border-color .2s; }
+.zen-in:focus { border-bottom-color:var(--accent); }
+.zen-qty { font-size:3.2rem; width:200px; font-family:var(--fb); font-weight:800; -moz-appearance:textfield; }
+.zen-qty::-webkit-outer-spin-button, .zen-qty::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.zen-sugg { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; min-height:34px; }
+.zen-sugg button { border:1.5px solid var(--line); background:#fff; border-radius:16px; padding:5px 12px; font-family:inherit; font-size:.86rem; color:var(--ink); cursor:pointer; }
+.zen-sugg button.top { border-color:var(--accent); background:#fdf5ec; color:var(--accent); font-weight:700; }
+.zen-sugg button small { color:var(--muted); margin-left:6px; }
+.zen-pick { margin-top:6px; animation:zenIn .3s; }
+.zen-pick-name { font-family:var(--ff); font-size:1.7rem; color:var(--ink); }
+.zen-pick-sub { font-size:.8rem; color:var(--muted); margin-top:2px; }
+.zen-qtyrow { margin-top:22px; animation:zenIn .3s; }
+.zen-tick { width:64px; height:64px; border-radius:50%; border:none; background:#1a7f37; color:#fff; font-size:1.8rem; font-weight:900; cursor:pointer; box-shadow:0 6px 18px rgba(26,127,55,.35); transition:transform .15s; }
+.zen-tick:active { transform:scale(.92); }
+.zen-link { margin-top:12px; background:none; border:none; color:var(--muted); font-family:inherit; font-size:.8rem; cursor:pointer; }
+.zen-hint { text-align:center; font-size:.72rem; color:var(--muted); padding:12px; }
+@media (max-width:600px) { .zen-in { font-size:1.4rem; } .zen-qty { font-size:2.6rem; width:160px; } .zen-pick-name { font-size:1.3rem; } .zen-hint { display:none; } }
 .inc-strip.two { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); overflow:visible; }
 .inc-card.inc-fixed { min-width:0; max-width:none; }
 .inc-list { max-height:96px; overflow-y:auto; margin-top:4px; font-size:.76rem; color:var(--ink2); }
@@ -1120,6 +1152,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <input type="file" accept=".csv" style="display:none" onchange="uploadCSV(this.files[0]);this.value=''">
     </label>
     <button class="btn btn-ghost" onclick="downloadTemplate()" style="color:var(--muted)">📄 Template</button>
+    <button class="btn btn-primary" onclick="zenOpen()" title="Full-screen counting: type a design, type the number, tick, next">🧘 Count stock</button>
     <button class="btn btn-ghost" id="btnResetStock" onclick="resetStock()" style="color:#c62828;border-color:#f5c6c6">↺ Reset stock</button>
   </div>
   <div class="inv-list" id="invList">
@@ -1456,6 +1489,34 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <button class="btn btn-primary" id="fbaSaveBtn" onclick="fbaSave()">Save appointment</button>
     </div>
   </div>
+</div>
+
+<div id="zen" class="zen" hidden>
+  <div class="zen-top">
+    <div class="zen-count" id="zenCount">0 counted</div>
+    <div class="zen-last" id="zenLast"></div>
+    <button class="zen-exit" onclick="zenClose()">✕ Done</button>
+  </div>
+  <div class="zen-mid" id="zenMid">
+    <div class="zen-card" id="zenCard">
+      <div class="zen-lbl">Design</div>
+      <input id="zenName" class="zen-in" type="text" placeholder="type design name…" autocomplete="off" autocapitalize="off" spellcheck="false" oninput="zenSuggest()" onkeydown="zenNameKey(event)">
+      <div class="zen-sugg" id="zenSugg"></div>
+      <div class="zen-pick" id="zenPick" hidden>
+        <div class="zen-pick-name" id="zenPickName"></div>
+        <div class="zen-pick-sub" id="zenPickSub"></div>
+      </div>
+      <div class="zen-qtyrow" id="zenQtyRow" hidden>
+        <div class="zen-lbl">Counted</div>
+        <div style="display:flex;gap:10px;align-items:center;justify-content:center">
+          <input id="zenQty" class="zen-in zen-qty" type="number" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="0" onkeydown="if(event.key==='Enter'){event.preventDefault();zenSave()}if(event.key==='Escape'){zenBackToName()}">
+          <button class="zen-tick" onclick="zenSave()" title="Save and next">✓</button>
+        </div>
+        <button class="zen-link" onclick="zenBackToName()">← change design</button>
+      </div>
+    </div>
+  </div>
+  <div class="zen-hint">Enter moves on · Esc goes back · tap the small chip on top to fix the last one</div>
 </div>
 
 <div class="modal-backdrop" id="dvModal" onclick="if(event.target===this)dvClose()">
@@ -2270,6 +2331,91 @@ function editStock(handle) {
 
   input.addEventListener('blur',   commit);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') input.blur(); });
+}
+
+
+// ── Zen count: one design, one number, tick, next ────────────────────────────
+let _zen = { picked: null, n: 0, last: null };
+function zenOpen() {
+  _zen = { picked: null, n: 0, last: null };
+  document.getElementById('zenCount').textContent = '0 counted';
+  document.getElementById('zenLast').innerHTML = '';
+  document.getElementById('zen').hidden = false;
+  zenBackToName(true);
+}
+function zenClose() { document.getElementById('zen').hidden = true; renderInventory(); if (_zen.n) toast(`${_zen.n} design${_zen.n !== 1 ? 's' : ''} counted`); }
+function zenBackToName(clear = false) {
+  _zen.picked = null;
+  document.getElementById('zenPick').hidden = true;
+  document.getElementById('zenQtyRow').hidden = true;
+  const n = document.getElementById('zenName');
+  n.hidden = false; if (clear) n.value = '';
+  document.getElementById('zenSugg').innerHTML = '';
+  if (n.value) zenSuggest();
+  setTimeout(() => { n.focus(); n.select(); }, 30);
+}
+function zenMatches(q) {
+  const nq = _dNorm(q); if (!nq) return [];
+  const scored = [];
+  for (const p of allProducts) {
+    const nt = _dNorm(p.title);
+    let sc = 0;
+    if (nt === nq) sc = 3; else if (nt.startsWith(nq)) sc = 2; else if (nt.split(' ').some(w => w.startsWith(nq)) || nt.includes(nq)) sc = 1;
+    else { const m = dispatchMatch(q, [p]); if (m.suggestions?.[0]?.score >= 60) sc = 0.5; }
+    if (sc) scored.push({ p, sc });
+  }
+  return scored.sort((a, b) => b.sc - a.sc || (a.p.title || '').localeCompare(b.p.title || '')).slice(0, 6).map(x => x.p);
+}
+function zenSuggest() {
+  const q = document.getElementById('zenName').value;
+  const list = zenMatches(q);
+  document.getElementById('zenSugg').innerHTML = list.map((p, i) => `<button type="button" class="${i === 0 ? 'top' : ''}" onclick="zenPickHandle('${p.handle}')">${p.title}<small>${p.stock == null ? 'N/A' : p.stock}</small></button>`).join('');
+}
+function zenNameKey(e) {
+  if (e.key === 'Enter') { e.preventDefault(); const first = zenMatches(document.getElementById('zenName').value)[0]; if (first) zenPickHandle(first.handle); }
+  if (e.key === 'Escape') { zenClose(); }
+}
+function zenPickHandle(handle) {
+  const p = allProducts.find(x => x.handle === handle); if (!p) return;
+  _zen.picked = p;
+  document.getElementById('zenName').hidden = true;
+  document.getElementById('zenSugg').innerHTML = '';
+  document.getElementById('zenPickName').textContent = p.title;
+  document.getElementById('zenPickSub').textContent = p.stock == null ? 'not counted yet' : `currently ${p.stock} in stock`;
+  document.getElementById('zenPick').hidden = false;
+  const q = document.getElementById('zenQty');
+  q.value = _zen.last && _zen.last.handle === handle ? _zen.last.qty : '';
+  document.getElementById('zenQtyRow').hidden = false;
+  setTimeout(() => { q.focus(); q.select(); }, 30);
+}
+async function zenSave() {
+  const p = _zen.picked; if (!p) return;
+  const raw = document.getElementById('zenQty').value.trim();
+  if (raw === '') { document.getElementById('zenQty').focus(); return; }
+  const val = Math.max(0, parseInt(raw, 10) || 0);
+  const wasRecount = _zen.last && _zen.last.handle === p.handle;
+  p.stock = val; p.stock_count = val;
+  const card = document.getElementById('zenCard');
+  card.classList.add('fly');
+  api({ action: 'update_stock', handle: p.handle, stock_count: val }).catch(() => toast(`Save failed for ${p.title}`));
+  if (!wasRecount) { _zen.n++; document.getElementById('zenCount').textContent = `${_zen.n} counted`; }
+  _zen.last = { handle: p.handle, title: p.title, qty: val };
+  const lastEl = document.getElementById('zenLast');
+  const old = lastEl.firstElementChild; if (old) { old.classList.add('leave'); setTimeout(() => old.remove(), 300); }
+  setTimeout(() => {
+    const chip = document.createElement('div');
+    chip.className = 'zen-chip enter'; chip.innerHTML = `${p.title} <b>${val}</b> <small>✎</small>`;
+    chip.onclick = () => zenEditLast();
+    lastEl.appendChild(chip);
+    card.classList.remove('fly');
+    document.getElementById('zenName').value = '';
+    zenBackToName(true);
+  }, 260);
+}
+function zenEditLast() {
+  if (!_zen.last) return;
+  document.getElementById('zenName').value = _zen.last.title;
+  zenPickHandle(_zen.last.handle);
 }
 
 // ── ORDERS ────────────────────────────────────────────────────────────────────
