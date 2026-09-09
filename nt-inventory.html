@@ -500,6 +500,8 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .emg-dash-design input { width: 16px; height: 16px; accent-color: #1a7f37; flex-shrink: 0; }
 .emg-dash-design.printed { opacity: .5; }
 .emg-dash-design.printed b { text-decoration: line-through; }
+.emg-dash-design.sent { opacity: .45; cursor: default; }
+.emg-dash-design.sent b, .emg-dash-design.sent .emg-dd-qty { text-decoration: line-through; }
 .emg-dd-qty { font-weight: 800; color: var(--ink); min-width: 28px; text-align: right; }
 .emg-badge { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
 .emg-badge.open { background: #fdebd3; color: #b05000; }
@@ -3663,12 +3665,21 @@ function renderEmgDash() {
     const detail = open ? `
       <tr class="emg-dash-detail"><td colspan="7">
         <div style="font-size:.7rem;color:var(--muted);margin-bottom:4px">${age}d old · ${d.printed} printed · ${d.sent} sent</div>
-        ${[...d.designs].filter(g => g.open + g.printed > 0).sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || (b.open + b.printed) - (a.open + a.printed)).map((g, gi) => {
+        ${[...d.designs].map((g, gi) => ({ g, gi })).filter(x => x.g.open + x.g.printed + x.g.sent > 0).sort((a, b) => {
+          const ad = a.g.open + a.g.printed === 0, bd = b.g.open + b.g.printed === 0;
+          return ad - bd || (b.g.amazon_open > 0) - (a.g.amazon_open > 0) || (b.g.open + b.g.printed) - (a.g.open + a.g.printed);
+        }).map(({ g, gi }) => {
           // print is whole-design: ticked only when nothing is left to print
           const allPrinted = g.open === 0 && g.printed > 0;
           const remaining = g.open + g.printed;
           const total = remaining + g.sent;
           const partSent = g.sent > 0 && remaining > 0;
+          if (remaining === 0) return `
+          <label class="emg-dash-design sent" title="All ${g.sent} dispatched">
+            <input type="checkbox" checked disabled onclick="event.stopPropagation()">
+            <span class="emg-dd-qty">${g.sent}×</span><b>${g.title}</b>
+            <span class="emg-badge sent">✓ sent</span>
+          </label>`;
           return `
           <label class="emg-dash-design${allPrinted ? ' printed' : ''}"${g.amazon_open ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
             <input type="checkbox" ${allPrinted ? 'checked' : ''} onclick="event.stopPropagation()" onchange="emgDesignTick('${d.date}',${gi},this)" title="${allPrinted ? 'Printed — untick to put back to print' : 'Tick when printed'}">
@@ -3796,8 +3807,7 @@ function emgTodoSkip(id) {
 // Tick a design line = all its open units for that date are printed; untick = back to print.
 async function emgDesignTick(date, gi, cb) {
   const d = (_emgDash?.dates || []).find(x => x.date === date); if (!d) return;
-  const designs = [...d.designs].filter(g => g.open + g.printed > 0).sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || (b.open + b.printed) - (a.open + a.printed));
-  const g = designs[gi]; if (!g) return;
+  const g = d.designs[gi]; if (!g) return;
   cb.disabled = true;
   try {
     if (cb.checked) {
