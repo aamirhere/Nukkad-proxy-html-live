@@ -1089,7 +1089,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <option value="all_time">All time</option>
     </select>
     <button class="btn btn-ghost" onclick="refreshProducts()" title="Re-sync from Shopify">↻ Sync</button>
-    <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
   </div>
   <div class="csv-bar">
     <button class="btn btn-ghost" onclick="downloadCSV()">⬇ Export CSV</button>
@@ -4041,7 +4040,7 @@ function renderDispatchRows() {
   document.getElementById('dispatchRows').innerHTML = _dispatchRows.map((row, i) => {
     const pending = emgPendingCount(row.handle, row.title);
     const unmatched = !row.handle && !!row.title;
-    const addChip = unmatched ? `<button type="button" onclick="dAddNewDesign(${i})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #b8e0c0;background:#f6fdf7;color:#1a7f37;cursor:pointer;font-family:inherit;font-weight:700" title="Add “${(row.title || '').replace(/"/g, '&quot;')}” as a new design">+ Add</button>` : '';
+    const addChip = '';
     const sug = unmatched && row._suggest?.length ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">Did you mean: ${row._suggest.map(sg => `<button type="button" onclick="dSelect(${i},'${sg.handle.replace(/'/g, "\\'")}',${JSON.stringify(sg.title).replace(/"/g, '&quot;')})" style="font-size:.72rem;padding:2px 9px;border-radius:10px;border:1px solid #f2c9b4;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit" title="Use this design">${sg.title}</button>`).join('')}${addChip}</div>` : (unmatched ? `<div id="dsug-${i}" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.72rem;color:var(--ink2)">No close match — edit the name to search ${addChip}</div>` : '');
     return `
     <div data-drow="${i}" style="padding:10px;background:${unmatched ? '#fff3ee' : '#fdf5ec'};border-radius:10px;border:1.5px solid ${unmatched ? '#e65100' : '#e9ddca'}">
@@ -4248,7 +4247,7 @@ async function submitDispatch(btn) {
   const unmatched = _dispatchRows.filter(r => r.title && !r.handle && r.qty > 0);
   if (unmatched.length) {
     renderDispatchRows();
-    toast(`${unmatched.length} line${unmatched.length !== 1 ? 's' : ''} not matched — pick a suggestion, + Add, or remove them`);
+    toast(`${unmatched.length} line${unmatched.length !== 1 ? 's' : ''} not matched — pick a suggestion or remove them`);
     document.querySelector('#dispatchRows [data-drow]')?.scrollIntoView({ block: 'nearest' });
     return;
   }
