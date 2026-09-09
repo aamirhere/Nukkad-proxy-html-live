@@ -893,6 +893,13 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .cut-tag.amz { background:#ff9900; color:#fff; }
 .cut-tag.cnt { background:#fdebd3; color:#b05000; }
 .cut-empty { font-size:.82rem; color:var(--muted); padding:6px 4px; }
+.cut-emg-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.cut-emg-line input { width:18px; height:18px; accent-color:#1a7f37; }
+.cut-skip { font-size:.66rem; color:var(--ink2); background:none; border:1px solid var(--line); border-radius:8px; padding:1px 7px; cursor:pointer; font-family:var(--fb); white-space:nowrap; }
+.cut-skip:hover { color:#fff; background:#b05000; border-color:#b05000; }
+.cut-week { font-size:.66rem; color:var(--muted); font-weight:600; }
+@media (max-width:600px) { .cut-skip { font-size:.62rem; padding:1px 5px; } .cut-week { display:none; } }
+@media print { #cutMore, #cutLogWrap, .cut-skip { display:none !important; } }
 .cut-up-row { display:flex; gap:10px; align-items:baseline; padding:5px 4px; border-bottom:1px solid #f3ece1; font-size:.84rem; }
 .cut-up-row:last-child { border-bottom:none; }
 .cut-up-day { font-weight:700; min-width:82px; color:var(--ink); }
@@ -1393,9 +1400,14 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   </div>
 
   <div id="cutToday"></div>
-  <div style="display:flex;justify-content:flex-end;margin:8px 0 18px"><button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0 18px;flex-wrap:wrap">
+    <button class="btn btn-ghost" id="cutMoreBtn" onclick="cutToggleMore()">▾ Show more designs</button>
+    <button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button>
+  </div>
+  <div id="cutMore" class="cut-slot" style="display:none"><div class="cut-slot-hd">MORE — in priority order, tick what you take today</div><div id="cutMoreList"></div></div>
 
   <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
+  <div class="cut-slot" id="cutLogWrap"><div class="cut-slot-hd">📒 CUT LOG — what went into production, by date</div><div id="cutLog"></div></div>
 
   <div id="cutDetailsWrap" style="display:none;margin-top:18px">
     <div class="cut-slot-hd" style="margin-bottom:6px">DETAILS — for planning, not for the cutter</div>
@@ -5014,8 +5026,19 @@ async function loadCutPlan() {
   }
 }
 
-function cutColors(list) {
-  return (list || []).map(c => `${c.qty} ${c.color}`).join(' · ');
+function cutColors(list) { return (list || []).map(c => `${c.qty} ${c.color}`).join(' · '); }
+
+let _cutEmgOpen = false;
+function cutLine(x, kind) {
+  const h = x.handle.replace(/'/g, "\\'"), t = (x.title || '').replace(/'/g, "\\'");
+  const q = kind === 'emg' ? x.today : x.qty;
+  return `<label class="cut-line" data-handle="${x.handle}">
+    <input type="checkbox" onchange="cutTick('${kind}','${h}',${q},this,'${t}')">
+    <span class="cut-qty">${q}</span>
+    <span class="cut-name">${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${kind === 'emg' && x.amazon ? ' <span class="cut-tag amz">Amazon</span>' : ''}${x.count_needed ? ' <span class="cut-tag cnt" title="Stock not counted — treated as 0">count</span>' : ''}${x.q7 != null ? ` <span class="cut-week" title="orders in the last 7 days">${x.q7}/wk</span>` : ''}</span>
+    ${kind !== 'emg' ? `<button type="button" class="cut-skip" onclick="event.preventDefault();cutSkipDesign('${h}','${t}')" title="It is already cut or in production — park it for 3 days, no number needed">already in production</button>` : ''}
+    <button type="button" class="cut-have${x.in_hand ? ' has' : ''}" onclick="event.preventDefault();cutHave('${h}','${t}')" title="Pieces already cut or in production — click to set the number">${x.in_hand ? `in hand ${x.in_hand}` : 'in hand 0'}</button>
+  </label>`;
 }
 
 function renderCutPlan() {
@@ -5033,36 +5056,47 @@ function renderCutPlan() {
       : ` · <span style="color:var(--muted)">demand: ${p.demand_source.website_orders ?? '?'} website orders + ${p.demand_source.amazon_units ?? '?'} Amazon units, 30d</span>`) : '');
   document.getElementById('cutPrintDate').textContent = `Cut list · ${d}-${m}-${y} · ${total} pieces`;
 
-  const row = (x, kind) => {
-    const key = `${kind}:${x.handle}`;
-    return `<label class="cut-line" id="cl-${key.replace(/[^a-z0-9]/gi, '_')}">
-      <input type="checkbox" onchange="cutTick('${kind}','${x.handle.replace(/'/g, "\\'")}',${kind === 'emg' ? x.today : x.qty},this)">
-      <span class="cut-qty">${kind === 'emg' ? x.today : x.qty}</span>
-      <span class="cut-name">${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${kind === 'emg' && x.amazon ? ' <span class="cut-tag amz">Amazon</span>' : ''}${x.count_needed ? ' <span class="cut-tag cnt" title="Stock not counted — treated as 0">count</span>' : ''}</span>
-      <button type="button" class="cut-have${x.in_hand ? ' has' : ''}" onclick="event.preventDefault();cutHave('${x.handle.replace(/'/g, "\\'")}','${x.title.replace(/'/g, "\\'")}')" title="Pieces already cut or in production for this design — click to change">${x.in_hand ? `in hand ${x.in_hand}` : 'in hand 0'}</button>
-    </label>`;
-  };
-  let html = '';
-  html += `<div class="cut-slot emg"><div class="cut-slot-hd">🚨 EMERGENCY FIRST — ${p.emergency_today}</div>${emgLines.length ? emgLines.map(x => row(x, 'emg')).join('') : '<div class="cut-empty">No emergency to cut</div>'}</div>`;
-  html += `<div class="cut-slot"><div class="cut-slot-hd">📦 STOCK — ${p.stock_total}</div>${p.stock.length ? p.stock.map(x => row(x, 'stock')).join('') : '<div class="cut-empty">Capacity used by emergency, or every design is above the ceiling</div>'}</div>`;
-  document.getElementById('cutToday').innerHTML = html;
+  // Emergency: one line. The Emergency tab is the list; here it only needs a tick.
+  const emgHtml = p.emergency_today
+    ? `<div class="cut-slot emg">
+        <div class="cut-emg-line">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0">
+            <input type="checkbox" onchange="cutEmergencyAll(this)" title="Tick when the whole emergency batch is cut">
+            <span class="cut-qty">${p.emergency_today}</span>
+            <span class="cut-name">🚨 Emergency — ${p.emergency_designs} design${p.emergency_designs !== 1 ? 's' : ''}, ${p.emergency_dates} date${p.emergency_dates !== 1 ? 's' : ''}${p.emergency_carry ? ` <span class="cut-tag cnt">+${p.emergency_carry} carry</span>` : ''}</span>
+          </label>
+          <button type="button" class="cut-skip" onclick="_cutEmgOpen=!_cutEmgOpen;renderCutPlan()">${_cutEmgOpen ? 'hide' : 'show'}</button>
+          <button type="button" class="cut-skip" onclick="switchView('emergency')">Emergency tab</button>
+        </div>
+        ${_cutEmgOpen ? `<div style="margin-top:6px">${emgLines.map(x => cutLine(x, 'emg')).join('')}</div>` : ''}
+      </div>`
+    : `<div class="cut-slot emg"><div class="cut-empty">🚨 No emergency to cut</div></div>`;
+  const stockHtml = `<div class="cut-slot"><div class="cut-slot-hd">📦 STOCK — ${p.stock_total}</div>${p.stock.length ? p.stock.map(x => cutLine(x, 'stock')).join('') : '<div class="cut-empty">Nothing suggested — tick the emergency line if it is cut, or open Show more</div>'}</div>`;
+  document.getElementById('cutToday').innerHTML = emgHtml + stockHtml;
+
+  document.getElementById('cutMoreList').innerHTML = (p.more || []).length
+    ? p.more.map(x => cutLine(x, 'more')).join('')
+    : '<div class="cut-empty">Every regular design is already covered</div>';
+  document.getElementById('cutMoreBtn').textContent = `${document.getElementById('cutMore').style.display === 'none' ? '▾' : '▴'} ${(p.more || []).length} more designs`;
 
   const labels = ['Tomorrow', 'Day after'];
   document.getElementById('cutUpcoming').innerHTML = p.upcoming.map((u, i) =>
-    `<div class="cut-up-row"><span class="cut-up-day">${labels[i] || `Day ${u.day}`}</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">${u.designs.slice(0, 8).join(', ')}${u.designs.length > 8 ? ` +${u.designs.length - 8} more` : ''}</span></div>`
+    `<div class="cut-up-row"><span class="cut-up-day">${labels[i] || `Day ${u.day}`}</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">${u.designs.slice(0, 10).join(', ')}${u.designs.length > 10 ? ` +${u.designs.length - 10} more` : ''}</span></div>`
   ).join('') || '<div class="cut-empty">Nothing further needed</div>';
+  if (p.skipped?.length) {
+    document.getElementById('cutUpcoming').innerHTML += `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Parked</span><span class="cut-up-total"></span><span class="cut-up-names">${p.skipped.map(x => `${x.title} <span style="font-size:.68rem">(back ${x.skip_until.split('-').reverse().slice(0,2).join('-')})</span>`).join(', ')}</span></div>`;
+  }
 
-  // details table (user 1)
   const det = p.details.filter(x => x.demand > 0 || x.in_hand > 0 || (x.stock ?? 0) > 0);
   document.getElementById('cutDetails').innerHTML = `
     <table class="sku-conf-table" style="font-size:.78rem">
-      <thead><tr><th>Design</th><th>Demand/day</th><th>Stock</th><th>In hand</th><th>Cover now</th><th>Cut today</th><th>Cover after</th></tr></thead>
+      <thead><tr><th>Design</th><th>7d</th><th>Demand/day</th><th>Stock</th><th>In hand</th><th>Cover now</th><th>Cut today</th><th>Cover after</th></tr></thead>
       <tbody>${det.map(x => {
         const line = p.stock.find(s => s.handle === x.handle);
         const emgL = p.emergency.find(s => s.handle === x.handle);
-        return `<tr>
-          <td>${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}</td>
-          <td>${x.demand}</td>
+        return `<tr${x.skip_until ? ' style="opacity:.55"' : ''}>
+          <td>${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${x.skip_until ? ' <span class="cut-tag cnt">parked</span>' : ''}</td>
+          <td>${x.q7 ?? ''}</td><td>${x.demand}</td>
           <td>${x.stock == null ? '<span style="color:#b05000">N/A</span>' : x.stock}</td>
           <td>${x.in_hand || 0}</td>
           <td>${x.cover == null ? '—' : x.cover + 'd'}</td>
@@ -5071,24 +5105,64 @@ function renderCutPlan() {
         </tr>`;
       }).join('')}</tbody>
     </table>`;
+  loadCutLog();
 }
 
-async function cutTick(kind, handle, qty, cb) {
+function cutToggleMore() {
+  const el = document.getElementById('cutMore');
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  document.getElementById('cutMoreBtn').textContent = `${el.style.display === 'none' ? '▾' : '▴'} ${(_cutPlan?.more || []).length} more designs`;
+}
+
+async function cutTick(kind, handle, qty, cb, title) {
   const on = cb.checked;
   cb.disabled = true;
   try {
     if (on) {
-      await api({ action: 'cut_mark', handle, qty, note: kind === 'emg' ? 'emergency' : 'stock' });
+      await api({ action: 'cut_mark', handle, qty, title, plan_date: _cutPlan?.date, note: kind === 'emg' ? 'emergency' : kind === 'more' ? 'pulled from more' : 'stock' });
       cb.closest('.cut-line').classList.add('done');
-      toast(`✂ ${qty} cut → in hand`);
+      toast(`✂ ${qty}× ${title} cut → in hand`);
     } else {
-      // untick = take it back out of in hand
-      await api({ action: 'cut_mark', handle, qty: -qty, note: 'unticked' });
+      await api({ action: 'cut_mark', handle, qty: -qty, title, plan_date: _cutPlan?.date, note: 'unticked' });
       cb.closest('.cut-line').classList.remove('done');
-      toast(`↶ ${qty} removed from in hand`);
+      toast(`↶ ${qty}× ${title} removed from in hand`);
     }
+    loadCutLog();
   } catch (e) { cb.checked = !on; toast('Failed: ' + e.message); }
   finally { cb.disabled = false; }
+}
+
+async function cutEmergencyAll(cb) {
+  const p = _cutPlan; if (!p) return;
+  const items = p.emergency.filter(x => x.today > 0).map(x => ({ handle: x.handle, qty: cb.checked ? x.today : -x.today, title: x.title }));
+  cb.disabled = true;
+  try {
+    await api({ action: 'cut_mark_batch', items, plan_date: p.date, note: cb.checked ? 'emergency batch' : 'emergency batch unticked' });
+    toast(cb.checked ? `✂ Emergency batch (${p.emergency_today}) cut → in hand` : `↶ Emergency batch back`);
+    loadCutPlan();
+  } catch (e) { cb.checked = !cb.checked; toast('Failed: ' + e.message); }
+  finally { cb.disabled = false; }
+}
+
+async function cutSkipDesign(handle, title) {
+  try {
+    const r = await api({ action: 'cut_skip', handle, title, days: 3 });
+    toast(`⏸ ${title} parked until ${r.skip_until.split('-').reverse().join('-')}`);
+    loadCutPlan();
+  } catch (e) { toast('Failed: ' + e.message); }
+}
+
+async function loadCutLog() {
+  try {
+    const r = await api({ action: 'cut_history', days: 14 });
+    const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+    const kindLabel = { cut: '', set: 'set in hand', skip: 'parked', dispatch: 'dispatched', undo: 'undo' };
+    document.getElementById('cutLog').innerHTML = (r.days || []).length ? r.days.map(day => `
+      <details ${day.date === _cutPlan?.date ? 'open' : ''} style="margin-bottom:4px">
+        <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink)">${fmt(day.date)} <span style="font-weight:600;color:var(--ink2)">· ${day.cut} cut</span></summary>
+        <div style="padding:4px 0 2px 16px;font-size:.78rem;color:var(--ink2)">${day.entries.map(e => `<div>${e.kind === 'cut' ? `<b>${e.qty > 0 ? '+' : ''}${e.qty}</b>` : `<i>${kindLabel[e.kind] || e.kind}</i>`} ${e.title}${e.note && e.kind !== 'cut' ? ` <span style="color:var(--muted)">— ${e.note}</span>` : ''}${e.kind === 'cut' && e.note && e.note !== 'stock' ? ` <span style="color:var(--muted)">(${e.note})</span>` : ''}</div>`).join('')}</div>
+      </details>`).join('') : '<div class="cut-empty">Nothing cut yet</div>';
+  } catch {}
 }
 
 async function cutHave(handle, title) {
@@ -5105,7 +5179,7 @@ async function cutHave(handle, title) {
 }
 
 async function cutMarkAll() {
-  const boxes = [...document.querySelectorAll('#cutToday input[type=checkbox]:not(:checked)')];
+  const boxes = [...document.querySelectorAll('#cutToday .cut-line input[type=checkbox]:not(:checked)')];
   if (!boxes.length) { toast('Everything is already ticked'); return; }
   if (!confirm(`Mark all ${boxes.length} remaining lines as cut?`)) return;
   for (const b of boxes) { b.checked = true; b.dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 80)); }
