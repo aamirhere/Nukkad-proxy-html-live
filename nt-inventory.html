@@ -5635,7 +5635,7 @@ function cutLine(x, kind) {
     <span class="cut-qty">${q}</span>
     <span class="cut-name">${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${(kind === 'emg' && x.amazon) || x.amazon_pick ? ' <span class="cut-tag amz" title="Amazon is ordering this design">Amazon</span>' : ''}${x.count_needed ? ' <span class="cut-tag cnt" title="Stock not counted — treated as 0">count</span>' : ''}${x.q7 != null ? ` <span class="cut-week" title="orders in the last 7 days (website + Amazon)">${x.q7}/wk${x.a7 ? ` · ${x.a7} amz` : ''}</span>` : ''}</span>
     ${kind !== 'emg' ? `<button type="button" class="cut-skip" onclick="event.preventDefault();cutSkipDesign('${h}','${t}')" title="It is already cut or in production — park it for 3 days, no number needed">already in production</button>` : ''}
-    <button type="button" class="cut-have${x.in_hand ? ' has' : ''}" onclick="event.preventDefault();cutHave('${h}','${t}')" title="Pieces already cut or in production — click to set the number">${x.in_hand ? `in hand ${x.in_hand}` : 'in hand 0'}</button>
+    ${x.in_hand ? `<span class="cut-have has" title="Cut earlier, waiting for dispatch">✂ ${x.in_hand} cut, not sent</span>` : ''}
   </label>`;
 }
 
@@ -5662,10 +5662,8 @@ function renderCutPlan() {
         <div class="cut-emg-line">
           <span class="cut-qty">${p.emergency_today}</span>
           <span class="cut-name">🚨 Emergency left to cut — ${p.emergency_designs} design${p.emergency_designs !== 1 ? 's' : ''}, ${p.emergency_dates} date${p.emergency_dates !== 1 ? 's' : ''}${p.emergency_carry ? ` <span class="cut-tag cnt">+${p.emergency_carry} carry</span>` : ''}</span>
-          <button type="button" class="cut-skip" onclick="_cutEmgOpen=!_cutEmgOpen;renderCutPlan()">${_cutEmgOpen ? 'hide' : 'show'}</button>
-          <button type="button" class="cut-skip" onclick="switchView('emergency')">Emergency tab</button>
+          <button type="button" class="cut-skip" onclick="switchView('emergency')">Emergency tab →</button>
         </div>
-        ${_cutEmgOpen ? `<div style="margin-top:6px">${emgLines.map(x => `<div class="cut-line" style="cursor:default"><span class="cut-qty">${x.today}</span><span class="cut-name">${x.title}${x.amazon ? ' <span class="cut-tag amz">Amazon</span>' : ''}</span></div>`).join('')}</div>` : ''}
       </div>`
     : `<div class="cut-slot emg"><div class="cut-empty">🚨 No emergency left to cut</div></div>`;
   const stockHtml = `<div class="cut-slot"><div class="cut-slot-hd">📦 STOCK — ${p.stock_total}</div>${p.stock.length ? p.stock.map(x => cutLine(x, 'stock')).join('') : '<div class="cut-empty">Nothing suggested — tick the emergency line if it is cut, or open Show more</div>'}</div>`;
