@@ -5756,10 +5756,19 @@ async function loadCutLog() {
     const kindLabel = { cut: '', set: 'set in hand', skip: 'parked', dispatch: 'dispatched', undo: 'undo' };
     document.getElementById('cutLog').innerHTML = (r.days || []).length ? r.days.map(day => `
       <details ${day.date === _cutPlan?.date ? 'open' : ''} style="margin-bottom:4px">
-        <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink)">${fmt(day.date)} <span style="font-weight:600;color:var(--ink2)">· ${day.cut} cut</span></summary>
+        <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px">${fmt(day.date)} <span style="font-weight:600;color:var(--ink2)">· ${day.cut} cut</span><button type="button" class="emg-dash-link" style="margin-left:auto;color:#c62828;border-color:#f5c6c6" onclick="event.preventDefault();event.stopPropagation();cutLogClear('${day.date}',${day.entries.length})">🗑 clear day</button></summary>
         <div style="padding:4px 0 2px 16px;font-size:.78rem;color:var(--ink2)">${day.entries.map(e => `<div>${e.kind === 'cut' ? `<b>${e.qty > 0 ? '+' : ''}${e.qty}</b>` : `<i>${kindLabel[e.kind] || e.kind}</i>`} ${e.title}${e.note && e.kind !== 'cut' ? ` <span style="color:var(--muted)">— ${e.note}</span>` : ''}${e.kind === 'cut' && e.note && e.note !== 'stock' ? ` <span style="color:var(--muted)">(${e.note})</span>` : ''}</div>`).join('')}</div>
       </details>`).join('') : '<div class="cut-empty">Nothing cut yet</div>';
   } catch {}
+}
+
+async function cutLogClear(date, n) {
+  if (!confirm(`Delete all ${n} log entries for ${date.split('-').reverse().join('-')}?\n\nIn hand is corrected by the same amount, so the plan goes back to how it was before these ticks.`)) return;
+  try {
+    const r = await api({ action: 'cut_log_clear', plan_date: date });
+    toast(`🗑 ${r.deleted} entries removed · ${r.designs_adjusted} designs put back`);
+    loadCutPlan();
+  } catch (e) { toast('Failed: ' + e.message); }
 }
 
 async function cutHave(handle, title) {
