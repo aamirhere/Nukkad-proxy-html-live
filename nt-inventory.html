@@ -5660,17 +5660,14 @@ function renderCutPlan() {
   const emgHtml = p.emergency_today
     ? `<div class="cut-slot emg">
         <div class="cut-emg-line">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0">
-            <input type="checkbox" onchange="cutEmergencyAll(this)" title="Tick when the whole emergency batch is cut">
-            <span class="cut-qty">${p.emergency_today}</span>
-            <span class="cut-name">🚨 Emergency — ${p.emergency_designs} design${p.emergency_designs !== 1 ? 's' : ''}, ${p.emergency_dates} date${p.emergency_dates !== 1 ? 's' : ''}${p.emergency_carry ? ` <span class="cut-tag cnt">+${p.emergency_carry} carry</span>` : ''}</span>
-          </label>
+          <span class="cut-qty">${p.emergency_today}</span>
+          <span class="cut-name">🚨 Emergency left to cut — ${p.emergency_designs} design${p.emergency_designs !== 1 ? 's' : ''}, ${p.emergency_dates} date${p.emergency_dates !== 1 ? 's' : ''}${p.emergency_carry ? ` <span class="cut-tag cnt">+${p.emergency_carry} carry</span>` : ''}</span>
           <button type="button" class="cut-skip" onclick="_cutEmgOpen=!_cutEmgOpen;renderCutPlan()">${_cutEmgOpen ? 'hide' : 'show'}</button>
           <button type="button" class="cut-skip" onclick="switchView('emergency')">Emergency tab</button>
         </div>
-        ${_cutEmgOpen ? `<div style="margin-top:6px">${emgLines.map(x => cutLine(x, 'emg')).join('')}</div>` : ''}
+        ${_cutEmgOpen ? `<div style="margin-top:6px">${emgLines.map(x => `<div class="cut-line" style="cursor:default"><span class="cut-qty">${x.today}</span><span class="cut-name">${x.title}${x.amazon ? ' <span class="cut-tag amz">Amazon</span>' : ''}</span></div>`).join('')}</div>` : ''}
       </div>`
-    : (p.emergency_ticked ? `<div class="cut-slot emg"><div class="cut-emg-line"><label class="cut-line done" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;margin:0"><input type="checkbox" checked onchange="cutEmergencyAll(this)" title="Untick to put the emergency batch back"><span class="cut-qty">${p.emergency_ticked}</span><span class="cut-name">🚨 Emergency — cut ✓</span></label></div></div>` : `<div class="cut-slot emg"><div class="cut-empty">🚨 No emergency to cut</div></div>`);
+    : `<div class="cut-slot emg"><div class="cut-empty">🚨 No emergency left to cut</div></div>`;
   const stockHtml = `<div class="cut-slot"><div class="cut-slot-hd">📦 STOCK — ${p.stock_total}</div>${p.stock.length ? p.stock.map(x => cutLine(x, 'stock')).join('') : '<div class="cut-empty">Nothing suggested — tick the emergency line if it is cut, or open Show more</div>'}</div>`;
   document.getElementById('cutToday').innerHTML = emgHtml + stockHtml;
   renderCutFba(p);
@@ -5685,8 +5682,6 @@ function renderCutPlan() {
     document.querySelectorAll('#cutToday .cut-line, #cutMoreList .cut-line').forEach(l => {
       if (ticked.has(l.dataset.handle)) { l.classList.add('done'); const cb = l.querySelector('input[type=checkbox]'); if (cb) cb.checked = true; }
     });
-    const emgCb = document.querySelector('#cutToday .cut-emg-line input[type=checkbox]');
-    if (emgCb && p.emergency_ticked) emgCb.checked = true;
   }
 
   const upEl = document.getElementById('cutUpcoming');
@@ -5743,23 +5738,6 @@ async function cutTick(kind, handle, qty, cb, title) {
     }
     loadCutLog();
   } catch (e) { cb.checked = !on; toast('Failed: ' + e.message); }
-  finally { cb.disabled = false; }
-}
-
-async function cutEmergencyAll(cb) {
-  const p = _cutPlan; if (!p) return;
-  cb.disabled = true;
-  try {
-    if (cb.checked) {
-      const items = p.emergency.filter(x => x.today > 0).map(x => ({ handle: x.handle, qty: x.today, title: x.title }));
-      await api({ action: 'cut_mark_batch', items, plan_date: p.date, note: 'emergency batch' });
-      toast(`✂ Emergency batch (${p.emergency_today}) cut → in hand`);
-    } else {
-      const r = await api({ action: 'cut_unmark', note: 'emergency batch', plan_date: p.date });
-      toast(`↶ Emergency batch back (${r.undone} pcs)`);
-    }
-    loadCutPlan();
-  } catch (e) { cb.checked = !cb.checked; toast('Failed: ' + e.message); }
   finally { cb.disabled = false; }
 }
 
