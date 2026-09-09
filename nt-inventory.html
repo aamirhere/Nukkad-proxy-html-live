@@ -1828,23 +1828,65 @@ async function init() {
 let _incoming = [], _dvList = null;
 async function loadIncoming() {
   const el = document.getElementById('invIncoming');
-  try { _incoming = (await api({ action: 'dispatch_incoming' })).lists || []; } catch { _incoming = []; }
-  if (!_incoming.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  let actions = [];
+  try { actions = (await api({ action: 'actions_load' })).actions || []; } catch {}
+  _incoming = actions.filter(a => a.kind === 'carton').map(a => a.payload);
+  if (!actions.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = '';
-  const allCard = _incoming.length > 1 ? `<div class="inc-card" style="background:#fff;border-color:var(--accent)" onclick="dvOpenAll()">
-      <div class="inc-hd">📦📦 Count all cartons <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:var(--accent);background:#fdf5ec;border:1px solid #f2c9b4;border-radius:8px;padding:1px 7px">${(() => { try { return localStorage.getItem(dvDraftKey(_incoming.map(l => l.id))) ? 'counting…' : _incoming.length + ' lists'; } catch { return _incoming.length + ' lists'; } })()}</span></div>
-      <div class="inc-sub"><b>${_incoming.reduce((s, l) => s + l.pieces, 0)}</b> pcs together · one count per design, no need to know which carton is which</div>
-      <div class="inc-names">${_incoming.map(l => { const [y, m, d] = l.dispatch_date.split('-'); return `${d}-${m}`; }).join(' + ')}</div>
-    </div>` : '';
-  el.innerHTML = allCard + _incoming.map(l => {
-    const [y, m, d] = l.dispatch_date.split('-');
-    const emg = l.items.reduce((s, i) => s + (i.emergency || 0), 0), fba = l.items.reduce((s, i) => s + (i.fba || 0), 0);
-    return `<div class="inc-card" onclick="dvOpen('${l.id}')">
-      <div class="inc-hd">📦 Carton ${d}-${m} <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:#a56400;background:#fff;border:1px solid #f0c36d;border-radius:8px;padding:1px 7px">${(() => { try { return localStorage.getItem(dvDraftKey([l.id])) ? 'counting…' : 'count'; } catch { return 'count'; } })()}</span></div>
-      <div class="inc-sub"><b>${l.pieces}</b> pcs · ${l.designs} design${l.designs !== 1 ? 's' : ''}${emg ? ` · <span style="color:#b03020;font-weight:700">${emg} emergency</span>` : ''}${fba ? ` · <span style="color:#a56400;font-weight:700">${fba} Amazon/Zepto</span>` : ''}</div>
-      <div class="inc-names">${l.items.slice(0, 5).map(i => `${i.qty} ${i.title}`).join(', ')}${l.items.length > 5 ? ` +${l.items.length - 5} more` : ''}</div>
+  const draft = ids => { try { return !!localStorage.getItem(dvDraftKey(ids)); } catch { return false; } };
+  const style = {
+    carton:       ['#fff7e0', '#f0a500', '#a56400', '📦'],
+    carton_all:   ['#fff', 'var(--accent)', 'var(--accent)', '📦📦'],
+    unapplied:    ['#fde8e6', '#e57368', '#b03020', '⚠'],
+    appt_overdue: ['#fde8e6', '#e57368', '#b03020', '⏰'],
+    appt_receive: ['#f2fbf4', '#7cc48f', '#1a7f37', '✅'],
+    zepto_po:     ['#f6efff', '#9b5de5', '#6a3bb0', '🟣'],
+    amazon_shipment: ['#fff7e0', '#f0a500', '#a56400', '🟡'],
+    bluedart_csv: ['#e8f1fb', '#5b9bd5', '#1f5f9f', '📄'],
+  };
+  el.innerHTML = actions.map(a => {
+    const [bg, bd, fg, ico] = style[a.kind] || ['#fff', 'var(--line)', 'var(--ink2)', '🔔'];
+    const badge = a.kind === 'carton' ? (draft([a.payload.id]) ? 'counting…' : 'count') : a.kind === 'carton_all' ? (draft(a.payload.lists.map(l => l.id)) ? 'counting…' : 'count') : a.kind === 'unapplied' ? 'apply?' : a.kind === 'appt_overdue' ? 'overdue' : a.kind === 'appt_receive' ? 'receive' : 'take action';
+    const names = a.kind === 'carton' ? a.payload.items.slice(0, 5).map(i => `${i.qty} ${i.title}`).join(', ') + (a.payload.items.length > 5 ? ` +${a.payload.items.length - 5} more` : '') : a.kind === 'carton_all' ? a.payload.lists.map(l => l.dispatch_date.slice(8) + '-' + l.dispatch_date.slice(5, 7)).join(' + ') : (a.source ? `from ${a.source}` : '');
+    return `<div class="inc-card" style="background:${bg};border-color:${bd}" onclick="actionOpen('${a.id}')" data-action="${a.id}">
+      <div class="inc-hd">${ico} ${a.title} <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:${fg};background:#fff;border:1px solid ${bd};border-radius:8px;padding:1px 7px">${badge}</span></div>
+      <div class="inc-sub">${a.summary || ''}</div>
+      ${names ? `<div class="inc-names">${names}</div>` : ''}
     </div>`;
   }).join('');
+  el._actions = actions;
+}
+async function actionOpen(id) {
+  const a = (document.getElementById('invIncoming')._actions || []).find(x => x.id === id); if (!a) return;
+  switch (a.kind) {
+    case 'carton': return dvOpen(a.payload.id);
+    case 'carton_all': return dvOpenAll();
+    case 'unapplied': {
+      const d = a.payload;
+      const choice = prompt(`List ${d.dispatch_date} was saved but never applied.\n\nType APPLY to apply it now (emergencies first, rest to stock)\nor DELETE to remove it.`, 'APPLY');
+      if (!choice) return;
+      if (/^apply$/i.test(choice.trim())) { try { await api({ action: 'set_dispatch_applied', id: d.id, applied: true }); toast('✓ Applied'); } catch (e) { toast('Failed: ' + e.message); } }
+      else if (/^delete$/i.test(choice.trim())) { await deleteDispatch(d.id, true); toast('Deleted'); }
+      loadIncoming(); return;
+    }
+    case 'appt_overdue': switchView('fba'); return;
+    case 'appt_receive': switchView('fba'); await loadFba(); openFbaRecv(a.payload.id); return;
+    case 'zepto_po':
+    case 'amazon_shipment': {
+      const p = a.payload || {};
+      _fbaAfterSave = async () => { await api({ action: 'action_done', id: a.id, note: 'appointment booked' }).catch(() => {}); loadIncoming(); };
+      openFbaModal(null, { channel: p.channel || (a.kind === 'zepto_po' ? 'zepto' : 'amazon'), appointment_date: p.appointment_date || '', due_date: p.due_date || '', note: p.note || a.title, items: p.items || [] });
+      const missing = (p.items || []).filter(i => !i.handle);
+      if (missing.length) toast(`${missing.length} line${missing.length !== 1 ? 's' : ''} could not be matched to a design — add them by search`);
+      return;
+    }
+    default: {
+      const p = a.payload;
+      const lines = p && typeof p === 'object' ? Object.entries(p).filter(([k, v]) => typeof v !== 'object').map(([k, v]) => `${k}: ${v}`).join('\n') : '';
+      const ok = confirm(`${a.title}\n${a.summary || ''}\n\n${lines}\n\nMark as done?`);
+      if (ok) { await api({ action: 'action_done', id: a.id }).catch(() => {}); loadIncoming(); }
+    }
+  }
 }
 function dvOpen(id) {
   const l = _incoming.find(x => x.id === id); if (!l) return;
@@ -5660,9 +5702,10 @@ function renderFba() {
   document.getElementById('fbaSuggestRemove').innerHTML = rem.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Design</th><th>SKU</th><th style="text-align:right">At FBA</th></tr></thead><tbody>${rem.map(r => `<tr><td>${r.title}</td><td style="color:var(--muted)">${r.sku}</td><td style="text-align:right">${r.fba_qty || ''}</td></tr>`).join('')}</tbody></table><div style="font-size:.72rem;color:var(--muted);margin-top:6px">${rem.length} SKU${rem.length !== 1 ? 's' : ''} — close these listings on Seller Central, then mark them removed on the Amazon SKUs page.</div>` : '<div class="cut-empty">Every mapped SKU sold something in the last 180 days</div>';
 }
 
-function openFbaModal(id = null) {
+let _fbaAfterSave = null;
+function openFbaModal(id = null, prefill = null) {
   _fbaEditId = id; _fbaItems = [];
-  const a = id ? _fba?.appointments.find(x => x.id === id) : null;
+  const a = id ? _fba?.appointments.find(x => x.id === id) : prefill;
   document.getElementById('fbaModalTitle').textContent = a ? 'Edit appointment' : 'New appointment';
   document.getElementById('fbaChannel').value = a?.channel || 'amazon';
   document.getElementById('fbaApptDate').value = a?.appointment_date || '';
@@ -5670,7 +5713,7 @@ function openFbaModal(id = null) {
   document.getElementById('fbaNote').value = a?.note || '';
   document.getElementById('fbaSearch').value = '';
   document.getElementById('fbaSearchList').style.display = 'none';
-  if (a) _fbaItems = a.items.map(i => ({ handle: i.handle, title: i.title, sku: i.sku, qty: i.qty }));
+  if (a) _fbaItems = (a.items || []).filter(i => i.handle).map(i => ({ handle: i.handle, title: i.title, sku: i.sku, qty: i.qty }));
   document.getElementById('fbaModal').classList.add('open');
   fbaRefreshPreview();
   setTimeout(() => document.getElementById(a ? 'fbaSearch' : 'fbaApptDate').focus(), 50);
@@ -5726,7 +5769,8 @@ async function fbaSave() {
   try {
     await api({ action: 'fba_save', id: _fbaEditId, channel: document.getElementById('fbaChannel').value, appointment_date, due_date, note: document.getElementById('fbaNote').value.trim() || null, items });
     toast('✓ Appointment saved — stock reserved, rest sent to Cut List');
-    closeFbaModal(); loadFba();
+    closeFbaModal(); if (_fba) loadFba();
+    if (_fbaAfterSave) { const f = _fbaAfterSave; _fbaAfterSave = null; f(); }
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = 'Save appointment'; }
 }
