@@ -933,7 +933,6 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
   .dg-title { font-size: .92rem; line-height: 1.25; gap: 6px; }
   .dg-color-tag { font-size: .68rem; padding: 1px 6px; }
   .dg-order-tag { font-size: .66rem; }
-  .dg-order-tag[style*="ff9900"] { display: none; }   /* 'Amazon' pill: AMZ prefix already says it */
   .dg-status-line { font-size: .7rem; margin-top: 1px; }
   .dg-head .unit-btn { padding: 6px 12px; font-size: .8rem; }
   .unit-row { padding: 5px 6px; gap: 6px; }
@@ -2948,7 +2947,7 @@ function renderGroup(g) {
   const colorLine = Object.entries(g.colorCounts)
     .map(([c, n]) => `<span class="dg-color-tag">${n}× ${c}</span>`).join('');
 
-  const orderTag = isSingle ? `<span class="dg-order-tag">${u0.order_name}</span>${u0.source === 'amazon' ? '<span class="dg-order-tag" style="background:#ff9900;color:#fff;font-weight:700;margin-left:4px">Amazon</span>' : ''}` : '';
+  const orderTag = isSingle ? `<span class="dg-order-tag">${u0.order_name}</span>` : '';
 
   const statusParts = [];
   if (emergCount)  statusParts.push(`<span style="color:var(--red)">${emergCount} ⚠ no stock</span>`);
@@ -2987,7 +2986,7 @@ function renderGroup(g) {
     <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${slug}')" style="cursor:pointer"` : ''}>
       ${leftBtn}
       <div class="dg-info">
-        <div class="dg-title"><span class="dg-print-qty">${total}×</span> ${isAmazonGroup ? '<span style="color:#c07000;font-size:.72rem;font-weight:700;letter-spacing:.04em;margin-right:4px">AMZ</span>' : ''}${displayTitle} ${colorLine} ${orderTag}</div>
+        <div class="dg-title"><span class="dg-print-qty">${total}×</span> ${isAmazonGroup ? '<span style="background:#ff9900;color:#fff;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:4px;vertical-align:middle">Amazon</span>' : ''}${displayTitle} ${colorLine} ${orderTag}</div>
         ${statusLine ? `<div class="dg-status-line">${statusLine}</div>` : ''}
       </div>
       <div class="dg-actions-row">
