@@ -1143,8 +1143,8 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 <div class="view active" id="view-inventory">
   <div class="page-hd">
     <h2>Inventory</h2>
-    <p id="invSubtitle">Loading products…</p>
-    <p id="periodLabel" style="font-size:.75rem;color:var(--muted);margin-top:2px"></p>
+    <p id="invSubtitle" hidden>Loading products…</p>
+    <p id="periodLabel" hidden></p>
   </div>
   <div id="invIncoming" class="inc-strip two" style="display:none"></div>
   <div class="csv-bar">
@@ -5649,14 +5649,11 @@ function renderCutPlan() {
   const frozenNote = p.frozen_at
     ? `<span style="color:var(--ink2)">Today's plan <b>${d}-${m}</b> · set ${fmtAt(p.frozen_at)}${p.tomorrow ? ` · tomorrow's set ${fmtAt(p.tomorrow.frozen_at)}` : ` · tomorrow's sets at ${fh}`}</span> <button class="emg-dash-link" onclick="cutRebuild()" title="Regenerate from current stock and demand">rebuild</button><br>`
     : '';
-  document.getElementById('cutSummary').innerHTML = frozenNote +
+  document.getElementById('cutSummary').innerHTML =
     `<b>${total}</b> pieces · ${p.emergency_today} emergency + ${p.stock_total} stock` +
-    (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">${p.emergency_carry} emergency carry to tomorrow</span>` : '') +
-    (p.stock_mode === 'priority' ? ` · <span style="color:#b05000;font-weight:700">tight day — top sellers first</span>` : ` · range levelled to <b>${p.level_days}d</b>`) +
-    (p.uncounted ? ` · <span style="color:#b05000">${p.uncounted} designs not counted</span>` : '') +
-    (p.demand_source ? (p.demand_source.website_error
-      ? ` · <span style="color:var(--red);font-weight:700">⚠ website orders failed to load (${p.demand_source.website_error}) — plan is Amazon-only, tap ↻</span>`
-      : ` · <span style="color:var(--muted)">demand: ${p.demand_source.website_orders ?? '?'} website orders + ${p.demand_source.amazon_units ?? '?'} Amazon units, 30d</span>`) : '');
+    (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">+${p.emergency_carry} carry</span>` : '') +
+    (p.frozen_at ? ` · <span style="color:var(--muted)">plan ${d}-${m}${p.tomorrow ? ' · tomorrow set' : ''}</span>` : '') +
+    (p.demand_source?.website_error ? ` · <span style="color:var(--red);font-weight:700">⚠ website orders failed to load — tap ↻</span>` : '');
   document.getElementById('cutPrintDate').textContent = `Cut list · ${d}-${m}-${y} · ${total} pieces`;
 
   // Emergency: one line. The Emergency tab is the list; here it only needs a tick.
