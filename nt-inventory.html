@@ -1876,7 +1876,7 @@ function dvRender(v) {
       return `${head}<tr class="dv-row ok" id="dv-${i}">
         <td><b>${it.title}</b>${it.emergency ? `<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center"><span style="font-size:.68rem;color:#b03020;font-weight:700;white-space:nowrap">🚨 ${it.emergency} emergency:</span>${chips}</div>` : ''}${it.fba ? `<div style="font-size:.68rem;color:#a56400;font-weight:700;margin-top:2px">📦 ${it.fba} for Amazon/Zepto</div>` : ''}</td>
         <td style="text-align:right;color:var(--muted)">${it.qty}</td>
-        <td style="text-align:right"><input type="number" min="0" class="dv-in" data-h="${it.handle}" data-sent="${it.qty}" value="${it.qty}" oninput="dvChanged(${i},this)"></td>
+        <td style="text-align:right"><input type="number" min="0" inputmode="numeric" pattern="[0-9]*" class="dv-in" data-h="${it.handle}" data-sent="${it.qty}" value="${it.qty}" oninput="dvChanged(${i},this)" onfocus="this.select()" onclick="this.select()"></td>
       </tr>`; }).join('')}
   </tbody></table>`;
   dvTotals();
