@@ -4224,6 +4224,12 @@ async function submitDispatch(btn) {
   // Typed names that were never picked from the dropdown: resolve exact matches
   // here; anything else gets suggestions on its row and blocks the save.
   const src = dispatchDesignSource();
+  // typing only fills the search box; read it back so a typed name counts
+  _dispatchRows.forEach((r, i) => {
+    if (r.handle) return;
+    const inp = document.querySelector(`.disp-search[data-di="${i}"]`);
+    if (inp && inp.value.trim()) r.title = inp.value.trim();
+  });
   for (const r of _dispatchRows) {
     if (r.handle || !r.title) continue;
     const { exact, suggestions } = dispatchMatch(r.title, src);
