@@ -3624,15 +3624,17 @@ function renderEmgDash() {
       <tr class="emg-dash-detail"><td colspan="7">
         <div style="font-size:.7rem;color:var(--muted);margin-bottom:4px">${age}d old · ${d.printed} printed · ${d.sent} sent</div>
         ${[...d.designs].filter(g => g.open + g.printed > 0).sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || (b.open + b.printed) - (a.open + a.printed)).map((g, gi) => {
+          // print is whole-design: ticked only when nothing is left to print
           const allPrinted = g.open === 0 && g.printed > 0;
-          const part = g.open > 0 && g.printed > 0;
-          const total = g.open + g.printed;
+          const remaining = g.open + g.printed;
+          const total = remaining + g.sent;
+          const partSent = g.sent > 0 && remaining > 0;
           return `
-          <label class="emg-dash-design${allPrinted ? ' printed' : ''}"${g.amazon_open || (g.printed && !g.open && (g.amazon_open || 0)) ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
-            <input type="checkbox" ${allPrinted ? 'checked' : ''} data-part="${part ? 1 : 0}" onclick="event.stopPropagation()" onchange="emgDesignTick('${d.date}',${gi},this)" title="${allPrinted ? 'Printed — untick to put back to print' : 'Tick when printed'}">
-            <span class="emg-dd-qty">${total}×</span>
+          <label class="emg-dash-design${allPrinted ? ' printed' : ''}"${g.amazon_open ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
+            <input type="checkbox" ${allPrinted ? 'checked' : ''} onclick="event.stopPropagation()" onchange="emgDesignTick('${d.date}',${gi},this)" title="${allPrinted ? 'Printed — untick to put back to print' : 'Tick when printed'}">
+            <span class="emg-dd-qty">${remaining}×</span>
             ${g.amazon_open ? '<span style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px">Amazon</span>' : ''}<b>${g.title}</b>
-            ${part ? `<span class="emg-badge printed">${g.printed} of ${total} printed</span>` : ''}
+            ${partSent ? `<span class="emg-badge sent" title="${g.sent} of ${total} dispatched, ${remaining} still to send">◐ ${g.sent} of ${total} sent</span>` : ''}
 
           </label>`; }).join('')}
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
@@ -3781,11 +3783,7 @@ function emgDashToggle(date) {
   if (_emgDashOpen.has(date)) _emgDashOpen.delete(date); else _emgDashOpen.add(date);
   renderEmgDash();
 }
-const _renderEmgDashBase = renderEmgDash;
-renderEmgDash = function () {
-  _renderEmgDashBase();
-  document.querySelectorAll('.emg-dash-design input[data-part="1"]').forEach(cb => { cb.indeterminate = true; });
-};
+
 
 // Jump into the detail tab already filtered to that order date
 function emgDashGo(view, date) {
