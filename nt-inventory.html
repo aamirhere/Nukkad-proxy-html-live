@@ -1863,13 +1863,17 @@ function dvOpenAll() {
 }
 function dvRender(v) {
   _dvList = v;
+  v.items = [...v.items].sort((a, b) => ((b.emergency || 0) > 0) - ((a.emergency || 0) > 0) || (b.emergency || 0) - (a.emergency || 0) || ((b.fba || 0) > 0) - ((a.fba || 0) > 0) || b.qty - a.qty);
   document.getElementById('dvTitle').textContent = v.title;
   document.getElementById('dvSub').textContent = v.sub;
   document.getElementById('dvBody').innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:.7rem;color:var(--muted);padding:4px 8px">Design</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Sent</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Counted</th></tr></thead><tbody>
     ${v.items.map((it, i) => {
+      const prev = v.items[i - 1];
+      const sec = x => (x.emergency || 0) > 0 ? 'emg' : (x.fba || 0) > 0 ? 'fba' : 'stock';
+      const head = (!prev || sec(prev) !== sec(it)) ? `<tr><td colspan="3" style="padding:8px 8px 3px;font-size:.7rem;font-weight:800;letter-spacing:.05em;color:${sec(it) === 'emg' ? '#b03020' : sec(it) === 'fba' ? '#a56400' : 'var(--muted)'}">${sec(it) === 'emg' ? '🚨 EMERGENCY — set these aside first' : sec(it) === 'fba' ? '📦 AMAZON / ZEPTO' : '📦 STOCK'}</td></tr>` : '';
       const byColor = {}; for (const u of it.units) { const c = (u.color || '').replace(/\s*\(\+?\s*rs\.?\s*\d+\)/i, '').trim() || 'any'; byColor[c] = (byColor[c] || 0) + 1; }
       const chips = Object.entries(byColor).map(([c, n]) => `<span style="${c === 'any' ? 'background:#f1ece4;color:var(--ink2)' : colorPillStyle(c)};font-size:.68rem;padding:1px 8px;border-radius:9px;font-weight:700;white-space:nowrap;display:inline-block">${n} ${c}</span>`).join('');
-      return `<tr class="dv-row ok" id="dv-${i}">
+      return `${head}<tr class="dv-row ok" id="dv-${i}">
         <td><b>${it.title}</b>${it.emergency ? `<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center"><span style="font-size:.68rem;color:#b03020;font-weight:700;white-space:nowrap">🚨 ${it.emergency} emergency:</span>${chips}</div>` : ''}${it.fba ? `<div style="font-size:.68rem;color:#a56400;font-weight:700;margin-top:2px">📦 ${it.fba} for Amazon/Zepto</div>` : ''}</td>
         <td style="text-align:right;color:var(--muted)">${it.qty}</td>
         <td style="text-align:right"><input type="number" min="0" class="dv-in" data-h="${it.handle}" data-sent="${it.qty}" value="${it.qty}" oninput="dvChanged(${i},this)"></td>
