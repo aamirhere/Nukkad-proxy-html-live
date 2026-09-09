@@ -161,6 +161,12 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .inc-card:hover { box-shadow:0 4px 14px rgba(240,165,0,.25); }
 .inc-card .inc-hd { font-weight:800; font-size:.86rem; color:var(--ink); display:flex; align-items:center; gap:6px; }
 .inc-card .inc-sub { font-size:.74rem; color:var(--ink2); margin-top:3px; }
+.inc-strip.two { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); overflow:visible; }
+.inc-card.inc-fixed { min-width:0; max-width:none; }
+.inc-list { max-height:96px; overflow-y:auto; margin-top:4px; font-size:.76rem; color:var(--ink2); }
+.inc-line { padding:3px 6px; border-radius:6px; cursor:pointer; }
+.inc-line:hover { background:rgba(255,255,255,.7); box-shadow:inset 0 0 0 1px var(--line); }
+.inc-foot { font-size:.66rem; color:var(--muted); margin-top:4px; }
 .inc-card .inc-names { font-size:.7rem; color:var(--muted); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dv-row td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; font-size:.82rem; }
 .dv-row.diff td { background:#fff3e0; }
@@ -1075,7 +1081,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <p id="invSubtitle">Loading products…</p>
     <p id="periodLabel" style="font-size:.75rem;color:var(--muted);margin-top:2px"></p>
   </div>
-  <div id="invIncoming" class="inc-strip" style="display:none"></div>
+  <div id="invIncoming" class="inc-strip two" style="display:none"></div>
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
@@ -1830,31 +1836,26 @@ async function loadIncoming() {
   const el = document.getElementById('invIncoming');
   let actions = [];
   try { actions = (await api({ action: 'actions_load' })).actions || []; } catch {}
-  _incoming = actions.filter(a => a.kind === 'carton').map(a => a.payload);
-  if (!actions.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  actions = actions.filter(a => a.kind !== 'unapplied');
+  el._actions = actions;
+  const cartons = actions.filter(a => a.kind === 'carton');
+  _incoming = cartons.map(a => a.payload);
+  const updates = actions.filter(a => a.kind !== 'carton' && a.kind !== 'carton_all');
+  if (!cartons.length && !updates.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = '';
   const draft = ids => { try { return !!localStorage.getItem(dvDraftKey(ids)); } catch { return false; } };
-  const style = {
-    carton:       ['#fff7e0', '#f0a500', '#a56400', '📦'],
-    carton_all:   ['#fff', 'var(--accent)', 'var(--accent)', '📦📦'],
-    unapplied:    ['#fde8e6', '#e57368', '#b03020', '⚠'],
-    appt_overdue: ['#fde8e6', '#e57368', '#b03020', '⏰'],
-    appt_receive: ['#f2fbf4', '#7cc48f', '#1a7f37', '✅'],
-    zepto_po:     ['#f6efff', '#9b5de5', '#6a3bb0', '🟣'],
-    amazon_shipment: ['#fff7e0', '#f0a500', '#a56400', '🟡'],
-    bluedart_csv: ['#e8f1fb', '#5b9bd5', '#1f5f9f', '📄'],
-  };
-  el.innerHTML = actions.map(a => {
-    const [bg, bd, fg, ico] = style[a.kind] || ['#fff', 'var(--line)', 'var(--ink2)', '🔔'];
-    const badge = a.kind === 'carton' ? (draft([a.payload.id]) ? 'counting…' : 'count') : a.kind === 'carton_all' ? (draft(a.payload.lists.map(l => l.id)) ? 'counting…' : 'count') : a.kind === 'unapplied' ? 'apply?' : a.kind === 'appt_overdue' ? 'overdue' : a.kind === 'appt_receive' ? 'receive' : 'take action';
-    const names = a.kind === 'carton' ? a.payload.items.slice(0, 5).map(i => `${i.qty} ${i.title}`).join(', ') + (a.payload.items.length > 5 ? ` +${a.payload.items.length - 5} more` : '') : a.kind === 'carton_all' ? a.payload.lists.map(l => l.dispatch_date.slice(8) + '-' + l.dispatch_date.slice(5, 7)).join(' + ') : (a.source ? `from ${a.source}` : '');
-    return `<div class="inc-card" style="background:${bg};border-color:${bd}" onclick="actionOpen('${a.id}')" data-action="${a.id}">
-      <div class="inc-hd">${ico} ${a.title} <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:${fg};background:#fff;border:1px solid ${bd};border-radius:8px;padding:1px 7px">${badge}</span></div>
-      <div class="inc-sub">${a.summary || ''}</div>
-      ${names ? `<div class="inc-names">${names}</div>` : ''}
-    </div>`;
-  }).join('');
-  el._actions = actions;
+  const dm = iso => iso.slice(8) + '-' + iso.slice(5, 7);
+  const cartonCard = `<div class="inc-card inc-fixed" style="background:#fff7e0;border-color:#f0a500" onclick="${cartons.length > 1 ? 'dvOpenAll()' : cartons.length ? `dvOpen('${cartons[0].payload.id}')` : ''}">
+    <div class="inc-hd">📦 Approve incoming cartons <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:#a56400;background:#fff;border:1px solid #f0c36d;border-radius:8px;padding:1px 7px">${cartons.length ? (draft(cartons.map(c => c.payload.id)) || cartons.some(c => draft([c.payload.id])) ? 'counting…' : cartons.length + ' waiting') : 'none'}</span></div>
+    <div class="inc-list">${cartons.length ? cartons.map(c => `<div class="inc-line" onclick="event.stopPropagation();dvOpen('${c.payload.id}')"><b>${dm(c.payload.dispatch_date)}</b> · ${c.payload.pieces} pcs · ${c.payload.designs} designs${c.payload.items.some(i => i.emergency) ? ' · <span style="color:#b03020;font-weight:700">' + c.payload.items.reduce((s, i) => s + (i.emergency || 0), 0) + ' emg</span>' : ''}${draft([c.payload.id]) ? ' <span style="color:#a56400">· counting…</span>' : ''}</div>`).join('') : '<div class="inc-line" style="color:var(--muted)">No cartons waiting — every list is counted</div>'}</div>
+    ${cartons.length > 1 ? `<div class="inc-foot">Tap the card to count all ${cartons.length} together, or a line for one carton</div>` : ''}
+  </div>`;
+  const ico = { appt_overdue: '⏰', appt_receive: '✅', zepto_po: '🟣', amazon_shipment: '🟡', bluedart_csv: '📄' };
+  const updCard = `<div class="inc-card inc-fixed" style="background:#fff;border-color:var(--line)" onclick="${updates.length === 1 ? `actionOpen('${updates[0].id}')` : ''}">
+    <div class="inc-hd">🔔 Updates <span style="margin-left:auto;font-size:.68rem;font-weight:700;color:${updates.length ? 'var(--accent)' : 'var(--muted)'};background:#fdf5ec;border:1px solid ${updates.length ? '#f2c9b4' : 'var(--line)'};border-radius:8px;padding:1px 7px">${updates.length ? updates.length + ' to act on' : 'nothing new'}</span></div>
+    <div class="inc-list">${updates.length ? updates.map(u => `<div class="inc-line" onclick="event.stopPropagation();actionOpen('${u.id}')">${ico[u.kind] || '•'} <b>${u.title}</b>${u.summary ? ` · ${u.summary}` : ''}</div>`).join('') : '<div class="inc-line" style="color:var(--muted)">Zepto POs, Amazon appointments and courier files will show here</div>'}</div>
+  </div>`;
+  el.innerHTML = cartonCard + updCard;
 }
 async function actionOpen(id) {
   const a = (document.getElementById('invIncoming')._actions || []).find(x => x.id === id); if (!a) return;
