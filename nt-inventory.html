@@ -3167,16 +3167,24 @@ async function togglePick(u) {
   const k = stateKey(u);
   const cur = localState[k] || { picked: u.picked, is_emergency: u.is_emergency };
   const newPicked = !cur.picked;
-  localState[k] = { ...cur, picked: newPicked };
+  const wasEmg = !!cur.is_emergency;
+  // pick wins: a picked unit leaves the emergency queue; unpick restores the flag
+  localState[k] = { ...cur, picked: newPicked, is_emergency: newPicked ? false : cur.is_emergency };
 
   const idx = currentUnits.findIndex(x => stateKey(x) === k);
-  if (idx >= 0) currentUnits[idx].picked = newPicked;
+  if (idx >= 0) { currentUnits[idx].picked = newPicked; if (newPicked) currentUnits[idx].is_emergency = false; }
 
   renderOrders();
   const date = document.getElementById('ordersDate').value;
   try {
-    await api({ action: 'save_picked', ...u, date, picked: newPicked });
-    toast(newPicked ? `✓ Saved: ${u.order_name} picked` : `Saved: ${u.order_name} unpicked`);
+    const r = await api({ action: 'save_picked', ...u, date, picked: newPicked });
+    if (!newPicked && r.restored) {
+      localState[k] = { ...localState[k], is_emergency: true };
+      if (idx >= 0) currentUnits[idx].is_emergency = true;
+      renderOrders();
+    }
+    if (newPicked && wasEmg) { toast(`✓ ${u.order_name} picked from stock — emergency removed`); loadEmgDashboard(); }
+    else toast(newPicked ? `✓ Saved: ${u.order_name} picked` : (r.restored ? `${u.order_name} unpicked — back in emergency` : `Saved: ${u.order_name} unpicked`));
   } catch { toast('Save failed — please retry'); }
 }
 
