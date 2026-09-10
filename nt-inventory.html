@@ -1634,29 +1634,24 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <p class="print-date" id="cutPrintDate"></p>
     </div>
     <div class="cut-controls" style="margin:0">
-      <div class="cut-cap-wrap"><label for="cutCapacity">Capacity</label><input id="cutCapacity" type="number" min="10" max="1000" value="150" onchange="cutSaveSettings()"></div>
-      <div class="cut-cap-wrap"><label for="cutMinBatch">Min batch</label><input id="cutMinBatch" type="number" min="1" max="50" value="5" onchange="cutSaveSettings()"></div>
-      <div class="cut-cap-wrap"><label for="cutMaxDesigns">Max designs</label><input id="cutMaxDesigns" type="number" min="1" max="100" value="20" onchange="cutSaveSettings()"></div>
-      <button class="btn btn-ghost" onclick="loadCutPlan()">↻</button>
-      <button class="btn btn-primary" onclick="cutRebuild()" title="Use after counting or updating stock: rebuilds today's plan (and tomorrow's if set) from current numbers">↻ Rebuild after stock count</button>
+      <button class="btn btn-ghost" onclick="loadCutPlan()" title="Reload">↻</button>
       <button class="btn btn-ghost" onclick="cutUndoLast()" style="color:var(--muted)">↶ Undo last</button>
-      <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--ink2);cursor:pointer"><input type="checkbox" id="cutDetailsToggle" onchange="cutToggleDetails(this)"> details</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--ink2);cursor:pointer"><input type="checkbox" id="cutDetailsToggle" onchange="cutToggleDetails(this)"> planning</label>
     </div>
   </div>
 
-  <div id="cutToday"></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0 18px;flex-wrap:wrap">
-    <button class="btn btn-ghost" id="cutMoreBtn" onclick="cutToggleMore()">▾ Show more designs</button>
-    <button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button>
-  </div>
-  <div id="cutExtra" class="cut-slot" style="display:none;border-style:dashed"><div class="cut-slot-hd" id="cutExtraHd">⏩ NEXT — if there is room today</div><div id="cutExtraList"></div></div>
-  <div id="cutMore" class="cut-slot" style="display:none"><div class="cut-slot-hd">MORE — in priority order, tick what you take today</div><div id="cutMoreList"></div></div>
-
-  <div class="cut-slot" id="cutLotsWrap" style="display:none"><div class="cut-slot-hd">🖨 PRINTED FOR CUTTING</div><div id="cutLots"></div></div>
-  <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
-
   <div id="cutDetailsWrap" style="display:none;margin-top:18px">
-    <div class="cut-slot-hd" style="margin-bottom:6px">DETAILS — for planning, not for the cutter</div>
+    <div class="cut-slot" style="border-style:dashed">
+      <div class="cut-slot-hd" style="margin-bottom:6px">PLANNING — user 1 only. The cutter never needs this.</div>
+      <div class="cut-controls" style="margin:0;flex-wrap:wrap">
+        <div class="cut-cap-wrap"><label for="cutCapacity">Capacity/day</label><input id="cutCapacity" type="number" min="10" max="1000" value="150" onchange="cutSaveSettings()"></div>
+        <div class="cut-cap-wrap"><label for="cutMinBatch">Min batch</label><input id="cutMinBatch" type="number" min="1" max="50" value="5" onchange="cutSaveSettings()"></div>
+        <div class="cut-cap-wrap"><label for="cutMaxDesigns">Max designs</label><input id="cutMaxDesigns" type="number" min="1" max="100" value="20" onchange="cutSaveSettings()"></div>
+        <button class="btn btn-primary" onclick="cutRebuild()" title="Rebuilds today's plan from current stock and demand. Use after a stock count.">↻ Rebuild after stock count</button>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:6px">The plan sets itself every day at 10 am. Rebuild only after counting stock — it changes today's list.</div>
+    </div>
+    <div class="cut-slot-hd" style="margin-bottom:6px">DETAILS</div>
     <div id="cutDetails" style="overflow-x:auto"></div>
   </div>
 </div>
@@ -5617,7 +5612,7 @@ function cutSaveSettings() {
     max_designs: parseInt(document.getElementById('cutMaxDesigns').value) || 20,
   };
   try { localStorage.setItem(CUT_SETTINGS_KEY, JSON.stringify(s)); } catch {}
-  loadCutPlan();
+  toast('Saved — applies at the next 10 am plan, or press Rebuild');
 }
 
 async function cutRebuild() {
