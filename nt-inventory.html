@@ -1644,6 +1644,18 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     </div>
   </div>
 
+  <div id="cutToday"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0 18px;flex-wrap:wrap">
+    <button class="btn btn-ghost" id="cutMoreBtn" onclick="cutToggleMore()">▾ Show more designs</button>
+    <button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button>
+  </div>
+  <div id="cutExtra" class="cut-slot" style="display:none;border-style:dashed"><div class="cut-slot-hd" id="cutExtraHd">⏩ NEXT — if there is room today</div><div id="cutExtraList"></div></div>
+  <div id="cutAhead"></div>
+  <div id="cutMore" class="cut-slot" style="display:none"><div class="cut-slot-hd">MORE — in priority order, tick what you take today</div><div id="cutMoreList"></div></div>
+
+  <div class="cut-slot" id="cutLotsWrap" style="display:none"><div class="cut-slot-hd">🖨 PRINTED FOR CUTTING</div><div id="cutLots"></div></div>
+  <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
+
   <div id="cutDetailsWrap" style="display:none;margin-top:18px">
     <div class="cut-slot" style="border-style:dashed">
       <div class="cut-slot-hd" style="margin-bottom:6px">PLANNING — user 1 only. The cutter never needs this.</div>
