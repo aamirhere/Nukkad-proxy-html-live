@@ -1,0 +1,8 @@
+[build]
+  publish = "."
+
+# Ops pages change often and are used on phones: never serve a stale copy
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
