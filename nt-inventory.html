@@ -5852,7 +5852,7 @@ async function cutPrintLot() {
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; }
 }
-let _cutLotsToday = 0;
+let _cutLotsToday = 0, _cutNextSeq = 1;
 function cutFabUpdate() {
   const fab = document.getElementById('cutFab');
   fab.hidden = !document.getElementById('view-cutlist').classList.contains('active');
@@ -5861,8 +5861,8 @@ function cutFabUpdate() {
   const n = boxes.length;
   const pcs = boxes.reduce((s, b) => s + (parseInt(b.closest('.cut-line')?.querySelector('.cut-qty')?.textContent, 10) || 0), 0);
   fab.classList.toggle('idle', !n);
-  const taken = _cutLotsToday ? `${_cutLotsToday} print${_cutLotsToday !== 1 ? 's' : ''} taken today` : 'no prints yet today';
-  fab.innerHTML = n ? `🖨 Print lot ${_cutLotsToday + 1} · <b>${n} selected · ${pcs} pcs</b><small>${taken}</small>` : `🖨 Print lot · nothing selected<small>${taken}</small>`;
+  const taken = _cutLotsToday ? `${_cutLotsToday} lot${_cutLotsToday !== 1 ? 's' : ''} today` : 'no lots yet today';
+  fab.innerHTML = n ? `🖨 Save lot ${_cutNextSeq} · <b>${n} selected · ${pcs} pcs</b><small>${taken}</small>` : `🖨 Save lot · nothing selected<small>${taken}</small>`;
 }
 async function loadCutLots() {
   const wrap = document.getElementById('cutLotsWrap');
@@ -5870,6 +5870,7 @@ async function loadCutLots() {
     const r = await api({ action: 'cut_lots', days: 14 });
     const lots = r.lots || [];
     _cutLotsToday = lots.filter(l => l.plan_date === (_cutPlan?.date || todayIST())).length;
+    _cutNextSeq = r.next_seq || 1;
     cutFabUpdate();
     if (!lots.length) { wrap.style.display = 'none'; return; }
     wrap.style.display = '';
@@ -5888,7 +5889,7 @@ async function loadCutLots() {
     document.getElementById('cutLots').innerHTML = Object.entries(byDate).map(([date, ls]) => {
       const [y, m, d] = date.split('-');
       const pcs = ls.reduce((s, l) => s + (l.pieces || 0), 0);
-      const sorted = ls.slice().sort((a, b) => a.seq - b.seq);
+      const sorted = ls.slice().sort((a, b) => (a.printed_at || '').localeCompare(b.printed_at || ''));
       return `<details ${date === today ? 'open' : ''} style="margin-bottom:6px">
         <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink)">${d}-${m}-${y} <span style="font-weight:600;color:var(--ink2)">· ${sorted.length} lot${sorted.length !== 1 ? 's' : ''} · ${pcs} pcs</span></summary>
         <div style="padding:2px 0 2px 10px">${sorted.length === 1 ? lotBlock(sorted[0], false) : sorted.map((l, i) => `<details ${i === sorted.length - 1 ? 'open' : ''} style="margin:3px 0"><summary style="cursor:pointer;font-size:.8rem;color:var(--ink2)"><b>Lot ${l.seq}</b> · ${l.pieces} pcs</summary>${lotBlock(l, false)}</details>`).join('')}</div>
