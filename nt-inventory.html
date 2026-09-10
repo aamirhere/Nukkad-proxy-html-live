@@ -5692,7 +5692,7 @@ function renderCutPlan() {
   document.getElementById('cutSummary').innerHTML =
     `<b>${total}</b> pieces · ${p.emergency_today} emergency + ${p.stock_total} stock` +
     (p.emergency_carry ? ` · <span style="color:var(--red);font-weight:700">+${p.emergency_carry} carry</span>` : '') +
-    (p.frozen_at ? ` · <span style="color:var(--muted)">plan ${d}-${m}${p.tomorrow ? ' · tomorrow set' : ''}</span>` : '') +
+    (p.frozen_at ? ` · <span style="color:var(--muted)">plan ${d}-${m} · set ${new Date(p.frozen_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</span>` : '') +
     (p.demand_source?.website_error ? ` · <span style="color:var(--red);font-weight:700">⚠ website orders failed to load — tap ↻</span>` : '');
   document.getElementById('cutPrintDate').textContent = `Cut list · ${d}-${m}-${y} · ${total} pieces`;
 
@@ -5732,7 +5732,7 @@ function renderCutPlan() {
     upEl.innerHTML = `<div class="cut-up-row"><span class="cut-up-day">Tomorrow ${td}-${tm}</span><span class="cut-up-total">${(t.emergency_today || 0) + (t.stock_total || 0)}</span><span class="cut-up-names">${t.emergency_today ? `🚨 ${t.emergency_today} emergency · ` : ''}${t.stock.map(x => `${x.qty} ${x.title}`).join(', ') || 'no stock lines'}</span></div>`;
   } else {
     const u = p.upcoming[0];
-    upEl.innerHTML = u ? `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Tomorrow</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">sets at ${fh} · likely ${u.designs.slice(0, 10).join(', ')}${u.designs.length > 10 ? ` +${u.designs.length - 10} more` : ''}</span></div>` : '<div class="cut-empty">Nothing further needed</div>';
+    upEl.innerHTML = u ? `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Tomorrow</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">set at ${fh} tomorrow · likely ${u.designs.slice(0, 10).join(', ')}${u.designs.length > 10 ? ` +${u.designs.length - 10} more` : ''}</span></div>` : '<div class="cut-empty">Nothing further needed</div>';
   }
   if (p.skipped?.length) {
     document.getElementById('cutUpcoming').innerHTML += `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Parked</span><span class="cut-up-total"></span><span class="cut-up-names">${p.skipped.map(x => `${x.title} <span style="font-size:.68rem">(back ${x.skip_until.split('-').reverse().slice(0,2).join('-')})</span>`).join(', ')}</span></div>`;
