@@ -1651,10 +1651,8 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div id="cutToday"></div>
   <div style="display:flex;justify-content:flex-end;margin:6px 0 12px"><button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button></div>
   <div id="cutAhead"></div>
-  <details id="cutExtra" class="cut-slot cut-fold" style="display:none;border-style:dashed"><summary class="cut-slot-hd" id="cutExtraHd">⏩ NEXT 40</summary><div id="cutExtraList"></div>
-    <div style="text-align:center;margin-top:8px"><button type="button" class="emg-dash-link" id="cutMoreBtn" onclick="document.getElementById('cutMore').style.display='';this.style.display='none'">show more designs</button></div>
-  </details>
-  <div id="cutMore" class="cut-slot" style="display:none"><div class="cut-slot-hd" id="cutMoreHd">MORE</div><div id="cutMoreList"></div></div>
+  <div id="cutExtra" style="display:none"><div id="cutExtraList"></div></div>
+  <div id="cutMore" style="display:none"><div id="cutMoreHd" hidden></div><div id="cutMoreList"></div></div>
 
   <div class="cut-slot" id="cutLotsWrap" style="display:none"><div class="cut-slot-hd">🖨 PRINTED FOR CUTTING</div><div id="cutLots"></div></div>
   <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
@@ -5684,7 +5682,16 @@ async function cutRefreshDemand(s, rebuild = false) {
 
 function cutColors(list) { return (list || []).map(c => `${c.qty} ${c.color}`).join(' · '); }
 
-let _cutEmgOpen = false, _cutAhead = 0;
+let _cutEmgOpen = false, _cutAhead = 0, _cutLists = { extra: [], more: [] };
+function cutShowNext() {
+  document.getElementById('cutStockExtra').innerHTML = `<div class="cut-slot-hd" style="margin-top:8px;color:var(--muted)">⏩ NEXT ${_cutPlan?.extra_capacity || 40} — if there is room</div>` + _cutLists.extra.map(x => cutLine(x, 'more')).join('');
+  document.getElementById('cutShowNext').style.display = 'none';
+  const m = document.getElementById('cutShowMore'); if (m) m.style.display = '';
+}
+function cutShowMore() {
+  document.getElementById('cutStockMore').innerHTML = `<div class="cut-slot-hd" style="margin-top:8px;color:var(--muted)">MORE — in priority order</div>` + _cutLists.more.map(x => cutLine(x, 'more')).join('');
+  document.getElementById('cutShowMore').style.display = 'none';
+}
 function cutSetAhead(n) {
   _cutAhead = n;
   document.querySelectorAll('#cutAheadChips .emg-tab').forEach(b => b.classList.toggle('active', +b.dataset.d === n));
@@ -5743,34 +5750,20 @@ function renderCutPlan() {
   const printedH = new Set(p.printed_handles || []);
   const openStock = p.stock.filter(x => !printedH.has(x.handle));
   const topLines = cutTopLines(p);
-  const stockHtml = `<div class="cut-slot"><div class="cut-slot-hd" style="display:flex;align-items:center;gap:8px">📦 STOCK — ${p.stock_total}${openStock.length < p.stock.length ? ` <span style="font-weight:600;color:var(--muted)">· ${p.stock.length - openStock.length} printed</span>` : ''}<button type="button" class="emg-dash-link" style="margin-left:auto" onclick="openPrioModal()">+ priority</button></div>${topLines}${openStock.length ? openStock.map(x => cutLine(x, 'stock')).join('') : (p.stock.length ? '<div class="cut-empty">Everything on today\'s list is printed — see lots below or open Show more</div>' : '<div class="cut-empty">Nothing suggested — open Show more</div>')}</div>`;
+  const extraAll = (p.extra || []).filter(x => !printedH.has(x.handle));
+  const exSet = new Set(extraAll.map(x => x.handle));
+  const moreAll = (p.more || []).filter(x => !printedH.has(x.handle) && !exSet.has(x.handle));
+  const stockHtml = `<div class="cut-slot" id="cutStockSlot"><div class="cut-slot-hd" style="display:flex;align-items:center;gap:8px">📦 STOCK — ${p.stock_total}${openStock.length < p.stock.length ? ` <span style="font-weight:600;color:var(--muted)">· ${p.stock.length - openStock.length} printed</span>` : ''}<button type="button" class="emg-dash-link" style="margin-left:auto" onclick="openPrioModal()">+ priority</button></div>${topLines}${openStock.length ? openStock.map(x => cutLine(x, 'stock')).join('') : (p.stock.length ? '<div class="cut-empty">Everything on today\'s list is printed — see lots below</div>' : '<div class="cut-empty">Nothing suggested</div>')}
+    <div id="cutStockExtra"></div>
+    <div id="cutStockMore"></div>
+    <div style="text-align:center;margin-top:8px">${extraAll.length ? `<button type="button" class="emg-dash-link" id="cutShowNext" onclick="cutShowNext()">▾ show next ${extraAll.reduce((s, x) => s + x.qty, 0)} pcs · ${extraAll.length} designs</button>` : ''}${moreAll.length ? `<button type="button" class="emg-dash-link" id="cutShowMore" onclick="cutShowMore()" style="${extraAll.length ? 'display:none' : ''}">▾ show ${moreAll.length} more designs</button>` : ''}</div>
+  </div>`;
   document.getElementById('cutToday').innerHTML = emgHtml + stockHtml;
   cutFabUpdate();
   loadCutLots();
 
-  const extra = (p.extra || []).filter(x => !printedH.has(x.handle));
-  const exEl = document.getElementById('cutExtra');
-  exEl.style.display = extra.length ? '' : 'none';
-  document.getElementById('cutExtraHd').textContent = `⏩ NEXT ${p.extra_capacity || 40} · ${extra.length} designs`;
-  document.getElementById('cutExtraList').innerHTML = extra.map(x => cutLine(x, 'more')).join('');
-  const exH = new Set(extra.map(x => x.handle));
+  _cutLists = { extra: extraAll, more: moreAll };
   renderCutAhead(p, printedH);
-  document.getElementById('cutMoreList').innerHTML = (p.more || []).length
-    ? p.more.filter(x => !printedH.has(x.handle) && !exH.has(x.handle)).map(x => cutLine(x, 'more')).join('')
-    : '<div class="cut-empty">Every regular design is already covered</div>';
-  const moreN = (p.more || []).filter(x => !printedH.has(x.handle) && !exH.has(x.handle)).length;
-  document.getElementById('cutMore').style.display = 'none';
-  document.getElementById('cutMoreBtn').style.display = moreN ? '' : 'none';
-  document.getElementById('cutMoreBtn').textContent = `show ${moreN} more designs`;
-  document.getElementById('cutMoreHd').textContent = `MORE — ${moreN} designs in priority order`;
-  // ticks are logged per plan date, so they survive a reload of the frozen plan
-  const ticked = new Set(p.ticked || []);
-  if (ticked.size) {
-    document.querySelectorAll('#cutToday .cut-line, #cutMoreList .cut-line').forEach(l => {
-      if (ticked.has(l.dataset.handle)) { l.classList.add('done'); const cb = l.querySelector('input[type=checkbox]'); if (cb) cb.checked = true; }
-    });
-  }
-
   const upEl = document.getElementById('cutUpcoming');
   if (p.tomorrow) {
     const t = p.tomorrow, [ty, tm, td] = t.date.split('-');
