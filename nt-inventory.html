@@ -5845,9 +5845,10 @@ async function cutPrintLot() {
   btn.disabled = true;
   try {
     const r = await api({ action: 'cut_lot_create', plan_date: _cutPlan?.date });
-    if (!r.ok) { toast(r.message || 'Nothing to print'); return; }
-    cutSeqSheet(r.lot);
-    loadCutPlan();
+    if (!r.ok) { toast(r.message || 'Nothing selected'); return; }
+    toast(`Lot ${r.lot.seq} saved — ${r.lot.pieces} pcs. Print it from the list below.`);
+    await loadCutPlan();
+    document.getElementById('cutLotsWrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; }
 }
@@ -5875,19 +5876,22 @@ async function loadCutLots() {
     const byDate = {};
     for (const l of lots) (byDate[l.plan_date] = byDate[l.plan_date] || []).push(l);
     const today = _cutPlan?.date || todayIST();
+    const lotBlock = (l, showHd) => {
+      const items = Array.isArray(l.items) ? l.items : JSON.parse(l.items || '[]');
+      const t = new Date(l.printed_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+      const btns = `<span style="margin-left:auto;display:flex;gap:6px"><button type="button" class="emg-dash-link ok" onclick="event.preventDefault();event.stopPropagation();cutSeqSheet(${JSON.stringify(l).replace(/"/g, '&quot;')})">🖨 Print</button><button type="button" class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.preventDefault();event.stopPropagation();cutLotDelete('${l.id}',${l.seq})" title="Reopen — its lines go back to the next lot">undo</button></span>`;
+      const list = `<div style="font-size:.8rem;color:var(--ink);padding:2px 0 4px 6px">${items.map((x, i) => `<div style="padding:2px 0"><span style="display:inline-block;width:22px;color:var(--muted);font-weight:700">${i + 1}.</span><b style="display:inline-block;width:30px">${x.qty}</b>${x.title}</div>`).join('')}</div>`;
+      return showHd
+        ? `<div style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--ink2);margin-top:4px"><b>Lot ${l.seq}</b> · ${t} · ${items.length} designs · ${l.pieces} pcs${btns}</div>${list}`
+        : `<div style="display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--muted);margin-top:2px">${t} · ${items.length} designs · ${l.pieces} pcs${btns}</div>${list}`;
+    };
     document.getElementById('cutLots').innerHTML = Object.entries(byDate).map(([date, ls]) => {
       const [y, m, d] = date.split('-');
       const pcs = ls.reduce((s, l) => s + (l.pieces || 0), 0);
-      return `<details ${date === today ? 'open' : ''} style="margin-bottom:4px">
-        <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink)">${d}-${m}-${y} <span style="font-weight:600;color:var(--ink2)">· ${ls.length} lot${ls.length !== 1 ? 's' : ''} · ${pcs} pcs</span></summary>
-        <div style="padding:4px 0 2px 12px">${ls.slice().sort((a, b) => a.seq - b.seq).map(l => {
-          const items = Array.isArray(l.items) ? l.items : JSON.parse(l.items || '[]');
-          const t = new Date(l.printed_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-          return `<details style="margin:3px 0"><summary style="cursor:pointer;font-size:.8rem;color:var(--ink2);display:flex;align-items:center;gap:8px"><b>Lot ${l.seq}</b> · ${t} · ${items.length} designs · ${l.pieces} pcs
-              <button type="button" class="emg-dash-link" style="margin-left:auto" onclick="event.preventDefault();event.stopPropagation();cutSeqSheet(${JSON.stringify(l).replace(/"/g, '&quot;')})">🖨 reprint</button>
-              <button type="button" class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.preventDefault();event.stopPropagation();cutLotDelete('${l.id}',${l.seq})" title="Reopen — its ticks go back to unprinted">undo</button></summary>
-            <div style="padding:3px 0 2px 14px;font-size:.76rem;color:var(--ink2)">${items.map((x, i) => `<div>${i + 1}. <b>${x.qty}</b> ${x.title}</div>`).join('')}</div>
-          </details>`; }).join('')}</div>
+      const sorted = ls.slice().sort((a, b) => a.seq - b.seq);
+      return `<details ${date === today ? 'open' : ''} style="margin-bottom:6px">
+        <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink)">${d}-${m}-${y} <span style="font-weight:600;color:var(--ink2)">· ${sorted.length} lot${sorted.length !== 1 ? 's' : ''} · ${pcs} pcs</span></summary>
+        <div style="padding:2px 0 2px 10px">${sorted.length === 1 ? lotBlock(sorted[0], false) : sorted.map((l, i) => `<details ${i === sorted.length - 1 ? 'open' : ''} style="margin:3px 0"><summary style="cursor:pointer;font-size:.8rem;color:var(--ink2)"><b>Lot ${l.seq}</b> · ${l.pieces} pcs</summary>${lotBlock(l, false)}</details>`).join('')}</div>
       </details>`; }).join('');
   } catch { wrap.style.display = 'none'; }
 }
