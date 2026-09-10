@@ -164,10 +164,11 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .inc-card:hover { box-shadow:0 4px 14px rgba(240,165,0,.25); }
 .inc-card .inc-hd { font-weight:800; font-size:.86rem; color:var(--ink); display:flex; align-items:center; gap:6px; }
 .inc-card .inc-sub { font-size:.74rem; color:var(--ink2); margin-top:3px; }
-.cut-fab { position:fixed; right:16px; bottom:18px; z-index:150; background:var(--accent); color:#fff; border:none; border-radius:28px; padding:13px 20px; font-family:var(--fb); font-size:.92rem; font-weight:800; box-shadow:0 8px 24px rgba(212,84,31,.4); cursor:pointer; animation:zenIn .3s; }
+.cut-fab { position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:150; background:var(--accent); color:#fff; border:none; border-radius:28px; padding:13px 20px; font-family:var(--fb); font-size:.92rem; font-weight:800; box-shadow:0 8px 24px rgba(212,84,31,.4); cursor:pointer; animation:zenIn .3s; }
 .cut-fab[hidden] { display:none; }
+.cut-fab small { display:block; font-size:.68rem; font-weight:600; opacity:.85; margin-top:2px; }
 .cut-fab.idle { background:#fff; color:var(--muted); border:1.5px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.08); }
-.cut-fab:active { transform:scale(.97); }
+.cut-fab:active { transform:translateX(-50%) scale(.97); }
 body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important; }
 .zen { position:fixed; inset:0; z-index:400; background:rgba(255,255,255,.96); backdrop-filter:blur(6px); display:flex; flex-direction:column; font-family:var(--fb); }
 .zen[hidden] { display:none; }
@@ -5848,18 +5849,22 @@ async function cutPrintLot() {
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; }
 }
+let _cutLotsToday = 0;
 function cutFabUpdate(p) {
   const fab = document.getElementById('cutFab');
   fab.hidden = !document.getElementById('view-cutlist').classList.contains('active');
-  const n = p?.unprinted_ticks || 0;
+  const n = (p || _cutPlan)?.unprinted_ticks || 0, pcs = (p || _cutPlan)?.unprinted_pieces || 0;
   fab.classList.toggle('idle', !n);
-  fab.innerHTML = n ? `🖨 Print lot · <b>${p.unprinted_pieces} pcs · ${n} design${n !== 1 ? 's' : ''}</b>` : '🖨 Print lot · tick lines first';
+  const taken = _cutLotsToday ? `${_cutLotsToday} print${_cutLotsToday !== 1 ? 's' : ''} taken today` : 'no prints yet today';
+  fab.innerHTML = n ? `🖨 Print lot ${_cutLotsToday + 1} · <b>${pcs} pcs · ${n} design${n !== 1 ? 's' : ''}</b><small>${taken}</small>` : `🖨 Print lot · tick lines first<small>${taken}</small>`;
 }
 async function loadCutLots() {
   const wrap = document.getElementById('cutLotsWrap');
   try {
     const r = await api({ action: 'cut_lots', days: 14 });
     const lots = r.lots || [];
+    _cutLotsToday = lots.filter(l => l.plan_date === (_cutPlan?.date || todayIST())).length;
+    cutFabUpdate();
     if (!lots.length) { wrap.style.display = 'none'; return; }
     wrap.style.display = '';
     const byDate = {};
