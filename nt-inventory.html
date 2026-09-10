@@ -1649,7 +1649,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   </div>
 
   <div id="cutToday"></div>
-  <div style="display:flex;justify-content:flex-end;margin:6px 0 12px"><button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button></div>
   <div id="cutAhead"></div>
   <div id="cutExtra" style="display:none"><div id="cutExtraList"></div></div>
   <div id="cutMore" style="display:none"><div id="cutMoreHd" hidden></div><div id="cutMoreList"></div></div>
@@ -5799,17 +5798,16 @@ function renderCutPlan() {
 
 async function cutTick(kind, handle, qty, cb, title) {
   const on = cb.checked;
+  cutFabUpdate();
   cb.disabled = true;
   try {
     if (on) {
       await api({ action: 'cut_mark', handle, qty, title, plan_date: _cutPlan?.date, note: kind === 'emg' ? 'emergency' : kind === 'more' ? 'pulled from more' : 'stock' });
       cb.closest('.cut-line').classList.add('done');
-      toast(`✂ ${qty}× ${title} cut → in hand`);
       cutFabUpdate();
     } else {
       const r = await api({ action: 'cut_unmark', handle, plan_date: _cutPlan?.date });
       cb.closest('.cut-line').classList.remove('done');
-      toast(`↶ ${r.undone || qty}× ${title} removed from in hand`);
       cutFabUpdate();
     }
     loadCutLog();
@@ -5917,7 +5915,7 @@ function cutFabUpdate() {
   const fab = document.getElementById('cutFab');
   fab.hidden = !document.getElementById('view-cutlist').classList.contains('active');
   // live count of what is ticked on screen and not yet in a printed lot
-  const boxes = [...document.querySelectorAll('#cutToday .cut-line input[type=checkbox]:checked:not(:disabled), #cutMoreList .cut-line input[type=checkbox]:checked:not(:disabled), #cutExtraList .cut-line input[type=checkbox]:checked:not(:disabled), #cutAhead .cut-line input[type=checkbox]:checked:not(:disabled), #cutFba .cut-line input[type=checkbox]:checked:not(:disabled)')];
+  const boxes = [...document.querySelectorAll('#cutToday .cut-line input[type=checkbox]:checked, #cutAhead .cut-line input[type=checkbox]:checked')];
   const n = boxes.length;
   const pcs = boxes.reduce((s, b) => s + (parseInt(b.closest('.cut-line')?.querySelector('.cut-qty')?.textContent, 10) || 0), 0);
   fab.classList.toggle('idle', !n);
@@ -6185,8 +6183,9 @@ function cutTopLines(p) {
 }
 async function cutPrioTick(id, qty, cb, title) {
   if (!cb.checked) return;
+  cutFabUpdate();
   cb.disabled = true;
-  try { await api({ action: 'cut_priority_mark', id, qty, title }); cb.closest('.cut-line').classList.add('done'); toast(`✂ ${qty} ${title} cut (priority)`); cutFabUpdate(); }
+  try { await api({ action: 'cut_priority_mark', id, qty, title }); cb.closest('.cut-line').classList.add('done'); cutFabUpdate(); }
   catch (e) { cb.checked = false; cb.disabled = false; toast('Failed: ' + e.message); }
 }
 async function cutPrioPart(id, left, title) {
@@ -6234,8 +6233,9 @@ async function prioSave() {
 }
 async function cutFbaTick(itemId, qty, cb, title) {
   if (!cb.checked) return;
+  cutFabUpdate();
   cb.disabled = true;
-  try { await api({ action: 'fba_cut_mark', item_id: itemId, qty, title }); cb.closest('.cut-line').classList.add('done'); toast(`✂ ${qty} ${title} cut for channel`); cutFabUpdate(); }
+  try { await api({ action: 'fba_cut_mark', item_id: itemId, qty, title }); cb.closest('.cut-line').classList.add('done'); cutFabUpdate(); }
   catch (e) { cb.checked = false; cb.disabled = false; toast('Failed: ' + e.message); }
 }
 async function cutFbaPart(itemId, left, title) {
