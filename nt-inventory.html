@@ -5684,7 +5684,7 @@ function renderCutPlan() {
   const stockHtml = `<div class="cut-slot"><div class="cut-slot-hd">📦 STOCK — ${p.stock_total}${openStock.length < p.stock.length ? ` <span style="font-weight:600;color:var(--muted)">· ${p.stock.length - openStock.length} printed</span>` : ''}</div>${openStock.length ? openStock.map(x => cutLine(x, 'stock')).join('') : (p.stock.length ? '<div class="cut-empty">Everything on today\'s list is printed — see lots below or open Show more</div>' : '<div class="cut-empty">Nothing suggested — open Show more</div>')}</div>`;
   document.getElementById('cutToday').innerHTML = emgHtml + stockHtml;
   renderCutFba(p);
-  cutFabUpdate(p);
+  cutFabUpdate();
   loadCutLots();
 
   document.getElementById('cutMoreList').innerHTML = (p.more || []).length
@@ -5746,10 +5746,12 @@ async function cutTick(kind, handle, qty, cb, title) {
       await api({ action: 'cut_mark', handle, qty, title, plan_date: _cutPlan?.date, note: kind === 'emg' ? 'emergency' : kind === 'more' ? 'pulled from more' : 'stock' });
       cb.closest('.cut-line').classList.add('done');
       toast(`✂ ${qty}× ${title} cut → in hand`);
+      cutFabUpdate();
     } else {
       const r = await api({ action: 'cut_unmark', handle, plan_date: _cutPlan?.date });
       cb.closest('.cut-line').classList.remove('done');
       toast(`↶ ${r.undone || qty}× ${title} removed from in hand`);
+      cutFabUpdate();
     }
     loadCutLog();
   } catch (e) { cb.checked = !on; toast('Failed: ' + e.message); }
@@ -5850,13 +5852,16 @@ async function cutPrintLot() {
   finally { btn.disabled = false; }
 }
 let _cutLotsToday = 0;
-function cutFabUpdate(p) {
+function cutFabUpdate() {
   const fab = document.getElementById('cutFab');
   fab.hidden = !document.getElementById('view-cutlist').classList.contains('active');
-  const n = (p || _cutPlan)?.unprinted_ticks || 0, pcs = (p || _cutPlan)?.unprinted_pieces || 0;
+  // live count of what is ticked on screen and not yet in a printed lot
+  const boxes = [...document.querySelectorAll('#cutToday .cut-line input[type=checkbox]:checked:not(:disabled), #cutMoreList .cut-line input[type=checkbox]:checked:not(:disabled), #cutFba .cut-line input[type=checkbox]:checked:not(:disabled)')];
+  const n = boxes.length;
+  const pcs = boxes.reduce((s, b) => s + (parseInt(b.closest('.cut-line')?.querySelector('.cut-qty')?.textContent, 10) || 0), 0);
   fab.classList.toggle('idle', !n);
   const taken = _cutLotsToday ? `${_cutLotsToday} print${_cutLotsToday !== 1 ? 's' : ''} taken today` : 'no prints yet today';
-  fab.innerHTML = n ? `🖨 Print lot ${_cutLotsToday + 1} · <b>${pcs} pcs · ${n} design${n !== 1 ? 's' : ''}</b><small>${taken}</small>` : `🖨 Print lot · tick lines first<small>${taken}</small>`;
+  fab.innerHTML = n ? `🖨 Print lot ${_cutLotsToday + 1} · <b>${n} selected · ${pcs} pcs</b><small>${taken}</small>` : `🖨 Print lot · nothing selected<small>${taken}</small>`;
 }
 async function loadCutLots() {
   const wrap = document.getElementById('cutLotsWrap');
@@ -6105,7 +6110,7 @@ function renderCutFba(p) {
 async function cutFbaTick(itemId, qty, cb, title) {
   if (!cb.checked) return;
   cb.disabled = true;
-  try { await api({ action: 'fba_cut_mark', item_id: itemId, qty, title }); cb.closest('.cut-line').classList.add('done'); toast(`✂ ${qty} ${title} cut for channel`); }
+  try { await api({ action: 'fba_cut_mark', item_id: itemId, qty, title }); cb.closest('.cut-line').classList.add('done'); toast(`✂ ${qty} ${title} cut for channel`); cutFabUpdate(); }
   catch (e) { cb.checked = false; cb.disabled = false; toast('Failed: ' + e.message); }
 }
 async function cutFbaPart(itemId, left, title) {
