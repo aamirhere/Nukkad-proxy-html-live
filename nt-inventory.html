@@ -5629,7 +5629,10 @@ async function loadCutPlan(extra = {}) {
   document.getElementById('cutCapacity').value = s.capacity;
   document.getElementById('cutMinBatch').value = s.min_batch;
   document.getElementById('cutMaxDesigns').value = s.max_designs;
-  document.getElementById('cutToday').innerHTML = '<div class="loading-row" style="height:60px;border-radius:10px"></div><div class="loading-row" style="height:60px;border-radius:10px;margin-top:8px"></div>';
+  document.getElementById('cutSummary').innerHTML = '<span class="loading-row" style="display:inline-block;width:220px;height:14px;border-radius:6px;vertical-align:middle"></span>';
+  document.getElementById('cutToday').innerHTML = `<div class="cut-slot emg"><div class="loading-row" style="height:22px;border-radius:8px;width:60%"></div></div>
+    <div class="cut-slot"><div class="loading-row" style="height:14px;border-radius:6px;width:30%;margin-bottom:10px"></div>${[...Array(7)].map((_, i) => `<div style="display:flex;gap:10px;align-items:center;padding:6px 0"><span class="loading-row" style="width:18px;height:18px;border-radius:4px"></span><span class="loading-row" style="width:28px;height:16px;border-radius:5px"></span><span class="loading-row" style="width:${45 + (i * 13) % 35}%;height:16px;border-radius:5px"></span><span class="loading-row" style="margin-left:auto;width:120px;height:18px;border-radius:9px"></span></div>`).join('')}</div>`;
+  document.getElementById('cutLots').innerHTML = '<div class="loading-row" style="height:16px;border-radius:6px;width:50%"></div>';
   try {
     try { _cutPlan = await api({ action: 'cut_plan', ...s }); }
     catch (e) {
@@ -5639,7 +5642,7 @@ async function loadCutPlan(extra = {}) {
       _cutPlan = await api({ action: 'cut_plan', ...s });
     }
     renderCutPlan();
-    if (_cutPlan.demand_source?.stale) cutRefreshDemand(s);
+    if (_cutPlan.needs_refresh || _cutPlan.demand_source?.stale) cutRefreshDemand(s, !!_cutPlan.needs_refresh);
   } catch (e) {
     document.getElementById('cutToday').innerHTML = `<div class="empty-state"><p>Could not build the plan: ${e.message}</p><p><button class="btn btn-ghost" onclick="loadCutPlan()">↻ Try again</button></p></div>`;
   }
@@ -5648,19 +5651,19 @@ async function loadCutPlan(extra = {}) {
 // The plan renders from yesterday's demand snapshot immediately; the fresh 30-day
 // rebuild is slow, so it runs separately and re-renders when done.
 let _cutRefreshing = false;
-async function cutRefreshDemand(s) {
+async function cutRefreshDemand(s, rebuild = false) {
   if (_cutRefreshing) return;
   _cutRefreshing = true;
   const el = document.getElementById('cutSummary');
   const note = document.createElement('span');
-  note.style.cssText = 'color:var(--muted);margin-left:6px';
-  note.textContent = '· refreshing demand…';
+  note.style.cssText = 'color:#b05000;margin-left:6px;font-weight:700';
+  note.textContent = rebuild ? '· showing yesterday\'s plan — building today\'s…' : '· refreshing demand…';
   el.appendChild(note);
   try {
     const r = await api({ action: 'cut_demand_refresh' });
-    if (r.ok) { _cutPlan = await api({ action: 'cut_plan', ...s }); renderCutPlan(); }
+    if (r.ok) { _cutPlan = await api({ action: 'cut_plan', ...s, ...(rebuild ? { rebuild: true } : {}) }); renderCutPlan(); if (rebuild) toast("Today's plan is ready"); }
     else note.textContent = `· demand refresh failed (${r.error || 'unknown'})`;
-  } catch (e) { note.textContent = `· demand refresh failed (${e.message})`; }
+  } catch (e) { note.textContent = `· refresh failed (${e.message})`; }
   finally { _cutRefreshing = false; }
 }
 
