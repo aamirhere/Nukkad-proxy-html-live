@@ -166,6 +166,7 @@ body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-hei
 .inc-card .inc-sub { font-size:.74rem; color:var(--ink2); margin-top:3px; }
 .cut-fab { position:fixed; right:16px; bottom:18px; z-index:150; background:var(--accent); color:#fff; border:none; border-radius:28px; padding:13px 20px; font-family:var(--fb); font-size:.92rem; font-weight:800; box-shadow:0 8px 24px rgba(212,84,31,.4); cursor:pointer; animation:zenIn .3s; }
 .cut-fab[hidden] { display:none; }
+.cut-fab.idle { background:#fff; color:var(--muted); border:1.5px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.08); }
 .cut-fab:active { transform:scale(.97); }
 body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important; }
 .zen { position:fixed; inset:0; z-index:400; background:rgba(255,255,255,.96); backdrop-filter:blur(6px); display:flex; flex-direction:column; font-family:var(--fb); }
@@ -5838,7 +5839,9 @@ function cutSeqSheet(lot) {
   window.print();
 }
 async function cutPrintLot() {
-  const btn = document.getElementById('cutFab'); btn.disabled = true;
+  const btn = document.getElementById('cutFab');
+  if (btn.classList.contains('idle')) { toast('Tick the lines you are sending to the cutter, then press Print lot'); return; }
+  btn.disabled = true;
   try {
     const r = await api({ action: 'cut_lot_create', plan_date: _cutPlan?.date });
     if (!r.ok) { toast(r.message || 'Nothing to print'); return; }
@@ -5849,9 +5852,10 @@ async function cutPrintLot() {
 }
 function cutFabUpdate(p) {
   const fab = document.getElementById('cutFab');
-  const on = document.getElementById('view-cutlist').classList.contains('active') && (p?.unprinted_ticks || 0) > 0;
-  fab.hidden = !on;
-  if (on) document.getElementById('cutFabN').textContent = `${p.unprinted_pieces} pcs · ${p.unprinted_ticks}`;
+  fab.hidden = !document.getElementById('view-cutlist').classList.contains('active');
+  const n = p?.unprinted_ticks || 0;
+  fab.classList.toggle('idle', !n);
+  fab.innerHTML = n ? `🖨 Print lot · <b>${p.unprinted_pieces} pcs · ${n} design${n !== 1 ? 's' : ''}</b>` : '🖨 Print lot · tick lines first';
 }
 async function loadCutLots() {
   const wrap = document.getElementById('cutLotsWrap');
