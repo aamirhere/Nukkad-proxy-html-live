@@ -1634,6 +1634,9 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <p class="print-date" id="cutPrintDate"></p>
     </div>
     <div class="cut-controls" style="margin:0">
+      <div class="emg-tabs" id="cutAheadChips" style="margin:0">
+        <button class="emg-tab active" data-d="0" onclick="cutSetAhead(0)">Today</button><button class="emg-tab" data-d="1" onclick="cutSetAhead(1)">+1 day</button><button class="emg-tab" data-d="2" onclick="cutSetAhead(2)">+2 days</button>
+      </div>
       <button class="btn btn-ghost" onclick="loadCutPlan()" title="Reload">↻</button>
       <button class="btn btn-ghost" onclick="cutUndoLast()" style="color:var(--muted)">↶ Undo last</button>
       <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--ink2);cursor:pointer"><input type="checkbox" id="cutDetailsToggle" onchange="cutToggleDetails(this)"> planning</label>
@@ -5662,7 +5665,23 @@ async function cutRefreshDemand(s) {
 
 function cutColors(list) { return (list || []).map(c => `${c.qty} ${c.color}`).join(' · '); }
 
-let _cutEmgOpen = false;
+let _cutEmgOpen = false, _cutAhead = 0;
+function cutSetAhead(n) {
+  _cutAhead = n;
+  document.querySelectorAll('#cutAheadChips .emg-tab').forEach(b => b.classList.toggle('active', +b.dataset.d === n));
+  renderCutPlan();
+}
+function renderCutAhead(p, printedH) {
+  const el = document.getElementById('cutAhead'); if (!el) return;
+  const days = (p.ahead || []).slice(0, _cutAhead);
+  el.innerHTML = days.map(d => {
+    const lines = d.lines.filter(x => !printedH.has(x.handle));
+    const [y, m, dd] = d.date.split('-');
+    return `<div class="cut-slot" style="border:2px solid #bcd4f5;background:#f4f8fe">
+      <div class="cut-slot-hd" style="color:#1f5f9f">📅 DAY +${d.day} · ${dd}-${m} — ${lines.reduce((s, x) => s + x.qty, 0)} pcs${d.emergency_carry ? ` · <span style="color:var(--red)">${d.emergency_carry} emergency carry</span>` : ''} <span style="font-weight:600;color:var(--muted)">· forecast, tick to take now</span></div>
+      ${lines.length ? lines.map(x => cutLine(x, 'more')).join('') : '<div class="cut-empty">Nothing further needed that day</div>'}
+    </div>`; }).join('');
+}
 function cutLine(x, kind) {
   const h = x.handle.replace(/'/g, "\\'"), t = (x.title || '').replace(/'/g, "\\'");
   const q = kind === 'emg' ? x.today : x.qty;
@@ -5716,6 +5735,7 @@ function renderCutPlan() {
   document.getElementById('cutExtraHd').textContent = `⏩ NEXT ${p.extra_capacity || 40} PCS — if there is room today · ${extra.reduce((s, x) => s + x.qty, 0)} pcs, ${extra.length} designs`;
   document.getElementById('cutExtraList').innerHTML = extra.map(x => cutLine(x, 'more')).join('');
   const exH = new Set(extra.map(x => x.handle));
+  renderCutAhead(p, printedH);
   document.getElementById('cutMoreList').innerHTML = (p.more || []).length
     ? p.more.filter(x => !printedH.has(x.handle) && !exH.has(x.handle)).map(x => cutLine(x, 'more')).join('')
     : '<div class="cut-empty">Every regular design is already covered</div>';
@@ -5887,7 +5907,7 @@ function cutFabUpdate() {
   const fab = document.getElementById('cutFab');
   fab.hidden = !document.getElementById('view-cutlist').classList.contains('active');
   // live count of what is ticked on screen and not yet in a printed lot
-  const boxes = [...document.querySelectorAll('#cutToday .cut-line input[type=checkbox]:checked:not(:disabled), #cutMoreList .cut-line input[type=checkbox]:checked:not(:disabled), #cutExtraList .cut-line input[type=checkbox]:checked:not(:disabled), #cutFba .cut-line input[type=checkbox]:checked:not(:disabled)')];
+  const boxes = [...document.querySelectorAll('#cutToday .cut-line input[type=checkbox]:checked:not(:disabled), #cutMoreList .cut-line input[type=checkbox]:checked:not(:disabled), #cutExtraList .cut-line input[type=checkbox]:checked:not(:disabled), #cutAhead .cut-line input[type=checkbox]:checked:not(:disabled), #cutFba .cut-line input[type=checkbox]:checked:not(:disabled)')];
   const n = boxes.length;
   const pcs = boxes.reduce((s, b) => s + (parseInt(b.closest('.cut-line')?.querySelector('.cut-qty')?.textContent, 10) || 0), 0);
   fab.classList.toggle('idle', !n);
