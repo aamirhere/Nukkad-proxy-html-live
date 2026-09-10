@@ -1624,7 +1624,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 
   <div class="cut-slot" id="cutLotsWrap" style="display:none"><div class="cut-slot-hd">🖨 PRINTED FOR CUTTING</div><div id="cutLots"></div></div>
   <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
-  <div class="cut-slot" id="cutLogWrap"><div class="cut-slot-hd">📒 CUT LOG — what went into production, by date</div><div id="cutLog"></div></div>
 
   <div id="cutDetailsWrap" style="display:none;margin-top:18px">
     <div class="cut-slot-hd" style="margin-bottom:6px">DETAILS — for planning, not for the cutter</div>
@@ -5766,6 +5765,7 @@ async function cutSkipDesign(handle, title) {
 }
 
 async function loadCutLog() {
+  return; // cut log panel removed — lots are the record now
   try {
     const r = await api({ action: 'cut_history', days: 14 });
     const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
@@ -5896,7 +5896,7 @@ async function loadCutLots() {
   } catch { wrap.style.display = 'none'; }
 }
 async function cutLotDelete(id, seq) {
-  if (!confirm(`Undo lot ${seq}? Its ticks stay, but go back to "not printed" so they come up in the next print.`)) return;
+  if (!confirm(`Undo lot ${seq}? Its lines are unticked and come back to the open list.`)) return;
   try { await api({ action: 'cut_lot_delete', id }); loadCutPlan(); } catch (e) { toast('Failed: ' + e.message); }
 }
 
