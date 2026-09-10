@@ -1654,7 +1654,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div id="cutMore" style="display:none"><div id="cutMoreHd" hidden></div><div id="cutMoreList"></div></div>
 
   <div class="cut-slot" id="cutLotsWrap" style="display:none"><div class="cut-slot-hd">🖨 PRINTED FOR CUTTING</div><div id="cutLots"></div></div>
-  <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
 
   <div id="cutDetailsWrap" style="display:none;margin-top:18px">
     <div class="cut-slot" style="border-style:dashed">
@@ -5763,18 +5762,6 @@ function renderCutPlan() {
 
   _cutLists = { extra: extraAll, more: moreAll };
   renderCutAhead(p, printedH);
-  const upEl = document.getElementById('cutUpcoming');
-  if (p.tomorrow) {
-    const t = p.tomorrow, [ty, tm, td] = t.date.split('-');
-    upEl.innerHTML = `<div class="cut-up-row"><span class="cut-up-day">Tomorrow ${td}-${tm}</span><span class="cut-up-total">${(t.emergency_today || 0) + (t.stock_total || 0)}</span><span class="cut-up-names">${t.emergency_today ? `🚨 ${t.emergency_today} emergency · ` : ''}${t.stock.map(x => `${x.qty} ${x.title}`).join(', ') || 'no stock lines'}</span></div>`;
-  } else {
-    const u = p.upcoming[0];
-    upEl.innerHTML = u ? `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Tomorrow</span><span class="cut-up-total">~${u.total}</span><span class="cut-up-names">set at ${fh} tomorrow · likely ${u.designs.slice(0, 10).join(', ')}${u.designs.length > 10 ? ` +${u.designs.length - 10} more` : ''}</span></div>` : '<div class="cut-empty">Nothing further needed</div>';
-  }
-  if (p.skipped?.length) {
-    document.getElementById('cutUpcoming').innerHTML += `<div class="cut-up-row" style="color:var(--muted)"><span class="cut-up-day">Parked</span><span class="cut-up-total"></span><span class="cut-up-names">${p.skipped.map(x => `${x.title} <span style="font-size:.68rem">(back ${x.skip_until.split('-').reverse().slice(0,2).join('-')})</span>`).join(', ')}</span></div>`;
-  }
-
   const det = p.details.filter(x => x.demand > 0 || x.in_hand > 0 || (x.stock ?? 0) > 0);
   document.getElementById('cutDetails').innerHTML = `
     <table class="sku-conf-table" style="font-size:.78rem">
