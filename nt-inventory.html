@@ -962,6 +962,10 @@ body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important
 
 /* ── cut list (daily plan) ── */
 .cut-slot { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:10px; }
+.cut-fold > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px; }
+.cut-fold > summary::-webkit-details-marker { display:none; }
+.cut-fold > summary::before { content:'▸'; color:var(--muted); }
+.cut-fold[open] > summary::before { content:'▾'; }
 .cut-line.cut-top { border-radius:8px; padding:4px 6px; margin:3px 0; }
 .cut-line.cut-top.prio { background:#fde8e6; box-shadow:inset 3px 0 0 #c62828; }
 .cut-line.cut-top.amazon { background:#fff7e0; box-shadow:inset 3px 0 0 #f0a500; }
@@ -1645,13 +1649,10 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   </div>
 
   <div id="cutToday"></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0 18px;flex-wrap:wrap">
-    <button class="btn btn-ghost" id="cutMoreBtn" onclick="cutToggleMore()">▾ Show more designs</button>
-    <button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button>
-  </div>
-  <div id="cutExtra" class="cut-slot" style="display:none;border-style:dashed"><div class="cut-slot-hd" id="cutExtraHd">⏩ NEXT — if there is room today</div><div id="cutExtraList"></div></div>
+  <div style="display:flex;justify-content:flex-end;margin:6px 0 12px"><button class="btn btn-ghost" onclick="cutMarkAll()">✓ Mark all cut</button></div>
   <div id="cutAhead"></div>
-  <div id="cutMore" class="cut-slot" style="display:none"><div class="cut-slot-hd">MORE — in priority order, tick what you take today</div><div id="cutMoreList"></div></div>
+  <details id="cutExtra" class="cut-slot cut-fold" style="display:none;border-style:dashed"><summary class="cut-slot-hd" id="cutExtraHd">⏩ NEXT — if there is room today</summary><div id="cutExtraList"></div></details>
+  <details id="cutMore" class="cut-slot cut-fold" style="display:none"><summary class="cut-slot-hd" id="cutMoreHd">MORE — everything else in priority order</summary><div id="cutMoreList"></div></details>
 
   <div class="cut-slot" id="cutLotsWrap" style="display:none"><div class="cut-slot-hd">🖨 PRINTED FOR CUTTING</div><div id="cutLots"></div></div>
   <div class="cut-slot up"><div class="cut-slot-hd">⏭ COMING UP</div><div id="cutUpcoming"></div></div>
@@ -5690,6 +5691,7 @@ function cutSetAhead(n) {
 function renderCutAhead(p, printedH) {
   const el = document.getElementById('cutAhead'); if (!el) return;
   const days = (p.ahead || []).slice(0, _cutAhead);
+  if (_cutAhead && !days.length) { el.innerHTML = '<div class="cut-slot" style="border:2px solid #bcd4f5;background:#f4f8fe"><div class="cut-empty">Forecast days appear after the next plan build (10 am, or Rebuild in planning)</div></div>'; return; }
   el.innerHTML = days.map(d => {
     const lines = d.lines.filter(x => !printedH.has(x.handle));
     const [y, m, dd] = d.date.split('-');
@@ -5747,14 +5749,16 @@ function renderCutPlan() {
   const extra = (p.extra || []).filter(x => !printedH.has(x.handle));
   const exEl = document.getElementById('cutExtra');
   exEl.style.display = extra.length ? '' : 'none';
-  document.getElementById('cutExtraHd').textContent = `⏩ NEXT ${p.extra_capacity || 40} PCS — if there is room today · ${extra.reduce((s, x) => s + x.qty, 0)} pcs, ${extra.length} designs`;
+  document.getElementById('cutExtraHd').textContent = `⏩ NEXT ${p.extra_capacity || 40} PCS — if there is room · ${extra.reduce((s, x) => s + x.qty, 0)} pcs, ${extra.length} designs`;
   document.getElementById('cutExtraList').innerHTML = extra.map(x => cutLine(x, 'more')).join('');
   const exH = new Set(extra.map(x => x.handle));
   renderCutAhead(p, printedH);
   document.getElementById('cutMoreList').innerHTML = (p.more || []).length
     ? p.more.filter(x => !printedH.has(x.handle) && !exH.has(x.handle)).map(x => cutLine(x, 'more')).join('')
     : '<div class="cut-empty">Every regular design is already covered</div>';
-  document.getElementById('cutMoreBtn').textContent = `${document.getElementById('cutMore').style.display === 'none' ? '▾' : '▴'} ${(p.more || []).length} more designs`;
+  const moreN = (p.more || []).filter(x => !printedH.has(x.handle) && !exH.has(x.handle)).length;
+  document.getElementById('cutMore').style.display = moreN ? '' : 'none';
+  document.getElementById('cutMoreHd').textContent = `MORE — ${moreN} more designs in priority order`;
   // ticks are logged per plan date, so they survive a reload of the frozen plan
   const ticked = new Set(p.ticked || []);
   if (ticked.size) {
@@ -5794,12 +5798,6 @@ function renderCutPlan() {
       }).join('')}</tbody>
     </table>`;
   loadCutLog();
-}
-
-function cutToggleMore() {
-  const el = document.getElementById('cutMore');
-  el.style.display = el.style.display === 'none' ? '' : 'none';
-  document.getElementById('cutMoreBtn').textContent = `${el.style.display === 'none' ? '▾' : '▴'} ${(_cutPlan?.more || []).length} more designs`;
 }
 
 async function cutTick(kind, handle, qty, cb, title) {
