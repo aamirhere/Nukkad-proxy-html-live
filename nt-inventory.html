@@ -1608,7 +1608,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <div class="cut-cap-wrap"><label for="cutMaxDesigns">Max designs</label><input id="cutMaxDesigns" type="number" min="1" max="100" value="20" onchange="cutSaveSettings()"></div>
       <button class="btn btn-ghost" onclick="loadCutPlan()">↻</button>
       <button class="btn btn-primary" onclick="cutRebuild()" title="Use after counting or updating stock: rebuilds today's plan (and tomorrow's if set) from current numbers">↻ Rebuild after stock count</button>
-      <button class="btn btn-ghost" onclick="cutPrint()">🖨 Print</button>
+      <button class="btn btn-ghost" onclick="cutPrint()" title="Prints the whole plan as on screen">🖨 Print plan</button>
       <button class="btn btn-ghost" onclick="cutUndoLast()" style="color:var(--muted)">↶ Undo last</button>
       <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--ink2);cursor:pointer"><input type="checkbox" id="cutDetailsToggle" onchange="cutToggleDetails(this)"> details</label>
     </div>
@@ -5823,20 +5823,18 @@ function cutToggleDetails(cb) {
 function cutSeqSheet(lot) {
   const [y, m, d] = lot.plan_date.split('-');
   const t = new Date(lot.printed_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-  const items = Array.isArray(lot.items) ? lot.items : JSON.parse(lot.items || '[]');
-  document.getElementById('cutSeqSheet').innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px">
-      <div style="font-size:20px;font-weight:800">Cutting · ${d}-${m}-${y} · Lot ${lot.seq}</div>
-      <div style="font-size:13px">printed ${t} · ${items.length} designs · <b>${lot.pieces}</b> pcs</div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:15px">
-      ${items.map((x, i) => `<tr style="border-bottom:1px solid #999"><td style="width:36px;padding:7px 4px;font-weight:800;font-size:18px">${i + 1}</td><td style="width:56px;padding:7px 4px;font-weight:800;font-size:18px;text-align:right">${x.qty}</td><td style="padding:7px 8px">${x.title}${/^fba:/.test(x.note || '') ? ' <span style="font-size:11px;border:1px solid #000;border-radius:8px;padding:0 6px">Amazon/Zepto</span>' : ''}</td><td style="width:60px;border-left:1px solid #999"></td></tr>`).join('')}
-    </table>
-    <div style="font-size:11px;color:#555;margin-top:8px">Cut in this order. Last column: tick when done.</div>`;
-  document.body.classList.add('seq-printing');
-  const done = () => { document.body.classList.remove('seq-printing'); window.removeEventListener('afterprint', done); };
-  window.addEventListener('afterprint', done);
-  window.print();
+  const items = (Array.isArray(lot.items) ? lot.items : JSON.parse(lot.items || '[]')).filter(x => !/^emergency/.test(x.note || ''));
+  const esc = v => String(v ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cutting ${d}-${m}-${y} Lot ${lot.seq}</title>
+    <style>body{font-family:Helvetica,Arial,sans-serif;color:#000;margin:18px}h1{font-size:20px;margin:0 0 4px}.sub{font-size:13px;color:#333;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}table{width:100%;border-collapse:collapse;font-size:16px}td{padding:8px 6px;border-bottom:1px solid #999;vertical-align:middle}td.n{width:34px;font-weight:800;font-size:18px}td.q{width:56px;font-weight:800;font-size:18px;text-align:right}td.box{width:52px;border-left:1px solid #999}.tag{font-size:11px;border:1px solid #000;border-radius:8px;padding:0 6px;margin-left:6px}.foot{font-size:11px;color:#555;margin-top:8px}@media print{body{margin:8mm}}</style></head><body>
+    <h1>Cutting · ${d}-${m}-${y} · Lot ${lot.seq}</h1>
+    <div class="sub">printed ${t} · ${items.length} designs · <b>${items.reduce((s, x) => s + x.qty, 0)}</b> pcs</div>
+    <table>${items.map((x, i) => `<tr><td class="n">${i + 1}</td><td class="q">${x.qty}</td><td>${esc(x.title)}${/^fba:/.test(x.note || '') ? '<span class="tag">Amazon/Zepto</span>' : ''}</td><td class="box"></td></tr>`).join('')}</table>
+    <div class="foot">Cut in this order. Last column: tick when done.</div>
+    <script>window.onload=function(){setTimeout(function(){window.print()},150)}<\/script></body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up blocked — allow pop-ups for this site to print the lot'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
 async function cutPrintLot() {
   const btn = document.getElementById('cutFab');
