@@ -5925,11 +5925,11 @@ async function loadCutLots() {
     const lotBlock = (l, showHd) => {
       const items = Array.isArray(l.items) ? l.items : JSON.parse(l.items || '[]');
       const t = new Date(l.printed_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-      const btns = `<span style="margin-left:auto;display:flex;gap:6px"><button type="button" class="emg-dash-link ok" onclick="event.preventDefault();event.stopPropagation();cutSeqSheet(${JSON.stringify(l).replace(/"/g, '&quot;')})">🖨 Print</button><button type="button" class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.preventDefault();event.stopPropagation();cutLotDelete('${l.id}',${l.seq})" title="Reopen — its lines go back to the next lot">undo</button></span>`;
+      const btns = `<span style="margin-left:auto;display:flex;gap:6px"><button type="button" class="emg-dash-link ok" onclick="event.preventDefault();event.stopPropagation();cutSeqSheet(${JSON.stringify(l).replace(/"/g, '&quot;')})">🖨 Print</button><button type="button" class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.preventDefault();event.stopPropagation();cutLotArrived('${l.id}','${l.done ? 'open' : 'arrived'}')" title="${l.done ? 'This lot has not actually arrived — keep it open' : 'Mark this lot as arrived by hand'}">${l.done ? 'not arrived' : 'arrived ✓'}</button><button type="button" class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.preventDefault();event.stopPropagation();cutLotDelete('${l.id}',${l.seq})" title="Reopen — its lines go back to the next lot">undo</button></span>`;
       const list = `<div style="font-size:.8rem;color:var(--ink);padding:2px 0 4px 6px">${items.map((x, i) => `<div style="padding:2px 0;${(x.arrived || 0) >= x.qty ? 'color:#1a7f37' : ''}"><span style="display:inline-block;width:22px;color:var(--muted);font-weight:700">${i + 1}.</span><b style="display:inline-block;width:30px">${x.qty}</b>${x.title}${(x.arrived || 0) >= x.qty ? ' ✓' : (x.arrived ? ` <span class="cut-week">${x.arrived} arrived</span>` : '')}</div>`).join('')}</div>`;
       return showHd
         ? `<div style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--ink2);margin-top:4px"><b>Lot ${l.seq}</b> · ${t} · ${items.length} designs · ${l.pieces} pcs${btns}</div>${list}`
-        : `<div style="display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--muted);margin-top:2px"><b>Lot ${l.seq}</b> · ${t} · ${items.length} designs · ${l.pieces} pcs${l.done ? ' <span class="emg-badge sent">✓ arrived</span>' : (l.arrived ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${l.arrived} of ${l.pieces} arrived</span>` : '')}${btns}</div>${list}`;
+        : `<div style="display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--muted);margin-top:2px">${showHd === 'single' ? `<b>Lot ${l.seq}</b> · ` : ''}${t} · ${items.length} designs · ${l.pieces} pcs${l.done ? ' <span class="emg-badge sent">✓ arrived</span>' : (l.arrived ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${l.arrived} of ${l.pieces} arrived</span>` : '')}${btns}</div>${list}`;
     };
     const dateBlock = ([date, ls]) => {
       const [y, m, d] = date.split('-');
@@ -5938,7 +5938,7 @@ async function loadCutLots() {
       const doneN = sorted.filter(l => l.done).length;
       return `<details ${date === today ? 'open' : ''} style="margin-bottom:6px">
         <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink)">${d}-${m}-${y} <span style="font-weight:600;color:var(--ink2)">· ${sorted.length} lot${sorted.length !== 1 ? 's' : ''} · ${pcs} pcs${doneN ? ` · <span style="color:#1a7f37">${doneN} arrived</span>` : ''}</span></summary>
-        <div style="padding:2px 0 2px 10px">${sorted.length === 1 ? lotBlock(sorted[0], false) : sorted.map((l, i) => `<details ${i === sorted.length - 1 && !l.done ? 'open' : ''} style="margin:3px 0"><summary style="cursor:pointer;font-size:.8rem;color:var(--ink2)"><b>Lot ${l.seq}</b> · ${l.pieces} pcs${l.done ? ' <span class="emg-badge sent">✓ arrived</span>' : (l.arrived ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${l.arrived} of ${l.pieces} arrived</span>` : '')}</summary>${lotBlock(l, false)}</details>`).join('')}</div>
+        <div style="padding:2px 0 2px 10px">${sorted.length === 1 ? lotBlock(sorted[0], 'single') : sorted.map((l, i) => `<details ${i === sorted.length - 1 && !l.done ? 'open' : ''} style="margin:3px 0"><summary style="cursor:pointer;font-size:.8rem;color:var(--ink2)"><b>Lot ${l.seq}</b> · ${l.pieces} pcs${l.done ? ' <span class="emg-badge sent">✓ arrived</span>' : (l.arrived ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${l.arrived} of ${l.pieces} arrived</span>` : '')}</summary>${lotBlock(l, false)}</details>`).join('')}</div>
       </details>`; };
     const openDates = {}, doneDates = {};
     for (const [date, ls] of Object.entries(byDate)) (ls.every(l => l.done) ? doneDates : openDates)[date] = ls;
@@ -5947,6 +5947,9 @@ async function loadCutLots() {
     const doneHtml = doneEntries.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:.05em">🗄 ARCHIVE — ${doneEntries.length} day${doneEntries.length !== 1 ? 's' : ''} fully arrived</summary><div style="padding:4px 0 0 6px">${doneEntries.map(dateBlock).join('')}</div></details>` : '';
     document.getElementById('cutLots').innerHTML = (openHtml || '<div class="cut-empty">No open lots</div>') + doneHtml;
   } catch { wrap.style.display = 'none'; }
+}
+async function cutLotArrived(id, state) {
+  try { await api({ action: 'cut_lot_override', id, state }); loadCutLots(); } catch (e) { toast('Failed: ' + e.message); }
 }
 async function cutLotDelete(id, seq) {
   if (!confirm(`Undo lot ${seq}? Its lines are unticked and come back to the open list.`)) return;
