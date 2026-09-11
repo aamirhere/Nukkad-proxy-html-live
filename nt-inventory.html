@@ -1658,7 +1658,15 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div id="cutExtra" style="display:none"><div id="cutExtraList"></div></div>
   <div id="cutMore" style="display:none"><div id="cutMoreHd" hidden></div><div id="cutMoreList"></div></div>
 
-  <div class="cut-slot" id="cutLotsWrap" style="display:none"><div class="cut-slot-hd">🖨 PRINTED FOR CUTTING</div><div id="cutLots"></div></div>
+  <div class="emg-dash-table-wrap" id="cutLotsWrap" style="margin-bottom:10px;display:none">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:.05em">IN PRODUCTION — lots, Amazon / Zepto, priority</span></div>
+    <table class="emg-dash-table" id="cutProdTable">
+      <thead><tr><th></th><th>Printed / due</th><th>Pcs</th><th>Arrived</th><th>Left</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="cutLots" hidden></div>
+    <details id="cutArchive" style="margin-top:8px;display:none"><summary style="cursor:pointer;font-size:.76rem;font-weight:700;color:var(--muted);letter-spacing:.05em" id="cutArchiveHd">🗄 ARCHIVE</summary><table class="emg-dash-table" id="cutArchTable" style="margin-top:6px"><tbody></tbody></table></details>
+  </div>
 
   <div id="cutDetailsWrap" style="display:none;margin-top:18px">
     <div class="cut-slot" style="border-style:dashed">
@@ -5927,44 +5935,60 @@ function cutFabUpdate() {
   const taken = _cutLotsToday ? `${_cutLotsToday} lot${_cutLotsToday !== 1 ? 's' : ''} today` : 'no lots yet today';
   fab.innerHTML = n ? `🖨 Save lot ${_cutNextSeq} · <b>${n} selected · ${pcs} pcs</b><small>${taken}</small>` : `🖨 Save lot · nothing selected<small>${taken}</small>`;
 }
+const _prodOpen = new Set();
+function prodToggle(id) { if (_prodOpen.has(id)) _prodOpen.delete(id); else _prodOpen.add(id); renderCutProd(); }
+let _cutLotsData = [];
 async function loadCutLots() {
-  const wrap = document.getElementById('cutLotsWrap');
   try {
-    const r = await api({ action: 'cut_lots', days: 14 });
-    const lots = r.lots || [];
-    _cutLotsToday = lots.filter(l => l.plan_date === (_cutPlan?.date || todayIST())).length;
+    const r = await api({ action: 'cut_lots', days: 30 });
+    _cutLotsData = r.lots || [];
+    _cutLotsToday = _cutLotsData.filter(l => l.plan_date === (_cutPlan?.date || todayIST())).length;
     _cutNextSeq = r.next_seq || 1;
     cutFabUpdate();
-    if (!lots.length) { wrap.style.display = 'none'; return; }
-    wrap.style.display = '';
-    const byDate = {};
-    for (const l of lots) (byDate[l.plan_date] = byDate[l.plan_date] || []).push(l);
-    const today = _cutPlan?.date || todayIST();
-    const lotBlock = (l, showHd) => {
-      const items = Array.isArray(l.items) ? l.items : JSON.parse(l.items || '[]');
-      const t = new Date(l.printed_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
-      const btns = `<span style="margin-left:auto;display:flex;gap:6px"><button type="button" class="emg-dash-link ok" onclick="event.preventDefault();event.stopPropagation();cutSeqSheet(${JSON.stringify(l).replace(/"/g, '&quot;')})">🖨 Print</button><button type="button" class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.preventDefault();event.stopPropagation();cutLotArrived('${l.id}','${l.done ? 'open' : 'arrived'}')" title="${l.done ? 'This lot has not actually arrived — keep it open' : 'Mark this lot as arrived by hand'}">${l.done ? 'not arrived' : 'arrived ✓'}</button><button type="button" class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.preventDefault();event.stopPropagation();cutLotDelete('${l.id}',${l.seq})" title="Reopen — its lines go back to the next lot">undo</button></span>`;
-      const list = `<div style="font-size:.8rem;color:var(--ink);padding:2px 0 4px 6px">${items.map((x, i) => `<div style="padding:2px 0;${(x.arrived || 0) >= x.qty ? 'color:#1a7f37' : ''}"><span style="display:inline-block;width:22px;color:var(--muted);font-weight:700">${i + 1}.</span><b style="display:inline-block;width:30px">${x.qty}</b>${x.title}${(x.arrived || 0) >= x.qty ? ' ✓' : (x.arrived ? ` <span class="cut-week">${x.arrived} arrived</span>` : '')}</div>`).join('')}</div>`;
-      return showHd
-        ? `<div style="display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--ink2);margin-top:4px"><b>Lot ${l.seq}</b> · ${t} · ${items.length} designs · ${l.pieces} pcs${btns}</div>${list}`
-        : `<div style="display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--muted);margin-top:2px">${showHd === 'single' ? `<b>Lot ${l.seq}</b> · ` : ''}${t} · ${items.length} designs · ${l.pieces} pcs${l.done ? ' <span class="emg-badge sent">✓ arrived</span>' : (l.arrived ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${l.arrived} of ${l.pieces} arrived</span>` : '')}${btns}</div>${list}`;
-    };
-    const dateBlock = ([date, ls]) => {
-      const [y, m, d] = date.split('-');
-      const pcs = ls.reduce((s, l) => s + (l.pieces || 0), 0);
-      const sorted = ls.slice().sort((a, b) => (a.printed_at || '').localeCompare(b.printed_at || ''));
-      const doneN = sorted.filter(l => l.done).length;
-      return `<details ${date === today ? 'open' : ''} style="margin-bottom:6px">
-        <summary style="cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink)">${d}-${m}-${y} <span style="font-weight:600;color:var(--ink2)">· ${sorted.length === 1 ? `Lot ${sorted[0].seq}` : `Lots ${sorted.map(l => l.seq).join(', ')}`} · ${pcs} pcs${doneN ? ` · <span style="color:#1a7f37">${doneN} arrived</span>` : ''}</span></summary>
-        <div style="padding:2px 0 2px 10px">${sorted.length === 1 ? lotBlock(sorted[0], 'single') : sorted.map((l, i) => `<details ${i === sorted.length - 1 && !l.done ? 'open' : ''} style="margin:3px 0"><summary style="cursor:pointer;font-size:.8rem;color:var(--ink2)"><b>Lot ${l.seq}</b> · ${l.pieces} pcs${l.done ? ' <span class="emg-badge sent">✓ arrived</span>' : (l.arrived ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${l.arrived} of ${l.pieces} arrived</span>` : '')}</summary>${lotBlock(l, false)}</details>`).join('')}</div>
-      </details>`; };
-    const openDates = {}, doneDates = {};
-    for (const [date, ls] of Object.entries(byDate)) (ls.every(l => l.done) ? doneDates : openDates)[date] = ls;
-    const openHtml = Object.entries(openDates).map(dateBlock).join('');
-    const doneEntries = Object.entries(doneDates);
-    const doneHtml = doneEntries.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:.05em">🗄 ARCHIVE — ${doneEntries.length} day${doneEntries.length !== 1 ? 's' : ''} fully arrived</summary><div style="padding:4px 0 0 6px">${doneEntries.map(dateBlock).join('')}</div></details>` : '';
-    document.getElementById('cutLots').innerHTML = (openHtml || '<div class="cut-empty">No open lots</div>') + doneHtml;
-  } catch { wrap.style.display = 'none'; }
+  } catch { _cutLotsData = []; }
+  renderCutProd();
+}
+function renderCutProd() {
+  const wrap = document.getElementById('cutLotsWrap'); if (!wrap) return;
+  const p = _cutPlan || {};
+  const today = p.date || todayIST();
+  const fmt = iso => { const [y, m, d] = (iso || '').split('-'); return d ? `${d}-${m}` : (iso || ''); };
+  const num = (n, cls) => `<span class="${n ? cls : 'n-zero'}">${n}</span>`;
+  const daysTo = d => d ? Math.round((new Date(d) - new Date(today)) / 86400e3) : null;
+  const dueCell = d => { if (!d) return ''; const n = daysTo(d); return n < 0 ? `<span style="color:var(--red);font-weight:700">${fmt(d)} · ${-n}d overdue</span>` : n === 0 ? `<b>${fmt(d)} · today</b>` : `${fmt(d)} · ${n}d`; };
+  const line = (qty, title, tail = '') => `<div class="emg-dash-design" style="cursor:default"><span class="emg-dd-qty">${qty}×</span><b>${title}</b>${tail}</div>`;
+  const rows = [];
+  // lots
+  const open = _cutLotsData.filter(l => !l.done).sort((a, b) => (b.printed_at || '').localeCompare(a.printed_at || ''));
+  for (const l of open) {
+    const items = Array.isArray(l.items) ? l.items : JSON.parse(l.items || '[]');
+    const left = items.reduce((s, i) => s + Math.max(0, (i.qty || 0) - (i.arrived || 0)), 0);
+    const id = 'lot:' + l.id, isOpen = _prodOpen.has(id);
+    const t = new Date(l.printed_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+    const detail = isOpen ? `<tr class="emg-dash-detail"><td colspan="6">${items.map((i, n) => line(i.qty, `${n + 1}. ${i.title}`, (i.arrived || 0) >= i.qty ? ' <span class="emg-badge sent">✓ arrived</span>' : (i.arrived ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${i.arrived} of ${i.qty}</span>` : ''))).join('')}
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="emg-dash-link ok" onclick="event.stopPropagation();cutSeqSheet(${JSON.stringify(l).replace(/"/g, '&quot;')})">🖨 Print</button><button class="emg-dash-link" onclick="event.stopPropagation();cutLotArrived('${l.id}','arrived')">arrived ✓</button><button class="emg-dash-link" style="color:var(--muted);border-color:var(--line);margin-left:auto" onclick="event.stopPropagation();cutLotDelete('${l.id}',${l.seq})">undo lot</button></div></td></tr>` : '';
+    rows.push(`<tr class="d-row" onclick="prodToggle('${id}')"><td>${isOpen ? '▾' : '▸'} 🖨 <b>Lot ${l.seq}</b> <span style="color:var(--muted);font-size:.72rem">${items.length} designs</span></td><td>${fmt(l.plan_date)} · ${t}</td><td>${l.pieces}</td><td>${num(l.arrived || 0, 'n-sent')}</td><td>${num(left, 'n-pending')}</td><td style="font-size:.72rem;color:var(--muted)">${l.arrived ? 'partly arrived' : 'in production'}</td></tr>${detail}`);
+  }
+  // channel appointments
+  for (const a of (p.fba || [])) {
+    const id = 'fba:' + a.id, isOpen = _prodOpen.has(id);
+    const cut = a.items.reduce((s, i) => s + Math.min(i.to_cut, Math.max(i.cut_qty || 0, i.sent || 0)), 0);
+    const detail = isOpen ? `<tr class="emg-dash-detail"><td colspan="6">${a.items.map(i => line(i.to_cut, i.title, i.sent >= i.to_cut ? ' <span class="emg-badge sent">✓ sent</span>' : (i.cut_qty ? ` <span class="emg-badge sent" style="background:#e4f5ea;color:#1a7f37">${Math.min(i.cut_qty, i.to_cut)} cut</span>` : ''))).join('')}
+      <div style="margin-top:6px"><button class="emg-dash-link" onclick="event.stopPropagation();switchView('fba')">FBA page →</button></div></td></tr>` : '';
+    rows.push(`<tr class="d-row${a.overdue ? ' d-late' : ''}" onclick="prodToggle('${id}')"><td>${isOpen ? '▾' : '▸'} ${a.channel === 'zepto' ? '🟣' : '🟡'} <b>${a.channel === 'zepto' ? 'Zepto' : 'Amazon'}</b>${a.note ? ` <span style="color:var(--muted);font-size:.72rem">${a.note}</span>` : ''}</td><td>${dueCell(a.due_date)}</td><td>${a.total}</td><td>${num(cut, 'n-sent')}</td><td>${num(a.left, 'n-pending')}</td><td style="font-size:.72rem;color:var(--muted)">${a.left ? (a.overdue ? '⚠ overdue' : `~${a.per_day}/day`) : 'cut'}</td></tr>${detail}`);
+  }
+  // priority lines
+  for (const x of (p.priority || [])) {
+    rows.push(`<tr class="d-row${x.overdue ? ' d-late' : ''}"><td>⚡ <b>Priority</b> ${x.title}${x.note ? ` <span style="color:var(--muted);font-size:.72rem">${x.note}</span>` : ''}</td><td>${dueCell(x.due_date)}</td><td>${x.qty}</td><td>${num(x.cut_qty, 'n-sent')}</td><td>${num(x.left, 'n-pending')}</td><td style="font-size:.72rem;color:var(--muted)">${x.overdue ? '⚠ overdue' : 'to cut'}</td></tr>`);
+  }
+  const done = _cutLotsData.filter(l => l.done).sort((a, b) => (b.printed_at || '').localeCompare(a.printed_at || ''));
+  wrap.style.display = rows.length || done.length ? '' : 'none';
+  document.querySelector('#cutProdTable tbody').innerHTML = rows.join('') || '<tr><td colspan="6" style="color:var(--muted)">Nothing in production</td></tr>';
+  const arch = document.getElementById('cutArchive');
+  arch.style.display = done.length ? '' : 'none';
+  document.getElementById('cutArchiveHd').textContent = `🗄 ARCHIVE — ${done.length} lot${done.length !== 1 ? 's' : ''} arrived`;
+  document.querySelector('#cutArchTable tbody').innerHTML = done.map(l => { const items = Array.isArray(l.items) ? l.items : JSON.parse(l.items || '[]'); const id = 'lot:' + l.id, isOpen = _prodOpen.has(id);
+    return `<tr class="d-row d-clear" onclick="prodToggle('${id}')"><td>${isOpen ? '▾' : '▸'} 🖨 Lot ${l.seq} <span style="font-size:.72rem">${items.length} designs</span></td><td>${fmt(l.plan_date)}</td><td>${l.pieces}</td><td><span class="n-sent">${l.pieces}</span></td><td>0</td><td style="font-size:.72rem"><span class="emg-badge sent">✓ arrived</span></td></tr>${isOpen ? `<tr class="emg-dash-detail"><td colspan="6">${items.map((i, n) => line(i.qty, `${n + 1}. ${i.title}`)).join('')}<div style="margin-top:6px;display:flex;gap:6px"><button class="emg-dash-link" onclick="event.stopPropagation();cutSeqSheet(${JSON.stringify(l).replace(/"/g, '&quot;')})">🖨 reprint</button><button class="emg-dash-link" style="color:var(--muted);border-color:var(--line)" onclick="event.stopPropagation();cutLotArrived('${l.id}','open')">not arrived</button></div></td></tr>` : ''}`; }).join('');
 }
 async function cutLotArrived(id, state) {
   try { await api({ action: 'cut_lot_override', id, state }); loadCutLots(); } catch (e) { toast('Failed: ' + e.message); }
