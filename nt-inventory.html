@@ -6312,12 +6312,12 @@ function cutTopLines(p) {
       ${x.left > 1 ? `<button type="button" class="cut-skip" onclick="event.preventDefault();cutPrioPart('${x.id}',${x.left},'${esc(x.title)}')">part</button>` : ''}
       <button type="button" class="cut-skip" onclick="event.preventDefault();cutPrioRemove('${x.id}','${esc(x.title)}')" title="Remove this priority line">✕</button>
     </label>`).join('');
-  const chan = (p.fba || []).flatMap(a => a.items.filter(i => i.left > 0).map(i => `<label class="cut-line cut-top ${a.channel}" data-handle="${i.handle}">
-      <input type="checkbox" onchange="cutFbaTick('${i.id}',${i.left},this,'${esc(i.title)}')">
-      <span class="cut-qty">${i.left}</span>
-      <span class="cut-name"><span class="cut-tag ${a.channel}">${a.channel === 'zepto' ? 'Zepto' : 'Amazon'}</span> ${i.title}${i.cut_qty ? ` <span class="cut-week">${i.cut_qty} of ${i.to_cut} cut</span>` : ''} ${due(a.due_date, a.overdue)}</span>
+  const chan = (p.fba || []).flatMap(a => a.items.filter(i => i.left > 0).map(i => { const q = Math.max(5, i.left); return `<label class="cut-line cut-top ${a.channel}" data-handle="${i.handle}">
+      <input type="checkbox" onchange="cutFbaTick('${i.id}',${i.left},this,'${esc(i.title)}',${q - i.left},'${i.handle.replace(/'/g, "\\'")}')">
+      <span class="cut-qty">${q}</span>
+      <span class="cut-name"><span class="cut-tag ${a.channel}">${a.channel === 'zepto' ? 'Zepto' : 'Amazon'}</span> ${i.title}${q > i.left ? ` <span class="cut-week">${i.left} for ${a.channel === 'zepto' ? 'Zepto' : 'Amazon'} + ${q - i.left} stock</span>` : ''}${i.cut_qty ? ` <span class="cut-week">${i.cut_qty} of ${i.to_cut} cut</span>` : ''} ${due(a.due_date, a.overdue)}</span>
       ${i.left > 1 ? `<button type="button" class="cut-skip" onclick="event.preventDefault();cutFbaPart('${i.id}',${i.left},'${esc(i.title)}')">part</button>` : ''}
-    </label>`)).join('');
+    </label>`; })).join('');
   return prio + chan;
 }
 async function cutPrioTick(id, qty, cb, title) {
@@ -6370,11 +6370,15 @@ async function prioSave() {
     loadCutPlan();
   } catch (e) { toast('Failed: ' + e.message); }
 }
-async function cutFbaTick(itemId, qty, cb, title) {
+async function cutFbaTick(itemId, qty, cb, title, surplus = 0, handle = '') {
   if (!cb.checked) return;
   cutFabUpdate();
   cb.disabled = true;
-  try { await api({ action: 'fba_cut_mark', item_id: itemId, qty, title }); cb.closest('.cut-line').classList.add('done'); cutFabUpdate(); }
+  try {
+    await api({ action: 'fba_cut_mark', item_id: itemId, qty, title });
+    // a channel line is topped up to a minimum batch; the extra pieces are plain stock
+    if (surplus > 0 && handle) await api({ action: 'cut_mark', handle, qty: surplus, title, plan_date: _cutPlan?.date, note: 'stock' });
+    cb.closest('.cut-line').classList.add('done'); cutFabUpdate(); }
   catch (e) { cb.checked = false; cb.disabled = false; toast('Failed: ' + e.message); }
 }
 async function cutFbaPart(itemId, left, title) {
