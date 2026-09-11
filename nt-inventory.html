@@ -5840,7 +5840,7 @@ function cutEditQty(handle, title, suggested) {
 }
 function cutLine(x, kind) {
   const h = x.handle.replace(/'/g, "\\'"), t = (x.title || '').replace(/'/g, "\\'");
-  const suggested = kind === 'emg' ? x.today : x.qty;
+  const suggested = kind === 'emg' ? x.today : Math.max(5, x.qty || 0);
   const ov = cutQtyOverrides();
   const q = ov[x.handle] ?? suggested;
   return `<label class="cut-line" data-handle="${x.handle}">
