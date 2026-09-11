@@ -966,6 +966,10 @@ body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important
 .cut-fold > summary::-webkit-details-marker { display:none; }
 .cut-fold > summary::before { content:'▸'; color:var(--muted); }
 .cut-fold[open] > summary::before { content:'▾'; }
+.cut-qty { cursor:pointer; border-bottom:1px dashed transparent; }
+.cut-qty:hover { border-bottom-color:var(--muted); }
+.cut-qty.edited { color:var(--accent); }
+.cut-qty.edited small { font-size:.6rem; color:var(--muted); text-decoration:line-through; margin-left:3px; font-weight:600; }
 .cut-line.cut-top { border-radius:8px; padding:4px 6px; margin:3px 0; }
 .cut-line.cut-top.prio { background:#fde8e6; box-shadow:inset 3px 0 0 #c62828; }
 .cut-line.cut-top.amazon { background:#fff7e0; box-shadow:inset 3px 0 0 #f0a500; }
@@ -5707,12 +5711,26 @@ function renderCutAhead(p, printedH) {
       ${lines.length ? lines.map(x => cutLine(x, 'more')).join('') : '<div class="cut-empty">Nothing further needed that day</div>'}
     </div>`; }).join('');
 }
+const CUT_QTY_KEY = () => 'nt_cut_qty_' + (_cutPlan?.date || todayIST());
+function cutQtyOverrides() { try { return JSON.parse(localStorage.getItem(CUT_QTY_KEY()) || '{}'); } catch { return {}; } }
+function cutEditQty(handle, title, suggested) {
+  const ov = cutQtyOverrides();
+  const v = prompt(`${title}\n\nHow many to cut? (suggested ${suggested})`, String(ov[handle] ?? suggested));
+  if (v === null) return;
+  const n = parseInt(v, 10);
+  if (!n || n < 1) { toast('Enter a number'); return; }
+  if (n === suggested) delete ov[handle]; else ov[handle] = n;
+  try { localStorage.setItem(CUT_QTY_KEY(), JSON.stringify(ov)); } catch {}
+  renderCutPlan();
+}
 function cutLine(x, kind) {
   const h = x.handle.replace(/'/g, "\\'"), t = (x.title || '').replace(/'/g, "\\'");
-  const q = kind === 'emg' ? x.today : x.qty;
+  const suggested = kind === 'emg' ? x.today : x.qty;
+  const ov = cutQtyOverrides();
+  const q = ov[x.handle] ?? suggested;
   return `<label class="cut-line" data-handle="${x.handle}">
     <input type="checkbox" onchange="cutTick('${kind}','${h}',${q},this,'${t}')">
-    <span class="cut-qty">${q}</span>
+    <span class="cut-qty${q !== suggested ? ' edited' : ''}" onclick="event.preventDefault();event.stopPropagation();cutEditQty('${h}','${t}',${suggested})" title="Tap to change the quantity">${q}${q !== suggested ? `<small>${suggested}</small>` : ''}</span>
     <span class="cut-name">${x.title}${x.is_new ? ' <span class="cut-tag new">NEW</span>' : ''}${(kind === 'emg' && x.amazon) || x.amazon_pick ? ' <span class="cut-tag amz" title="Amazon is ordering this design">Amazon</span>' : ''}${x.count_needed ? ' <span class="cut-tag cnt" title="Stock not counted — treated as 0">count</span>' : ''}${x.q7 != null ? ` <span class="cut-week" title="orders in the last 7 days (website + Amazon)">${x.q7}/wk${x.a7 ? ` · ${x.a7} amz` : ''}</span>` : ''}</span>
     ${x.in_hand ? `<span class="cut-have has" title="Cut earlier, waiting for dispatch">✂ ${x.in_hand} cut, not sent</span>` : ''}
   </label>`;
