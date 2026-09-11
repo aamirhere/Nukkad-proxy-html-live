@@ -1642,6 +1642,17 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <p id="cutSummary">Loading today's plan…</p>
       <p class="print-date" id="cutPrintDate"></p>
     </div>
+  </div>
+  <div class="emg-dash-table-wrap" id="cutLotsWrap" style="margin-bottom:10px;display:none">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:.05em">IN PRODUCTION — lots, Amazon / Zepto, priority</span></div>
+    <table class="emg-dash-table" id="cutProdTable">
+      <thead><tr><th></th><th>Printed / due</th><th>Pcs</th><th>Arrived</th><th>Left</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="cutLots" hidden></div>
+    <details id="cutArchive" style="margin-top:8px;display:none"><summary style="cursor:pointer;font-size:.76rem;font-weight:700;color:var(--muted);letter-spacing:.05em" id="cutArchiveHd">🗄 ARCHIVE</summary><table class="emg-dash-table" id="cutArchTable" style="margin-top:6px"><tbody></tbody></table></details>
+  </div>
+  <div style="display:flex;justify-content:flex-start;margin-bottom:10px">
     <div class="cut-controls" style="margin:0">
       <div class="emg-tabs" id="cutAheadChips" style="margin:0">
         <button class="emg-tab active" data-d="0" onclick="cutSetAhead(0)">Today</button><button class="emg-tab" data-d="1" onclick="cutSetAhead(1)">+1 day</button><button class="emg-tab" data-d="2" onclick="cutSetAhead(2)">+2 days</button>
@@ -1654,15 +1665,6 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     </div>
   </div>
 
-  <div class="emg-dash-table-wrap" id="cutLotsWrap" style="margin-bottom:10px;display:none">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:.05em">IN PRODUCTION — lots, Amazon / Zepto, priority</span></div>
-    <table class="emg-dash-table" id="cutProdTable">
-      <thead><tr><th></th><th>Printed / due</th><th>Pcs</th><th>Arrived</th><th>Left</th><th></th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <div id="cutLots" hidden></div>
-    <details id="cutArchive" style="margin-top:8px;display:none"><summary style="cursor:pointer;font-size:.76rem;font-weight:700;color:var(--muted);letter-spacing:.05em" id="cutArchiveHd">🗄 ARCHIVE</summary><table class="emg-dash-table" id="cutArchTable" style="margin-top:6px"><tbody></tbody></table></details>
-  </div>
 
   <div id="cutToday"></div>
   <div id="cutAhead"></div>
