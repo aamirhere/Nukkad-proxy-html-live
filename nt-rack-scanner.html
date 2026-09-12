@@ -1317,15 +1317,17 @@ function _emgRefreshSoon() { clearTimeout(_emgRefreshT); _emgRefreshT = setTimeo
 let _emgRefreshT = null;
 const SHIPWAY_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-shipway';
 async function shipwayTest() {
-  const id = prompt('Test Shipway. Optional: an order number that was booked on Shipway (e.g. #87384 or an Amazon id). Leave blank to just list recent shipments.', '');
+  const id = prompt('Test Shipway. Optional: an order number (#87384 or an Amazon id) or an AWB / tracking number from any courier. Leave blank to just list recent shipments.', '');
   if (id === null) return;
+  const v = id.trim();
+  const isAwb = /^[A-Z0-9]{9,}$/i.test(v) && !/^\d{3}-\d{7}-\d{7}$/.test(v) && !/^#?\d{4,6}$/.test(v);
   const box = document.createElement('div');
   box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px';
   box.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:720px;width:100%;max-height:85vh;overflow:auto;padding:16px;font-family:monospace;font-size:.72rem;white-space:pre-wrap">Calling Shipway…</div>';
   box.onclick = e => { if (e.target === box) box.remove(); };
   document.body.appendChild(box);
   try {
-    const r = await apiFetch(id.trim() ? { action: 'order', order_id: id.trim() } : { action: 'test' }, SHIPWAY_API);
+    const r = await apiFetch(!v ? { action: 'test' } : isAwb ? { action: 'awb', awb: v } : { action: 'order', order_id: v }, SHIPWAY_API);
     box.firstElementChild.textContent = JSON.stringify(r, null, 2);
   } catch (e) { box.firstElementChild.textContent = 'Error: ' + e.message; }
 }
