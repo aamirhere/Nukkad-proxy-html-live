@@ -445,6 +445,7 @@ input[type=file]{display:none}
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
         <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
         <button class="hmenu-item" onclick="shipwayTest();closeHMenu()">🚚 Test Shipway</button>
+        <button class="hmenu-item" onclick="logistifyProbe();closeHMenu()">🔎 Probe Logistify</button>
         <button class="hmenu-item" onclick="openNd();closeHMenu()">🚚 Newly Dispatched</button>
         <button class="hmenu-item" onclick="checkBluedartStatus();closeHMenu()">📦 Sync Bluedart (Active Orders)</button>
         <button class="hmenu-item" onclick="checkDispatchedBluedart();closeHMenu()">🔍 Verify Dispatched via Bluedart</button>
@@ -1338,6 +1339,20 @@ async function shipwayTest() {
         if (carrier) r = await apiFetch({ action: 'track', awb: v, carrier }, SHIPWAY_API);
       }
     } else r = await apiFetch({ action: 'order', order_id: v }, SHIPWAY_API);
+    box.firstElementChild.textContent = JSON.stringify(r, null, 2);
+  } catch (e) { box.firstElementChild.textContent = 'Error: ' + e.message; }
+}
+const LOGISTIFY_API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-logistify';
+async function logistifyProbe() {
+  const awb = prompt('Probe Logistify. Enter one AWB that Logistify can track (any courier). Leave blank to only read their widget script.', '');
+  if (awb === null) return;
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px';
+  box.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;max-height:85vh;overflow:auto;padding:16px;font-family:monospace;font-size:.72rem;white-space:pre-wrap">Probing Logistify…</div>';
+  box.onclick = e => { if (e.target === box) box.remove(); };
+  document.body.appendChild(box);
+  try {
+    const r = await apiFetch({ action: 'probe', awb: awb.trim() }, LOGISTIFY_API).catch(e => ({ ok: false, error: e.message }));
     box.firstElementChild.textContent = JSON.stringify(r, null, 2);
   } catch (e) { box.firstElementChild.textContent = 'Error: ' + e.message; }
 }
