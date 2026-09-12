@@ -1304,6 +1304,13 @@ async function fixRackQuotes() {
 
 let _liveEmgArrived = new Set(); // orders whose flagged pieces have all been dispatched by production
 let _liveEmgState = {};
+function _emgLineTag(orderName, quote) {
+  const st = _liveEmgState[orderName]; if (!st) return '';
+  const l = st.lines && st.lines[(quote || '').toLowerCase()]; if (!l) return '';
+  if (l.open + l.printed > 0) return '<span class="tag-emg" style="margin-left:4px;font-size:.6rem;padding:1px 5px">⚠ No Stock</span>';
+  if (l.arrived > 0) return '<span style="margin-left:4px;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:8px;background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7">📦 Arrived</span>';
+  return '';
+}
 function _emgRefreshSoon() { clearTimeout(_emgRefreshT); _emgRefreshT = setTimeout(loadLiveEmergencies, 600); }
 let _emgRefreshT = null;
 async function loadLiveEmergencies() {
@@ -3253,7 +3260,7 @@ function renderList() {
             <span class="ord-name">${esc(o.order_name)}</span>
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
-            ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':(_liveEmgArrived.has(o.order_name)?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7">📦 Arrived</span>':'')}
+
             ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
             ${complete && !o.dispatched && !o.cancelled ? (o.painter ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80">🎨 Drop-off</span>' : '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">✓ Matched</span>') : ''}
             ${o.print_done && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
@@ -3287,7 +3294,7 @@ function renderList() {
               const lk = _bd([it.order_name, it.quote, it.color]);
               return `<div class="oi-line oi-clickable" data-bd="${lk}" onclick="listSelToggle(this.dataset.bd)" style="${isSel?'background:#fff3e0;':done?'opacity:.55;':''}">
                 <input type="checkbox" id="lchk-${lk}" style="width:15px;height:15px;accent-color:var(--accent);pointer-events:none;flex-shrink:0" ${isSel?'checked':''}>
-                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n" style="color:${done?'#4caf50':'var(--muted)'}">${it.found}/${it.needed}</div>
               </div>`;
@@ -3299,7 +3306,7 @@ function renderList() {
                 // Multi-qty: show -/+ controls instead of tap-to-toggle
                 return `<div class="oi-line paint-item" style="background:#fff8f2;">
                   <div class="oi-chk">${paintBadge}</div>
-                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
                   <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                   <div class="oi-n" style="display:flex;align-items:center;gap:4px">
                     <button onclick="paintAdj('${selKey.replace(/'/g,"\\'")}', -1, ${it.needed})" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
@@ -3311,7 +3318,7 @@ function renderList() {
               const paintTitle = _scanWorkMode === 'paint' ? 'Tap to remove from paint' : 'Tap to mark finished';
               return `<div class="oi-line oi-clickable paint-item" data-bd="${pbk}" onclick="togglePaintItem(this)" title="${paintTitle}" style="background:#fff8f2;">
                 <div class="oi-chk">${paintBadge}</div>
-                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n">${it.found}/${it.needed}</div>
               </div>`;
@@ -3321,7 +3328,7 @@ function renderList() {
               if (it.needed > 1) {
                 return `<div class="oi-line" style="opacity:.85">
                   <div class="oi-chk done">✓</div>
-                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
                   <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                   <div class="oi-n" style="display:flex;align-items:center;gap:4px">
                     <button data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
@@ -3332,7 +3339,7 @@ function renderList() {
               }
               return `<div class="oi-line oi-clickable" data-bd="${ubk}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to uncheck">
                 <div class="oi-chk done" style="cursor:pointer">✓</div>
-                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n" style="color:var(--green)">${it.found}/${it.needed}</div>
               </div>`;
@@ -3343,7 +3350,7 @@ function renderList() {
               if (it.needed > 1) {
                 return `<div class="oi-line">
                   <div class="oi-chk part">${it.found}</div>
-                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                  <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
                   <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                   <div class="oi-n" style="display:flex;align-items:center;gap:4px">
                     <button data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" style="width:20px;height:20px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:.85rem;cursor:pointer;padding:0;line-height:1">−</button>
@@ -3354,14 +3361,14 @@ function renderList() {
               }
               return `<div class="oi-line oi-clickable" data-bd="${ubk2}" onclick="var d=_btnData[this.dataset.bd];uncheckItem(d[0],d[1],d[2])" title="Tap to reduce count">
                 <div class="oi-chk part" style="cursor:pointer">${it.found}</div>
-                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+                <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
                 <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
                 <div class="oi-n">${it.found}/${it.needed}</div>
               </div>`;
             }
             return `<div class="oi-line oi-clickable" data-bd="${bk}" onclick="markItemFound(this)" title="Tap to mark as found">
               <div class="oi-chk"></div>
-              <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}</div>
+              <div class="oi-q" title="${esc(it.quote)}">${esc(it.quote)}${_emgLineTag(it.order_name, it.quote)}</div>
               <div class="oi-c">${esc(it.color)}${pencilBtn}${reduceBtn}</div>
               <div class="oi-n">${it.found}/${it.needed}</div>
             </div>`;
