@@ -4545,13 +4545,31 @@ async function refreshOrderTracking(orderName) {
         if (it.order_name === orderName) {
           it.tracking = res.tracking || null;
           it.tracking_company = res.tracking_company || null;
+          if (res.status) { it.ship_status = res.status; it.ship_src = 'shipway'; }
         }
       });
       renderList();
+      // Non-Bluedart parcels: a manual ↻ always asks 17TRACK, even before the 6-day rule kicks in.
+      if (res.tracking && !/blue\s*dart/i.test(res.tracking_company || '')) {
+        const t = await apiFetch({ action: 'track17_refresh', awb: res.tracking, order_name: orderName }).catch(() => null);
+        if (t?.status) {
+          rackItems.forEach(it => { if (it.order_name === orderName) { it.ship_status = t.status; it.ship_status_at = t.latest_time || null; it.ship_src = '17track'; } });
+          renderList();
+        }
+      }
     }
   } catch(e) { console.warn('refresh tracking failed', e); }
 }
 
+// Courier status from Shipway (its own bookings) or 17TRACK (everything else). Bluedart keeps its own flow.
+function _shipStatusPill(it) {
+  const s = (it?.ship_status || '').trim(); if (!s) return '';
+  const l = s.toLowerCase();
+  const bad = /rto|return|fail|undeliver|exception|cancel/.test(l), done = /deliver/.test(l) && !/out for|fail|undeliver/.test(l);
+  const bg = bad ? '#fce4ec' : done ? '#e8f5e9' : '#fff8e1', fg = bad ? '#c62828' : done ? '#2e7d32' : '#8d6e00';
+  const when = it.ship_status_at ? new Date(it.ship_status_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
+  return `<span title="${esc(it.ship_src || '')}${when ? ' · ' + when : ''}" style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:${bg};color:${fg};white-space:nowrap">${esc(s)}</span>`;
+}
 function _carrierLabel(company, awb) {
   const co = (company || '').toLowerCase();
   const label = co.includes('bluedart') || co.includes('blue dart') ? 'Bluedart'
@@ -4600,11 +4618,11 @@ function _getCarrierTag(orderName, rackItem) {
   if (awb) {
     const url = _trackingUrl(company, awb);
     const safeAwb = awb.replace(/'/g, "\\'");
-    return `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:2px" class="no-print">${amzBadge}
+    return `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:2px;flex-wrap:wrap" class="no-print">${amzBadge}
       <a href="${url}" target="_blank" rel="noopener" onclick="navigator.clipboard&&navigator.clipboard.writeText('${safeAwb}').catch(()=>{})" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px">
         <span class="carrier-tag">${label}</span>
         <span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#e8eaf6;color:#3949ab;font-family:monospace;letter-spacing:.02em">${awb}</span>
-      </a>${refreshBtn}
+      </a>${_shipStatusPill(rackItem)}${refreshBtn}
     </span>`;
   }
   // Has carrier name resolved but no AWB — show "No AWB" warning pill
