@@ -3334,7 +3334,7 @@ function renderList() {
         <div class="ord-top" ${_slipSelMode ? `onclick="slipSelToggle('${safeOn}')" style="cursor:pointer"` : ''}>
           <div>
             <span class="ord-name" title="${esc(o.order_name)}" style="${o.source === 'amazon' ? 'font-size:.82rem;letter-spacing:.01em' : ''}">${esc(o.order_name)}</span>
-            ${o.payment ? (o.payment === 'cod' ? '<span style="font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80">💵 COD</span>' : '<span style="font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">Prepaid</span>') : ''}
+            ${o.payment ? `<span style="font-size:.6rem;font-weight:600;padding:1px 7px;border-radius:10px;background:#f6f1ea;color:#8a7a68;border:1px solid #e9ddca">${o.payment === 'cod' ? 'COD' : 'Prepaid'}</span>` : ''}
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
 
