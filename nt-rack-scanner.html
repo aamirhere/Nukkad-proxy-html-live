@@ -3022,13 +3022,14 @@ async function confirmChannel(btn, quote, color) {
   const qty = parseInt(document.getElementById('qtyVal_' + suffix)?.value) || 1;
   btn.disabled = true; btn.textContent = '…';
   try {
-    await apiFetch({ action: 'add_stock_item', quote, color, channel, qty, painter: currentPainter || null });
+    const saved = await apiFetch({ action: 'add_stock_item', quote, color, channel, qty, painter: currentPainter || null });
     logScan({ quote, color, match_type: 'stock_' + channel, confidence: '' });
     document.getElementById('resultArea').innerHTML = `<div class="result-card">
       <div style="padding:16px;text-align:center">
         <div style="font-size:2rem">${CHANNELS.find(c=>c.id===channel)?.label||''}</div>
         <div style="font-weight:700;margin:8px 0;font-size:.95rem">${qty > 1 ? qty + ' pcs' : 'Piece'} tagged for ${channel.charAt(0).toUpperCase()+channel.slice(1)}</div>
-        <div style="font-size:.76rem;color:var(--muted);margin-bottom:14px">${esc(quote)}${color ? ' · ' + esc(color) : ''}</div>
+        <div style="font-size:.76rem;color:var(--muted);margin-bottom:6px">${esc(quote)}${color ? ' · ' + esc(color) : ''}</div>
+        <div style="font-size:.74rem;margin-bottom:14px;${saved && saved.matched ? 'color:#388e3c' : 'color:#e65100;font-weight:700'}">${saved && saved.matched ? '✓ added to inventory stock' : '⚠ not linked to inventory — name did not match a design'}</div>
         <button class="act-btn go" onclick="triggerCamera()">Scan Next</button>
       </div>
     </div>`;
