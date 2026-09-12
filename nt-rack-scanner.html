@@ -647,6 +647,29 @@ input[type=file]{display:none}
 
   <div id="resultArea"></div>
 
+  <!-- dashboard: what needs attention today, one tap to the right list -->
+  <style>
+    .dash{margin-top:6px}
+    .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+    .dash-tile{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;font-family:var(--fb)}
+    .dash-tile:hover{border-color:var(--accent)}
+    .dash-tile .n{font-family:var(--ff);font-size:1.5rem;font-weight:700;line-height:1.1;color:var(--ink)}
+    .dash-tile .l{font-size:.68rem;color:var(--muted);margin-top:2px;letter-spacing:.03em;text-transform:uppercase;font-weight:700}
+    .dash-tile .s{font-size:.7rem;color:var(--ink2);margin-top:3px}
+    .dash-tile.warn .n{color:#c62828}.dash-tile.ok .n{color:#2e7d32}.dash-tile.amz .n{color:#e65100}
+    .dash-sec{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+    .dash-sec h4{margin:0 0 6px;font-family:var(--ff);font-size:.95rem;font-weight:700;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
+    .dash-sec h4 a{font-family:var(--fb);font-size:.72rem;color:var(--accent);cursor:pointer;font-weight:700}
+    .dash-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3ece2;font-size:.8rem;cursor:pointer}
+    .dash-row:first-of-type{border-top:none}
+    .dash-row b{min-width:64px}.dash-row .m{color:var(--muted);font-size:.72rem}.dash-row .r{margin-left:auto;font-weight:700}
+    .dash-row .bad{color:#c62828}.dash-row .late{color:#e65100;font-size:.68rem;font-weight:800}
+    .dash-links{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .dash-links button{font-family:var(--fb);font-size:.76rem;font-weight:700;padding:6px 11px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+    @media (max-width:480px){.dash-grid{grid-template-columns:repeat(3,1fr)}.dash-tile{padding:8px}.dash-tile .n{font-size:1.25rem}}
+  </style>
+  <div class="dash no-print" id="dashboard"><div class="empty-msg">Loading…</div></div>
+
   <div class="hist-list no-print" id="histList" style="display:none">
     <div class="empty-msg">No scans yet.</div>
   </div>
@@ -3563,6 +3586,78 @@ function updateSummary() {
   document.getElementById('sMissing').textContent    = missing;
   document.getElementById('sDispToday').textContent  = todayDispatchCount;
   document.getElementById('sPct').textContent        = totalN ? `${pct}% sorted` : '';
+  renderDashboard();
+}
+
+// ── DASHBOARD (Scan tab) ────────────────────────────────────────────────────────
+function _dashGo(tab, fn) { switchTab(tab); if (fn) fn(); window.scrollTo({ top: 0 }); }
+function dashList(filter, date) { _dashGo('list', () => { selectedDate = date || 'all'; activeTrackFilter = 'all'; setFilter(filter || 'all'); buildDateNav(); }); }
+function dashDate(d) { _dashGo('list', () => { activeFilter = 'all'; document.querySelectorAll('.ftab[data-f]').forEach(b => b.classList.toggle('active', b.dataset.f === 'all')); selectDate(d); }); }
+function dashTrack(f) { _dashGo('list', () => { selectedDate = 'all'; setFilter('dispatched'); setTrackFilter(f); buildDateNav(); }); }
+function renderDashboard() {
+  const el = document.getElementById('dashboard'); if (!el) return;
+  if (!rackItems.length) { el.innerHTML = '<div class="empty-msg">Sync orders first.</div>'; return; }
+  const today = _istDateStr(0), d7 = _istDateStr(-7);
+  const byOrder = {};
+  for (const it of rackItems) {
+    const o = byOrder[it.order_name] ||= { name: it.order_name, date: it.order_date, src: it.source || 'website', n: 0, f: 0, disp: false, canc: false, printed: false, reissue: !!it.reopen_of, awb: null, st: '', stAt: '', paint: false };
+    o.n += it.needed; o.f += it.found;
+    if (it.dispatched) o.disp = true; if (it.cancelled) o.canc = true; if (it.print_done) o.printed = true;
+    if (it.tracking) o.awb = it.tracking; if (it.ship_status) { o.st = it.ship_status; o.stAt = it.ship_status_at || ''; }
+    if (_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`)) o.paint = true;
+  }
+  const all = Object.values(byOrder).filter(o => !o.canc);
+  const open = all.filter(o => !o.disp);
+  const web = open.filter(o => o.src !== 'amazon'), amz = open.filter(o => o.src === 'amazon');
+  const matched = open.filter(o => o.f >= o.n && o.n > 0), printed = open.filter(o => o.printed);
+  const reissue = open.filter(o => o.reissue);
+  const overdue = open.filter(o => isOverdue(o.date));
+  const missingPcs = open.reduce((s, o) => s + Math.max(0, o.n - o.f), 0);
+  const inPaint = open.filter(o => o.paint);
+  // emergency from the live unit states
+  let emgOpen = 0, emgPrinted = 0, emgArrived = 0;
+  for (const st of Object.values(_liveEmgState || {})) { emgOpen += st.open || 0; emgPrinted += st.printed || 0; emgArrived += st.arrived || 0; }
+  // courier picture for orders dispatched in the last 7 days
+  const recent = all.filter(o => o.disp && o.date >= d7);
+  const cls = s => /rto|return/i.test(s) ? 'rto' : /fail|undeliver|attempt|exception/i.test(s) ? 'fail' : /deliver/i.test(s) && !/out for/i.test(s) ? 'done' : /transit|out for|picked|shipped/i.test(s) ? 'moving' : s ? 'booked' : 'none';
+  const cs = { moving: 0, done: 0, fail: 0, rto: 0, booked: 0, none: 0 };
+  for (const o of recent) cs[cls(o.st)]++;
+  // pending by date
+  const dates = {};
+  for (const o of open) { const d = dates[o.date] ||= { d: o.date, orders: 0, missing: 0, unmatched: 0, amz: 0 }; d.orders++; d.missing += Math.max(0, o.n - o.f); if (o.f === 0) d.unmatched++; if (o.src === 'amazon') d.amz++; }
+  const dateRows = Object.values(dates).sort((a, b) => a.d.localeCompare(b.d));
+  const fmt = d => new Date(d + 'T00:00:00+05:30').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const tile = (n, l, s, on, c = '') => `<button class="dash-tile ${c}" onclick="${on}"><div class="n">${n}</div><div class="l">${l}</div>${s ? `<div class="s">${s}</div>` : ''}</button>`;
+  el.innerHTML = `
+    <div class="dash-grid">
+      ${tile(web.length, 'Website open', `${missingPcs} pcs missing`, "dashList('all')")}
+      ${tile(amz.length, 'Amazon open', `${amz.filter(o => !o.awb).length} without AWB`, "dashList('amazon')", 'amz')}
+      ${tile(matched.length, 'Ready to dispatch', `${printed.length} printed`, "dashList('matched')", matched.length ? 'ok' : '')}
+      ${tile(todayDispatchCount, 'Dispatched today', `${recent.length} in last 7 days`, "dashList('dispatched')")}
+      ${tile(emgOpen + emgPrinted, 'Emergency', `${emgOpen} to print · ${emgPrinted} printed · ${emgArrived} arrived`, "dashList('emergency')", emgOpen ? 'warn' : '')}
+      ${tile(reissue.length, 'Reissue open', reissue.length ? 'missing / wrong / broken' : 'none', "dashList('reissue')", reissue.length ? 'warn' : '')}
+      ${tile(overdue.length, 'Overdue', 'open 15+ days', "dashList('all')", overdue.length ? 'warn' : '')}
+      ${tile(inPaint.length, 'In paint', 'orders with a piece at painter', "dashList('inpaint')")}
+    </div>
+    <div class="dash-links">
+      <button onclick="switchTab('list')">📋 List</button>
+      <button onclick="toggleSlipSelMode();switchTab('list')">🖨 Print slips</button>
+      <button onclick="switchTab('dispatch')">🚚 Dispatch</button>
+      <button onclick="switchTab('prod')">🏭 Production</button>
+      <button onclick="switchTab('pending')">⏳ Pending</button>
+      <button onclick="switchTab('track')">📍 Track</button>
+      <button onclick="window.open('nt-inventory.html','_blank')">🚨 Emergency page</button>
+    </div>
+    <div class="dash-sec"><h4>Pending by order date <a onclick="dashList('all')">all →</a></h4>
+      ${dateRows.length ? dateRows.map(r => `<div class="dash-row" onclick="dashDate('${r.d}')"><b>${fmt(r.d)}</b><span>${r.orders} order${r.orders !== 1 ? 's' : ''}${r.amz ? ` <span class="m">· ${r.amz} Amazon</span>` : ''}</span>${r.unmatched ? `<span class="m">${r.unmatched} untouched</span>` : ''}<span class="r ${r.missing ? 'bad' : ''}">${r.missing ? r.missing + ' missing' : '✓ ready'}</span>${isOverdue(r.d) ? '<span class="late">OVERDUE</span>' : ''}</div>`).join('') : '<div class="empty-msg">Nothing pending.</div>'}
+    </div>
+    <div class="dash-sec"><h4>Couriers, last 7 days <a onclick="dashTrack('all')">dispatched →</a></h4>
+      <div class="dash-row" onclick="dashTrack('all')"><b>Moving</b><span class="m">in transit / out for delivery</span><span class="r">${cs.moving}</span></div>
+      <div class="dash-row" onclick="dashTrack('all')"><b>Delivered</b><span class="r">${cs.done}</span></div>
+      <div class="dash-row" onclick="dashTrack('all')"><b>Trouble</b><span class="m">failed / attempted</span><span class="r ${cs.fail ? 'bad' : ''}">${cs.fail}</span></div>
+      <div class="dash-row" onclick="dashTrack('all')"><b>RTO</b><span class="r ${cs.rto ? 'bad' : ''}">${cs.rto}</span></div>
+      <div class="dash-row" onclick="dashTrack('noawb')"><b>No AWB yet</b><span class="m">booked, no courier scan</span><span class="r">${cs.booked + cs.none}</span></div>
+    </div>`;
 }
 
 // ── DISPATCH SUMMARY VIEW ──────────────────────────────────────────────────────
