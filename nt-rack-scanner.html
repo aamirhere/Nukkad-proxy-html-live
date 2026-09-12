@@ -674,6 +674,7 @@ input[type=file]{display:none}
     <div class="ftab" onclick="setFilter('inpaint')" data-f="inpaint" data-label="🎨 In Paint">🎨 In Paint</div>
     <div class="ftab" onclick="setFilter('emergency')" data-f="emergency" data-label="Emergency">Emergency</div>
     <div class="ftab" onclick="setFilter('amazon')" data-f="amazon" data-label="Amazon">Amazon</div>
+    <div class="ftab" onclick="setFilter('reissue')" data-f="reissue" data-label="↺ Reissue">↺ Reissue</div>
     <div class="ftab" onclick="setFilter('dispatched')" data-f="dispatched" data-label="Dispatched">Dispatched</div>
   </div>
 
@@ -1356,6 +1357,66 @@ async function logistifyProbe() {
     const r = await apiFetch({ action: 'probe', awb: awb.trim() }, LOGISTIFY_API).catch(e => ({ ok: false, error: e.message }));
     box.firstElementChild.textContent = JSON.stringify(r, null, 2);
   } catch (e) { box.firstElementChild.textContent = 'Error: ' + e.message; }
+}
+// ── Reissue: send a piece of a dispatched order again ─────────────────────────
+const REISSUE_REASONS = [['missing', 'Piece missing'], ['wrong colour', 'Wrong colour sent'], ['wrong piece', 'Wrong piece sent'], ['quality', 'Quality issue'], ['broken', 'Arrived broken'], ['other', 'Other']];
+function _reissueLabel(r) { return (REISSUE_REASONS.find(x => x[0] === r) || ['', r || 'Reissue'])[1]; }
+function reissueOpen(orderName) {
+  const items = rackItems.filter(it => it.order_name === orderName);
+  if (!items.length) return;
+  const box = document.createElement('div');
+  box.id = 'reissueModal';
+  box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px';
+  box.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow:auto;padding:18px;font-family:var(--fb)">
+    <div style="font-family:var(--ff);font-size:1.05rem;font-weight:700;margin-bottom:2px">↺ Reissue ${esc(orderName)}</div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Tick the pieces that must go again. They become a new open order <b>${esc(orderName)}-X…</b> with its own AWB; the original stays dispatched.</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">${items.map((it, i) => `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer">
+        <input type="checkbox" class="ri-chk" data-i="${i}" style="width:18px;height:18px;accent-color:#e65100">
+        <span style="flex:1"><b>${esc(it.quote)}</b><span style="color:var(--muted);font-size:.78rem"> · ${esc(it.color || '')}</span></span>
+        <input type="number" class="ri-qty" data-i="${i}" min="1" value="1" style="width:52px;padding:4px;border:1px solid var(--line);border-radius:6px;text-align:center">
+      </label>`).join('')}</div>
+    <div style="font-size:.78rem;font-weight:700;color:var(--ink2);margin-bottom:4px">Why</div>
+    <select id="riReason" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:var(--fb);margin-bottom:8px">${REISSUE_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+    <input id="riNote" placeholder="Note (optional): what the customer said, photo received, etc." style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:var(--fb);margin-bottom:14px;box-sizing:border-box">
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('reissueModal').remove()" style="padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:#fff;font-family:var(--fb);cursor:pointer">Cancel</button>
+      <button id="riSave" onclick="reissueSave('${orderName.replace(/'/g, "\\'")}')" style="padding:8px 16px;border:none;border-radius:8px;background:#e65100;color:#fff;font-weight:700;font-family:var(--fb);cursor:pointer">Create reissue</button>
+    </div></div>`;
+  box.onclick = e => { if (e.target === box) box.remove(); };
+  document.body.appendChild(box);
+}
+async function reissueSave(orderName) {
+  const items = rackItems.filter(it => it.order_name === orderName);
+  const picked = [...document.querySelectorAll('#reissueModal .ri-chk:checked')].map(c => { const it = items[+c.dataset.i]; const q = document.querySelector(`#reissueModal .ri-qty[data-i="${c.dataset.i}"]`); return { quote: it.quote, color: it.color, qty: parseInt(q?.value, 10) || 1 }; });
+  if (!picked.length) { toast('Tick at least one piece'); return; }
+  const reason = document.getElementById('riReason').value, note = document.getElementById('riNote').value.trim();
+  const btn = document.getElementById('riSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await apiFetch({ action: 'rack_reopen', order_name: orderName, items: picked, reason, note });
+    document.getElementById('reissueModal')?.remove();
+    toast(`✓ ${r.order_name} created — ${r.pieces} piece${r.pieces !== 1 ? 's' : ''} to send again`);
+    onSearch(''); const sb = document.getElementById('searchInp'); if (sb) sb.value = '';
+    await loadRackStatus(true);
+    setFilter('reissue');
+  } catch (e) { toast('Failed: ' + e.message); btn.disabled = false; btn.textContent = 'Create reissue'; }
+}
+async function reissueSetAwb(orderName) {
+  const o = rackItems.find(it => it.order_name === orderName);
+  const awb = prompt(`AWB for ${orderName} (leave empty to clear):`, o?.tracking || '');
+  if (awb === null) return;
+  let courier = '';
+  if (awb.trim()) courier = prompt('Courier (Bluedart / Delhivery / DTDC …):', o?.tracking_company || (/^\d{11}$/.test(awb.trim()) ? 'Bluedart' : '')) || '';
+  try {
+    await apiFetch({ action: 'rack_set_awb', order_name: orderName, tracking: awb.trim(), tracking_company: courier.trim() });
+    rackItems.forEach(it => { if (it.order_name === orderName) { it.tracking = awb.trim() || null; it.tracking_company = courier.trim() || null; it.ship_status = null; } });
+    renderList(); toast(awb.trim() ? '✓ AWB saved' : 'AWB cleared');
+  } catch (e) { toast('Failed: ' + e.message); }
+}
+async function reissueUndo(orderName) {
+  if (!confirm(`Remove reissue ${orderName}? The original order is not touched.`)) return;
+  try { await apiFetch({ action: 'rack_reopen_undo', order_name: orderName }); rackItems = rackItems.filter(it => it.order_name !== orderName); buildDateNav(); updateFilterCounts(); renderList(); toast('Reissue removed'); }
+  catch (e) { toast('Failed: ' + e.message); }
 }
 async function loadLiveEmergencies() {
   try {
@@ -3159,7 +3220,7 @@ function updateFilterCounts() {
   const byOrder = {};
   for (const it of items) {
     if (it.cancelled) continue;
-    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false, hasUnmatchedNotPaint: false, source: it.source || 'website' };
+    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false, hasUnmatchedNotPaint: false, source: it.source || 'website', reissue: !!it.reopen_of };
     byOrder[it.order_name].needed += it.needed;
     byOrder[it.order_name].found  += it.found;
     if (it.dispatched)   byOrder[it.order_name].dispatched   = true;
@@ -3175,6 +3236,7 @@ function updateFilterCounts() {
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     amazon:     all.filter(o => !o.dispatched && o.source === 'amazon').length,
+    reissue:    all.filter(o => !o.dispatched && o.reissue).length,
     dispatched: all.filter(o => o.dispatched).length,
     inpaint:    all.filter(o => !o.dispatched && o.hasPaint).length,
   };
@@ -3237,6 +3299,7 @@ function renderList() {
       notes: it.notes, rack_location: it.rack_location, painter: it.painter,
       tracking: it.tracking, tracking_company: it.tracking_company,
       prev_tracking_company: it.prev_tracking_company,
+      reopen_of: it.reopen_of || null, reopen_reason: it.reopen_reason || null, reopen_note: it.reopen_note || null,
       items: []
     };
     byOrder[it.order_name].items.push(it);
@@ -3260,6 +3323,8 @@ function renderList() {
     const complete = totalF >= totalN;
     const partial  = totalF > 0 && !complete;
     if (activeFilter === 'dispatched') return o.dispatched;
+    if (activeFilter === 'reissue')    return !!o.reopen_of && !o.dispatched;
+    if (searchQuery && !o.cancelled)   return true;   // looking something up: dispatched orders count too (reissue starts here)
     if (activeFilter === 'all')        return !o.dispatched;
     if (activeFilter === 'notmatched') return !complete && !o.dispatched && o.items.some(it => it.found < it.needed && !_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
     if (activeFilter === 'missing')    return totalF === 0 && !o.dispatched;
@@ -3330,12 +3395,13 @@ function renderList() {
 
       const isSlipSel = _slipSel.has(o.order_name);
       const slipSelStyle = _slipSelMode && isSlipSel ? 'outline:2.5px solid #1b5e20;background:#f1f8e9;' : '';
-      html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}" style="${slipSelStyle}${o.cancelled?'opacity:.6;':''}" >
+      html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}" style="${slipSelStyle}${o.cancelled?'opacity:.6;':''}${o.reopen_of && !o.dispatched ? 'border-left:4px solid #ff9800;background:#fffaf3;' : ''}" >
         <div class="ord-top" ${_slipSelMode ? `onclick="slipSelToggle('${safeOn}')" style="cursor:pointer"` : ''}>
           <div>
             <span class="ord-name" title="${esc(o.order_name)}" style="${o.source === 'amazon' ? 'font-size:.82rem;letter-spacing:.01em' : ''}">${esc(o.order_name)}</span>
             ${o.payment ? `<span style="font-size:.6rem;font-weight:600;padding:1px 7px;border-radius:10px;background:#f6f1ea;color:#8a7a68;border:1px solid #e9ddca">${o.payment === 'cod' ? 'COD' : 'Prepaid'}</span>` : ''}
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
+            ${o.reopen_of ? `<span title="${esc(o.reopen_note || '')}" style="font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:10px;background:#fff3e0;color:#bf360c;border:1px solid #ffb74d">↺ ${esc(_reissueLabel(o.reopen_reason))} · of ${esc(o.reopen_of)}</span>${o.reopen_note ? `<span style="font-size:.66rem;color:#8d6e63;margin-left:4px">${esc(o.reopen_note)}</span>` : ''}` : ''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
 
             ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
@@ -3456,11 +3522,13 @@ function renderList() {
           ${o.cancelled
             ? `<button class="meta-dispatch-btn" style="color:#6f5b46;border-color:#d9cabb;font-size:.72rem;padding:4px 9px" onclick="undoCancel('${safeOn}')">↩ Undo Cancel</button>`
             : o.dispatched
-              ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.72rem;padding:4px 9px" onclick="undoDispatch('${safeOn}')">↩ Undo Dispatch</button>`
+              ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.72rem;padding:4px 9px" onclick="undoDispatch('${safeOn}')">↩ Undo Dispatch</button>
+                 ${o.reopen_of ? '' : `<button class="meta-dispatch-btn" style="color:#bf360c;border-color:#ffb74d;background:#fff8e1;font-size:.72rem;padding:4px 9px;margin-left:4px" onclick="reissueOpen('${safeOn}')" title="A piece needs to go again: missing, wrong, broken">↺ Reissue</button>`}`
               : `${o.print_done
                   ? `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safeOn}')">🚚 Dispatch Now</button>`
                   : `<button class="meta-dispatch-btn" onclick="manualDispatch('${safeOn}')">🚚 Mark Dispatched</button>`}
-                <button class="meta-dispatch-btn" style="color:#c62828;border-color:#ef9a9a;font-size:.72rem;padding:4px 9px;margin-left:4px" onclick="manualCancel('${safeOn}')">✕ Cancel</button>`
+                <button class="meta-dispatch-btn" style="color:#c62828;border-color:#ef9a9a;font-size:.72rem;padding:4px 9px;margin-left:4px" onclick="manualCancel('${safeOn}')">✕ Cancel</button>
+                ${o.reopen_of ? `<button class="meta-dispatch-btn" style="color:#1565c0;border-color:#90caf9;font-size:.72rem;padding:4px 9px;margin-left:4px" onclick="reissueSetAwb('${safeOn}')" title="Courier booking for this replacement">🚚 ${o.tracking ? 'Change AWB' : 'Set AWB'}</button><button class="meta-dispatch-btn" style="color:#6f5b46;border-color:#d9cabb;font-size:.72rem;padding:4px 9px;margin-left:4px" onclick="reissueUndo('${safeOn}')" title="Remove this reissue">✕ Remove</button>` : ''}`
           }
         </div>
         <div class="ord-meta-edit no-print" id="meta-edit-${esc(o.order_name)}" style="display:none">
