@@ -689,6 +689,7 @@ input[type=file]{display:none}
     <button class="hbtn" onclick="openPrintDialog()">🖨 Print</button>
     <button id="listSelModeBtn" class="hbtn" onclick="toggleListSelMode()">☑ Select</button>
     <button id="listSlipSelBtn" class="hbtn" onclick="toggleSlipSelMode()">🖨 Slips</button>
+    <button id="listSlipAllBtn" class="hbtn" onclick="slipSelectAllOpen()" style="display:none;border-color:#1b5e20;color:#1b5e20" title="Select every open (not dispatched) order shown">☑ All open</button>
   </div>
 
   <div id="listContent">
@@ -2293,6 +2294,24 @@ function toggleSlipSelMode() {
   if (_listSelMode) { _listSelMode = false; _listSel.clear(); }
   const btn = document.getElementById('listSlipSelBtn');
   if (btn) { btn.textContent = _slipSelMode ? '✕ Cancel' : '🖨 Slips'; btn.style.background = _slipSelMode ? '#e0e0e0' : ''; }
+  const allBtn = document.getElementById('listSlipAllBtn');
+  if (allBtn) allBtn.style.display = _slipSelMode ? '' : 'none';
+  updateSlipSelBar();
+  renderList();
+}
+
+// Every open order on the selected date (or all dates) in one tap; cancelled and dispatched stay out.
+function slipSelectAllOpen() {
+  if (!_slipSelMode) return;
+  const items = selectedDate === 'all' ? rackItems : rackItems.filter(it => it.order_date === selectedDate);
+  const open = new Set(), closed = new Set();
+  for (const it of items) (it.dispatched || it.cancelled ? closed : open).add(it.order_name);
+  for (const n of closed) open.delete(n);
+  if (!open.size) { toast('No open orders on this date'); return; }
+  const allIn = [...open].every(n => _slipSel.has(n));
+  for (const n of open) allIn ? _slipSel.delete(n) : _slipSel.add(n);
+  const allBtn = document.getElementById('listSlipAllBtn');
+  if (allBtn) allBtn.textContent = allIn ? '☑ All open' : '☐ Clear';
   updateSlipSelBar();
   renderList();
 }
