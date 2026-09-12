@@ -692,7 +692,7 @@ input[type=file]{display:none}
 
   <!-- laptop print popup -->
   <div id="laptopZen" class="zen-wrap no-print" style="display:none" onclick="if(event.target===this)laptopClose()">
-  <div class="zen-panel" style="max-width:520px">
+  <div class="zen-panel" style="max-width:820px">
   <div class="zen-head"><b>🖨 Laptop print</b><button class="zen-x" onclick="laptopClose()" title="Close">✕</button></div>
   <div class="mode-picker" style="margin-bottom:10px">
     <button class="mode-btn" id="modeLaptop" onclick="setMode('laptop')" >
@@ -703,7 +703,57 @@ input[type=file]{display:none}
       <span class="mb-pill">Off</span>
     </button>
   </div>
-  <div id="laptopInfo" style="font-size:.82rem;color:var(--ink2);display:flex;flex-direction:column;gap:6px"></div>
+<div id="printQueuePanel" style="display:none;padding:0;flex-direction:column;gap:10px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div style="font-weight:700;font-size:.9rem;color:var(--ink)">Print Queue <span id="pqCount" style="font-size:.75rem;font-weight:400;color:var(--muted)"></span></div>
+    <div style="display:flex;gap:6px">
+      <button class="act-btn go" onclick="loadPrintQueue()">↺ Refresh</button>
+      <button class="act-btn" style="background:#6a1b9a;color:#fff;border:none" onclick="openTransitChecker()">🔍 Transit Check</button>
+      <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="printAllQueued()">Print All</button>
+      <button class="act-btn" style="background:#388e3c;color:#fff;border:none" onclick="dispatchAllQueued()">✓ Dispatch All</button>
+    </div>
+  </div>
+  <!-- bulk mark initiated as printed — shown only on Initiated filter -->
+  <div id="pqToPrintBar" style="display:none;background:#e8f5e9;border:1.5px solid #388e3c;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div style="font-size:.82rem;font-weight:700;color:#1b5e20">Already printed these slips?</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button onclick="openReconcile()" style="background:#fff;border:1.5px solid #388e3c;color:#388e3c;padding:7px 14px;border-radius:8px;font-weight:700;font-size:.78rem;cursor:pointer">📋 Reconcile from history / PDF</button>
+      <button onclick="pqMarkAllPrinted()" style="background:#388e3c;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All Printed</button>
+    </div>
+  </div>
+  <div id="pqInitiatedBar" style="display:none;background:#fff8e1;border:1.5px solid #f9a825;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div style="font-size:.82rem;font-weight:700;color:#e65100" id="pqInitiatedBarMsg">Orders sent to printer — confirm when done</div>
+    <button onclick="markInitiatedAsPrinted()" style="background:#388e3c;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All as Printed</button>
+  </div>
+  <!-- confirm-printed banner — shown after Print All, hidden otherwise -->
+  <div id="pqPrintConfirmBanner" style="display:none;background:#e8f5e9;border:1.5px solid #388e3c;border-radius:10px;padding:10px 14px;display:none;flex-direction:column;gap:8px">
+    <div style="font-weight:700;font-size:.84rem;color:#1b5e20" id="pqPrintConfirmMsg">Slips sent to printer.</div>
+    <div style="font-size:.78rem;color:#2e7d32">Did everything print correctly?</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmBatchPrinted()" style="flex:1;background:#388e3c;color:#fff;border:none;padding:9px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Yes — Mark as Printed</button>
+      <button onclick="dismissPrintConfirm()" style="background:#fff;color:#388e3c;border:1.5px solid #388e3c;padding:9px 14px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">Not yet</button>
+    </div>
+  </div>
+  <div style="display:none"><!-- banner spacer placeholder -->
+  </div>
+  <!-- print history batch chips -->
+  <div id="pqBatchChips" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></div>
+  <!-- date chips -->
+  <div id="pqDateChips" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+  <!-- print status filter + search -->
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:4px">
+      <button id="pqfAll"       onclick="setPqFilter('all')"       style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:var(--accent);color:#fff;border-color:var(--accent)">All</button>
+      <button id="pqfToPrint"  onclick="setPqFilter('toprint')"   style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">To Print</button>
+      <button id="pqfInitiated" onclick="setPqFilter('initiated')" style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">🖨 Initiated</button>
+      <button id="pqfPrinted"  onclick="setPqFilter('printed')"   style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">Printed</button>
+      <button id="pqfNoAwb"   onclick="setPqFilter('noawb')"    style="padding:3px 10px;border-radius:20px;border:1.5px solid #b71c1c;font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:#b71c1c">No AWB</button>
+    </div>
+    <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;min-width:120px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
+  </div>
+  <div id="printQueueList"><div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div></div>
+</div>
+  <div id="laptopInfo" style="font-size:.78rem;color:var(--muted);margin-top:8px"></div>
   <div class="dash-links" style="margin-top:12px">
     <button onclick="laptopClose();switchTab('pending')">⏳ Print queue</button>
     <button onclick="laptopClose();toggleSlipSelMode();switchTab('list')">🖨 Print slips</button>
@@ -862,56 +912,7 @@ input[type=file]{display:none}
 
 
 <!-- ── PRINT QUEUE PANEL (laptop mode) ── -->
-<div id="printQueuePanel" style="display:none;padding:12px;flex-direction:column;gap:10px">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-    <div style="font-weight:700;font-size:.9rem;color:var(--ink)">Print Queue <span id="pqCount" style="font-size:.75rem;font-weight:400;color:var(--muted)"></span></div>
-    <div style="display:flex;gap:6px">
-      <button class="act-btn go" onclick="loadPrintQueue()">↺ Refresh</button>
-      <button class="act-btn" style="background:#6a1b9a;color:#fff;border:none" onclick="openTransitChecker()">🔍 Transit Check</button>
-      <button class="act-btn" style="background:#1565c0;color:#fff;border:none" onclick="printAllQueued()">Print All</button>
-      <button class="act-btn" style="background:#388e3c;color:#fff;border:none" onclick="dispatchAllQueued()">✓ Dispatch All</button>
-    </div>
-  </div>
-  <!-- bulk mark initiated as printed — shown only on Initiated filter -->
-  <div id="pqToPrintBar" style="display:none;background:#e8f5e9;border:1.5px solid #388e3c;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-    <div style="font-size:.82rem;font-weight:700;color:#1b5e20">Already printed these slips?</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button onclick="openReconcile()" style="background:#fff;border:1.5px solid #388e3c;color:#388e3c;padding:7px 14px;border-radius:8px;font-weight:700;font-size:.78rem;cursor:pointer">📋 Reconcile from history / PDF</button>
-      <button onclick="pqMarkAllPrinted()" style="background:#388e3c;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All Printed</button>
-    </div>
-  </div>
-  <div id="pqInitiatedBar" style="display:none;background:#fff8e1;border:1.5px solid #f9a825;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-    <div style="font-size:.82rem;font-weight:700;color:#e65100" id="pqInitiatedBarMsg">Orders sent to printer — confirm when done</div>
-    <button onclick="markInitiatedAsPrinted()" style="background:#388e3c;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Mark All as Printed</button>
-  </div>
-  <!-- confirm-printed banner — shown after Print All, hidden otherwise -->
-  <div id="pqPrintConfirmBanner" style="display:none;background:#e8f5e9;border:1.5px solid #388e3c;border-radius:10px;padding:10px 14px;display:none;flex-direction:column;gap:8px">
-    <div style="font-weight:700;font-size:.84rem;color:#1b5e20" id="pqPrintConfirmMsg">Slips sent to printer.</div>
-    <div style="font-size:.78rem;color:#2e7d32">Did everything print correctly?</div>
-    <div style="display:flex;gap:8px">
-      <button onclick="confirmBatchPrinted()" style="flex:1;background:#388e3c;color:#fff;border:none;padding:9px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">✓ Yes — Mark as Printed</button>
-      <button onclick="dismissPrintConfirm()" style="background:#fff;color:#388e3c;border:1.5px solid #388e3c;padding:9px 14px;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer">Not yet</button>
-    </div>
-  </div>
-  <div style="display:none"><!-- banner spacer placeholder -->
-  </div>
-  <!-- print history batch chips -->
-  <div id="pqBatchChips" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></div>
-  <!-- date chips -->
-  <div id="pqDateChips" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-  <!-- print status filter + search -->
-  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-    <div style="display:flex;gap:4px">
-      <button id="pqfAll"       onclick="setPqFilter('all')"       style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:var(--accent);color:#fff;border-color:var(--accent)">All</button>
-      <button id="pqfToPrint"  onclick="setPqFilter('toprint')"   style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">To Print</button>
-      <button id="pqfInitiated" onclick="setPqFilter('initiated')" style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">🖨 Initiated</button>
-      <button id="pqfPrinted"  onclick="setPqFilter('printed')"   style="padding:3px 10px;border-radius:20px;border:1.5px solid var(--line);font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:var(--ink2)">Printed</button>
-      <button id="pqfNoAwb"   onclick="setPqFilter('noawb')"    style="padding:3px 10px;border-radius:20px;border:1.5px solid #b71c1c;font-size:.72rem;font-family:var(--fb);cursor:pointer;background:#fff;color:#b71c1c">No AWB</button>
-    </div>
-    <input id="pqSearch" type="text" placeholder="Search order # or name…" oninput="renderPqList()" style="flex:1;min-width:120px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:.75rem;font-family:var(--fb)">
-  </div>
-  <div id="printQueueList"><div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">Loading…</div></div>
-</div>
+
 
 <!-- ── STOCK SUMMARY OVERLAY ── -->
 <div class="painter-overlay" id="summaryOverlay" style="display:none;z-index:800;align-items:flex-start;padding:0">
@@ -1484,13 +1485,11 @@ async function reissueUndo(orderName) {
 function zenScanOpen() { document.getElementById('scanZen').style.display = 'flex'; setTimeout(() => { const q = document.getElementById('manualQ'); if (q && q.offsetParent && !/Mobi|Android/i.test(navigator.userAgent)) q.focus(); }, 50); }
 function zenScanClose() { document.getElementById('scanZen').style.display = 'none'; }
 function laptopOpen() {
+  // Laptop print is the old P mode: open it in that mode so the queue, printed and scanned labels show as before
+  if (activeMode !== 'laptop') setMode('laptop'); else { document.getElementById('printQueuePanel').style.display = 'flex'; loadPrintQueue(); }
   const info = document.getElementById('laptopInfo');
   const queued = (typeof _pqOrders !== 'undefined' && Array.isArray(_pqOrders)) ? _pqOrders.filter(o => !o.printed).length : null;
-  info.innerHTML = [
-    `<div>Auto-print is <b>${activeMode === 'laptop' ? 'on' : 'off'}</b>. When on, a matched order prints its slip on this laptop as soon as the last piece is scanned.</div>`,
-    queued != null ? `<div><b>${queued}</b> order${queued !== 1 ? 's' : ''} waiting in the print queue.</div>` : '',
-    `<div><b>${todayDispatchCount}</b> dispatched today.</div>`,
-  ].join('');
+  info.textContent = 'Auto-print stays on after closing this window; switch to Sort & Check in the scanner to turn it off.';
   document.getElementById('laptopZen').style.display = 'flex';
 }
 function laptopClose() { document.getElementById('laptopZen').style.display = 'none'; }
@@ -4269,6 +4268,7 @@ function setMode(mode) {
     document.getElementById('printQueuePanel').style.display = 'flex';
     switchTab('scan');
     loadPrintQueue();
+    const lz = document.getElementById('laptopZen'); if (lz) lz.style.display = 'flex';
   } else if (mode === 'painter') {
     openPainterDropOff();
   }
