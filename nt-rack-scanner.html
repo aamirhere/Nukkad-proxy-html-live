@@ -1332,7 +1332,7 @@ async function shipwayTest() {
       const [t, c] = await Promise.all([apiFetch({ action: 'test' }, SHIPWAY_API), apiFetch({ action: 'carriers' }, SHIPWAY_API)]);
       r = { ...t, carriers: c };
     } else if (isAwb) {
-      r = await apiFetch({ action: 'awb', awb: v }, SHIPWAY_API);
+      r = await apiFetch({ action: 'awb', awb: v }, SHIPWAY_API).catch(e => ({ ok: false, error: e.message }));
       if (!r.ok) {
         const carrier = prompt('Not a Shipway booking. Which courier is this AWB on? (bluedart / delhivery / dtdc / ecom / xpressbees, or a Shipway carrier id)', 'delhivery');
         if (carrier) r = await apiFetch({ action: 'track', awb: v, carrier }, SHIPWAY_API);
