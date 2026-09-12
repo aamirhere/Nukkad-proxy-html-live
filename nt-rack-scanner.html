@@ -1470,6 +1470,11 @@ function reissueOpen(orderName) {
         <span style="flex:1"><b>${esc(it.quote)}</b><span style="color:var(--muted);font-size:.78rem"> · ${esc(it.color || '')}</span></span>
         <input type="number" class="ri-qty" data-i="${i}" min="1" value="1" style="width:52px;padding:4px;border:1px solid var(--line);border-radius:6px;text-align:center">
       </label>`).join('')}</div>
+    <div style="font-size:.78rem;font-weight:700;color:var(--ink2);margin-bottom:4px">When</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:.8rem"><input type="radio" name="riWhen" value="today" checked style="accent-color:#e65100"> <span><b>Ready now</b><br><span style="color:var(--muted);font-size:.7rem">today's list, pick &amp; dispatch</span></span></label>
+      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:.8rem"><input type="radio" name="riWhen" value="tomorrow" style="accent-color:#e65100"> <span><b>Tomorrow</b><br><span style="color:var(--muted);font-size:.7rem">on the picker's next daily list</span></span></label>
+    </div>
     <div style="font-size:.78rem;font-weight:700;color:var(--ink2);margin-bottom:4px">Why</div>
     <select id="riReason" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:var(--fb);margin-bottom:8px">${REISSUE_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
     <input id="riNote" placeholder="Note (optional): what the customer said, photo received, etc." style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:var(--fb);margin-bottom:14px;box-sizing:border-box">
@@ -1487,9 +1492,10 @@ async function reissueSave(orderName) {
   const reason = document.getElementById('riReason').value, note = document.getElementById('riNote').value.trim();
   const btn = document.getElementById('riSave'); btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const r = await apiFetch({ action: 'rack_reopen', order_name: orderName, items: picked, reason, note });
+    const when = document.querySelector('#reissueModal input[name="riWhen"]:checked')?.value || 'today';
+    const r = await apiFetch({ action: 'rack_reopen', order_name: orderName, items: picked, reason, note, when });
     document.getElementById('reissueModal')?.remove();
-    toast(`✓ ${r.order_name} created — ${r.pieces} piece${r.pieces !== 1 ? 's' : ''} to send again`);
+    toast(`✓ ${r.order_name} created — ${r.pieces} piece${r.pieces !== 1 ? 's' : ''} on the ${when === 'tomorrow' ? "picker's list for tomorrow" : "daily list for today"}`);
     onSearch(''); const sb = document.getElementById('searchInp'); if (sb) sb.value = '';
     await loadRackStatus(true);
     setFilter('reissue');

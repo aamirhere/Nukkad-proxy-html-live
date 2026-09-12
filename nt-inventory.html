@@ -3429,7 +3429,7 @@ async function ordersSearch() {
       r.dates.map(d => `<div class="dg-card" style="margin-bottom:8px">
         <div class="dg-head" style="cursor:pointer" onclick="ordersSearchOpen('${d.date}')" title="Open this date">
           <div class="dg-info"><div class="dg-title">${fmt(d.date)} <span class="dg-color-tag">${d.count}× ${q}</span></div>
-            <div class="dg-status-line">${d.units.map(u => `<span style="display:inline-block;margin:2px 8px 2px 0">${u.source === 'amazon' ? '<span style="color:#c07000;font-weight:800;font-size:.68rem">AMZ</span> ' : ''}<b>${u.order_name}</b>${u.color ? ` · ${u.color}` : ''}${u.picked ? ' <span style="color:var(--green)">✓ picked</span>' : ''}${u.is_emergency ? ' <span style="color:var(--red)">⚠</span>' : ''}</span>`).join('')}</div>
+            <div class="dg-status-line">${d.units.map(u => `<span style="display:inline-block;margin:2px 8px 2px 0">${u.source === 'amazon' ? '<span style="color:#c07000;font-weight:800;font-size:.68rem">AMZ</span> ' : ''}<b>${u.order_name}</b>${u.reissue_of ? ' <span style="color:#bf360c;font-weight:800;font-size:.68rem">↺ exchange</span>' : ''}${u.color ? ` · ${u.color}` : ''}${u.picked ? ' <span style="color:var(--green)">✓ picked</span>' : ''}${u.is_emergency ? ' <span style="color:var(--red)">⚠</span>' : ''}</span>`).join('')}</div>
           </div>
           <div class="dg-actions-row"><span class="dg-chevron">›</span></div>
         </div></div>`).join('');
@@ -3637,6 +3637,7 @@ function renderUnit(u) {
   <div class="unit-row${isPicked ? ' picked' : ''}${isEmerg ? ' emergency' : ''}" id="unit-${k}">
     <span class="unit-num">${serialCounter}</span>
     <span class="unit-order">${u.order_name}</span>
+    ${u.reissue_of ? `<span class="unit-color" style="background:#fff3e0;color:#bf360c;border:1px solid #ffb74d;font-weight:800" title="${(u.reissue_reason || '').replace(/"/g, '&quot;')}">↺ Exchange of ${u.reissue_of}${u.reissue_reason ? ' · ' + u.reissue_reason : ''}</span>` : ''}
     ${u.source === 'amazon' ? '<span class="unit-color" style="background:#ff9900;color:#fff;font-weight:700">Amazon</span>' : ''}
     ${u.source === 'amazon' && u.order_status ? `<span class="unit-color" style="background:${u.order_status==='Unshipped'?'#1a7f37':u.order_status==='Pending'?'#b05000':'#888'};color:#fff;font-size:.7rem">${u.order_status}</span>` : ''}
     ${u.color ? `<span class="unit-color" style="${colorPillStyle(u.color)}">${u.color}</span>` : ''}
