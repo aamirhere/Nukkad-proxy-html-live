@@ -1403,12 +1403,13 @@ function isOverdue(dateStr) {
 
 function buildDateNav() {
   const nav = document.getElementById('dateNav');
-  const dates = [...new Set(rackItems.map(it => it.order_date))].sort();
+  // A date whose orders were all cancelled has nothing to do, so it gets no chip.
+  const dates = [...new Set(rackItems.filter(it => !it.cancelled).map(it => it.order_date))].sort();
 
   let html = `<div class="d-chip all-chip${selectedDate==='all'?' active':''}" onclick="selectDate('all')">All dates</div>`;
 
   for (const d of dates) {
-    const dayItems = rackItems.filter(it => it.order_date === d && !it.dispatched);
+    const dayItems = rackItems.filter(it => it.order_date === d && !it.dispatched && !it.cancelled);
     const orders   = new Set(dayItems.map(it => it.order_name)).size;
     const needed   = dayItems.reduce((s,it)=>s+it.needed,0);
     const found    = dayItems.reduce((s,it)=>s+it.found,0);
@@ -3137,6 +3138,7 @@ function updateFilterCounts() {
   let items = selectedDate === 'all' ? rackItems : rackItems.filter(it => it.order_date === selectedDate);
   const byOrder = {};
   for (const it of items) {
+    if (it.cancelled) continue;
     if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false, hasUnmatchedNotPaint: false, source: it.source || 'website' };
     byOrder[it.order_name].needed += it.needed;
     byOrder[it.order_name].found  += it.found;
@@ -3169,6 +3171,13 @@ function renderList() {
   let items = selectedDate === 'all'
     ? rackItems
     : rackItems.filter(it => it.order_date === selectedDate);
+
+  // Cancelled orders stay out of the way; a search by order number still finds them (Undo Cancel lives there).
+  if (!searchQuery) {
+    const cancelledOrders = new Set(), liveOrders = new Set();
+    for (const it of items) (it.cancelled ? cancelledOrders : liveOrders).add(it.order_name);
+    items = items.filter(it => !it.cancelled || liveOrders.has(it.order_name));
+  }
 
   // Apply search filter — match at order level, show all items for matching orders
   if (searchQuery) {
