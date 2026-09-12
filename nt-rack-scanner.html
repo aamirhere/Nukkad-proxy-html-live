@@ -3162,7 +3162,7 @@ function renderList() {
       order_name: it.order_name, order_date: it.order_date,
       customer: it.customer, dispatched: it.dispatched,
       fulfilled: it.fulfilled, is_emergency: it.is_emergency,
-      cancelled: it.cancelled, source: it.source || 'website',
+      cancelled: it.cancelled, source: it.source || 'website', payment: it.payment || null,
       notes: it.notes, rack_location: it.rack_location, painter: it.painter,
       tracking: it.tracking, tracking_company: it.tracking_company,
       prev_tracking_company: it.prev_tracking_company,
@@ -3242,6 +3242,8 @@ function renderList() {
     }
     dayOrders.sort((a, b) => {
       if (a.dispatched !== b.dispatched) return a.dispatched ? 1 : -1;
+      const aa = a.source === 'amazon', ba = b.source === 'amazon';
+      if (aa !== ba) return aa ? -1 : 1;
       return a.order_name < b.order_name ? -1 : 1;
     });
     for (const o of dayOrders) {
@@ -3260,7 +3262,8 @@ function renderList() {
       html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}" style="${slipSelStyle}${o.cancelled?'opacity:.6;':''}" >
         <div class="ord-top" ${_slipSelMode ? `onclick="slipSelToggle('${safeOn}')" style="cursor:pointer"` : ''}>
           <div>
-            <span class="ord-name" title="${esc(o.order_name)}">${o.source === 'amazon' ? '🟡 …' + esc(o.order_name.slice(-7)) : esc(o.order_name)}</span>
+            <span class="ord-name" title="${esc(o.order_name)}" style="${o.source === 'amazon' ? 'font-size:.82rem;letter-spacing:.01em' : ''}">${esc(o.order_name)}</span>
+            ${o.payment ? (o.payment === 'cod' ? '<span style="font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80">💵 COD</span>' : '<span style="font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">Prepaid</span>') : ''}
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
 
@@ -5480,9 +5483,11 @@ async function toggleAddr(orderName, btn) {
       const isCod = res.payment_mode === 'COD';
       const badge = `<span style="display:inline-block;font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;${isCod?'background:#fff3e0;color:#e65100;border:1px solid #ffcc80':'background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7'}">${isCod?'💵 COD':'✓ Prepaid'}</span>`;
       const ph   = res.phone ? `📞 <strong>${esc(res.phone)}</strong>` : '';
+      const nm   = res.name ? `👤 <strong>${esc(res.name)}</strong>` : '';
       const loc  = [res.city, res.province, res.zip].filter(Boolean).map(s => esc(s)).join(' · ');
       const addr = res.address1 ? esc(res.address1) + (res.address2 ? ', ' + esc(res.address2) : '') : '';
-      box.innerHTML = badge + '<br>' + [ph, loc, addr].filter(Boolean).join('<br>');
+      const pii  = res.source === 'amazon' && !res.pii ? `<div style="font-size:.7rem;color:#e65100;margin-top:4px">Street and phone need Amazon's PII approval on the API app${res.pii_error ? ' — ' + esc(res.pii_error) : ''}</div>` : '';
+      box.innerHTML = badge + '<br>' + [nm, ph, loc, addr].filter(Boolean).join('<br>') + pii;
     }
     box.style.display = 'block';
     btn.textContent = '▴ Address';
