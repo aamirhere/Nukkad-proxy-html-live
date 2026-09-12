@@ -4574,19 +4574,21 @@ function _trackingUrl(company, awb) {
   return `https://app-v1.shipway.com/tracking/forward/${encodeURIComponent(awb)}/`;
 }
 function _getCarrierTag(orderName, rackItem) {
-  if (rackItem?.source === 'amazon') return '<span style="display:inline-block;margin-top:2px;font-size:.6rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#ff9900;color:#fff">Amazon</span>';
+  const isAmz = rackItem?.source === 'amazon';
+  const amzBadge = isAmz ? '<span style="display:inline-block;font-size:.6rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#ff9900;color:#fff">Amazon</span>' : '';
   // Prefer live data from rackItem (Supabase), fall back to scan cache (localStorage)
-  const company = rackItem?.tracking_company || _awbCache[orderName]?.company || null;
+  const company = (isAmz && /^amazon$/i.test(rackItem?.tracking_company || '')) ? null : (rackItem?.tracking_company || _awbCache[orderName]?.company || null);
   const awb     = rackItem?.tracking        || _awbCache[orderName]?.awb     || null;
   const label   = _carrierLabel(company, awb);
   // Fulfilled order with no tracking data at all — show "No AWB" nudge
   const safeOn = orderName.replace(/'/g, "\\'");
-  const refreshBtn = `<button onclick="event.preventDefault();event.stopPropagation();refreshOrderTracking('${safeOn}')" title="Refresh tracking from Shopify" style="background:none;border:none;cursor:pointer;font-size:.7rem;padding:1px 3px;color:var(--muted);line-height:1" class="no-print">↻</button>`;
+  const refreshBtn = `<button onclick="event.preventDefault();event.stopPropagation();refreshOrderTracking('${safeOn}')" title="Refresh tracking (Shopify / Shipway)" style="background:none;border:none;cursor:pointer;font-size:.7rem;padding:1px 3px;color:var(--muted);line-height:1" class="no-print">↻</button>`;
+  if (isAmz && !awb) return `<span style="display:inline-flex;align-items:center;gap:2px;margin-top:2px">${amzBadge}${refreshBtn}</span>`;
   if (!label) return rackItem?.fulfilled ? `<span style="display:inline-flex;align-items:center;gap:2px;margin-top:2px"><span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#fce4ec;color:#c62828">No AWB</span>${refreshBtn}</span>` : '';
   if (awb) {
     const url = _trackingUrl(company, awb);
     const safeAwb = awb.replace(/'/g, "\\'");
-    return `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:2px" class="no-print">
+    return `<span style="display:inline-flex;align-items:center;gap:4px;margin-top:2px" class="no-print">${amzBadge}
       <a href="${url}" target="_blank" rel="noopener" onclick="navigator.clipboard&&navigator.clipboard.writeText('${safeAwb}').catch(()=>{})" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px">
         <span class="carrier-tag">${label}</span>
         <span style="display:inline-block;font-size:.58rem;font-weight:700;padding:2px 6px;border-radius:20px;background:#e8eaf6;color:#3949ab;font-family:monospace;letter-spacing:.02em">${awb}</span>
