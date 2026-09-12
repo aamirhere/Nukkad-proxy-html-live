@@ -4307,6 +4307,7 @@ function renderEmgDash() {
             <span class="emg-dd-qty">${remaining}×</span>
             ${g.amazon_open ? '<span style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px">Amazon</span>' : ''}<b>${g.title}</b>
             ${partSent ? `<span class="emg-badge sent" title="${g.sent} of ${total} dispatched, ${remaining} still to send">◐ ${g.sent} of ${total} sent</span>` : ''}
+            ${emgComingBadge(g)}
             <button type="button" class="emg-dd-x" onclick="event.preventDefault();event.stopPropagation();emgRemoveDesign('${d.date}',${gi})" title="Remove from emergency (all or some units)">✕</button>
 
           </label>`; }).join('')}
@@ -4361,20 +4362,34 @@ function emgDatesData(dates) {
   return (_emgDash.dates || []).filter(d => dates.includes(d.date) && d.open > 0);
 }
 
+// Production already has these pieces on the way (unapplied dispatch list or open
+// cut lot); applying that list covers the emergency, so printing again would double it.
+function emgComingQty(g) { const c = g.coming; return c ? (c.dispatch || 0) + (c.lot || 0) : 0; }
+function emgCovered(g) { return g.open > 0 && emgComingQty(g) >= g.open + (g.printed || 0); }
+function emgComingBadge(g) {
+  const c = g.coming; if (!c || !(c.dispatch || c.lot)) return '';
+  const parts = [];
+  if (c.dispatch) parts.push(`📦 ${c.dispatch} in dispatch draft`);
+  if (c.lot) parts.push(`✂️ ${c.lot} in lot ${c.lots.join(', ')}`);
+  const covers = emgCovered(g);
+  return `<span class="emg-badge" title="${covers ? 'Enough already coming from production — not printed, the dispatch will cover it' : 'Some already coming from production'}" style="background:${covers ? '#e3f2fd' : '#fff8e1'};color:${covers ? '#1565c0' : '#8d6e00'}">${parts.join(' · ')}${covers ? ' · skip print' : ''}</span>`;
+}
 function emgPrintDates(dates, src) {
   const rows = emgDatesData(dates);
   if (!rows.length) { toast('Nothing open to print for that selection'); return; }
   const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
   const sheet = document.getElementById('emgPrintSheet');
   sheet.innerHTML = rows.map(d => {
-    const designs = d.designs
+    const all = d.designs
       .map(g => src === 'amazon' ? { ...g, open: g.amazon_open } : g)
-      .filter(g => g.open > 0)
+      .filter(g => g.open > 0);
+    const skipped = all.filter(emgCovered);
+    const designs = all.filter(g => !emgCovered(g))
       .sort((a, b) => (b.amazon_open > 0) - (a.amazon_open > 0) || b.open - a.open || a.title.localeCompare(b.title));
     const total = designs.reduce((n, g) => n + g.open, 0);
     return `<div class="eps-date">
       <div class="eps-hd">Emergency${src === 'amazon' ? ' · 🟡 AMAZON ONLY' : ''} · ${fmt(d.date)} · ${total} to print</div>
-      <div class="eps-sub">${designs.length} designs · printed ${new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="eps-sub">${designs.length} designs · printed ${new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${skipped.length ? ` · not printed, already coming: ${skipped.map(g => `${g.open}× ${g.title}`).join(', ')}` : ''}</div>
       <div class="eps-grid">${designs.map(g => `
         <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.amazon_open ? '<span style="font-weight:800;color:#c07000">Amazon</span> ' : ''}${g.title}
 </div>`).join('')}
@@ -4389,8 +4404,10 @@ function emgPrintDates(dates, src) {
 
 async function emgMarkPrintedDates(dates, src) {
   const rows = emgDatesData(dates);
-  const units = rows.flatMap(d => (d.open_units || []).filter(u => !src || u.src === src));
-  if (!units.length) { toast('Nothing open to mark for that selection'); return; }
+  // Designs production already has on the way stay open; the dispatch list will cover them.
+  const skipKeys = new Set(rows.flatMap(d => d.designs.filter(emgCovered).flatMap(g => (g.open_units || []).map(u => `${u.oi}|${u.li}|${u.ui}`))));
+  const units = rows.flatMap(d => (d.open_units || []).filter(u => (!src || u.src === src) && !skipKeys.has(`${u.oi}|${u.li}|${u.ui}`)));
+  if (!units.length) { toast(skipKeys.size ? 'Everything open here is already coming from production — nothing to print' : 'Nothing open to mark for that selection'); return; }
   const fmt = iso => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
   if (!confirm(`Mark ${units.length}${src === 'amazon' ? ' Amazon' : ''} unit${units.length !== 1 ? 's' : ''} as printed for ${rows.map(d => fmt(d.date)).join(', ')}?\n\nThey move to "Printed · not sent". You can undo this one step with "Undo last mark".`)) return;
   try {
