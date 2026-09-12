@@ -671,6 +671,7 @@ input[type=file]{display:none}
     <div class="ftab" onclick="setFilter('matched')" data-f="matched" data-label="Matched ✓">Matched ✓</div>
     <div class="ftab" onclick="setFilter('inpaint')" data-f="inpaint" data-label="🎨 In Paint">🎨 In Paint</div>
     <div class="ftab" onclick="setFilter('emergency')" data-f="emergency" data-label="Emergency">Emergency</div>
+    <div class="ftab" onclick="setFilter('amazon')" data-f="amazon" data-label="Amazon">Amazon</div>
     <div class="ftab" onclick="setFilter('dispatched')" data-f="dispatched" data-label="Dispatched">Dispatched</div>
   </div>
 
@@ -3094,7 +3095,7 @@ function updateFilterCounts() {
   let items = selectedDate === 'all' ? rackItems : rackItems.filter(it => it.order_date === selectedDate);
   const byOrder = {};
   for (const it of items) {
-    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false, hasUnmatchedNotPaint: false };
+    if (!byOrder[it.order_name]) byOrder[it.order_name] = { dispatched: it.dispatched, is_emergency: it.is_emergency, needed: 0, found: 0, hasPaint: false, hasUnmatchedNotPaint: false, source: it.source || 'website' };
     byOrder[it.order_name].needed += it.needed;
     byOrder[it.order_name].found  += it.found;
     if (it.dispatched)   byOrder[it.order_name].dispatched   = true;
@@ -3109,6 +3110,7 @@ function updateFilterCounts() {
     notmatched: all.filter(o => !o.dispatched && o.hasUnmatchedNotPaint).length,
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
+    amazon:     all.filter(o => !o.dispatched && o.source === 'amazon').length,
     dispatched: all.filter(o => o.dispatched).length,
     inpaint:    all.filter(o => !o.dispatched && o.hasPaint).length,
   };
@@ -3160,7 +3162,7 @@ function renderList() {
       order_name: it.order_name, order_date: it.order_date,
       customer: it.customer, dispatched: it.dispatched,
       fulfilled: it.fulfilled, is_emergency: it.is_emergency,
-      cancelled: it.cancelled,
+      cancelled: it.cancelled, source: it.source || 'website',
       notes: it.notes, rack_location: it.rack_location, painter: it.painter,
       tracking: it.tracking, tracking_company: it.tracking_company,
       prev_tracking_company: it.prev_tracking_company,
@@ -3193,6 +3195,7 @@ function renderList() {
     if (activeFilter === 'partial')    return partial && !o.dispatched;
     if (activeFilter === 'matched')    return complete && !o.dispatched;
     if (activeFilter === 'emergency')  return _liveEmgOrders.has(o.order_name) && !o.dispatched;
+    if (activeFilter === 'amazon')     return o.source === 'amazon' && !o.dispatched;
     if (activeFilter === 'inpaint')    return o.items.some(it => _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
     if (activeFilter === 'needswork')  return !complete && !o.dispatched && !o.items.some(it => _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
     return true;
@@ -3257,7 +3260,7 @@ function renderList() {
       html += `<div class="ord-card ${cardCls}" id="card-${esc(o.order_name)}" style="${slipSelStyle}${o.cancelled?'opacity:.6;':''}" >
         <div class="ord-top" ${_slipSelMode ? `onclick="slipSelToggle('${safeOn}')" style="cursor:pointer"` : ''}>
           <div>
-            <span class="ord-name">${esc(o.order_name)}</span>
+            <span class="ord-name" title="${esc(o.order_name)}">${o.source === 'amazon' ? '🟡 …' + esc(o.order_name.slice(-7)) : esc(o.order_name)}</span>
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
 
@@ -4553,6 +4556,7 @@ function _trackingUrl(company, awb) {
   return `https://app-v1.shipway.com/tracking/forward/${encodeURIComponent(awb)}/`;
 }
 function _getCarrierTag(orderName, rackItem) {
+  if (rackItem?.source === 'amazon') return '<span style="display:inline-block;margin-top:2px;font-size:.6rem;font-weight:800;padding:2px 8px;border-radius:20px;background:#ff9900;color:#fff">Amazon</span>';
   // Prefer live data from rackItem (Supabase), fall back to scan cache (localStorage)
   const company = rackItem?.tracking_company || _awbCache[orderName]?.company || null;
   const awb     = rackItem?.tracking        || _awbCache[orderName]?.awb     || null;
