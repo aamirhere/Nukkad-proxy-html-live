@@ -389,7 +389,7 @@ input[type=file]{display:none}
 .painter-name-inp:focus{outline:none;border-color:var(--accent)}
 
 /* ── PAINTER DROP-OFF OVERLAY ── */
-.painter-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:700;display:flex;align-items:center;justify-content:center;padding:16px}
+.painter-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px}
 .painter-sheet{background:#fff;border-radius:16px;padding:22px 20px;width:100%;max-width:320px}
 .painter-title{font-family:var(--ff);font-size:1.05rem;font-weight:700;margin-bottom:4px;color:var(--ink)}
 .painter-sub{font-size:.78rem;color:var(--muted);margin-bottom:16px}
@@ -542,11 +542,21 @@ input[type=file]{display:none}
     #scanZen #camCard{padding:13px 16px;border-radius:12px}
     #scanZen #scanColorBar{margin-top:8px}#scanZen .color-pills button,#scanZen .color-pills .cpill{font-size:.72rem;padding:4px 10px}
     #scanZen .hist-list{display:none!important}
-    @media (max-width:768px){#scanZen{padding:0}#scanZen .zen-panel{max-height:100vh;height:100vh;border-radius:0;padding:12px 12px calc(16px + env(safe-area-inset-bottom))}}
+    #scanZen .zen-head{position:sticky;top:0;z-index:3;background:#fff;padding:2px 0 6px;margin:-2px 0 6px}
+    .home-painter{background:#fff8e1;color:#5d4037;border:1.5px solid #ffcc80;display:none}
+    .zen-foot{display:none;margin-top:14px}
+    .zen-foot button{width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-family:var(--fb);font-weight:700;color:var(--ink2);font-size:.9rem}
+    @media (max-width:768px){
+      #scanZen{padding:0}#scanZen .zen-panel{max-height:100vh;height:100vh;border-radius:0;padding:12px 12px calc(16px + env(safe-area-inset-bottom))}
+      .home-painter{display:flex}#scanZen #modePainter,#scanZen #modeSortCheck{display:none}
+      #scanZen .wmp-btn{flex:1 1 40%;padding:11px 14px;font-size:.92rem;border-radius:12px;white-space:nowrap;justify-content:center}
+      #scanZen .zen-foot{display:block}
+    }
     @media (max-width:768px){.home-hero{grid-template-columns:1fr}.home-print{display:none}.home-btn{padding:14px 12px}.home-btn .t{font-size:.95rem}}
   </style>
   <div class="home-hero no-print">
-    <button class="home-btn home-scan" onclick="zenScanOpen()"><span class="ic">📷</span><span><div class="t">Scan</div><div class="u" id="homeScanSub">Sort &amp; Check · Daily</div></span></button>
+    <button class="home-btn home-scan" onclick="zenScanOpen('sort')"><span class="ic">📷</span><span><div class="t">Scan</div><div class="u" id="homeScanSub">Sort &amp; Check · Daily</div></span></button>
+    <button class="home-btn home-painter" onclick="zenScanOpen('painter')"><span class="ic">🎨</span><span><div class="t">Painter drop-off</div><div class="u">Hand pieces to a painter</div></span></button>
     <button class="home-btn home-print" onclick="laptopOpen()"><span class="ic">🖨</span><span><div class="t">Laptop print</div><div class="u" id="homePrintSub">Auto-print off</div></span></button>
   </div>
   <!-- dashboard: what needs attention today, one tap to the right list -->
@@ -707,6 +717,7 @@ input[type=file]{display:none}
   <div class="hist-list no-print" id="histList" style="display:none">
     <div class="empty-msg">No scans yet.</div>
   </div>
+  <div class="zen-foot"><button onclick="zenScanClose()">Close</button></div>
   </div>
   </div>
 
@@ -1502,7 +1513,12 @@ async function reissueUndo(orderName) {
   catch (e) { toast('Failed: ' + e.message); }
 }
 // ── Home popups ───────────────────────────────────────────────────────────────
-function zenScanOpen() { document.getElementById('scanZen').style.display = 'flex'; setTimeout(() => { const q = document.getElementById('manualQ'); if (q && q.offsetParent && !/Mobi|Android/i.test(navigator.userAgent)) q.focus(); }, 50); }
+function zenScanOpen(mode) {
+  // On the phone the two entry buttons choose the mode; on the laptop the pills inside do.
+  const phone = window.matchMedia('(max-width:768px)').matches;
+  if (phone && mode && activeMode !== mode) setMode(mode);
+  const zt = document.querySelector('#scanZen .zen-head b'); if (zt) zt.textContent = (phone && mode === 'painter') || (!phone && activeMode === 'painter') ? '🎨 Painter drop-off' : '📷 Scan';
+  document.getElementById('scanZen').style.display = 'flex'; setTimeout(() => { const q = document.getElementById('manualQ'); if (q && q.offsetParent && !/Mobi|Android/i.test(navigator.userAgent)) q.focus(); }, 50); }
 function zenScanClose() { document.getElementById('scanZen').style.display = 'none'; }
 function laptopOpen() {
   // Laptop print is the old P mode: open it in that mode so the queue, printed and scanned labels show as before
