@@ -3253,7 +3253,7 @@ function renderList() {
             <span class="ord-name">${esc(o.order_name)}</span>
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
-            ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':(_liveEmgArrived.has(o.order_name)?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7">📦 Arrived from production</span>':'')}
+            ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':(_liveEmgArrived.has(o.order_name)?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7">📦 Arrived</span>':'')}
             ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
             ${complete && !o.dispatched && !o.cancelled ? (o.painter ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80">🎨 Drop-off</span>' : '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">✓ Matched</span>') : ''}
             ${o.print_done && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
