@@ -1441,10 +1441,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <button onclick="addDispatchRow()" style="flex:1;padding:9px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">+ Add design</button>
       <button onclick="toggleDispatchPaste()" style="padding:9px 14px;border:1.5px dashed #e9ddca;border-radius:8px;background:none;color:#9c8a76;font-size:.82rem;cursor:pointer;font-weight:600">📋 Paste list</button>
     </div>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:.83rem;color:#6f5b46;cursor:pointer">
-      <input type="checkbox" id="dispatchUpdateInventory" style="width:15px;height:15px;accent-color:#d4541f">
-      Also update stock &amp; mark emergencies fulfilled
-    </label>
+    <div style="margin-top:14px;font-size:.78rem;color:#6f5b46">Saving marks the emergencies on this list as sent and puts the rest into stock. The carton check corrects the numbers when it arrives.</div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button onclick="closeDispatchModal()" style="flex:1;padding:11px;border:1.5px solid #e9ddca;border-radius:10px;background:none;font-weight:700;cursor:pointer">Cancel</button>
       <button onclick="submitDispatch(this)" style="flex:2;padding:11px;border:none;border-radius:10px;background:#d4541f;color:#fff;font-weight:700;font-size:.9rem;cursor:pointer">Save Dispatch</button>
@@ -2105,17 +2102,18 @@ function dvRender(v) {
   v.items = [...v.items].sort((a, b) => ((b.emergency || 0) > 0) - ((a.emergency || 0) > 0) || (b.emergency || 0) - (a.emergency || 0) || ((b.fba || 0) > 0) - ((a.fba || 0) > 0) || b.qty - a.qty);
   document.getElementById('dvTitle').textContent = v.title;
   document.getElementById('dvSub').textContent = v.sub;
-  document.getElementById('dvBody').innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:.7rem;color:var(--muted);padding:4px 8px">Design</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Sent</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Counted</th></tr></thead><tbody>
+  document.getElementById('dvBody').innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:.7rem;color:var(--muted);padding:4px 8px">Design</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Sent</th><th style="text-align:right;font-size:.7rem;color:var(--muted);padding:4px 8px">Counted</th><th style="text-align:right;font-size:.7rem;color:#b03020;padding:4px 8px" title="Arrived broken — production makes these again">Broken</th></tr></thead><tbody>
     ${v.items.map((it, i) => {
       const prev = v.items[i - 1];
       const sec = x => (x.emergency || 0) > 0 ? 'emg' : (x.fba || 0) > 0 ? 'fba' : 'stock';
-      const head = (!prev || sec(prev) !== sec(it)) ? `<tr><td colspan="3" style="padding:8px 8px 3px;font-size:.7rem;font-weight:800;letter-spacing:.05em;color:${sec(it) === 'emg' ? '#b03020' : sec(it) === 'fba' ? '#a56400' : 'var(--muted)'}">${sec(it) === 'emg' ? '🚨 EMERGENCY — set these aside first' : sec(it) === 'fba' ? '📦 AMAZON / ZEPTO' : '📦 STOCK'}</td></tr>` : '';
+      const head = (!prev || sec(prev) !== sec(it)) ? `<tr><td colspan="4" style="padding:8px 8px 3px;font-size:.7rem;font-weight:800;letter-spacing:.05em;color:${sec(it) === 'emg' ? '#b03020' : sec(it) === 'fba' ? '#a56400' : 'var(--muted)'}">${sec(it) === 'emg' ? '🚨 EMERGENCY — set these aside first' : sec(it) === 'fba' ? '📦 AMAZON / ZEPTO' : '📦 STOCK'}</td></tr>` : '';
       const byColor = {}; for (const u of it.units) { const c = (u.color || '').replace(/\s*\(\+?\s*rs\.?\s*\d+\)/i, '').trim() || 'any'; byColor[c] = (byColor[c] || 0) + 1; }
       const chips = Object.entries(byColor).map(([c, n]) => `<span style="${c === 'any' ? 'background:#f1ece4;color:var(--ink2)' : colorPillStyle(c)};font-size:.68rem;padding:1px 8px;border-radius:9px;font-weight:700;white-space:nowrap;display:inline-block">${n} ${c}</span>`).join('');
       return `${head}<tr class="dv-row ok" id="dv-${i}">
         <td><b>${it.title}</b>${it.emergency ? `<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center"><span style="font-size:.68rem;color:#b03020;font-weight:700;white-space:nowrap">🚨 ${it.emergency} emergency:</span>${chips}</div>` : ''}${it.fba ? `<div style="font-size:.68rem;color:#a56400;font-weight:700;margin-top:2px">📦 ${it.fba} for Amazon/Zepto</div>` : ''}</td>
         <td style="text-align:right;color:var(--muted)">${it.qty}</td>
         <td style="text-align:right"><input type="number" min="0" inputmode="numeric" pattern="[0-9]*" class="dv-in" data-h="${it.handle}" data-sent="${it.qty}" value="${it.qty}" oninput="dvChanged(${i},this)" onfocus="this.select()" onclick="this.select()"></td>
+        <td style="text-align:right"><input type="number" min="0" inputmode="numeric" pattern="[0-9]*" class="dv-broken" data-h="${it.handle}" data-title="${(it.title || '').replace(/"/g, '&quot;')}" value="0" placeholder="0" style="width:52px;opacity:.7" oninput="this.style.opacity=(parseInt(this.value,10)||0)?'1':'.7';this.style.color=(parseInt(this.value,10)||0)?'#b03020':''" onfocus="this.select()" onclick="this.select()"></td>
       </tr>`; }).join('')}
   </tbody></table>`;
   // restore a half-done count from this device
@@ -2159,10 +2157,13 @@ function dvClose() { dvSaveDraft(); document.getElementById('dvModal').classList
 async function dvConfirm() {
   if (!_dvList) return;
   const counts = [...document.querySelectorAll('#dvBody .dv-in')].map(i => ({ handle: i.dataset.h, counted: parseInt(i.value, 10) || 0 }));
+  const broken = [...document.querySelectorAll('#dvBody .dv-broken')].map(i => ({ handle: i.dataset.h, title: i.dataset.title, qty: parseInt(i.value, 10) || 0 })).filter(b => b.qty > 0);
+  if (broken.length && !confirm(`${broken.reduce((s, b) => s + b.qty, 0)} broken piece${broken.reduce((s, b) => s + b.qty, 0) !== 1 ? 's' : ''} → ask production to make them again?\n\n${broken.map(b => `${b.qty}× ${b.title}`).join('\n')}\n\nThey appear on the Emergency page as "Replacement".`)) return;
   const btn = document.getElementById('dvConfirmBtn'); btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const r = _dvList.ids.length > 1 ? await api({ action: 'dispatch_verify_multi', ids: _dvList.ids, counts }) : await api({ action: 'dispatch_verify', id: _dvList.ids[0], counts });
-    toast(r.changed ? `✓ Confirmed — ${r.changed} line${r.changed !== 1 ? 's' : ''} corrected` : '✓ Confirmed — matches');
+    const r = _dvList.ids.length > 1 ? await api({ action: 'dispatch_verify_multi', ids: _dvList.ids, counts, broken }) : await api({ action: 'dispatch_verify', id: _dvList.ids[0], counts, broken });
+    const rep = r.replacements ? ` · ${r.replacements} replacement${r.replacements !== 1 ? 's' : ''} requested` : '';
+    toast(r.changed ? `✓ Confirmed — ${r.changed} line${r.changed !== 1 ? 's' : ''} corrected${rep}` : `✓ Confirmed — matches${rep}`);
     try { localStorage.removeItem(dvDraftKey(_dvList.ids)); for (const id of _dvList.ids) localStorage.removeItem(dvDraftKey([id])); } catch {}
     _dvList = null; document.getElementById('dvModal').classList.remove('open'); loadIncoming();
     const res = await api({ action: 'load_products' }); allProducts = res.products || []; renderInventory();
@@ -4985,7 +4986,7 @@ async function submitDispatch(btn) {
     .filter(r => r.handle && r.qty > 0)
     .map(r => ({ handle: r.handle, title: r.title, qty: r.qty, type: _dispatchType }));
   if (!items.length) { toast('Add at least one design with qty'); return; }
-  const updateInventory = document.getElementById('dispatchUpdateInventory').checked;
+  const updateInventory = true;   // user 2's save is the real event; user 1 corrects at carton check
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     const res = await api({
