@@ -515,16 +515,52 @@ input[type=file]{display:none}
 
 <!-- ── SCAN TAB ── -->
 <div id="scanTab" class="scan-wrap">
+  <!-- home: one tap to scan, one to print; the rest is the day at a glance -->
+  <style>
+    .home-hero{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 12px}
+    .home-btn{border:none;border-radius:16px;padding:18px 14px;text-align:left;cursor:pointer;font-family:var(--fb);display:flex;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(58,43,29,.08)}
+    .home-btn .ic{font-size:1.9rem;line-height:1}.home-btn .t{font-family:var(--ff);font-size:1.05rem;font-weight:700;line-height:1.1}.home-btn .u{font-size:.7rem;opacity:.75;margin-top:3px}
+    .home-scan{background:var(--ink);color:#fff}.home-print{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+    .zen-wrap{position:fixed;inset:0;z-index:9000;background:rgba(40,25,10,.55);display:flex;align-items:center;justify-content:center;padding:10px}
+    .zen-panel{background:#fdf7f0;border-radius:16px;width:100%;max-width:720px;max-height:94vh;overflow-y:auto;padding:12px 14px 16px;box-shadow:0 12px 40px rgba(0,0,0,.25);position:relative}
+    .zen-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .zen-head b{font-family:var(--ff);font-size:1rem}.zen-x{border:none;background:#f1e8dc;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;color:var(--ink2)}
+    @media (max-width:480px){.home-hero{grid-template-columns:1fr 1fr}.home-btn{padding:14px 12px}.home-btn .t{font-size:.95rem}}
+  </style>
+  <div class="home-hero no-print">
+    <button class="home-btn home-scan" onclick="zenScanOpen()"><span class="ic">📷</span><span><div class="t">Scan</div><div class="u" id="homeScanSub">Sort &amp; Check · Daily</div></span></button>
+    <button class="home-btn home-print" onclick="laptopOpen()"><span class="ic">🖨</span><span><div class="t">Laptop print</div><div class="u" id="homePrintSub">Auto-print off</div></span></button>
+  </div>
+  <!-- dashboard: what needs attention today, one tap to the right list -->
+  <style>
+    .dash{margin-top:6px}
+    .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+    .dash-tile{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;font-family:var(--fb)}
+    .dash-tile:hover{border-color:var(--accent)}
+    .dash-tile .n{font-family:var(--ff);font-size:1.5rem;font-weight:700;line-height:1.1;color:var(--ink)}
+    .dash-tile .l{font-size:.68rem;color:var(--muted);margin-top:2px;letter-spacing:.03em;text-transform:uppercase;font-weight:700}
+    .dash-tile .s{font-size:.7rem;color:var(--ink2);margin-top:3px}
+    .dash-tile.warn .n{color:#c62828}.dash-tile.ok .n{color:#2e7d32}.dash-tile.amz .n{color:#e65100}
+    .dash-sec{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+    .dash-sec h4{margin:0 0 6px;font-family:var(--ff);font-size:.95rem;font-weight:700;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
+    .dash-sec h4 a{font-family:var(--fb);font-size:.72rem;color:var(--accent);cursor:pointer;font-weight:700}
+    .dash-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3ece2;font-size:.8rem;cursor:pointer}
+    .dash-row:first-of-type{border-top:none}
+    .dash-row b{min-width:64px}.dash-row .m{color:var(--muted);font-size:.72rem}.dash-row .r{margin-left:auto;font-weight:700}
+    .dash-row .bad{color:#c62828}.dash-row .late{color:#e65100;font-size:.68rem;font-weight:800}
+    .dash-links{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .dash-links button{font-family:var(--fb);font-size:.76rem;font-weight:700;padding:6px 11px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+    @media (max-width:480px){.dash-grid{grid-template-columns:repeat(3,1fr)}.dash-tile{padding:8px}.dash-tile .n{font-size:1.25rem}}
+  </style>
+  <div class="dash no-print" id="dashboard"><div class="empty-msg">Loading…</div></div>
+
+  <!-- scanner popup: everything the scan needs, nothing else -->
+  <div id="scanZen" class="zen-wrap no-print" style="display:none" onclick="if(event.target===this)zenScanClose()">
+  <div class="zen-panel">
+  <div class="zen-head"><b>📷 Scan</b><button class="zen-x" onclick="zenScanClose()" title="Close (Esc)">✕</button></div>
   <!-- mode picker -->
   <div class="mode-picker" id="modePicker">
     <!-- laptop row — hidden on mobile -->
-    <button class="mode-btn" id="modeLaptop" onclick="setMode('laptop')" style="display:none">
-      <span class="mb-icon" style="font-size:.9rem;font-weight:900">P</span>
-      <span class="mb-body">
-        <div class="mb-title">Laptop · Auto-Print</div>
-      </span>
-      <span class="mb-pill">Off</span>
-    </button>
     <!-- mobile row -->
     <div class="mode-row">
       <button class="mode-btn active" id="modeSortCheck" onclick="setMode('sort')">
@@ -647,31 +683,32 @@ input[type=file]{display:none}
 
   <div id="resultArea"></div>
 
-  <!-- dashboard: what needs attention today, one tap to the right list -->
-  <style>
-    .dash{margin-top:6px}
-    .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px}
-    .dash-tile{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;font-family:var(--fb)}
-    .dash-tile:hover{border-color:var(--accent)}
-    .dash-tile .n{font-family:var(--ff);font-size:1.5rem;font-weight:700;line-height:1.1;color:var(--ink)}
-    .dash-tile .l{font-size:.68rem;color:var(--muted);margin-top:2px;letter-spacing:.03em;text-transform:uppercase;font-weight:700}
-    .dash-tile .s{font-size:.7rem;color:var(--ink2);margin-top:3px}
-    .dash-tile.warn .n{color:#c62828}.dash-tile.ok .n{color:#2e7d32}.dash-tile.amz .n{color:#e65100}
-    .dash-sec{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
-    .dash-sec h4{margin:0 0 6px;font-family:var(--ff);font-size:.95rem;font-weight:700;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
-    .dash-sec h4 a{font-family:var(--fb);font-size:.72rem;color:var(--accent);cursor:pointer;font-weight:700}
-    .dash-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f3ece2;font-size:.8rem;cursor:pointer}
-    .dash-row:first-of-type{border-top:none}
-    .dash-row b{min-width:64px}.dash-row .m{color:var(--muted);font-size:.72rem}.dash-row .r{margin-left:auto;font-weight:700}
-    .dash-row .bad{color:#c62828}.dash-row .late{color:#e65100;font-size:.68rem;font-weight:800}
-    .dash-links{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-    .dash-links button{font-family:var(--fb);font-size:.76rem;font-weight:700;padding:6px 11px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
-    @media (max-width:480px){.dash-grid{grid-template-columns:repeat(3,1fr)}.dash-tile{padding:8px}.dash-tile .n{font-size:1.25rem}}
-  </style>
-  <div class="dash no-print" id="dashboard"><div class="empty-msg">Loading…</div></div>
 
   <div class="hist-list no-print" id="histList" style="display:none">
     <div class="empty-msg">No scans yet.</div>
+  </div>
+  </div>
+  </div>
+
+  <!-- laptop print popup -->
+  <div id="laptopZen" class="zen-wrap no-print" style="display:none" onclick="if(event.target===this)laptopClose()">
+  <div class="zen-panel" style="max-width:520px">
+  <div class="zen-head"><b>🖨 Laptop print</b><button class="zen-x" onclick="laptopClose()" title="Close">✕</button></div>
+  <div class="mode-picker" style="margin-bottom:10px">
+    <button class="mode-btn" id="modeLaptop" onclick="setMode('laptop')" >
+      <span class="mb-icon" style="font-size:.9rem;font-weight:900">P</span>
+      <span class="mb-body">
+        <div class="mb-title">Laptop · Auto-Print</div>
+      </span>
+      <span class="mb-pill">Off</span>
+    </button>
+  </div>
+  <div id="laptopInfo" style="font-size:.82rem;color:var(--ink2);display:flex;flex-direction:column;gap:6px"></div>
+  <div class="dash-links" style="margin-top:12px">
+    <button onclick="laptopClose();switchTab('pending')">⏳ Print queue</button>
+    <button onclick="laptopClose();toggleSlipSelMode();switchTab('list')">🖨 Print slips</button>
+  </div>
+  </div>
   </div>
 </div>
 
@@ -1034,6 +1071,7 @@ function setWorkMode(mode) {
   document.getElementById('wmpFinished').classList.toggle('wmp-active', mode === 'finished');
   document.getElementById('wmpPaint').classList.toggle('wmp-active', mode === 'paint');
   document.getElementById('workModeNote').style.display = mode === 'paint' ? 'block' : 'none';
+  if (typeof homeSubs === 'function') homeSubs();
 }
 let activeTrackFilter = 'all';
 let _currentSlipOrder = null;
@@ -1097,6 +1135,7 @@ function _renderScanColorBar() {
 // packing context — session-level, what are we packing for right now
 let packingCtx = 'daily';
 function setPackingCtx(ctx, btn) {
+  setTimeout(() => { if (typeof homeSubs === 'function') homeSubs(); }, 0);
   packingCtx = ctx;
   document.querySelectorAll('.pctx-btn').forEach(b => b.classList.remove('pctx-active'));
   btn.classList.add('pctx-active');
@@ -1441,6 +1480,26 @@ async function reissueUndo(orderName) {
   try { await apiFetch({ action: 'rack_reopen_undo', order_name: orderName }); rackItems = rackItems.filter(it => it.order_name !== orderName); buildDateNav(); updateFilterCounts(); renderList(); toast('Reissue removed'); }
   catch (e) { toast('Failed: ' + e.message); }
 }
+// ── Home popups ───────────────────────────────────────────────────────────────
+function zenScanOpen() { document.getElementById('scanZen').style.display = 'flex'; setTimeout(() => { const q = document.getElementById('manualQ'); if (q && q.offsetParent && !/Mobi|Android/i.test(navigator.userAgent)) q.focus(); }, 50); }
+function zenScanClose() { document.getElementById('scanZen').style.display = 'none'; }
+function laptopOpen() {
+  const info = document.getElementById('laptopInfo');
+  const queued = (typeof _pqOrders !== 'undefined' && Array.isArray(_pqOrders)) ? _pqOrders.filter(o => !o.printed).length : null;
+  info.innerHTML = [
+    `<div>Auto-print is <b>${activeMode === 'laptop' ? 'on' : 'off'}</b>. When on, a matched order prints its slip on this laptop as soon as the last piece is scanned.</div>`,
+    queued != null ? `<div><b>${queued}</b> order${queued !== 1 ? 's' : ''} waiting in the print queue.</div>` : '',
+    `<div><b>${todayDispatchCount}</b> dispatched today.</div>`,
+  ].join('');
+  document.getElementById('laptopZen').style.display = 'flex';
+}
+function laptopClose() { document.getElementById('laptopZen').style.display = 'none'; }
+function homeSubs() {
+  const a = document.getElementById('homeScanSub'), b = document.getElementById('homePrintSub');
+  if (a) a.textContent = `${activeMode === 'painter' ? 'Painter drop-off' : 'Sort & Check'} · ${(typeof packingCtx !== 'undefined' ? packingCtx : 'daily').replace(/^\w/, c => c.toUpperCase())}${typeof _scanWorkMode !== 'undefined' && _scanWorkMode === 'paint' ? ' · Paint' : ''}`;
+  if (b) b.textContent = activeMode === 'laptop' ? 'Auto-print ON' : 'Auto-print off';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { zenScanClose(); laptopClose(); } });
 async function loadLiveEmergencies() {
   try {
     const res = await apiFetch({ action: 'emergency_states' });
@@ -3586,7 +3645,7 @@ function updateSummary() {
   document.getElementById('sMissing').textContent    = missing;
   document.getElementById('sDispToday').textContent  = todayDispatchCount;
   document.getElementById('sPct').textContent        = totalN ? `${pct}% sorted` : '';
-  renderDashboard();
+  renderDashboard(); homeSubs();
 }
 
 // ── DASHBOARD (Scan tab) ────────────────────────────────────────────────────────
@@ -4171,6 +4230,7 @@ let printModeActive = false;
 let printModeTimer  = null;
 
 function setMode(mode) {
+  setTimeout(() => { if (typeof homeSubs === 'function') homeSubs(); }, 0);
   // stop whatever was running
   if (printModeActive) {
     printModeActive = false;
