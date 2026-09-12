@@ -1411,6 +1411,7 @@ function buildDateNav() {
   for (const d of dates) {
     const dayItems = rackItems.filter(it => it.order_date === d && !it.dispatched && !it.cancelled);
     const orders   = new Set(dayItems.map(it => it.order_name)).size;
+    if (!orders && selectedDate !== d) continue;   // everything dispatched or cancelled: nothing left to do on this date
     const needed   = dayItems.reduce((s,it)=>s+it.needed,0);
     const found    = dayItems.reduce((s,it)=>s+it.found,0);
     const missing  = needed - found;
