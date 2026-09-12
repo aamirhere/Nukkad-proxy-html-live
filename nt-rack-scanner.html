@@ -1327,7 +1327,17 @@ async function shipwayTest() {
   box.onclick = e => { if (e.target === box) box.remove(); };
   document.body.appendChild(box);
   try {
-    const r = await apiFetch(!v ? { action: 'test' } : isAwb ? { action: 'awb', awb: v } : { action: 'order', order_id: v }, SHIPWAY_API);
+    let r;
+    if (!v) {
+      const [t, c] = await Promise.all([apiFetch({ action: 'test' }, SHIPWAY_API), apiFetch({ action: 'carriers' }, SHIPWAY_API)]);
+      r = { ...t, carriers: c };
+    } else if (isAwb) {
+      r = await apiFetch({ action: 'awb', awb: v }, SHIPWAY_API);
+      if (!r.ok) {
+        const carrier = prompt('Not a Shipway booking. Which courier is this AWB on? (bluedart / delhivery / dtdc / ecom / xpressbees, or a Shipway carrier id)', 'delhivery');
+        if (carrier) r = await apiFetch({ action: 'track', awb: v, carrier }, SHIPWAY_API);
+      }
+    } else r = await apiFetch({ action: 'order', order_id: v }, SHIPWAY_API);
     box.firstElementChild.textContent = JSON.stringify(r, null, 2);
   } catch (e) { box.firstElementChild.textContent = 'Error: ' + e.message; }
 }
