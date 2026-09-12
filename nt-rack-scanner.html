@@ -987,7 +987,7 @@ function _rebuildPaintFromRack() {
 
 async function _savePaint(orderName, quote, color, count) {
   try {
-    await apiFetch({ action: 'set_paint', order_name: orderName, quote, color, count });
+    await apiFetch({ action: 'set_paint', order_name: orderName, quote, color, count }); _emgRefreshSoon();
   } catch(e) { console.warn('paint sync failed', e); }
 }
 
@@ -1302,14 +1302,20 @@ async function fixRackQuotes() {
   }
 }
 
+let _liveEmgArrived = new Set(); // orders whose flagged pieces have all been dispatched by production
+let _liveEmgState = {};
+function _emgRefreshSoon() { clearTimeout(_emgRefreshT); _emgRefreshT = setTimeout(loadLiveEmergencies, 600); }
+let _emgRefreshT = null;
 async function loadLiveEmergencies() {
   try {
-    const res = await apiFetch({ action: 'load_all_emergencies' });
-    const names = new Set();
-    for (const g of (res.groups || [])) {
-      for (const u of (g.units || [])) { if (u.order_name) names.add(u.order_name); }
+    const res = await apiFetch({ action: 'emergency_states' });
+    const names = new Set(), arrived = new Set();
+    _liveEmgState = res.orders || {};
+    for (const [on, st] of Object.entries(_liveEmgState)) {
+      if (st.open + st.printed > 0) names.add(on);
+      else if (st.arrived > 0) arrived.add(on);
     }
-    _liveEmgOrders = names;
+    _liveEmgOrders = names; _liveEmgArrived = arrived;
     updateSummary();
     if (activeTab === 'list') renderList();
     if (activeTab === 'dispatch') renderDispatch();
@@ -1947,7 +1953,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
     return;
   }
   try {
-    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty });
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty }); _emgRefreshSoon();
     const row = rackItems.find(it => it.order_name===orderName && it.quote===quote && it.color===color);
     if (row) row.found = r.found;
 
@@ -2215,7 +2221,7 @@ async function confirmListSelected() {
   for (const key of keys) {
     const [orderName, quote, color] = key.split('|||');
     try {
-      const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true });
+      const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1, set_complete: true }); _emgRefreshSoon();
       const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
       if (row) row.found = r.found ?? row.needed;
       successCount++;
@@ -2595,7 +2601,7 @@ async function redoMark(orderName, quote, color, prevFound) {
   const row = rackItems.find(it => it.order_name === orderName && it.quote === quote && it.color === color);
   if (!row) return;
   try {
-    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1 });
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: 1 }); _emgRefreshSoon();
     row.found = r.found;
     updateSummary(); buildDateNav(); renderList();
   } catch(e) { alert('Redo failed: ' + e.message); }
@@ -3247,7 +3253,7 @@ function renderList() {
             <span class="ord-name">${esc(o.order_name)}</span>
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
-            ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':''}
+            ${isLiveEmg?'<span class="tag-emg">⚠ No Stock</span>':(_liveEmgArrived.has(o.order_name)?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7">📦 Arrived from production</span>':'')}
             ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
             ${complete && !o.dispatched && !o.cancelled ? (o.painter ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80">🎨 Drop-off</span>' : '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">✓ Matched</span>') : ''}
             ${o.print_done && !o.dispatched && !o.cancelled ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">🖨 Printed</span>' : ''}
@@ -5195,7 +5201,7 @@ async function submitBatch() {
     for (const item of toConfirm) {
       const m = item.tag.match;
       try {
-        const r = await apiFetch({ action: 'update_rack_found', order_name: m.order_name, quote: m.quote, color: m.color, delta: 1 });
+        const r = await apiFetch({ action: 'update_rack_found', order_name: m.order_name, quote: m.quote, color: m.color, delta: 1 }); _emgRefreshSoon();
         const it = rackItems.find(i => i.order_name === m.order_name && i.quote === m.quote && i.color === m.color);
         if (it) it.found = r.found ?? Math.min(it.found + 1, it.needed);
         if (it && it.found >= it.needed) {
@@ -5895,7 +5901,7 @@ async function painterMarkFound(orderName, quote, color, btn, qtyInpId, rowId) {
   const qty = qtyInpId ? (parseInt(document.getElementById(qtyInpId)?.value) || 1) : 1;
   btn.disabled = true; btn.textContent = '…';
   try {
-    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty });
+    const r = await apiFetch({ action: 'update_rack_found', order_name: orderName, quote, color, delta: qty }); _emgRefreshSoon();
     const it = rackItems.find(i => i.order_name === orderName && i.quote === quote && i.color === color);
     if (it) it.found = r.found ?? Math.min(it.found + qty, it.needed);
     // Queue for print when order is now complete
