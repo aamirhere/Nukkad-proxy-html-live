@@ -488,7 +488,6 @@ input[type=file]{display:none}
   <div class="tab" id="tabDispatch" onclick="switchTab('dispatch')">Dispatch</div>
   <div class="tab" id="tabProd" onclick="switchTab('prod')">Production</div>
   <div class="tab" id="tabPending" onclick="switchTab('pending')" style="position:relative">Pending<span id="photoPendingBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;border-radius:99px;font-size:.6rem;padding:1px 5px;line-height:1.4"></span></div>
-  <div class="tab" id="tabReissue" onclick="switchTab('reissue')" style="white-space:nowrap">Reissue</div>
   <div class="tab" id="tabTrack" onclick="switchTab('track')">Track</div>
 </div>
 
@@ -816,7 +815,6 @@ input[type=file]{display:none}
     <div class="ftab" onclick="setFilter('inpaint')" data-f="inpaint" data-label="🎨 In Paint">🎨 In Paint</div>
     <div class="ftab" onclick="setFilter('emergency')" data-f="emergency" data-label="Emergency">Emergency</div>
     <div class="ftab" onclick="setFilter('amazon')" data-f="amazon" data-label="Amazon">Amazon</div>
-    <div class="ftab" onclick="setFilter('reissue')" data-f="reissue" data-label="↺ Reissue">↺ Reissue</div>
     <div class="ftab" onclick="setFilter('dispatched')" data-f="dispatched" data-label="Dispatched">Dispatched</div>
   </div>
 
@@ -881,16 +879,6 @@ input[type=file]{display:none}
 </div>
 
 <!-- ── TRACK TAB ── -->
-<!-- ── REISSUE TAB ── -->
-<div id="reissueTab" class="list-wrap" style="display:none">
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="reissueFilters">
-    <div class="ftab active" data-rf="open" onclick="setReissueFilter('open')">Open</div>
-    <div class="ftab" data-rf="done" onclick="setReissueFilter('done')">Dispatched</div>
-    <div class="ftab" data-rf="all" onclick="setReissueFilter('all')">All</div>
-  </div>
-  <div id="reissueContent"><div class="empty-msg">No reissues.</div></div>
-</div>
-
 <div id="trackTab" class="list-wrap" style="display:none">
   <div style="padding:16px 12px 32px">
 
@@ -1305,8 +1293,6 @@ function switchTab(t) {
   document.getElementById('prodTab').style.display     = t === 'prod'     ? '' : 'none';
   document.getElementById('pendingTab').style.display  = t === 'pending'  ? '' : 'none';
   document.getElementById('trackTab').style.display    = t === 'track'    ? '' : 'none';
-  document.getElementById('reissueTab').style.display  = t === 'reissue'  ? '' : 'none';
-  document.getElementById('tabReissue').classList.toggle('active',  t === 'reissue');
   document.getElementById('tabScan').classList.toggle('active',     t === 'scan');
   document.getElementById('tabList').classList.toggle('active',     t === 'list');
   document.getElementById('tabDispatch').classList.toggle('active', t === 'dispatch');
@@ -1317,7 +1303,6 @@ function switchTab(t) {
   if (t === 'dispatch') { renderDispatch(); }
   if (t === 'prod')     { renderProduction(); }
   if (t === 'pending')  { renderPending(); }
-  if (t === 'reissue')  { renderReissue(); }
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -1513,7 +1498,7 @@ async function reissueSave(orderName) {
     toast(`✓ ${r.order_name} created — ${ready === 'inhand' ? 'matched, ready to dispatch' : ready === 'make' ? "emergency for production, on tomorrow's list" : "on today's list"}`);
     onSearch(''); const sb = document.getElementById('searchInp'); if (sb) sb.value = '';
     await loadRackStatus(true);
-    switchTab('reissue');
+    switchTab('list'); selectDate('exchange');
   } catch (e) { toast('Failed: ' + e.message); btn.disabled = false; btn.textContent = 'Create reissue'; }
 }
 async function reissueSetAwb(orderName) {
@@ -1558,9 +1543,9 @@ function homeSubs() {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { zenScanClose(); laptopClose(); } });
 // ── Reissue tab: every replacement, open or dispatched, with the original order, reason, pieces and its own AWB ──
 let _reissueFilter = 'open';
-function setReissueFilter(f) { _reissueFilter = f; document.querySelectorAll('#reissueFilters .ftab').forEach(b => b.classList.toggle('active', b.dataset.rf === f)); renderReissue(); }
+function setReissueFilter(f) { _reissueFilter = f; renderReissue(); }
 function renderReissue() {
-  const el = document.getElementById('reissueContent'); if (!el) return;
+  const el = document.getElementById('listContent'); if (!el) return;
   const groups = {};
   for (const it of rackItems) {
     if (!it.reopen_of) continue;
@@ -1572,10 +1557,10 @@ function renderReissue() {
   if (_reissueFilter === 'done') list = list.filter(g => g.disp);
   list.sort((a, b) => (a.disp - b.disp) || b.date.localeCompare(a.date) || b.name.localeCompare(a.name));
   const n = { open: Object.values(groups).filter(g => !g.canc && !g.disp).length, done: Object.values(groups).filter(g => !g.canc && g.disp).length };
-  document.querySelectorAll('#reissueFilters .ftab').forEach(b => { const f = b.dataset.rf; b.textContent = f === 'open' ? `Open ${n.open}` : f === 'done' ? `Dispatched ${n.done}` : `All ${n.open + n.done}`; });
-  if (!list.length) { el.innerHTML = `<div class="empty-msg">${_reissueFilter === 'open' ? 'No open reissues. Search a dispatched order in the List tab and press ↺ Reissue to create one.' : 'Nothing here.'}</div>`; return; }
+  const bar = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${[['open', `Open ${n.open}`], ['done', `Dispatched ${n.done}`], ['all', `All ${n.open + n.done}`]].map(([f, l]) => `<div class="ftab${_reissueFilter === f ? ' active' : ''}" onclick="setReissueFilter('${f}')">${l}</div>`).join('')}</div>`;
+  if (!list.length) { el.innerHTML = bar + `<div class="empty-msg">${_reissueFilter === 'open' ? 'No open exchanges. Search a dispatched order and press ↺ Reissue to create one.' : 'Nothing here.'}</div>`; return; }
   const fmt = d => d ? new Date(d + 'T00:00:00+05:30').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
-  el.innerHTML = list.map(g => {
+  el.innerHTML = bar + list.map(g => {
     const orig = rackItems.find(it => it.order_name === g.of);
     const safe = g.name.replace(/'/g, "\\'");
     const total = g.items.reduce((s, it) => s + it.needed, 0), found = g.items.reduce((s, it) => s + it.found, 0);
@@ -1648,12 +1633,15 @@ function isOverdue(dateStr) {
 function buildDateNav() {
   const nav = document.getElementById('dateNav');
   // A date whose orders were all cancelled has nothing to do, so it gets no chip.
-  const dates = [...new Set(rackItems.filter(it => !it.cancelled).map(it => it.order_date))].sort();
+  const dates = [...new Set(rackItems.filter(it => !it.cancelled && !it.reopen_of).map(it => it.order_date))].sort();
 
   let html = `<div class="d-chip all-chip${selectedDate==='all'?' active':''}" onclick="selectDate('all')">All dates</div>`;
+  // Exchanges sit beside the dates, not inside them
+  const exOpen = new Set(rackItems.filter(it => it.reopen_of && !it.dispatched && !it.cancelled).map(it => it.order_name)).size;
+  html += `<div class="d-chip${selectedDate==='exchange'?' active':''}" style="${exOpen ? 'border-color:#ffb74d;' : ''}" onclick="selectDate('exchange')"><span class="d-day">↺ Exchange</span><span class="d-count">${exOpen ? exOpen + ' open' : 'none'}</span></div>`;
 
   for (const d of dates) {
-    const dayItems = rackItems.filter(it => it.order_date === d && !it.dispatched && !it.cancelled);
+    const dayItems = rackItems.filter(it => it.order_date === d && !it.dispatched && !it.cancelled && !it.reopen_of);
     const orders   = new Set(dayItems.map(it => it.order_name)).size;
     if (!orders && selectedDate !== d) continue;   // everything dispatched or cancelled: nothing left to do on this date
     const needed   = dayItems.reduce((s,it)=>s+it.needed,0);
@@ -3418,7 +3406,6 @@ function updateFilterCounts() {
     matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     amazon:     all.filter(o => !o.dispatched && o.source === 'amazon').length,
-    reissue:    all.filter(o => !o.dispatched && o.reissue).length,
     dispatched: all.filter(o => o.dispatched).length,
     inpaint:    all.filter(o => !o.dispatched && o.hasPaint).length,
   };
@@ -3431,10 +3418,13 @@ function updateFilterCounts() {
 }
 
 function renderList() {
-  // Determine items to show based on selectedDate
-  let items = selectedDate === 'all'
+  const exchangeView = selectedDate === 'exchange';
+  document.querySelectorAll('#listTab .ftab-row, #listTab .filter-row').forEach(r => r.style.display = exchangeView ? 'none' : '');
+  if (exchangeView) { renderReissue(); return; }
+  // Determine items to show based on selectedDate; exchanges have their own chip
+  let items = (selectedDate === 'all'
     ? rackItems
-    : rackItems.filter(it => it.order_date === selectedDate);
+    : rackItems.filter(it => it.order_date === selectedDate)).filter(it => !it.reopen_of || searchQuery);
 
   // Cancelled orders stay out of the way; a search by order number still finds them (Undo Cancel lives there).
   if (!searchQuery) {
@@ -3505,7 +3495,6 @@ function renderList() {
     const complete = totalF >= totalN;
     const partial  = totalF > 0 && !complete;
     if (activeFilter === 'dispatched') return o.dispatched;
-    if (activeFilter === 'reissue')    return !!o.reopen_of && !o.dispatched;
     if (searchQuery && !o.cancelled)   return true;   // looking something up: dispatched orders count too (reissue starts here)
     if (activeFilter === 'all')        return !o.dispatched;
     if (activeFilter === 'notmatched') return !complete && !o.dispatched && o.items.some(it => it.found < it.needed && !_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
@@ -3746,7 +3735,6 @@ function updateSummary() {
   document.getElementById('sDispToday').textContent  = todayDispatchCount;
   document.getElementById('sPct').textContent        = totalN ? `${pct}% sorted` : '';
   renderDashboard(); homeSubs();
-  if (activeTab === 'reissue') renderReissue();
 }
 
 // ── DASHBOARD (Scan tab) ────────────────────────────────────────────────────────
@@ -3795,7 +3783,7 @@ function renderDashboard() {
       ${tile(matched.length, 'Ready to dispatch', `${printed.length} printed`, "dashList('matched')", matched.length ? 'ok' : '')}
       ${tile(todayDispatchCount, 'Dispatched today', `${recent.length} in last 7 days`, "dashList('dispatched')")}
       ${tile(emgOpen + emgPrinted, 'Emergency', `${emgOpen} to print · ${emgPrinted} printed · ${emgArrived} arrived`, "dashList('emergency')", emgOpen ? 'warn' : '')}
-      ${tile(reissue.length, 'Reissue open', reissue.length ? 'missing / wrong / broken' : 'none', "dashList('reissue')", reissue.length ? 'warn' : '')}
+      ${tile(reissue.length, 'Exchanges open', reissue.length ? 'missing / wrong / broken' : 'none', "_dashGo('list', () => selectDate('exchange'))", reissue.length ? 'warn' : '')}
       ${tile(overdue.length, 'Overdue', 'open 15+ days', "dashList('all')", overdue.length ? 'warn' : '')}
       ${tile(inPaint.length, 'In paint', 'orders with a piece at painter', "dashList('inpaint')")}
     </div>
