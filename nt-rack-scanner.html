@@ -488,6 +488,7 @@ input[type=file]{display:none}
   <div class="tab" id="tabDispatch" onclick="switchTab('dispatch')">Dispatch</div>
   <div class="tab" id="tabProd" onclick="switchTab('prod')">Production</div>
   <div class="tab" id="tabPending" onclick="switchTab('pending')" style="position:relative">Pending<span id="photoPendingBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;border-radius:99px;font-size:.6rem;padding:1px 5px;line-height:1.4"></span></div>
+  <div class="tab" id="tabReissue" onclick="switchTab('reissue')">↺ Reissue</div>
   <div class="tab" id="tabTrack" onclick="switchTab('track')">Track</div>
 </div>
 
@@ -880,6 +881,16 @@ input[type=file]{display:none}
 </div>
 
 <!-- ── TRACK TAB ── -->
+<!-- ── REISSUE TAB ── -->
+<div id="reissueTab" class="list-wrap" style="display:none">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="reissueFilters">
+    <div class="ftab active" data-rf="open" onclick="setReissueFilter('open')">Open</div>
+    <div class="ftab" data-rf="done" onclick="setReissueFilter('done')">Dispatched</div>
+    <div class="ftab" data-rf="all" onclick="setReissueFilter('all')">All</div>
+  </div>
+  <div id="reissueContent"><div class="empty-msg">No reissues.</div></div>
+</div>
+
 <div id="trackTab" class="list-wrap" style="display:none">
   <div style="padding:16px 12px 32px">
 
@@ -1294,6 +1305,8 @@ function switchTab(t) {
   document.getElementById('prodTab').style.display     = t === 'prod'     ? '' : 'none';
   document.getElementById('pendingTab').style.display  = t === 'pending'  ? '' : 'none';
   document.getElementById('trackTab').style.display    = t === 'track'    ? '' : 'none';
+  document.getElementById('reissueTab').style.display  = t === 'reissue'  ? '' : 'none';
+  document.getElementById('tabReissue').classList.toggle('active',  t === 'reissue');
   document.getElementById('tabScan').classList.toggle('active',     t === 'scan');
   document.getElementById('tabList').classList.toggle('active',     t === 'list');
   document.getElementById('tabDispatch').classList.toggle('active', t === 'dispatch');
@@ -1304,6 +1317,7 @@ function switchTab(t) {
   if (t === 'dispatch') { renderDispatch(); }
   if (t === 'prod')     { renderProduction(); }
   if (t === 'pending')  { renderPending(); }
+  if (t === 'reissue')  { renderReissue(); }
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -1470,10 +1484,11 @@ function reissueOpen(orderName) {
         <span style="flex:1"><b>${esc(it.quote)}</b><span style="color:var(--muted);font-size:.78rem"> · ${esc(it.color || '')}</span></span>
         <input type="number" class="ri-qty" data-i="${i}" min="1" value="1" style="width:52px;padding:4px;border:1px solid var(--line);border-radius:6px;text-align:center">
       </label>`).join('')}</div>
-    <div style="font-size:.78rem;font-weight:700;color:var(--ink2);margin-bottom:4px">When</div>
-    <div style="display:flex;gap:6px;margin-bottom:10px">
-      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:.8rem"><input type="radio" name="riWhen" value="today" checked style="accent-color:#e65100"> <span><b>Ready now</b><br><span style="color:var(--muted);font-size:.7rem">today's list, pick &amp; dispatch</span></span></label>
-      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:.8rem"><input type="radio" name="riWhen" value="tomorrow" style="accent-color:#e65100"> <span><b>Tomorrow</b><br><span style="color:var(--muted);font-size:.7rem">on the picker's next daily list</span></span></label>
+    <div style="font-size:.78rem;font-weight:700;color:var(--ink2);margin-bottom:4px">Where is the replacement?</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:.8rem"><input type="radio" name="riReady" value="inhand" style="accent-color:#e65100"> <span><b>In hand, painted</b><br><span style="color:var(--muted);font-size:.7rem">already packed or ready — marks it matched, straight to dispatch</span></span></label>
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:.8rem"><input type="radio" name="riReady" value="rack" checked style="accent-color:#e65100"> <span><b>On the rack</b><br><span style="color:var(--muted);font-size:.7rem">goes on today's list, picked from stock like any order</span></span></label>
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:.8rem"><input type="radio" name="riReady" value="make" style="accent-color:#e65100"> <span><b>Not in stock, needs making</b><br><span style="color:var(--muted);font-size:.7rem">flagged emergency for production, on tomorrow's list</span></span></label>
     </div>
     <div style="font-size:.78rem;font-weight:700;color:var(--ink2);margin-bottom:4px">Why</div>
     <select id="riReason" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:var(--fb);margin-bottom:8px">${REISSUE_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
@@ -1492,13 +1507,13 @@ async function reissueSave(orderName) {
   const reason = document.getElementById('riReason').value, note = document.getElementById('riNote').value.trim();
   const btn = document.getElementById('riSave'); btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const when = document.querySelector('#reissueModal input[name="riWhen"]:checked')?.value || 'today';
-    const r = await apiFetch({ action: 'rack_reopen', order_name: orderName, items: picked, reason, note, when });
+    const ready = document.querySelector('#reissueModal input[name="riReady"]:checked')?.value || 'rack';
+    const r = await apiFetch({ action: 'rack_reopen', order_name: orderName, items: picked, reason, note, ready });
     document.getElementById('reissueModal')?.remove();
-    toast(`✓ ${r.order_name} created — ${r.pieces} piece${r.pieces !== 1 ? 's' : ''} on the ${when === 'tomorrow' ? "picker's list for tomorrow" : "daily list for today"}`);
+    toast(`✓ ${r.order_name} created — ${ready === 'inhand' ? 'matched, ready to dispatch' : ready === 'make' ? "emergency for production, on tomorrow's list" : "on today's list"}`);
     onSearch(''); const sb = document.getElementById('searchInp'); if (sb) sb.value = '';
     await loadRackStatus(true);
-    setFilter('reissue');
+    switchTab('reissue');
   } catch (e) { toast('Failed: ' + e.message); btn.disabled = false; btn.textContent = 'Create reissue'; }
 }
 async function reissueSetAwb(orderName) {
@@ -1541,6 +1556,50 @@ function homeSubs() {
   if (b) b.textContent = activeMode === 'laptop' ? 'Auto-print ON' : 'Auto-print off';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { zenScanClose(); laptopClose(); } });
+// ── Reissue tab: every replacement, open or dispatched, with the original order, reason, pieces and its own AWB ──
+let _reissueFilter = 'open';
+function setReissueFilter(f) { _reissueFilter = f; document.querySelectorAll('#reissueFilters .ftab').forEach(b => b.classList.toggle('active', b.dataset.rf === f)); renderReissue(); }
+function renderReissue() {
+  const el = document.getElementById('reissueContent'); if (!el) return;
+  const groups = {};
+  for (const it of rackItems) {
+    if (!it.reopen_of) continue;
+    const g = groups[it.order_name] ||= { name: it.order_name, of: it.reopen_of, date: it.order_date, reason: it.reopen_reason, note: it.reopen_note, customer: it.customer, awb: it.tracking, co: it.tracking_company, st: it.ship_status, disp: false, canc: false, items: [] };
+    g.items.push(it); if (it.dispatched) g.disp = true; if (it.cancelled) g.canc = true; if (it.tracking) { g.awb = it.tracking; g.co = it.tracking_company; }
+  }
+  let list = Object.values(groups).filter(g => !g.canc);
+  if (_reissueFilter === 'open') list = list.filter(g => !g.disp);
+  if (_reissueFilter === 'done') list = list.filter(g => g.disp);
+  list.sort((a, b) => (a.disp - b.disp) || b.date.localeCompare(a.date) || b.name.localeCompare(a.name));
+  const n = { open: Object.values(groups).filter(g => !g.canc && !g.disp).length, done: Object.values(groups).filter(g => !g.canc && g.disp).length };
+  document.querySelectorAll('#reissueFilters .ftab').forEach(b => { const f = b.dataset.rf; b.textContent = f === 'open' ? `Open ${n.open}` : f === 'done' ? `Dispatched ${n.done}` : `All ${n.open + n.done}`; });
+  if (!list.length) { el.innerHTML = `<div class="empty-msg">${_reissueFilter === 'open' ? 'No open reissues. Search a dispatched order in the List tab and press ↺ Reissue to create one.' : 'Nothing here.'}</div>`; return; }
+  const fmt = d => d ? new Date(d + 'T00:00:00+05:30').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+  el.innerHTML = list.map(g => {
+    const orig = rackItems.find(it => it.order_name === g.of);
+    const safe = g.name.replace(/'/g, "\\'");
+    const total = g.items.reduce((s, it) => s + it.needed, 0), found = g.items.reduce((s, it) => s + it.found, 0);
+    const state = g.disp ? '<span style="font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;background:#e8f5e9;color:#2e7d32">Dispatched</span>' : found >= total ? '<span style="font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;background:#e3f2fd;color:#1565c0">Ready to dispatch</span>' : `<span style="font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff3e0;color:#e65100">${found}/${total} matched</span>`;
+    return `<div class="ord-card ${g.disp ? 'dispatched' : 'partial'}" style="border-left:4px solid #ff9800">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:800;font-size:.95rem">${esc(g.name)} ${state}</div>
+          <div style="font-size:.74rem;color:var(--ink2);margin-top:2px">${esc(g.customer || '')}</div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:2px">Original <b style="color:var(--ink2)">${esc(g.of)}</b>${orig ? ` · ordered ${fmt(orig.order_date)}` : ''}${orig?.tracking ? ` · was ${esc(orig.tracking_company || '')} ${esc(orig.tracking)}` : ''}</div>
+          <div style="font-size:.74rem;margin-top:4px"><span style="color:#bf360c;font-weight:800">↺ ${esc(_reissueLabel(g.reason))}</span>${g.note ? ` <span style="color:var(--ink2)">— ${esc(g.note)}</span>` : ''} <span style="color:var(--muted)">· created ${fmt(g.date)}</span></div>
+        </div>
+        <div style="text-align:right;font-size:.74rem">${g.awb ? `<div><span class="carrier-tag">${esc(_carrierLabel(g.co, g.awb))}</span> <span style="font-family:monospace;font-weight:700">${esc(g.awb)}</span></div>${g.st ? `<div style="margin-top:3px">${_shipStatusPill({ ship_status: g.st, ship_src: 'reissue' })}</div>` : ''}` : '<span style="color:#c62828;font-weight:700">No AWB yet</span>'}</div>
+      </div>
+      <div style="margin-top:8px">${g.items.map(it => `<div style="display:flex;justify-content:space-between;font-size:.82rem;padding:3px 0;border-top:1px solid #f3ece2"><span>${esc(it.quote)} <span style="color:var(--muted)">· ${esc(it.color)}</span></span><span style="font-weight:700;color:${it.found >= it.needed ? '#2e7d32' : '#e65100'}">${it.found}/${it.needed}</span></div>`).join('')}</div>
+      <div class="ord-meta-row no-print" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="meta-dispatch-btn" style="color:#1565c0;border-color:#90caf9;font-size:.74rem;padding:5px 10px" onclick="reissueSetAwb('${safe}')">🚚 ${g.awb ? 'Change AWB' : 'Set AWB'}</button>
+        ${g.disp ? `<button class="meta-dispatch-btn" style="color:#c62828;border-color:#c62828;font-size:.74rem;padding:5px 10px" onclick="undoDispatch('${safe}').then?.(()=>renderReissue())">↩ Undo Dispatch</button>` : `<button class="meta-dispatch-btn" style="background:#388e3c;color:#fff;border-color:#388e3c;font-size:.78rem;padding:5px 12px" onclick="manualDispatch('${safe}')">🚚 Dispatch</button>`}
+        <button class="meta-dispatch-btn" style="font-size:.74rem;padding:5px 10px" onclick="dashList('all');onSearch('${safe}');document.getElementById('searchInp').value='${safe}'">Open in list</button>
+        ${g.disp ? '' : `<button class="meta-dispatch-btn" style="color:#6f5b46;border-color:#d9cabb;font-size:.74rem;padding:5px 10px;margin-left:auto" onclick="reissueUndo('${safe}')">✕ Remove</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
 async function loadLiveEmergencies() {
   try {
     const res = await apiFetch({ action: 'emergency_states' });
@@ -3687,6 +3746,7 @@ function updateSummary() {
   document.getElementById('sDispToday').textContent  = todayDispatchCount;
   document.getElementById('sPct').textContent        = totalN ? `${pct}% sorted` : '';
   renderDashboard(); homeSubs();
+  if (activeTab === 'reissue') renderReissue();
 }
 
 // ── DASHBOARD (Scan tab) ────────────────────────────────────────────────────────
