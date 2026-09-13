@@ -1615,15 +1615,15 @@ function renderReissue() {
   }).join('');
 }
 // Pull an old dispatched order back onto the rack (from Shopify or the Amazon units) so it can be reissued
-async function lookupOldOrder(name) {
-  toast('Fetching ' + name + '…');
+async function lookupOldOrder(name, quiet) {
+  if (!quiet) toast('Fetching ' + name + '…');
   try {
     const r = await apiFetch({ action: 'rack_lookup_order', order_name: name });
     rackItems = rackItems.filter(it => it.order_name !== r.order_name).concat(r.rows || []);
     onSearch(r.order_name); const sb = document.getElementById('searchInp'); if (sb) sb.value = r.order_name;
     buildDateNav(); updateFilterCounts(); renderList();
     toast(`✓ ${r.order_name} loaded (${r.rows.length} line${r.rows.length !== 1 ? 's' : ''})`);
-  } catch (e) { toast('Not found: ' + e.message); }
+  } catch (e) { if (!quiet) toast('Not found: ' + e.message); }
 }
 async function loadLiveEmergencies() {
   try {
@@ -3403,10 +3403,20 @@ function logScan(entry) {
 function renderHistory() {}
 
 // ── SEARCH ─────────────────────────────────────────────────────────────────────
+let _lookupTimer = null, _lookupTried = new Set();
 function onSearch(val) {
   searchQuery = val.trim().toLowerCase();
   document.getElementById('searchClear').style.display = searchQuery ? 'block' : 'none';
   renderList();
+  // An order number with no local match is fetched on its own after a short pause
+  clearTimeout(_lookupTimer);
+  const q = val.trim();
+  if (/^#?\d{4,6}$|^\d{3}-\d{7}-\d{7}$/.test(q) && !_lookupTried.has(q.toLowerCase())) {
+    const key = /^\d{4,6}$/.test(q) ? '#' + q : q;
+    if (!rackItems.some(it => it.order_name.toLowerCase() === key.toLowerCase())) {
+      _lookupTimer = setTimeout(() => { if (searchQuery === q.toLowerCase()) { _lookupTried.add(q.toLowerCase()); lookupOldOrder(q, true); } }, 700);
+    }
+  }
 }
 function clearSearch() {
   document.getElementById('searchInp').value = '';
