@@ -892,7 +892,10 @@ input[type=file]{display:none}
 
     <!-- Search box -->
     <div style="background:var(--card,#fff);border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(58,43,29,.10);margin-bottom:16px">
-      <div style="font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px">Journey Lookup</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase">Journey Lookup</div>
+        <button onclick="bluedartSyncNow(this)" style="padding:6px 12px;background:var(--card,#fff);color:var(--accent);border:1.5px solid var(--accent);border-radius:999px;font-family:var(--fb);font-size:.78rem;font-weight:700;cursor:pointer">↻ Bluedart sync</button>
+      </div>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="text" id="trackLookupInp"
           placeholder="Order # or AWB docket…"
@@ -3853,7 +3856,7 @@ function renderDashboard() {
     <div class="dash-sec"><h4>Pending by order date <a onclick="dashList('all')">all →</a></h4>
       ${dateRows.length ? dateRows.map(r => `<div class="dash-row" onclick="dashDate('${r.d}')"><b>${fmt(r.d)}</b><span>${r.orders} order${r.orders !== 1 ? 's' : ''}${r.amz ? ` <span class="m">· ${r.amz} Amazon</span>` : ''}</span>${r.unmatched ? `<span class="m">${r.unmatched} untouched</span>` : ''}<span class="r ${r.missing ? 'bad' : ''}">${r.missing ? r.missing + ' missing' : '✓ ready'}</span>${isOverdue(r.d) ? '<span class="late">OVERDUE</span>' : ''}</div>`).join('') : '<div class="empty-msg">Nothing pending.</div>'}
     </div>
-    <div class="dash-sec"><h4>Couriers, last 7 days <a onclick="dashTrack('all')">dispatched →</a></h4>
+    <div class="dash-sec"><h4>Couriers, last 7 days <span style="display:flex;gap:14px"><a onclick="bluedartSyncNow(this)">↻ Bluedart</a><a onclick="dashTrack('all')">dispatched →</a></span></h4>
       <div class="dash-row" onclick="dashTrack('all')"><b>Moving</b><span class="m">in transit / out for delivery</span><span class="r">${cs.moving}</span></div>
       <div class="dash-row" onclick="dashTrack('all')"><b>Delivered</b><span class="r">${cs.done}</span></div>
       <div class="dash-row" onclick="dashTrack('all')"><b>Trouble</b><span class="m">failed / attempted</span><span class="r ${cs.fail ? 'bad' : ''}">${cs.fail}</span></div>
@@ -4933,6 +4936,35 @@ async function pqMarkAllPrinted() {
   await apiFetch({ action: 'mark_print_done', order_names: names }).catch(() => {});
   _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: true, print_initiated: false } : o);
   setPqFilter(_pqFilter);
+}
+
+// Manual Bluedart round for every open order and last 30 days of dispatches.
+// The sync log keeps the raw answer when Bluedart returns nothing usable.
+let _bdSyncing = false;
+async function bluedartSyncNow(btn) {
+  if (_bdSyncing) return;
+  _bdSyncing = true;
+  const label = btn ? btn.textContent : '';
+  if (btn) btn.textContent = '⏳ Bluedart…';
+  setStatus('Asking Bluedart for every open AWB…');
+  try {
+    const r = await apiFetch({ action: 'bluedart_sync' });
+    if (r.error && !r.answered) {
+      setStatus(`Bluedart sync failed: ${r.error}`);
+      alert(`Bluedart did not answer.\n${r.error}${r.sample ? '\n\n' + r.sample : ''}`);
+    } else if (!r.answered && r.asked) {
+      setStatus(`Bluedart answered none of ${r.asked} AWBs`);
+      alert(`Bluedart returned no status for ${r.asked} AWBs.${r.sample ? '\n\nRaw reply:\n' + r.sample : ''}`);
+    } else {
+      setStatus(`✓ Bluedart: ${r.answered}/${r.asked} answered · ${r.updated} updated · ${r.dispatched} marked dispatched`);
+      if (r.updated) await loadRackStatus();
+    }
+  } catch (e) {
+    setStatus('Bluedart sync failed: ' + e.message);
+  } finally {
+    _bdSyncing = false;
+    if (btn) btn.textContent = label;
+  }
 }
 
 // Bluedart status codes that confirm courier physically has the parcel
