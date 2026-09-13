@@ -3433,7 +3433,7 @@ function updateFilterCounts() {
 
 function renderList() {
   const exchangeView = selectedDate === 'exchange';
-  document.querySelectorAll('#listTab .ftab-row, #listTab .filter-row').forEach(r => r.style.display = exchangeView ? 'none' : '');
+  document.querySelectorAll('#listTab .filter-row').forEach(r => r.style.display = exchangeView ? 'none' : (r.id === 'trackFilterRow' && activeFilter !== 'dispatched') ? 'none' : '');
   if (exchangeView) { renderReissue(); return; }
   // Determine items to show based on selectedDate; exchanges have their own chip
   let items = (selectedDate === 'all'
