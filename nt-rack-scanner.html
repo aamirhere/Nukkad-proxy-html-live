@@ -441,19 +441,8 @@ input[type=file]{display:none}
       <button class="hmenu-btn" onclick="toggleHMenu()" id="hmenuBtn">⋮</button>
       <div class="hmenu-drop" id="hmenuDrop">
         <button class="hmenu-item" onclick="openTplOverlay();closeHMenu()">Slip Template</button>
-        <button class="hmenu-item" onclick="openPainterDropOff();closeHMenu()">Painter Drop-off</button>
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
         <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
-        <button class="hmenu-item" onclick="shipwayTest();closeHMenu()">🚚 Test Shipway</button>
-        <button class="hmenu-item" onclick="logistifyProbe();closeHMenu()">🔎 Probe Logistify</button>
-        <button class="hmenu-item" onclick="openNd();closeHMenu()">🚚 Newly Dispatched</button>
-        <button class="hmenu-item" onclick="checkBluedartStatus();closeHMenu()">📦 Sync Bluedart (Active Orders)</button>
-        <button class="hmenu-item" onclick="checkDispatchedBluedart();closeHMenu()">🔍 Verify Dispatched via Bluedart</button>
-        <button class="hmenu-item" onclick="openReconcile();closeHMenu()">🔁 Reconcile Prints</button>
-        <button class="hmenu-item" style="color:#c62828" onclick="resetAndReprintAll();closeHMenu()">🔄 Full Reset (Reprint + Unmatch)</button>
-        <button class="hmenu-item" onclick="fillRackGaps();closeHMenu()">🔍 Fill Missing Items (Gap Check)</button>
-        <button class="hmenu-item" onclick="fixRackQuotes();closeHMenu()">🔧 Fix Design Names</button>
-        <button class="hmenu-item" onclick="toggleLegacyPanel();closeHMenu()">📥 Legacy Orders</button>
         <button class="hmenu-item" onclick="toggleResyncPanel();closeHMenu()">Sync until date</button>
         <hr class="hmenu-sep">
         <button class="hmenu-item"><a href="nt-inventory.html">↗ Inventory</a></button>
@@ -485,10 +474,8 @@ input[type=file]{display:none}
 <div class="tabs">
   <div class="tab active" id="tabScan" onclick="switchTab('scan')">Scan</div>
   <div class="tab" id="tabList" onclick="switchTab('list')">List</div>
-  <div class="tab" id="tabDispatch" onclick="switchTab('dispatch')">Dispatch</div>
   <div class="tab" id="tabProd" onclick="switchTab('prod')">Production</div>
-  <div class="tab" id="tabPending" onclick="switchTab('pending')" style="position:relative">Pending<span id="photoPendingBadge" style="display:none;position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;border-radius:99px;font-size:.6rem;padding:1px 5px;line-height:1.4"></span></div>
-  <div class="tab" id="tabTrack" onclick="switchTab('track')">Track</div>
+  <span id="photoPendingBadge" style="display:none"></span>
 </div>
 
 <input type="file" id="fileInput" accept="image/*" capture="environment" multiple style="display:none">
@@ -732,6 +719,15 @@ input[type=file]{display:none}
   </div>
   </div>
 
+  <!-- dispatch / pending / track open here as popups -->
+  <div id="paneZen" class="zen-wrap no-print" style="display:none" onclick="if(event.target===this)paneClose()">
+  <div class="zen-panel" style="max-width:900px">
+  <div class="zen-head"><b id="paneZenTitle">Pane</b><button class="zen-x" onclick="paneClose()" title="Close">✕</button></div>
+  <div id="paneZenBody"></div>
+  <div class="zen-foot"><button onclick="paneClose()">Close</button></div>
+  </div>
+  </div>
+
   <!-- laptop print popup -->
   <div id="laptopZen" class="zen-wrap no-print" style="display:none" onclick="if(event.target===this)laptopClose()">
   <div class="zen-panel" style="max-width:820px">
@@ -797,8 +793,9 @@ input[type=file]{display:none}
 </div>
   <div id="laptopInfo" style="font-size:.78rem;color:var(--muted);margin-top:8px"></div>
   <div class="dash-links" style="margin-top:12px">
-    <button onclick="laptopClose();switchTab('pending')">⏳ Print queue</button>
+    <button onclick="laptopClose();paneOpen('pending')">⏳ Pending photos</button>
     <button onclick="laptopClose();toggleSlipSelMode();switchTab('list')">🖨 Print slips</button>
+    <button onclick="laptopClose();openReconcile()">🔁 Reconcile prints</button>
   </div>
   </div>
   </div>
@@ -1297,6 +1294,7 @@ function jumpToOrderInList(orderName, orderDate, isComplete) {
 
 // ── TAB SWITCHING ──────────────────────────────────────────────────────────────
 function switchTab(t) {
+  if (PANES[t]) { paneOpen(t); return; }
   activeTab = t;
   document.getElementById('scanTab').style.display     = t === 'scan'     ? '' : 'none';
   document.getElementById('listTab').style.display     = t === 'list'     ? '' : 'none';
@@ -1306,10 +1304,10 @@ function switchTab(t) {
   document.getElementById('trackTab').style.display    = t === 'track'    ? '' : 'none';
   document.getElementById('tabScan').classList.toggle('active',     t === 'scan');
   document.getElementById('tabList').classList.toggle('active',     t === 'list');
-  document.getElementById('tabDispatch').classList.toggle('active', t === 'dispatch');
+  document.getElementById('tabDispatch')?.classList.toggle('active', t === 'dispatch');
   document.getElementById('tabProd').classList.toggle('active',     t === 'prod');
-  document.getElementById('tabPending').classList.toggle('active',  t === 'pending');
-  document.getElementById('tabTrack').classList.toggle('active',    t === 'track');
+  document.getElementById('tabPending')?.classList.toggle('active',  t === 'pending');
+  document.getElementById('tabTrack')?.classList.toggle('active',    t === 'track');
   if (t === 'list')     { buildDateNav(); renderList(); }
   if (t === 'dispatch') { renderDispatch(); }
   if (t === 'prod')     { renderProduction(); }
@@ -1546,12 +1544,32 @@ function laptopOpen() {
   document.getElementById('laptopZen').style.display = 'flex';
 }
 function laptopClose() { document.getElementById('laptopZen').style.display = 'none'; }
+// Dispatch, Pending and Track are read-mostly views: they open on demand as popups, not as tabs
+const PANES = { dispatch: ['dispatchTab', '🚚 Dispatch', () => renderDispatch()], pending: ['pendingTab', '⏳ Pending photos', () => renderPending()], track: ['trackTab', '📍 Track', null] };
+let _paneOpen = null;
+function paneOpen(name) {
+  const def = PANES[name]; if (!def) return;
+  if (_paneOpen) paneClose();
+  const pane = document.getElementById(def[0]); if (!pane) return;
+  document.getElementById('paneZenTitle').textContent = def[1];
+  document.getElementById('paneZenBody').appendChild(pane); pane.style.display = '';
+  document.getElementById('paneZen').style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
+  _paneOpen = name; activeTab = name;
+  if (def[2]) def[2]();
+}
+function paneClose() {
+  if (!_paneOpen) return;
+  const pane = document.getElementById(PANES[_paneOpen][0]);
+  if (pane) { pane.style.display = 'none'; document.body.appendChild(pane); }
+  document.getElementById('paneZen').style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = '';
+  _paneOpen = null; activeTab = 'scan';
+}
 function homeSubs() {
   const a = document.getElementById('homeScanSub'), b = document.getElementById('homePrintSub');
   if (a) a.textContent = `${activeMode === 'painter' ? 'Painter drop-off' : 'Sort & Check'} · ${(typeof packingCtx !== 'undefined' ? packingCtx : 'daily').replace(/^\w/, c => c.toUpperCase())}${typeof _scanWorkMode !== 'undefined' && _scanWorkMode === 'paint' ? ' · Paint' : ''}`;
   if (b) b.textContent = activeMode === 'laptop' ? 'Auto-print ON' : 'Auto-print off';
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { zenScanClose(); laptopClose(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { zenScanClose(); laptopClose(); paneClose(); } });
 // ── Reissue tab: every replacement, open or dispatched, with the original order, reason, pieces and its own AWB ──
 let _reissueFilter = 'open';
 function setReissueFilter(f) { _reissueFilter = f; renderReissue(); }
@@ -3795,7 +3813,7 @@ function renderDashboard() {
       ${tile(web.length, 'Website open', `${missingPcs} pcs missing`, "dashList('all')")}
       ${tile(amz.length, 'Amazon open', `${amz.filter(o => !o.awb).length} without AWB`, "dashList('amazon')", 'amz')}
       ${tile(matched.length, 'Ready to dispatch', `${printed.length} printed`, "dashList('matched')", matched.length ? 'ok' : '')}
-      ${tile(todayDispatchCount, 'Dispatched today', `${recent.length} in last 7 days`, "dashList('dispatched')")}
+      ${tile(todayDispatchCount, 'Dispatched today', `${recent.length} in last 7 days`, "paneOpen('dispatch')")}
       ${tile(emgOpen + emgPrinted, 'Emergency', `${emgOpen} to print · ${emgPrinted} printed · ${emgArrived} arrived`, "dashList('emergency')", emgOpen ? 'warn' : '')}
       ${tile(reissue.length, 'Exchanges open', reissue.length ? 'missing / wrong / broken' : 'none', "_dashGo('list', () => selectDate('exchange'))", reissue.length ? 'warn' : '')}
       ${tile(overdue.length, 'Overdue', 'open 15+ days', "dashList('all')", overdue.length ? 'warn' : '')}
@@ -3804,10 +3822,10 @@ function renderDashboard() {
     <div class="dash-links">
       <button onclick="switchTab('list')">📋 List</button>
       <button onclick="toggleSlipSelMode();switchTab('list')">🖨 Print slips</button>
-      <button onclick="switchTab('dispatch')">🚚 Dispatch</button>
+      <button onclick="paneOpen('dispatch')">🚚 Dispatch</button>
       <button onclick="switchTab('prod')">🏭 Production</button>
-      <button onclick="switchTab('pending')">⏳ Pending</button>
-      <button onclick="switchTab('track')">📍 Track</button>
+      <button onclick="paneOpen('pending')">⏳ Pending photos</button>
+      <button onclick="paneOpen('track')">📍 Track</button>
       <button onclick="window.open('nt-inventory.html','_blank')">🚨 Emergency page</button>
     </div>
     <div class="dash-sec"><h4>Pending by order date <a onclick="dashList('all')">all →</a></h4>
