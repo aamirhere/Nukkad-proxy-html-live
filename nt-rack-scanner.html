@@ -552,6 +552,17 @@ input[type=file]{display:none}
       #scanZen .wmp-btn{flex:1 1 40%;padding:11px 14px;font-size:.92rem;border-radius:12px;white-space:nowrap;justify-content:center}
       #scanZen .zen-foot{display:block}
     }
+    @media (max-width:768px){
+      #listTab .date-nav{gap:6px;padding-bottom:6px}
+      #listTab .d-chip{padding:6px 10px;border-radius:14px;min-width:0}
+      #listTab .d-chip .d-day{font-size:.74rem}#listTab .d-chip .d-count{font-size:.62rem}#listTab .d-chip .d-orders{display:none}
+      #listTab .filter-row{flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:2px 0 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+      #listTab .filter-row::-webkit-scrollbar{display:none}
+      #listTab .ftab{flex:0 0 auto;padding:5px 11px;font-size:.72rem}
+      #listTab .print-btn-row{gap:6px;justify-content:flex-start;margin:2px 0 8px}
+      #listTab .print-btn-row .hbtn{padding:5px 10px;font-size:.72rem}
+      #listTab .search-wrap{margin-bottom:8px}
+    }
     @media (max-width:768px){.home-hero{grid-template-columns:1fr}.home-print{display:none}.home-btn{padding:14px 12px}.home-btn .t{font-size:.95rem}}
   </style>
   <div class="home-hero no-print">
@@ -818,7 +829,7 @@ input[type=file]{display:none}
     <div class="ftab" onclick="setFilter('dispatched')" data-f="dispatched" data-label="Dispatched">Dispatched</div>
   </div>
 
-  <div class="filter-row no-print" id="trackFilterRow" style="padding-top:0;gap:6px">
+  <div class="filter-row no-print" id="trackFilterRow" style="padding-top:0;gap:6px;display:none">
     <div class="ftab active" onclick="setTrackFilter('all')" data-tf="all">All carriers</div>
     <div class="ftab" onclick="setTrackFilter('delhivery')" data-tf="delhivery">Delhivery</div>
     <div class="ftab" onclick="setTrackFilter('bluedart')" data-tf="bluedart">Bluedart</div>
@@ -3377,6 +3388,9 @@ function clearSearch() {
 function setFilter(f) {
   activeFilter = f;
   document.querySelectorAll('.ftab[data-f]').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  // courier row only makes sense once orders have left; keep it out of the way otherwise
+  const tr = document.getElementById('trackFilterRow');
+  if (tr) { tr.style.display = f === 'dispatched' ? '' : 'none'; if (f !== 'dispatched' && activeTrackFilter !== 'all') { activeTrackFilter = 'all'; document.querySelectorAll('.ftab[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === 'all')); } }
   renderList();
 }
 function setTrackFilter(f) {
