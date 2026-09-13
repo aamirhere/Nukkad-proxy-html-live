@@ -1614,6 +1614,17 @@ function renderReissue() {
     </div>`;
   }).join('');
 }
+// Pull an old dispatched order back onto the rack (from Shopify or the Amazon units) so it can be reissued
+async function lookupOldOrder(name) {
+  toast('Fetching ' + name + '…');
+  try {
+    const r = await apiFetch({ action: 'rack_lookup_order', order_name: name });
+    rackItems = rackItems.filter(it => it.order_name !== r.order_name).concat(r.rows || []);
+    onSearch(r.order_name); const sb = document.getElementById('searchInp'); if (sb) sb.value = r.order_name;
+    buildDateNav(); updateFilterCounts(); renderList();
+    toast(`✓ ${r.order_name} loaded (${r.rows.length} line${r.rows.length !== 1 ? 's' : ''})`);
+  } catch (e) { toast('Not found: ' + e.message); }
+}
 async function loadLiveEmergencies() {
   try {
     const res = await apiFetch({ action: 'emergency_states' });
@@ -3486,8 +3497,9 @@ function renderList() {
   document.getElementById('printDate').textContent  = `Printed ${new Date().toLocaleString('en-IN')}`;
 
   if (!items.length) {
+    const looksLikeOrder = /^#?\d{4,6}$|^\d{3}-\d{7}-\d{7}$/.test(searchQuery.trim());
     document.getElementById('listContent').innerHTML = searchQuery
-      ? `<div class="empty-msg">No results for "<strong>${esc(searchQuery)}</strong>"</div>`
+      ? `<div class="empty-msg">No results for "<strong>${esc(searchQuery)}</strong>"${looksLikeOrder ? `<div style="margin-top:10px"><button class="hbtn" style="border-color:#ffb74d;color:#bf360c;background:#fff8e1" onclick="lookupOldOrder('${esc(searchQuery.trim()).replace(/'/g, "\\'")}')">⟳ Fetch this order</button><div style="font-size:.7rem;color:var(--muted);margin-top:6px">Dispatched orders older than 15 days leave the rack; this brings one back so you can reissue from it.</div></div>` : ''}</div>`
       : '<div class="empty-msg">No data. Sync orders first.</div>';
     return;
   }
