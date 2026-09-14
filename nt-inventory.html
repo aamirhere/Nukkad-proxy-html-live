@@ -6226,7 +6226,12 @@ async function fbaLiveFetch() {
 
 function renderFbaFc(r) {
   const el = document.getElementById('fbaFc');
-  if (!r.fcs || !r.fcs.length) { el.innerHTML = '<div class="cut-empty">Amazon\'s ledger shows nothing sitting in any warehouse.</div>'; return; }
+  if (!r.fcs || !r.fcs.length) {
+    const d = r.debug;
+    el.innerHTML = `<div class="cut-empty">The ledger report came back but nothing could be read from it.${d ? ` ${d.rows} rows.` : ''}</div>`
+      + (d ? `<pre style="font-size:.66rem;white-space:pre-wrap;color:var(--muted);margin:6px 0 0">columns: ${d.headers.join(' | ')}\nmatched: ${JSON.stringify(d.columns)}\n${JSON.stringify(d.sample, null, 1)}</pre>` : '');
+    return;
+  }
   const total = r.fcs.reduce((s, f) => s + f.sellable, 0);
   el.innerHTML = `<div style="font-size:.8rem;margin-bottom:6px"><b>${total}</b> sellable across ${r.fcs.length} warehouse${r.fcs.length !== 1 ? 's' : ''} <span style="color:var(--muted)">· ledger as of ${r.as_of ? fmtDM(r.as_of) : '?'} · fetched ${fmtAgo(r.fetched_at)}</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">${r.fcs.map(fc => `
