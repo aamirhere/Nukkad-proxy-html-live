@@ -6244,21 +6244,25 @@ function renderFbaFc(r) {
 // Amazon builds the ledger report in the background; poll it, then import.
 async function fbaFcFetch() {
   const btn = document.getElementById('fbaFcBtn'), el = document.getElementById('fbaFc');
+  const say = t => { el.innerHTML = `<div class="cut-empty">${t}</div>`; };
   btn.disabled = true;
   try {
-    btn.textContent = '⏳ requesting…';
+    btn.textContent = '⏳ requesting…'; say('Asking Amazon for the ledger report…');
     const c = await api({ action: 'fba_fc_create' });
     if (!c.ok) throw new Error(c.message || 'could not request the ledger report');
+    say(`Report ${c.report_id} requested. Amazon builds it in the background, usually 2–5 min…`);
     let doc = null;
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 15000));
-      btn.textContent = `⏳ Amazon building… ${Math.round((i + 1) * 15 / 60 * 10) / 10} min`;
+      const mins = Math.round((i + 1) * 15 / 6) / 10;
+      btn.textContent = `⏳ ${mins} min`;
       const s = await api({ action: 'amazon_report_status', report_id: c.report_id });
+      say(`Report ${c.report_id}: ${s.status || s.message || 'no status'} · waiting ${mins} min`);
       if (s.status === 'DONE') { doc = s.document_id; break; }
       if (s.status === 'FATAL' || s.status === 'CANCELLED') throw new Error('Amazon could not build the report (' + s.status + ')');
     }
     if (!doc) throw new Error('Amazon is still building the report after 10 min. Press ↻ by warehouse again in a while.');
-    btn.textContent = '⏳ reading…';
+    btn.textContent = '⏳ reading…'; say('Report ready, reading it…');
     const r = await api({ action: 'fba_fc_import', document_id: doc });
     if (!r.ok) throw new Error(r.message || 'import failed');
     renderFbaFc(r);
