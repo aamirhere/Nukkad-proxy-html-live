@@ -998,6 +998,18 @@ body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important
 @keyframes bird-fly { from { transform: translateY(0) } to { transform: translateY(-4px) } }
 #view-cod, #view-returns { overflow-x: visible; }
 .cod-sticky thead th { position:sticky; top:var(--hdr-h, 52px); background:#fff; z-index:2; box-shadow:0 2px 0 var(--line); }
+.cod-month { border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:10px; background:#fff; }
+.cod-mhead { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.cod-mhead b { font-family:var(--ff); font-size:1.05rem; }
+.cod-mhead span { font-size:.76rem; color:var(--ink2); }
+.cod-mgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+@media (max-width:640px) { .cod-mgrid { grid-template-columns:repeat(2,1fr); } }
+.cod-mcell { background:var(--bg2,#faf5ee); border-radius:10px; padding:8px 10px; }
+.cod-mcell .n { font-family:var(--ff); font-size:1.35rem; font-weight:700; color:var(--ink); line-height:1.1; }
+.cod-mcell .l { font-size:.7rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-top:2px; }
+.cod-mcell .s { font-size:.7rem; color:var(--ink2); }
+.cod-mcell.ok .n { color:#1a7f37; } .cod-mcell.bad .n { color:#c0392b; } .cod-mcell.warn .n { color:#b05000; }
+.cod-mwhy { font-size:.74rem; color:var(--ink2); margin-top:8px; }
 .cod-pill { display:inline-block; font-size:.66rem; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--bg2); color:var(--ink2); }
 .cod-pill.rto { background:#fde8e6; color:#c0392b; }
 .cod-pill.done { background:#e4f4e8; color:#1a7f37; }
@@ -1570,7 +1582,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   </div>
   <div id="rtoBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
   <div class="cod-tiles" id="rtoTiles"></div>
-  <div class="cut-slot"><div class="cut-slot-hd">📆 BY MONTH — every order placed that month · why the returns came back</div><div id="codMonths" class="cod-scroll"></div></div>
+  <div class="cut-slot"><div class="cut-slot-hd">📆 BY MONTH — every order placed that month</div><div id="codMonths"></div></div>
   <div class="cut-slot"><div class="cut-slot-hd">↩ BY ORDER DATE — every dispatched order, COD and prepaid · tap a day</div><div id="codRto" class="cod-scroll"></div></div>
 </div>
 
@@ -6279,8 +6291,25 @@ function renderCod() {
 
   document.getElementById('codRto').innerHTML = c.rto_days.length ? `<table class="sku-conf-table cod-sticky" style="font-size:.78rem;margin:0"><thead><tr><th>Order date</th><th style="text-align:right">Orders</th><th style="text-align:right">COD</th><th style="text-align:right">Prepaid</th>${c.totals.unknown ? '<th style="text-align:right">Unknown</th>' : ''}<th style="text-align:right">Dispatched</th><th style="text-align:right">Delivered</th><th style="text-align:right">COD delivered<div style="font-weight:400;font-size:.62rem">not paid yet</div></th><th style="text-align:right">Not delivered</th><th style="text-align:right">RTO</th><th style="text-align:right">Return %</th><th style="text-align:right">COD RTO</th><th style="text-align:right">Prepaid RTO</th><th style="text-align:right">Back with us</th></tr></thead><tbody>${c.rto_days.map(d => `<tr style="cursor:pointer" onclick="codDayOpen('rto','${d.date}')"><td><b>${fmtDM(d.date)}</b></td><td style="text-align:right;font-weight:700">${d.orders}</td><td style="text-align:right">${d.cod || ''}</td><td style="text-align:right">${d.prepaid || ''}</td>${c.totals.unknown ? `<td style="text-align:right;color:#b05000">${d.unknown || ''}</td>` : ''}<td style="text-align:right">${d.dispatched || ''}</td><td style="text-align:right">${d.delivered || ''}</td><td style="text-align:right;${d.cod_unpaid ? 'background:#fff1de;color:#b05000;font-weight:700' : ''}">${d.cod_unpaid || ''}</td><td style="text-align:right;${d.trouble ? 'color:#b05000' : ''}">${d.trouble || ''}</td><td style="text-align:right;${d.rto ? 'color:#c0392b;font-weight:700' : ''}">${d.rto || ''}</td><td style="text-align:right;color:var(--muted)">${d.rto ? pct(d.rto, d.dispatched) : ''}</td><td style="text-align:right">${d.rto_cod || ''}</td><td style="text-align:right;${d.rto_prepaid ? 'background:#fde8e6;color:#c0392b;font-weight:700' : ''}">${d.rto_prepaid || ''}</td><td style="text-align:right;color:var(--muted)">${d.rto_back || ''}</td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">No orders in this window.</div>';
 
-  const monthName = k => new Date(k + '-01T00:00:00+05:30').toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
-  document.getElementById('codMonths').innerHTML = (c.months || []).length ? `<table class="sku-conf-table cod-sticky" style="font-size:.78rem;margin:0"><thead><tr><th>Month</th><th style="text-align:right">Orders</th><th style="text-align:right">Cancelled</th><th style="text-align:right">Cancel %</th><th style="text-align:right">COD</th><th style="text-align:right">Prepaid</th><th style="text-align:right">Dispatched</th><th style="text-align:right">Delivered</th><th style="text-align:right">Deliv %</th><th style="text-align:right">Not delivered</th><th style="text-align:right">RTO</th><th style="text-align:right">Return %</th><th style="text-align:right">COD RTO</th><th style="text-align:right">Prepaid RTO</th><th style="text-align:right">COD paid</th><th style="text-align:right">COD unpaid</th><th>Why returned</th></tr></thead><tbody>${c.months.map(m => `<tr><td><b>${monthName(m.month)}</b>${m.on_rack ? `<div style="font-size:.64rem;color:var(--muted)">${m.on_rack} still on rack</div>` : ''}</td><td style="text-align:right;font-weight:700">${m.orders}</td><td style="text-align:right;color:var(--muted)">${m.cancelled || ''}</td><td style="text-align:right;color:var(--muted)">${pct(m.cancelled, m.orders)}</td><td style="text-align:right">${m.cod || ''}</td><td style="text-align:right">${m.prepaid || ''}${m.unknown ? `<div style="font-size:.64rem;color:#b05000">+${m.unknown} unknown</div>` : ''}</td><td style="text-align:right">${m.dispatched || ''}</td><td style="text-align:right">${m.delivered || ''}</td><td style="text-align:right;color:var(--muted)">${pct(m.delivered, m.dispatched)}</td><td style="text-align:right;${m.trouble ? 'color:#b05000' : ''}">${m.trouble || ''}</td><td style="text-align:right;${m.rto ? 'color:#c0392b;font-weight:700' : ''}">${m.rto || ''}</td><td style="text-align:right;font-weight:700;${m.rto ? 'color:#c0392b' : 'color:var(--muted)'}">${pct(m.rto, m.dispatched)}</td><td style="text-align:right">${m.rto_cod || ''}${m.rto ? `<div style="font-size:.64rem;color:var(--muted)">${pct(m.rto_cod, m.rto)}</div>` : ''}</td><td style="text-align:right;${m.rto_prepaid ? 'background:#fde8e6;color:#c0392b;font-weight:700' : ''}">${m.rto_prepaid || ''}</td><td style="text-align:right;color:#1a7f37">${m.cod_paid || ''}</td><td style="text-align:right;${m.cod_unpaid ? 'color:#b05000;font-weight:700' : ''}">${m.cod_unpaid || ''}</td><td style="font-size:.7rem;color:var(--ink2);min-width:160px">${m.reasons.map(r => `${r.reason} <b>${r.n}</b>`).join('<br>')}</td></tr>`).join('')}</tbody></table><div style="font-size:.7rem;color:var(--muted);margin-top:6px">Return % = RTO ÷ dispatched. Reasons come from Bluedart's last scan on each returned parcel; orders older than 90 days keep whatever status they last had.</div>` : '<div class="cut-empty">No orders in this window.</div>';
+  const monthName = k => new Date(k + '-01T00:00:00+05:30').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const cell = (n, l, sub, cls = '') => `<div class="cod-mcell ${cls}"><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  document.getElementById('codMonths').innerHTML = (c.months || []).length ? c.months.map(m => {
+    const live = m.orders - m.cancelled;
+    return `<div class="cod-month">
+      <div class="cod-mhead"><b>${monthName(m.month)}</b><span>${m.orders} orders · ${m.cod} COD · ${m.prepaid} prepaid${m.unknown ? ` · <span style="color:#b05000">${m.unknown} type unknown</span>` : ''}${m.on_rack ? ` · ${m.on_rack} still on rack` : ''}</span></div>
+      <div class="cod-mgrid">
+        ${cell(m.cancelled, 'Cancelled', pct(m.cancelled, m.orders) + ' of orders')}
+        ${cell(m.delivered, 'Delivered', pct(m.delivered, m.dispatched) + ' of dispatched', 'ok')}
+        ${cell(m.rto, 'Returned', pct(m.rto, m.dispatched) + ' of dispatched', m.rto ? 'bad' : '')}
+        ${cell(m.rto_cod, 'COD returned', m.rto ? pct(m.rto_cod, m.rto) + ' of returns' : '')}
+        ${cell(m.rto_prepaid, 'Prepaid returned', 'call & redispatch', m.rto_prepaid ? 'bad' : '')}
+        ${cell(m.trouble + m.transit, 'Still with courier', `${m.trouble} attempted · ${m.transit} moving`)}
+        ${cell(m.cod_paid, 'COD paid', 'Bluedart remitted', 'ok')}
+        ${cell(m.cod_unpaid, 'COD delivered, unpaid', 'waiting on Bluedart', m.cod_unpaid ? 'warn' : '')}
+      </div>
+      ${m.rto ? `<div class="cod-mwhy"><b>Why they came back:</b> ${m.reasons.map(r => `${r.reason} <b>${r.n}</b>`).join(' · ')}</div>` : ''}
+    </div>`;
+  }).join('') + '<div style="font-size:.7rem;color:var(--muted);margin-top:4px">Reasons come from Bluedart\'s last scan on each returned parcel and are recorded from today on; older returns show "reason not captured yet" until their next scan.</div>' : '<div class="cut-empty">No orders in this window.</div>';
   document.getElementById('codUnmatchedWrap').style.display = c.unmatched.length ? '' : 'none';
   document.getElementById('codUnmatched').innerHTML = `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>AWB</th><th>Ref in sheet</th><th style="text-align:right">Amount</th><th>Picked up</th><th>Match to order</th></tr></thead><tbody>${c.unmatched.map(l => `<tr><td style="font-family:monospace">${l.awb}</td><td>${(l.raw && (l.raw.ccrcrdref || l.raw.reference || '')) || ''}</td><td style="text-align:right;font-weight:700">${inr(l.amount)}</td><td style="color:var(--muted)">${l.delivered_on ? fmtDM(l.delivered_on) : ''}</td><td><span style="display:flex;gap:4px"><input id="codm-${l.id}" placeholder="#86123" style="width:90px;padding:4px 6px;border:1.5px solid var(--line);border-radius:6px;font-family:inherit;font-size:.78rem" value="${l.raw?.ccrcrdref ? '#' + l.raw.ccrcrdref : ''}"><button class="emg-dash-link ok" onclick="codMatch(${l.id})">match</button></span></td></tr>`).join('')}</tbody></table>`;
 
