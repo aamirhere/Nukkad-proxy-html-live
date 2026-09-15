@@ -1562,7 +1562,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <select id="codDays" onchange="loadCod()" style="padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit"><option value="30">30 days</option><option value="60" selected>60 days</option><option value="90">90 days</option><option value="180">180 days</option></select>
       <button class="btn btn-primary" id="codBdBtn" onclick="codSyncBluedart()">↻ Sync Bluedart</button>
-      <button class="btn btn-ghost" onclick="loadCod()">↻</button>
+      <button class="btn btn-ghost" onclick="loadCod(true)">↻</button>
     </div>
   </div>
   <div id="rtoBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
@@ -1579,8 +1579,8 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <select id="codDays2" onchange="document.getElementById('codDays').value=this.value;loadCod()" style="padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit"><option value="30">30 days</option><option value="60" selected>60 days</option><option value="90">90 days</option><option value="180">180 days</option></select>
-      <button class="btn btn-primary" onclick="remitFetchNow().then(loadCod)">📥 Fetch remittance</button>
-      <button class="btn btn-ghost" onclick="loadCod()">↻</button>
+      <button class="btn btn-primary" onclick="remitFetchNow().then(() => loadCod(true))">📥 Fetch remittance</button>
+      <button class="btn btn-ghost" onclick="loadCod(true)">↻</button>
     </div>
   </div>
   <div id="codBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
@@ -6234,10 +6234,14 @@ const codPill = (st, status) => ({ remitted: ['done', 'Paid'], delivered: ['wait
 const inr = n => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
 const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '';
 
-async function loadCod() {
+let _codAt = 0, _codDaysLoaded = '';
+async function loadCod(force) {
   const days = document.getElementById('codDays').value;
+  // switching between Returns and COD money reuses the last load for 3 minutes
+  if (!force && _cod && _codDaysLoaded === days && Date.now() - _codAt < 180000) { renderCod(); return; }
   document.getElementById('codDays_').innerHTML = '<div class="loading-row" style="height:50px;border-radius:10px"></div>';
-  try { _cod = await api({ action: 'cod_ledger', days }); renderCod(); }
+  document.getElementById('codRto').innerHTML = '<div class="loading-row" style="height:50px;border-radius:10px"></div>';
+  try { _cod = await api({ action: 'cod_ledger', days }); _codAt = Date.now(); _codDaysLoaded = days; renderCod(); }
   catch (e) { document.getElementById('codDays_').innerHTML = `<div class="cut-empty" style="color:var(--red)">Failed: ${e.message}</div>`; }
 }
 
@@ -6294,7 +6298,7 @@ async function codSyncBluedart() {
     const r = await api({ action: 'bluedart_sync' });
     if (!r.answered && r.asked) alert(`Bluedart returned no status for ${r.asked} AWBs.${r.sample ? '\n\nRaw reply:\n' + r.sample : ''}${r.error ? '\n' + r.error : ''}`);
     else toast(`Bluedart: ${r.answered}/${r.asked} answered · ${r.updated} updated · ${r.dispatched} dispatched`);
-    await loadCod();
+    await loadCod(true);
   } catch (e) { alert('Bluedart sync failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '↻ Sync Bluedart'; }
 }
@@ -6303,7 +6307,7 @@ async function codMatch(lineId) {
   const inp = document.getElementById('codm-' + lineId);
   const name = (inp.value || '').trim();
   if (!name) { inp.focus(); return; }
-  try { const r = await api({ action: 'cod_match_line', line_id: lineId, order_name: name }); toast(`✅ ${r.order_name} marked paid ${inr(r.amount)}`); loadCod(); }
+  try { const r = await api({ action: 'cod_match_line', line_id: lineId, order_name: name }); toast(`✅ ${r.order_name} marked paid ${inr(r.amount)}`); loadCod(true); }
   catch (e) { alert('Could not match: ' + e.message); }
 }
 async function codNoteEdit(orderName) {
@@ -6326,7 +6330,7 @@ async function codBackfill(days) {
     try { const r = await api({ action: 'cod_backfill_payment', from: f, to: t }); filled += r.filled || 0; cod += r.cod || 0; added += r.added || 0; } catch (e) { note.textContent = 'Backfill failed: ' + e.message; return; }
   }
   note.textContent = `Filled ${filled} orders (${cod} COD)${added ? `, added ${added} orders the rack never had` : ''}. Reloading…`;
-  setTimeout(() => { delete note.dataset.busy; note.style.display = 'none'; loadCod(); }, 1200);
+  setTimeout(() => { delete note.dataset.busy; note.style.display = 'none'; loadCod(true); }, 1200);
 }
 
 // Pulls every COD remittance mail not yet imported, 25 per pass, until Gmail has nothing new.
