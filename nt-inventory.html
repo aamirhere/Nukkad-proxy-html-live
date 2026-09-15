@@ -6294,16 +6294,16 @@ function renderCod() {
   const monthName = k => new Date(k + '-01T00:00:00+05:30').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   const cell = (n, l, sub, cls = '') => `<div class="cod-mcell ${cls}"><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   document.getElementById('codMonths').innerHTML = (c.months || []).length ? c.months.map(m => {
-    const live = m.orders - m.cancelled;
+    const lost = m.cancelled + m.rto, codLost = m.cod_cancelled + m.rto_cod;
     return `<div class="cod-month">
-      <div class="cod-mhead"><b>${monthName(m.month)}</b><span>${m.orders} orders · ${m.cod} COD · ${m.prepaid} prepaid${m.unknown ? ` · <span style="color:#b05000">${m.unknown} type unknown</span>` : ''}${m.on_rack ? ` · ${m.on_rack} still on rack` : ''}</span></div>
+      <div class="cod-mhead"><b>${monthName(m.month)}</b><span>${m.orders} orders received · ${m.cod} COD · ${m.prepaid} prepaid${m.unknown ? ` · <span style="color:#b05000">${m.unknown} type unknown</span>` : ''}${m.on_rack ? ` · ${m.on_rack} still on rack` : ''}${m.trouble + m.transit ? ` · ${m.trouble + m.transit} still with courier` : ''}</span></div>
       <div class="cod-mgrid">
+        ${cell(pct(lost, m.orders), 'Lost', `${lost} of ${m.orders} orders: ${m.cancelled} cancelled + ${m.rto} returned`, lost ? 'bad' : '')}
         ${cell(m.cancelled, 'Cancelled', pct(m.cancelled, m.orders) + ' of orders')}
-        ${cell(m.delivered, 'Delivered', pct(m.delivered, m.dispatched) + ' of dispatched', 'ok')}
         ${cell(m.rto, 'Returned', pct(m.rto, m.dispatched) + ' of dispatched', m.rto ? 'bad' : '')}
-        ${cell(m.rto_cod, 'COD returned', m.rto ? pct(m.rto_cod, m.rto) + ' of returns' : '')}
-        ${cell(m.rto_prepaid, 'Prepaid returned', 'call & redispatch', m.rto_prepaid ? 'bad' : '')}
-        ${cell(m.trouble + m.transit, 'Still with courier', `${m.trouble} attempted · ${m.transit} moving`)}
+        ${cell(m.delivered, 'Delivered', pct(m.delivered, m.dispatched) + ' of dispatched', 'ok')}
+        ${cell(pct(codLost, m.cod), 'COD lost', `${codLost} of ${m.cod} COD: ${m.cod_cancelled} cancelled + ${m.rto_cod} returned`, codLost ? 'bad' : '')}
+        ${cell(m.rto_prepaid, 'Prepaid returned', `${pct(m.rto_prepaid, m.prepaid)} of prepaid · call & redispatch`, m.rto_prepaid ? 'bad' : '')}
         ${cell(m.cod_paid, 'COD paid', 'Bluedart remitted', 'ok')}
         ${cell(m.cod_unpaid, 'COD delivered, unpaid', 'waiting on Bluedart', m.cod_unpaid ? 'warn' : '')}
       </div>
