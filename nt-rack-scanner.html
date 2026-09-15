@@ -444,6 +444,7 @@ input[type=file]{display:none}
         <button class="hmenu-item" id="pendingBtn" onclick="openSummaryOverlay();closeHMenu()" style="position:relative">Summary <span id="pendingBadge" style="background:var(--amber);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:3px;display:none"></span></button>
         <button class="hmenu-item" onclick="openExtraStock();closeHMenu()">📦 Extra Stock</button>
         <button class="hmenu-item" onclick="toggleResyncPanel();closeHMenu()">Sync until date</button>
+        <button class="hmenu-item" onclick="remitFetchNow();closeHMenu()">💰 Fetch COD remittance</button>
         <button class="hmenu-item" onclick="checkBluedartStatus();closeHMenu()">📦 Sync Bluedart (Active Orders)</button>
         <button class="hmenu-item" onclick="checkDispatchedBluedart();closeHMenu()">🔍 Verify Dispatched via Bluedart</button>
         <hr class="hmenu-sep">
@@ -4938,6 +4939,38 @@ async function pqMarkAllPrinted() {
   await apiFetch({ action: 'mark_print_done', order_names: names }).catch(() => {});
   _pqOrders = _pqOrders.map(o => names.includes(o.order_name) ? { ...o, printed: true, print_initiated: false } : o);
   setPqFilter(_pqFilter);
+}
+
+// Pulls every COD remittance mail not yet imported. Each call handles up to
+// 25 mails, so keep going until a call finds nothing new.
+let _remitBusy = false;
+async function remitFetchNow() {
+  if (_remitBusy) return;
+  _remitBusy = true;
+  let mails = 0, lines = 0, matched = 0, amount = 0, errors = [];
+  setStatus('Checking Gmail for remittance mails…');
+  try {
+    for (let round = 0; round < 8; round++) {
+      const r = await apiFetch({ action: 'remit_run', limit: 25 });
+      if (!r.ok) throw new Error(r.message || 'fetch failed');
+      const fresh = (r.processed || []).filter(p => p.files);
+      for (const p of fresh) for (const f of p.files) { mails++; lines += f.rows || 0; matched += f.matched || 0; amount += f.total || 0; }
+      errors.push(...(r.processed || []).filter(p => p.error).map(p => p.error));
+      setStatus(`Remittance: ${mails} mail${mails !== 1 ? 's' : ''} imported so far…`);
+      if (!fresh.length || r.found < 25) break;
+    }
+    if (!mails) {
+      setStatus('No new remittance mails in Gmail');
+      alert('Nothing new to import.\nEvery remittance mail in nukkadtales@gmail.com is already in.' + (errors.length ? '\n\nErrors:\n' + errors.join('\n') : ''));
+    } else {
+      setStatus(`✓ ${mails} remittance mail${mails !== 1 ? 's' : ''} · ${lines} lines · ${matched} matched · ₹${Math.round(amount).toLocaleString('en-IN')}`);
+      alert(`Imported ${mails} remittance mail${mails !== 1 ? 's' : ''}.\n${lines} lines, ${matched} matched to orders, ₹${Math.round(amount).toLocaleString('en-IN')} total.${lines - matched ? `\n${lines - matched} lines had no matching order and are kept for review.` : ''}` + (errors.length ? '\n\nErrors:\n' + errors.join('\n') : ''));
+      loadRackStatus();
+    }
+  } catch (e) {
+    setStatus('Remittance fetch failed: ' + e.message);
+    alert('Remittance fetch failed: ' + e.message);
+  } finally { _remitBusy = false; }
 }
 
 // Manual Bluedart round for every open order and last 30 days of dispatches.
