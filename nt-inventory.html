@@ -1560,15 +1560,24 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <select id="codDays" onchange="loadCod()" style="padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit"><option value="30">30 days</option><option value="60" selected>60 days</option><option value="90">90 days</option><option value="180">180 days</option></select>
+      <button class="btn btn-ghost" id="codBdBtn" onclick="codSyncBluedart()">↻ Sync Bluedart</button>
       <button class="btn btn-ghost" onclick="remitFetchNow().then(loadCod)">📥 Fetch remittance</button>
       <button class="btn btn-ghost" onclick="loadCod()">↻</button>
     </div>
   </div>
   <div id="codBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
   <div class="cod-tiles" id="codTiles"></div>
-  <div class="cut-slot"><div class="cut-slot-hd" id="codLaneHd">ORDERS</div><div id="codLane"></div></div>
-  <div class="cut-slot"><div class="cut-slot-hd">📅 DAY BY DAY — COD orders by order date</div><div id="codDays_"></div></div>
+  <div class="cut-slot"><div class="cut-slot-hd">💰 COD MONEY — by order date · tap a day for its orders</div><div id="codDays_"></div></div>
+  <div class="cut-slot"><div class="cut-slot-hd">↩ RETURNS — every dispatched order, COD and prepaid · tap a day</div><div id="codRto"></div></div>
+  <div class="cut-slot" id="codUnmatchedWrap"><div class="cut-slot-hd">❓ REMITTANCE LINES WITH NO ORDER — paid by Bluedart, match by hand</div><div id="codUnmatched"></div></div>
   <div class="cut-slot"><div class="cut-slot-hd">📧 REMITTANCE MAILS</div><div id="codMails"></div></div>
+</div>
+
+<div class="modal-backdrop" id="codModal" onclick="if(event.target===this)codModalClose()">
+  <div class="modal" style="width:min(960px,96vw);max-height:90vh;overflow:auto;border-radius:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><h3 id="codModalTitle" style="margin:0">Orders</h3><button class="btn btn-ghost" onclick="codModalClose()">Close</button></div>
+    <div id="codModalBody"></div>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="fbaModal" onclick="if(event.target===this)closeFbaModal()">
@@ -6203,65 +6212,81 @@ function todayIST() {
 }
 
 // ── COD ledger ───────────────────────────────────────────────────────────────
-let _cod = null, _codLane = 'delivered';
-const COD_LANES = {
-  delivered: ['Delivered, money due', 'courier delivered, Bluedart has not paid yet', 'warn'],
-  remitted:  ['Remitted', 'paid by Bluedart NEFT', 'ok'],
-  transit:   ['On the way', 'dispatched, not delivered yet', ''],
-  trouble:   ['Trouble', 'failed / attempted / exception', 'warn'],
-  rto:       ['COD RTO', 'coming back', 'warn'],
-  rto_back:  ['RTO received', 'back with us, restock', ''],
-  prepaid_rto: ['Prepaid RTO', 'customer paid, call & redispatch', 'warn'],
-  unmatched: ['Unmatched lines', 'paid by Bluedart, no order found', 'warn'],
-  open:      ['Not dispatched', 'COD orders still on the rack', ''],
-};
-const codPill = st => ({ remitted: ['done', 'Remitted'], delivered: ['wait', 'Delivered · unpaid'], rto: ['rto', 'RTO'], rto_back: ['rto', 'RTO received'], trouble: ['rto', 'Trouble'], transit: ['', 'In transit'], open: ['', 'On rack'] }[st] || ['', st]);
+let _cod = null;
+const codPill = st => ({ remitted: ['done', 'Paid'], delivered: ['wait', 'Delivered · unpaid'], rto: ['rto', 'RTO'], rto_back: ['rto', 'RTO received'], trouble: ['rto', 'Not delivered'], transit: ['', 'In transit'], open: ['', 'On rack'], cancelled: ['', 'Cancelled'] }[st] || ['', st]);
 const inr = n => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '';
 
 async function loadCod() {
   const days = document.getElementById('codDays').value;
-  document.getElementById('codLane').innerHTML = '<div class="loading-row" style="height:50px;border-radius:10px"></div>';
+  document.getElementById('codDays_').innerHTML = '<div class="loading-row" style="height:50px;border-radius:10px"></div>';
   try { _cod = await api({ action: 'cod_ledger', days }); renderCod(); }
-  catch (e) { document.getElementById('codLane').innerHTML = `<div class="cut-empty" style="color:var(--red)">Failed: ${e.message}</div>`; }
+  catch (e) { document.getElementById('codDays_').innerHTML = `<div class="cut-empty" style="color:var(--red)">Failed: ${e.message}</div>`; }
 }
 
 function renderCod() {
   const c = _cod; if (!c) return;
-  const k = c.counts;
+  const t = c.totals;
   const bf = document.getElementById('codBackfillNote');
-  if (c.unknown_payment && !bf.dataset.busy) { bf.style.display = ''; bf.innerHTML = `<b>${c.unknown_payment}</b> orders in this window have no payment type yet, so they are missing from every lane. <button class="emg-dash-link" onclick="this.closest('#codBackfillNote').dataset.busy='1';codBackfill(${document.getElementById('codDays').value})">Fill from Shopify</button>`; }
+  if (c.unknown_payment && !bf.dataset.busy) { bf.style.display = ''; bf.innerHTML = `<b>${c.unknown_payment}</b> orders in this window have no payment type yet, so they are counted as neither COD nor prepaid. <button class="emg-dash-link" onclick="this.closest('#codBackfillNote').dataset.busy='1';codBackfill(${document.getElementById('codDays').value})">Fill from Shopify</button>`; }
   else if (!bf.dataset.busy) bf.style.display = 'none';
-  document.getElementById('codSummary').innerHTML = `<b>${k.delivered}</b> delivered awaiting payment · <b>${k.remitted}</b> remitted (${inr(c.remitted_total)}) · <b>${k.rto + k.rto_back}</b> COD RTO · <b>${k.prepaid_rto}</b> prepaid RTO · since ${fmtDM(c.from)}`;
-  const tile = (key, n, sub) => { const [l, s, cls] = COD_LANES[key]; return `<button class="cod-tile ${cls} ${_codLane === key ? 'on' : ''}" onclick="_codLane='${key}';renderCod()"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${sub || s}</div></button>`; };
-  document.getElementById('codTiles').innerHTML = tile('delivered', k.delivered) + tile('remitted', k.remitted, inr(c.remitted_total)) + tile('transit', k.transit) + tile('trouble', k.trouble) + tile('rto', k.rto) + tile('rto_back', k.rto_back) + tile('prepaid_rto', k.prepaid_rto) + tile('unmatched', k.unmatched) + tile('open', k.open);
+  document.getElementById('codSummary').innerHTML = `<b>${t.cod_orders}</b> COD orders since ${fmtDM(c.from)} · <b>${inr(t.remitted_amount)}</b> received for ${t.remitted} · overall return rate <b>${pct(t.rto, t.dispatched)}</b>`;
+  const tile = (n, l, s, cls = '') => `<div class="cod-tile ${cls}"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  document.getElementById('codTiles').innerHTML =
+    tile(inr(t.remitted_amount), 'Received', `${t.remitted} COD orders paid by Bluedart`, 'ok') +
+    tile(t.delivered_unpaid, 'Delivered, not paid yet', 'Bluedart pays ~15 days after delivery') +
+    tile(`${pct(t.rto, t.dispatched)}`, 'Return rate', `${t.rto} of ${t.dispatched} dispatched came back`, t.rto ? 'warn' : '') +
+    tile(`${pct(t.rto_cod, t.rto)}`, 'Returns that are COD', `${t.rto_cod} COD · ${t.rto_prepaid} prepaid`) +
+    tile(t.prepaid_rto_open, 'Prepaid RTO', 'customer paid — call & redispatch', t.prepaid_rto_open ? 'warn' : '') +
+    tile(t.unmatched, 'Unmatched lines', 'paid, no order found', t.unmatched ? 'warn' : '');
 
-  const [laneLabel, laneSub] = COD_LANES[_codLane];
-  document.getElementById('codLaneHd').textContent = `${laneLabel.toUpperCase()} — ${laneSub}`;
-  const el = document.getElementById('codLane');
-  if (_codLane === 'unmatched') {
-    el.innerHTML = c.unmatched.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>AWB</th><th>Ref in sheet</th><th style="text-align:right">Amount</th><th>Delivered</th><th>Match to order</th></tr></thead><tbody>${c.unmatched.map(l => `<tr><td style="font-family:monospace">${l.awb}</td><td>${(l.raw && (l.raw.ccrcrdref || l.raw.reference || '')) || ''}</td><td style="text-align:right;font-weight:700">${inr(l.amount)}</td><td style="color:var(--muted)">${l.delivered_on ? fmtDM(l.delivered_on) : ''}</td><td><span style="display:flex;gap:4px"><input id="codm-${l.id}" placeholder="#86123" style="width:90px;padding:4px 6px;border:1.5px solid var(--line);border-radius:6px;font-family:inherit;font-size:.78rem" value="${l.raw?.ccrcrdref ? '#' + l.raw.ccrcrdref : ''}"><button class="emg-dash-link ok" onclick="codMatch(${l.id})">match</button></span></td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">Every remittance line found its order.</div>';
-    return;
-  }
-  const rows = _codLane === 'prepaid_rto' ? c.prepaid_rto : c.orders.filter(o => o.state === _codLane);
-  el.innerHTML = rows.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Pieces</th><th>Courier</th><th>Status</th>${_codLane === 'remitted' ? '<th style="text-align:right">Paid</th><th>NEFT</th>' : ''}<th>Note</th></tr></thead><tbody>${rows.map(o => { const [pc, pl] = codPill(o.state); return `<tr><td><b>${o.order_name}</b></td><td>${fmtDM(o.order_date)}</td><td style="color:var(--ink2)">${(o.customer || '').split(' · ')[0]}</td><td style="color:var(--muted)">${o.items ? o.items.join(', ') : ''}</td><td style="font-size:.72rem;color:var(--muted)">${o.tracking_company || ''}<div style="font-family:monospace">${o.tracking || ''}</div></td><td><span class="cod-pill ${pc}">${pl}</span><div style="font-size:.66rem;color:var(--muted)">${o.ship_status || ''}${o.ship_status_at ? ' · ' + fmtDM(o.ship_status_at.slice(0, 10)) : ''}</div></td>${_codLane === 'remitted' ? `<td style="text-align:right;font-weight:700">${inr(o.cod_remitted_amount)}</td><td style="color:var(--muted)">${o.cod_remitted_at ? fmtDM(o.cod_remitted_at) : ''}</td>` : ''}<td><button class="emg-dash-link" style="${o.note ? 'border-color:var(--accent)' : ''}" onclick="codNoteEdit('${o.order_name}')">${o.note ? o.note.slice(0, 28) + (o.note.length > 28 ? '…' : '') : '+ note'}</button></td></tr>`; }).join('')}</tbody></table>` : '<div class="cut-empty">Nothing here.</div>';
+  document.getElementById('codDays_').innerHTML = c.cod_days.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Order date</th><th style="text-align:right">COD orders</th><th style="text-align:right">Cancelled</th><th style="text-align:right">Dispatched</th><th style="text-align:right">Delivered</th><th style="text-align:right">Awaiting pay</th><th style="text-align:right">RTO</th><th style="text-align:right">Paid</th><th style="text-align:right">Received ₹</th></tr></thead><tbody>${c.cod_days.map(d => `<tr style="cursor:pointer" onclick="codDayOpen('cod','${d.date}')"><td><b>${fmtDM(d.date)}</b></td><td style="text-align:right">${d.orders}</td><td style="text-align:right;color:var(--muted)">${d.cancelled || ''}</td><td style="text-align:right">${d.dispatched || ''}</td><td style="text-align:right">${d.delivered || ''}</td><td style="text-align:right;${d.unpaid ? 'color:#b05000;font-weight:700' : ''}">${d.unpaid || ''}</td><td style="text-align:right;${d.rto ? 'color:#c0392b;font-weight:700' : ''}">${d.rto || ''}</td><td style="text-align:right">${d.remitted || ''}</td><td style="text-align:right;font-weight:700">${d.remitted_amount ? inr(d.remitted_amount) : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">No COD orders in this window.</div>';
 
-  document.getElementById('codDays_').innerHTML = c.days.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Order date</th><th style="text-align:right">COD orders</th><th style="text-align:right">Dispatched</th><th style="text-align:right">Delivered</th><th style="text-align:right">RTO</th><th style="text-align:right">RTO %</th><th style="text-align:right">Remitted</th><th style="text-align:right">Paid ₹</th></tr></thead><tbody>${c.days.slice(0, 31).map(d => `<tr><td>${fmtDM(d.date)}</td><td style="text-align:right">${d.cod_orders}</td><td style="text-align:right">${d.dispatched}</td><td style="text-align:right">${d.delivered}</td><td style="text-align:right;${d.rto ? 'color:#c0392b;font-weight:700' : ''}">${d.rto || ''}</td><td style="text-align:right;color:var(--muted)">${d.dispatched ? Math.round(d.rto / d.dispatched * 100) + '%' : ''}</td><td style="text-align:right">${d.remitted || ''}</td><td style="text-align:right;font-weight:700">${d.remitted_amount ? inr(d.remitted_amount) : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">No COD orders in this window.</div>';
+  document.getElementById('codRto').innerHTML = c.rto_days.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Order date</th><th style="text-align:right">Dispatched</th><th style="text-align:right">COD</th><th style="text-align:right">Prepaid</th><th style="text-align:right">Delivered</th><th style="text-align:right">Not delivered</th><th style="text-align:right">RTO</th><th style="text-align:right">Return %</th><th style="text-align:right">COD RTO</th><th style="text-align:right">Prepaid RTO</th><th style="text-align:right">Back with us</th></tr></thead><tbody>${c.rto_days.map(d => `<tr style="cursor:pointer" onclick="codDayOpen('rto','${d.date}')"><td><b>${fmtDM(d.date)}</b></td><td style="text-align:right">${d.dispatched}</td><td style="text-align:right;color:var(--muted)">${d.cod || ''}</td><td style="text-align:right;color:var(--muted)">${d.prepaid || ''}</td><td style="text-align:right">${d.delivered || ''}</td><td style="text-align:right;${d.trouble ? 'color:#b05000' : ''}">${d.trouble || ''}</td><td style="text-align:right;${d.rto ? 'color:#c0392b;font-weight:700' : ''}">${d.rto || ''}</td><td style="text-align:right;color:var(--muted)">${d.rto ? pct(d.rto, d.dispatched) : ''}</td><td style="text-align:right">${d.rto_cod || ''}</td><td style="text-align:right;${d.rto_prepaid ? 'background:#fde8e6;color:#c0392b;font-weight:700' : ''}">${d.rto_prepaid || ''}</td><td style="text-align:right;color:var(--muted)">${d.rto_back || ''}</td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">Nothing dispatched in this window.</div>';
+
+  document.getElementById('codUnmatchedWrap').style.display = c.unmatched.length ? '' : 'none';
+  document.getElementById('codUnmatched').innerHTML = `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>AWB</th><th>Ref in sheet</th><th style="text-align:right">Amount</th><th>Picked up</th><th>Match to order</th></tr></thead><tbody>${c.unmatched.map(l => `<tr><td style="font-family:monospace">${l.awb}</td><td>${(l.raw && (l.raw.ccrcrdref || l.raw.reference || '')) || ''}</td><td style="text-align:right;font-weight:700">${inr(l.amount)}</td><td style="color:var(--muted)">${l.delivered_on ? fmtDM(l.delivered_on) : ''}</td><td><span style="display:flex;gap:4px"><input id="codm-${l.id}" placeholder="#86123" style="width:90px;padding:4px 6px;border:1.5px solid var(--line);border-radius:6px;font-family:inherit;font-size:.78rem" value="${l.raw?.ccrcrdref ? '#' + l.raw.ccrcrdref : ''}"><button class="emg-dash-link ok" onclick="codMatch(${l.id})">match</button></span></td></tr>`).join('')}</tbody></table>`;
 
   document.getElementById('codMails').innerHTML = c.remittances.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Mail</th><th>Received</th><th style="text-align:right">Lines</th><th style="text-align:right">Matched</th><th style="text-align:right">Unmatched</th><th style="text-align:right">Total</th></tr></thead><tbody>${c.remittances.map(m => `<tr><td>${m.subject || m.filename}<div style="font-size:.66rem;color:var(--muted)">${m.filename}</div></td><td style="color:var(--muted)">${m.received_at ? fmtDM(m.received_at.slice(0, 10)) : ''}</td><td style="text-align:right">${m.row_count}</td><td style="text-align:right">${m.matched}</td><td style="text-align:right;${m.unmatched ? 'color:#c0392b;font-weight:700' : ''}">${m.unmatched || ''}</td><td style="text-align:right;font-weight:700">${inr(m.total_amount)}</td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">No remittance mail imported yet. Press 📥 Fetch remittance.</div>';
+}
+
+// Day popup: COD money view lists that day's COD orders; returns view lists what came back or failed
+function codDayOpen(kind, date) {
+  const c = _cod; if (!c) return;
+  let rows = c.orders.filter(o => o.order_date === date);
+  if (kind === 'cod') rows = rows.filter(o => o.payment === 'cod');
+  else rows = rows.filter(o => o.state === 'rto' || o.state === 'rto_back' || o.state === 'trouble');
+  const order = { rto: 0, rto_back: 1, trouble: 2, delivered: 3, transit: 4, open: 5, remitted: 6, cancelled: 7 };
+  rows.sort((a, b) => (a.payment === 'prepaid' ? 0 : 1) - (b.payment === 'prepaid' ? 0 : 1) || (order[a.state] ?? 9) - (order[b.state] ?? 9));
+  document.getElementById('codModalTitle').textContent = kind === 'cod' ? `COD orders of ${fmtDM(date)}` : `Returns & failed deliveries, orders of ${fmtDM(date)}`;
+  document.getElementById('codModalBody').innerHTML = rows.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Order</th><th>Pay</th><th>Customer</th><th>Pieces</th><th>Courier</th><th>Status</th><th style="text-align:right">Paid</th><th>Note</th></tr></thead><tbody>${rows.map(o => { const [pc, pl] = codPill(o.state); const pre = o.payment === 'prepaid' && (o.state === 'rto' || o.state === 'rto_back' || o.state === 'trouble'); return `<tr style="${pre ? 'background:#fde8e6' : ''}"><td><b>${o.order_name}</b></td><td><span class="cod-pill ${o.payment === 'prepaid' ? 'rto' : ''}">${o.payment === 'cod' ? 'COD' : o.payment === 'prepaid' ? 'PREPAID' : '?'}</span></td><td style="color:var(--ink2)">${(o.customer || '').split(' · ')[0]}</td><td style="color:var(--muted)">${o.items.join(', ')}</td><td style="font-size:.72rem;color:var(--muted)">${o.tracking_company || ''}<div style="font-family:monospace">${o.tracking || ''}</div></td><td><span class="cod-pill ${pc}">${pl}</span><div style="font-size:.66rem;color:var(--muted)">${o.ship_status || ''}${o.ship_status_at ? ' · ' + fmtDM(o.ship_status_at.slice(0, 10)) : ''}</div></td><td style="text-align:right;font-weight:700">${o.cod_remitted_at ? inr(o.cod_remitted_amount) + `<div style="font-size:.66rem;color:var(--muted);font-weight:400">NEFT ${fmtDM(o.cod_remitted_at)}</div>` : ''}</td><td><button class="emg-dash-link" style="${o.note ? 'border-color:var(--accent)' : ''}" onclick="codNoteEdit('${o.order_name}')">${o.note ? o.note.slice(0, 28) + (o.note.length > 28 ? '…' : '') : '+ note'}</button></td></tr>`; }).join('')}</tbody></table>` : '<div class="cut-empty">Nothing for this day.</div>';
+  document.getElementById('codModal').classList.add('open');
+}
+function codModalClose() { document.getElementById('codModal').classList.remove('open'); }
+
+async function codSyncBluedart() {
+  const btn = document.getElementById('codBdBtn'); btn.disabled = true; btn.textContent = '⏳ Bluedart…';
+  try {
+    const r = await api({ action: 'bluedart_sync' });
+    if (!r.answered && r.asked) alert(`Bluedart returned no status for ${r.asked} AWBs.${r.sample ? '\n\nRaw reply:\n' + r.sample : ''}${r.error ? '\n' + r.error : ''}`);
+    else toast(`Bluedart: ${r.answered}/${r.asked} answered · ${r.updated} updated · ${r.dispatched} dispatched`);
+    await loadCod();
+  } catch (e) { alert('Bluedart sync failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '↻ Sync Bluedart'; }
 }
 
 async function codMatch(lineId) {
   const inp = document.getElementById('codm-' + lineId);
   const name = (inp.value || '').trim();
   if (!name) { inp.focus(); return; }
-  try { const r = await api({ action: 'cod_match_line', line_id: lineId, order_name: name }); toast(`✅ ${r.order_name} marked remitted ${inr(r.amount)}`); loadCod(); }
+  try { const r = await api({ action: 'cod_match_line', line_id: lineId, order_name: name }); toast(`✅ ${r.order_name} marked paid ${inr(r.amount)}`); loadCod(); }
   catch (e) { alert('Could not match: ' + e.message); }
 }
 async function codNoteEdit(orderName) {
-  const o = (_cod?.orders || []).concat(_cod?.prepaid_rto || []).find(x => x.order_name === orderName);
+  const o = (_cod?.orders || []).find(x => x.order_name === orderName);
   const note = prompt(`Note for ${orderName} (called customer, redispatched, refund…)`, o?.note || '');
   if (note === null) return;
-  try { await api({ action: 'cod_note', order_name: orderName, note: note.trim() }); if (o) o.note = note.trim() || null; renderCod(); }
+  try { await api({ action: 'cod_note', order_name: orderName, note: note.trim() }); if (o) o.note = note.trim() || null; if (document.getElementById('codModal').classList.contains('open')) { const t = document.getElementById('codModalTitle').textContent; const m = t.match(/(\d{2})-(\d{2})$/); } renderCod(); }
   catch (e) { alert('Could not save: ' + e.message); }
 }
 // Older rack rows have no payment type; fill them from Shopify in 10-day windows
