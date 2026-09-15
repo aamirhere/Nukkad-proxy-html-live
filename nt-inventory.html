@@ -1590,7 +1590,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div id="codBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
   <div class="cod-tiles" id="codTiles"></div>
   <div class="cut-slot"><div class="cut-slot-hd">💰 BY ORDER DATE — Bluedart pays about 15 days after delivery · tap a day for its orders</div><div id="codDays_" class="cod-scroll"></div></div>
-  <div class="cut-slot" id="codUnmatchedWrap"><div class="cut-slot-hd">❓ REMITTANCE LINES WITH NO ORDER — paid by Bluedart, match by hand</div><div id="codUnmatched"></div></div>
+  <div class="cut-slot" id="codUnmatchedWrap"><div class="cut-slot-hd" style="display:flex;justify-content:space-between;align-items:center"><span>❓ REMITTANCE LINES WITH NO ORDER — paid by Bluedart</span><button class="emg-dash-link" onclick="codRematch()">↻ Re-match</button></div><div style="font-size:.74rem;color:var(--muted);margin-bottom:6px">Usually orders older than the rack. Press <b>Check against Shopify</b> above with a wide enough window, then Re-match; or type the order number and match by hand.</div><div id="codUnmatched"></div></div>
   <div class="cut-slot"><div class="cut-slot-hd">📧 REMITTANCE MAILS</div><div id="codMails"></div></div>
 </div>
 
@@ -6309,6 +6309,10 @@ async function codSyncBluedart() {
   finally { btn.disabled = false; btn.textContent = '↻ Sync Bluedart'; }
 }
 
+async function codRematch() {
+  try { const r = await api({ action: 'remit_rematch' }); toast(`↻ ${r.rematched} line${r.rematched !== 1 ? 's' : ''} matched`); loadCod(true); }
+  catch (e) { alert('Re-match failed: ' + e.message); }
+}
 async function codMatch(lineId) {
   const inp = document.getElementById('codm-' + lineId);
   const name = (inp.value || '').trim();
@@ -6327,15 +6331,15 @@ async function codNoteEdit(orderName) {
 async function codBackfill(days) {
   const note = document.getElementById(document.getElementById('view-returns').classList.contains('active') ? 'rtoBackfillNote' : 'codBackfillNote');
   note.dataset.busy = '1'; note.style.display = ''; note.textContent = 'Filling payment types from Shopify…';
-  let filled = 0, cod = 0, added = 0;
+  let filled = 0, cod = 0, added = 0, rematched = 0;
   const to = new Date(todayIST() + 'T00:00:00+05:30');
   for (let back = 0; back < days; back += 10) {
     const a = new Date(to.getTime() - (back + 9) * 86400000), b = new Date(to.getTime() - back * 86400000);
     const f = a.toLocaleString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 10), t = b.toLocaleString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 10);
     note.textContent = `Filling payment types from Shopify… ${f} to ${t}`;
-    try { const r = await api({ action: 'cod_backfill_payment', from: f, to: t }); filled += r.filled || 0; cod += r.cod || 0; added += r.added || 0; } catch (e) { note.textContent = 'Backfill failed: ' + e.message; return; }
+    try { const r = await api({ action: 'cod_backfill_payment', from: f, to: t }); filled += r.filled || 0; cod += r.cod || 0; added += r.added || 0; rematched += r.rematched || 0; } catch (e) { note.textContent = 'Backfill failed: ' + e.message; return; }
   }
-  note.textContent = `Filled ${filled} orders (${cod} COD)${added ? `, added ${added} orders the rack never had` : ''}. Reloading…`;
+  note.textContent = `Filled ${filled} orders (${cod} COD)${added ? `, added ${added} orders the rack never had` : ''}${rematched ? `, matched ${rematched} waiting remittance lines` : ''}. Reloading…`;
   setTimeout(() => { delete note.dataset.busy; note.style.display = 'none'; loadCod(true); }, 1200);
 }
 
