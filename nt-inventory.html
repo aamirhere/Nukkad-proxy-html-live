@@ -6310,8 +6310,18 @@ async function codSyncBluedart() {
 }
 
 async function codRematch() {
-  try { const r = await api({ action: 'remit_rematch' }); toast(`↻ ${r.rematched} line${r.rematched !== 1 ? 's' : ''} matched`); loadCod(true); }
-  catch (e) { alert('Re-match failed: ' + e.message); }
+  const note = document.getElementById('codFetchNote'), noteText = document.getElementById('codFetchText');
+  let total = 0;
+  try {
+    for (let pass = 0; pass < 8; pass++) {
+      note.style.display = ''; noteText.textContent = `Matching waiting lines, pass ${pass + 1}… ${total ? total + ' matched so far' : ''}`;
+      const r = await api({ action: 'remit_rematch' });
+      total += r.rematched || 0;
+      if (!r.remaining) break;
+    }
+    toast(`↻ ${total} line${total !== 1 ? 's' : ''} matched`); loadCod(true);
+  } catch (e) { alert('Re-match failed: ' + e.message); }
+  finally { note.style.display = 'none'; }
 }
 async function codMatch(lineId) {
   const inp = document.getElementById('codm-' + lineId);
