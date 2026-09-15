@@ -6351,14 +6351,15 @@ async function remitFetchNow() {
   btns.forEach(b => { b.disabled = true; b.dataset.label = b.textContent; b.textContent = '⏳ Fetching…'; });
   say('Checking Gmail for remittance mails…');
   try {
-    for (let round = 0; round < 8; round++) {
+    // one mail per call keeps each call inside the function's time budget; keep going while the server reports more
+    for (let round = 0; round < 40; round++) {
       say(`Reading Gmail, pass ${round + 1}… ${mails ? mails + ' mail' + (mails !== 1 ? 's' : '') + ' imported so far' : ''}`);
-      const r = await api({ action: 'remit_run', limit: 25 });
+      const r = await api({ action: 'remit_run', limit: 25, max_import: 1 });
       if (!r.ok) throw new Error(r.message || 'fetch failed');
       const fresh = (r.processed || []).filter(p => p.files);
       for (const p of fresh) for (const f of p.files) { mails++; lines += f.rows || 0; matched += f.matched || 0; amount += f.total || 0; }
       errors.push(...(r.processed || []).filter(p => p.error).map(p => p.error));
-      if (!fresh.length || r.found < 25) break;
+      if (!r.remaining) break;
     }
     const err = errors.length ? '\n\nErrors:\n' + errors.join('\n') : '';
     if (!mails) alert('Nothing new to import.\nEvery remittance mail in nukkadtales@gmail.com is already in.' + err);
