@@ -1166,7 +1166,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <!-- desktop-only -->
     <button class="nav-btn nav-desktop" onclick="switchView('amazon-skus')" style="color:#c07000">🟡 Amazon SKUs</button>
     <button class="nav-btn nav-desktop" onclick="switchView('fba')">📦 FBA</button>
-    <button class="nav-btn nav-desktop" onclick="switchView('cod')">💰 COD</button>
+    <button class="nav-btn" onclick="switchView('returns')">↩ Returns</button>
     <button class="nav-btn" onclick="switchView('cutlist')">✂ Cut List</button>
     <a class="nav-btn nav-desktop" href="nt-production-prints.html" style="text-decoration:none">🖨 Print</a>
   </nav>
@@ -1175,7 +1175,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <button class="nav-more-btn" onclick="toggleNavMenu()" aria-label="More">⋯</button>
     <div class="nav-menu" id="navMenu">
       <button class="nav-mobile-only" onclick="switchView('fba');closeNavMenu()">📦 FBA / Zepto</button>
-      <button onclick="switchView('cod');closeNavMenu()">💰 COD &amp; returns</button>
+      <button onclick="switchView('cod');closeNavMenu()">💰 COD money</button>
       <a class="nav-mobile-only" href="nt-production-prints.html">🖨 Print</a>
       <button onclick="remitFetchNow();closeNavMenu()">💰 Fetch COD remittance</button>
     </div>
@@ -1551,24 +1551,40 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div class="cut-slot"><div class="cut-slot-hd">🧹 CLEAN UP — Amazon SKUs with no orders in 180 days</div><div id="fbaSuggestRemove"></div></div>
 </div>
 
-<!-- ── COD ───────────────────────────────────────────────────────────────── -->
-<div class="view" id="view-cod">
+<!-- ── RETURNS ───────────────────────────────────────────────────────────── -->
+<div class="view" id="view-returns">
   <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div>
-      <h2>💰 COD &amp; returns</h2>
-      <p id="codSummary">Loading…</p>
+      <h2>↩ Returns</h2>
+      <p id="rtoSummary">Loading…</p>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <select id="codDays" onchange="loadCod()" style="padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit"><option value="30">30 days</option><option value="60" selected>60 days</option><option value="90">90 days</option><option value="180">180 days</option></select>
-      <button class="btn btn-ghost" id="codBdBtn" onclick="codSyncBluedart()">↻ Sync Bluedart</button>
-      <button class="btn btn-ghost" onclick="remitFetchNow().then(loadCod)">📥 Fetch remittance</button>
+      <button class="btn btn-primary" id="codBdBtn" onclick="codSyncBluedart()">↻ Sync Bluedart</button>
+      <button class="btn btn-ghost" onclick="loadCod()">↻</button>
+    </div>
+  </div>
+  <div id="rtoBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
+  <div class="cod-tiles" id="rtoTiles"></div>
+  <div class="cut-slot"><div class="cut-slot-hd">↩ BY ORDER DATE — every dispatched order, COD and prepaid · tap a day</div><div id="codRto"></div></div>
+</div>
+
+<!-- ── COD MONEY ─────────────────────────────────────────────────────────── -->
+<div class="view" id="view-cod">
+  <div class="page-hd" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2>💰 COD money</h2>
+      <p id="codSummary">Loading…</p>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <select id="codDays2" onchange="document.getElementById('codDays').value=this.value;loadCod()" style="padding:8px;border:1.5px solid var(--line);border-radius:8px;font-family:inherit"><option value="30">30 days</option><option value="60" selected>60 days</option><option value="90">90 days</option><option value="180">180 days</option></select>
+      <button class="btn btn-primary" onclick="remitFetchNow().then(loadCod)">📥 Fetch remittance</button>
       <button class="btn btn-ghost" onclick="loadCod()">↻</button>
     </div>
   </div>
   <div id="codBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
   <div class="cod-tiles" id="codTiles"></div>
-  <div class="cut-slot"><div class="cut-slot-hd">💰 COD MONEY — by order date · tap a day for its orders</div><div id="codDays_"></div></div>
-  <div class="cut-slot"><div class="cut-slot-hd">↩ RETURNS — every dispatched order, COD and prepaid · tap a day</div><div id="codRto"></div></div>
+  <div class="cut-slot"><div class="cut-slot-hd">💰 BY ORDER DATE — Bluedart pays about 15 days after delivery · tap a day for its orders</div><div id="codDays_"></div></div>
   <div class="cut-slot" id="codUnmatchedWrap"><div class="cut-slot-hd">❓ REMITTANCE LINES WITH NO ORDER — paid by Bluedart, match by hand</div><div id="codUnmatched"></div></div>
   <div class="cut-slot"><div class="cut-slot-hd">📧 REMITTANCE MAILS</div><div id="codMails"></div></div>
 </div>
@@ -1927,7 +1943,7 @@ function switchView(view) {
     loadAmazonSkuView();
   }
   if (view === 'fba') loadFba();
-  if (view === 'cod') loadCod();
+  if (view === 'cod' || view === 'returns') loadCod();
   if (view === 'dispatch') {
     loadDispatchCounters();
     if (!Object.keys(_printLinks).length) loadPrintData();
@@ -6227,17 +6243,25 @@ async function loadCod() {
 function renderCod() {
   const c = _cod; if (!c) return;
   const t = c.totals;
-  const bf = document.getElementById('codBackfillNote');
-  if (c.unknown_payment && !bf.dataset.busy) { bf.style.display = ''; bf.innerHTML = `<b>${c.unknown_payment}</b> orders in this window have no payment type yet, so they are counted as neither COD nor prepaid. <button class="emg-dash-link" onclick="this.closest('#codBackfillNote').dataset.busy='1';codBackfill(${document.getElementById('codDays').value})">Fill from Shopify</button>`; }
-  else if (!bf.dataset.busy) bf.style.display = 'none';
-  document.getElementById('codSummary').innerHTML = `<b>${t.cod_orders}</b> COD orders since ${fmtDM(c.from)} · <b>${inr(t.remitted_amount)}</b> received for ${t.remitted} · overall return rate <b>${pct(t.rto, t.dispatched)}</b>`;
+  document.getElementById('codDays2').value = document.getElementById('codDays').value;
+  for (const id of ['codBackfillNote', 'rtoBackfillNote']) {
+    const bf = document.getElementById(id);
+    if (c.unknown_payment && !bf.dataset.busy) { bf.style.display = ''; bf.innerHTML = `<b>${c.unknown_payment}</b> orders in this window have no payment type yet, so they count as neither COD nor prepaid. <button class="emg-dash-link" onclick="codBackfill(${document.getElementById('codDays').value})">Fill from Shopify</button>`; }
+    else if (!bf.dataset.busy) bf.style.display = 'none';
+  }
   const tile = (n, l, s, cls = '') => `<div class="cod-tile ${cls}"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
-  document.getElementById('codTiles').innerHTML =
-    tile(inr(t.remitted_amount), 'Received', `${t.remitted} COD orders paid by Bluedart`, 'ok') +
-    tile(t.delivered_unpaid, 'Delivered, not paid yet', 'Bluedart pays ~15 days after delivery') +
+  document.getElementById('rtoSummary').innerHTML = `<b>${t.dispatched}</b> dispatched since ${fmtDM(c.from)} · <b>${t.rto}</b> came back · return rate <b>${pct(t.rto, t.dispatched)}</b>`;
+  document.getElementById('rtoTiles').innerHTML =
     tile(`${pct(t.rto, t.dispatched)}`, 'Return rate', `${t.rto} of ${t.dispatched} dispatched came back`, t.rto ? 'warn' : '') +
     tile(`${pct(t.rto_cod, t.rto)}`, 'Returns that are COD', `${t.rto_cod} COD · ${t.rto_prepaid} prepaid`) +
     tile(t.prepaid_rto_open, 'Prepaid RTO', 'customer paid — call & redispatch', t.prepaid_rto_open ? 'warn' : '') +
+    tile(t.rto_back, 'Back with us', 'received, restock') +
+    tile(t.trouble || 0, 'Not delivered', 'attempted / failed, still with courier', t.trouble ? 'warn' : '');
+  document.getElementById('codSummary').innerHTML = `<b>${t.cod_orders}</b> COD orders since ${fmtDM(c.from)} · <b>${inr(t.remitted_amount)}</b> received for ${t.remitted}`;
+  document.getElementById('codTiles').innerHTML =
+    tile(inr(t.remitted_amount), 'Received', `${t.remitted} COD orders paid by Bluedart`, 'ok') +
+    tile(t.delivered_unpaid, 'Delivered, not paid yet', 'Bluedart pays ~15 days after delivery') +
+    tile(t.rto_cod, 'COD RTO', 'no money coming for these', t.rto_cod ? 'warn' : '') +
     tile(t.unmatched, 'Unmatched lines', 'paid, no order found', t.unmatched ? 'warn' : '');
 
   document.getElementById('codDays_').innerHTML = c.cod_days.length ? `<table class="sku-conf-table" style="font-size:.78rem;margin:0"><thead><tr><th>Order date</th><th style="text-align:right">COD orders</th><th style="text-align:right">Cancelled</th><th style="text-align:right">Dispatched</th><th style="text-align:right">Delivered</th><th style="text-align:right">Awaiting pay</th><th style="text-align:right">RTO</th><th style="text-align:right">Paid</th><th style="text-align:right">Received ₹</th></tr></thead><tbody>${c.cod_days.map(d => `<tr style="cursor:pointer" onclick="codDayOpen('cod','${d.date}')"><td><b>${fmtDM(d.date)}</b></td><td style="text-align:right">${d.orders}</td><td style="text-align:right;color:var(--muted)">${d.cancelled || ''}</td><td style="text-align:right">${d.dispatched || ''}</td><td style="text-align:right">${d.delivered || ''}</td><td style="text-align:right;${d.unpaid ? 'color:#b05000;font-weight:700' : ''}">${d.unpaid || ''}</td><td style="text-align:right;${d.rto ? 'color:#c0392b;font-weight:700' : ''}">${d.rto || ''}</td><td style="text-align:right">${d.remitted || ''}</td><td style="text-align:right;font-weight:700">${d.remitted_amount ? inr(d.remitted_amount) : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="cut-empty">No COD orders in this window.</div>';
@@ -6291,8 +6315,8 @@ async function codNoteEdit(orderName) {
 }
 // Older rack rows have no payment type; fill them from Shopify in 10-day windows
 async function codBackfill(days) {
-  const note = document.getElementById('codBackfillNote');
-  note.style.display = ''; note.textContent = 'Filling payment types from Shopify…';
+  const note = document.getElementById(document.getElementById('view-returns').classList.contains('active') ? 'rtoBackfillNote' : 'codBackfillNote');
+  note.dataset.busy = '1'; note.style.display = ''; note.textContent = 'Filling payment types from Shopify…';
   let filled = 0, cod = 0;
   const to = new Date(todayIST() + 'T00:00:00+05:30');
   for (let back = 0; back < days; back += 10) {
