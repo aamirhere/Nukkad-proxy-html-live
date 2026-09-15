@@ -997,7 +997,7 @@ body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important
 .cod-scroll { overflow-x:auto; }
 @keyframes bird-fly { from { transform: translateY(0) } to { transform: translateY(-4px) } }
 #view-cod, #view-returns { overflow-x: visible; }
-.cod-sticky thead th { position:sticky; top:0; background:#fff; z-index:2; box-shadow:0 2px 0 var(--line); }
+.cod-sticky thead th { position:sticky; top:var(--hdr-h, 52px); background:#fff; z-index:2; box-shadow:0 2px 0 var(--line); }
 .cod-pill { display:inline-block; font-size:.66rem; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--bg2); color:var(--ink2); }
 .cod-pill.rto { background:#fde8e6; color:#c0392b; }
 .cod-pill.done { background:#e4f4e8; color:#1a7f37; }
@@ -6252,6 +6252,7 @@ async function loadCod(force) {
 
 function renderCod() {
   const c = _cod; if (!c) return;
+  const hdr = document.querySelector('.app-header'); if (hdr) document.documentElement.style.setProperty('--hdr-h', hdr.offsetHeight + 'px');
   const t = c.totals;
   document.getElementById('codDays2').value = document.getElementById('codDays').value;
   for (const id of ['codBackfillNote', 'rtoBackfillNote']) {
