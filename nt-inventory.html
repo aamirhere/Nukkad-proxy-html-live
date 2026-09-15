@@ -994,7 +994,9 @@ body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important
 .cod-tile .s { font-size:.72rem; color:var(--ink2); margin-top:2px; }
 .cod-tile.warn .n { color:#c0392b; }
 .cod-tile.ok .n { color:#1a7f37; }
-.cod-scroll { max-height:72vh; overflow:auto; }
+.cod-scroll { overflow-x:auto; }
+@keyframes bird-fly { from { transform: translateY(0) } to { transform: translateY(-4px) } }
+#view-cod, #view-returns { overflow-x: visible; }
 .cod-sticky thead th { position:sticky; top:0; background:#fff; z-index:2; box-shadow:0 2px 0 var(--line); }
 .cod-pill { display:inline-block; font-size:.66rem; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--bg2); color:var(--ink2); }
 .cod-pill.rto { background:#fde8e6; color:#c0392b; }
@@ -1584,6 +1586,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <button class="btn btn-ghost" onclick="loadCod(true)">↻</button>
     </div>
   </div>
+  <div id="codFetchNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"><span style="display:inline-block;animation:bird-fly 1.2s ease-in-out infinite alternate">📥</span> <span id="codFetchText">Checking Gmail…</span></div>
   <div id="codBackfillNote" class="cut-slot" style="display:none;border-color:#f2c9b4;background:#fff8f3"></div>
   <div class="cod-tiles" id="codTiles"></div>
   <div class="cut-slot"><div class="cut-slot-hd">💰 BY ORDER DATE — Bluedart pays about 15 days after delivery · tap a day for its orders</div><div id="codDays_" class="cod-scroll"></div></div>
@@ -6341,9 +6344,14 @@ async function remitFetchNow() {
   if (_remitBusy) return;
   _remitBusy = true;
   let mails = 0, lines = 0, matched = 0, amount = 0, errors = [];
-  toast('Checking Gmail for remittance mails…');
+  const note = document.getElementById('codFetchNote'), noteText = document.getElementById('codFetchText');
+  const say = t => { if (note) { note.style.display = ''; noteText.textContent = t; } else toast(t); };
+  const btns = [...document.querySelectorAll('button')].filter(b => /Fetch (COD )?remittance/.test(b.textContent));
+  btns.forEach(b => { b.disabled = true; b.dataset.label = b.textContent; b.textContent = '⏳ Fetching…'; });
+  say('Checking Gmail for remittance mails…');
   try {
     for (let round = 0; round < 8; round++) {
+      say(`Reading Gmail, pass ${round + 1}… ${mails ? mails + ' mail' + (mails !== 1 ? 's' : '') + ' imported so far' : ''}`);
       const r = await api({ action: 'remit_run', limit: 25 });
       if (!r.ok) throw new Error(r.message || 'fetch failed');
       const fresh = (r.processed || []).filter(p => p.files);
@@ -6355,7 +6363,7 @@ async function remitFetchNow() {
     if (!mails) alert('Nothing new to import.\nEvery remittance mail in nukkadtales@gmail.com is already in.' + err);
     else alert(`Imported ${mails} remittance mail${mails !== 1 ? 's' : ''}.\n${lines} lines, ${matched} matched to orders, ₹${Math.round(amount).toLocaleString('en-IN')} total.${lines - matched ? `\n${lines - matched} lines had no matching order and are kept for review.` : ''}` + err);
   } catch (e) { alert('Remittance fetch failed: ' + e.message); }
-  finally { _remitBusy = false; }
+  finally { _remitBusy = false; if (note) note.style.display = 'none'; btns.forEach(b => { b.disabled = false; b.textContent = b.dataset.label; }); }
 }
 
 function toggleNavMenu() {
