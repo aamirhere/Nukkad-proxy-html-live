@@ -5167,6 +5167,7 @@ async function loadDispatchView() {
               <span style="font-size:.72rem">${statusLine}</span>
             </div>
             <input type="number" min="1" value="${it.qty}" onchange="updateDispatchItemQty('${d.id}',${ii},parseInt(this.value)||0,${safeItems})" style="width:52px;border:1.5px solid #e9ddca;border-radius:6px;padding:3px 5px;font-size:.82rem;text-align:center;flex-shrink:0">
+            <button onclick="dlSwapOpen('${d.id}',${ii},${JSON.stringify(it.title || it.handle || '').replace(/"/g, '&quot;')},${it.qty || 0})" style="background:none;border:1px solid #e9ddca;border-radius:6px;color:#6f5b46;font-size:.7rem;cursor:pointer;padding:3px 7px;line-height:1;flex-shrink:0" title="Wrong design? Swap it for the right one, same quantity">⇄ Change</button>
             <button onclick="deleteDispatchItem('${d.id}',${ii},${safeItems})" style="background:none;border:none;color:#ccc;font-size:.9rem;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0" onmouseover="this.style.color='#c62828'" onmouseout="this.style.color='#ccc'" title="Remove">✕</button>
           </div>`;
         }).join('');
@@ -5343,6 +5344,60 @@ async function deleteAllForDay(ids, btn) {
     alert('Delete failed: ' + (e.message || JSON.stringify(e)));
     btn.disabled = false; btn.textContent = orig;
   }
+}
+
+// ── Swap a wrongly picked design in a saved list ────────────────────────────
+let _dlSwap = null;
+function dlSwapOpen(id, idx, title, qty) {
+  _dlSwap = { id, idx };
+  let m = document.getElementById('dlSwapModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'dlSwapModal';
+    m.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(58,43,29,.45);z-index:1200;align-items:center;justify-content:center;padding:16px';
+    m.onclick = e => { if (e.target === m) dlSwapClose(); };
+    m.innerHTML = `<div style="background:#fff;border-radius:16px;width:min(420px,100%);padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.2)">
+      <div style="font-weight:800;font-size:1rem;margin-bottom:4px">Change design</div>
+      <div id="dlSwapFrom" style="font-size:.8rem;color:var(--ink2);margin-bottom:12px"></div>
+      <input id="dlSwapInput" type="text" autocomplete="off" placeholder="Search the right design…" oninput="dlSwapSearch(this.value)" style="width:100%;border:1.5px solid #e9ddca;border-radius:8px;padding:9px 10px;font-size:.86rem;box-sizing:border-box">
+      <div id="dlSwapList" style="max-height:240px;overflow-y:auto;margin-top:8px;border:1.5px solid #f0ebe0;border-radius:8px;display:none"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-ghost" onclick="dlSwapClose()">Cancel</button></div>
+    </div>`;
+    document.body.appendChild(m);
+  }
+  document.getElementById('dlSwapFrom').textContent = `${title} · ${qty} pcs stays ${qty} pcs on the new design`;
+  const inp = document.getElementById('dlSwapInput'); inp.value = '';
+  document.getElementById('dlSwapList').style.display = 'none';
+  m.style.display = 'flex';
+  setTimeout(() => inp.focus(), 50);
+}
+function dlSwapClose() { const m = document.getElementById('dlSwapModal'); if (m) m.style.display = 'none'; _dlSwap = null; }
+function dlSwapSearch(raw) {
+  const q = _normSearch(raw.trim());
+  const list = document.getElementById('dlSwapList');
+  if (!q) { list.style.display = 'none'; return; }
+  const seen = new Set(), matches = [];
+  for (const p of dispatchDesignSource()) {
+    if (!p.title) continue;
+    const nt = _normSearch(p.title);
+    if (nt.includes(q) && !seen.has(nt)) { seen.add(nt); matches.push(p); }
+    if (matches.length >= 25) break;
+  }
+  if (!matches.length) { list.innerHTML = '<div style="padding:10px;font-size:.8rem;color:var(--muted)">No design found</div>'; list.style.display = ''; return; }
+  list.innerHTML = matches.map(p => `<div onclick="dlSwapPick('${p.handle.replace(/'/g, "\\'")}',${JSON.stringify(p.title).replace(/"/g, '&quot;')})" style="padding:9px 12px;font-size:.84rem;cursor:pointer;border-bottom:1px solid #f5f0e8" onmouseover="this.style.background='#fdf5ec'" onmouseout="this.style.background=''">${p.title}</div>`).join('');
+  list.style.display = '';
+}
+async function dlSwapPick(handle, title) {
+  if (!_dlSwap) return;
+  const { id, idx } = _dlSwap;
+  const list = document.getElementById('dlSwapList');
+  list.innerHTML = '<div style="padding:10px;font-size:.8rem;color:var(--ink2)">Changing…</div>';
+  try {
+    await api({ action: 'update_dispatch_item', id, item_index: idx, new_handle: handle, new_title: title });
+    toast(`✓ Changed to ${title}`);
+    dlSwapClose();
+    loadDispatchView();
+  } catch (e) { toast('Failed: ' + e.message); list.innerHTML = `<div style="padding:10px;font-size:.8rem;color:var(--red)">${e.message}</div>`; }
 }
 
 async function deleteDispatchItem(id, idx, items) {
