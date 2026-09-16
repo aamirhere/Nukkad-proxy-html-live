@@ -2474,6 +2474,7 @@ function renderInventory() {
   const sort = document.getElementById('invSort')?.value || 'orders_desc';
 
   let visible = allProducts.filter(p => {
+    if (isHiddenProduct(p)) return false;
     if (q && !p.title.toLowerCase().includes(q) && !p.handle.includes(q)) return false;
     if (fil === 'na')      return p.stock === null;
     if (fil === 'counted') return p.stock !== null && p.stock > 0;
@@ -4808,8 +4809,10 @@ async function loadAmazonOnlyDesigns() {
     }
   } catch {}
 }
+// Draft and archived designs stay out of every picker so a wrong pick cannot land on them; one still holding stock stays visible until it is out
+function isHiddenProduct(p) { return !!(p.status && p.status !== 'active' && !p.manual && !((p.stock || 0) > 0)); }
 function dispatchDesignSource() {
-  const base = allProducts.length ? allProducts
+  const base = allProducts.length ? allProducts.filter(p => !isHiddenProduct(p))
     : _designIndex.length ? _designIndex
     : allEmgGroups.map(g => ({ handle: g.handle, title: g.title }));
   return [...base, ..._amazonOnlyDesigns];
