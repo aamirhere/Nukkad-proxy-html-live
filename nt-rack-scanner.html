@@ -4478,6 +4478,9 @@ function buildPqBatchChips() {
 function setPqBatch(id) {
   _pqBatchId = id || null;
   buildPqBatchChips();
+  const btn = document.querySelector('[onclick="printAllQueued()"]');
+  if (btn && !btn.disabled) btn.textContent = _pqBatchId ? 'Reprint batch' : 'Print All';
+  if (_pqBatchId && !_pqOrders.length) { loadPrintQueue(); return; }
   renderPqList();
 }
 
@@ -4658,8 +4661,9 @@ function renderPqList() {
   // only show allFound orders (matched) — both printed and unprinted, dispatched kept 3 days
   let orders = _pqOrders.filter(o => o.allFound);
 
+  const batchSel = _pqBatchId ? _phLoad().find(b => b.id === _pqBatchId) : null;
   // date filter by scan date (when pieces were last confirmed)
-  if (!q && _pqDate !== 'all') {
+  if (!batchSel && !q && _pqDate !== 'all') {
     const target = _pqDate === 'today' ? _istDateStr(0) : _pqDate === 'yesterday' ? _istDateStr(1) : _pqDate === 'day2' ? _istDateStr(2) : _pqDate;
     orders = orders.filter(o => _scanDate(o) === target);
   }
@@ -4667,18 +4671,15 @@ function renderPqList() {
   // text search
   if (q) orders = orders.filter(o => o.order_name.toLowerCase().includes(q) || (o.customer||'').toLowerCase().includes(q));
 
-  // batch history filter
-  if (_pqBatchId) {
-    const batch = _phLoad().find(b => b.id === _pqBatchId);
-    if (batch) { const s = new Set(batch.names); orders = orders.filter(o => s.has(o.order_name)); }
-  }
+  // batch history filter: the batch is the whole selection, status chips do not apply
+  if (batchSel) { const s = new Set(batchSel.names); orders = orders.filter(o => s.has(o.order_name)); }
 
   // print status filter (dispatched always show in all filters — 3-day retention)
   // no-AWB = undispatched + AWB map loaded + no tracking number found
-  if (_pqFilter === 'toprint')   orders = orders.filter(o => !o.dispatched && !o.printed && !o.print_initiated && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name]));
-  if (_pqFilter === 'initiated') orders = orders.filter(o => !o.dispatched && o.print_initiated);
-  if (_pqFilter === 'printed')   orders = orders.filter(o => o.dispatched || o.printed);
-  if (_pqFilter === 'noawb')     orders = orders.filter(o => !o.dispatched && _pqAwbMapLoaded && !_pqHasAwbMap[o.order_name]);
+  if (!batchSel && _pqFilter === 'toprint')   orders = orders.filter(o => !o.dispatched && !o.printed && !o.print_initiated && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name]));
+  if (!batchSel && _pqFilter === 'initiated') orders = orders.filter(o => !o.dispatched && o.print_initiated);
+  if (!batchSel && _pqFilter === 'printed')   orders = orders.filter(o => o.dispatched || o.printed);
+  if (!batchSel && _pqFilter === 'noawb')     orders = orders.filter(o => !o.dispatched && _pqAwbMapLoaded && !_pqHasAwbMap[o.order_name]);
 
   // No AWB: oldest order date first so oldest unbooked orders surface at top
   if (_pqFilter === 'noawb') orders = [...orders].sort((a, b) => (a.order_date || '') < (b.order_date || '') ? -1 : 1);
@@ -4690,7 +4691,10 @@ function renderPqList() {
   if (cnt) cnt.textContent = `(${orders.length} orders · ${totalPieces} pcs · ${unprinted} to print)`;
 
   if (!orders.length) {
-    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">No matched orders for this period.</div>`;
+    const missing = batchSel ? batchSel.names.filter(n => !_pqOrders.some(o => o.order_name === n)) : [];
+    list.innerHTML = batchSel
+      ? `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${_pqOrders.length ? `This batch's ${batchSel.count} orders are no longer in the queue${missing.length ? ` (${missing.slice(0, 6).join(', ')}${missing.length > 6 ? '…' : ''})` : ''}. Dispatched orders leave the queue after 3 days.` : 'The queue has not loaded. Tap ↻ Refresh, then pick the batch again.'}</div>`
+      : `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">No matched orders for this period.</div>`;
     return;
   }
 
@@ -4826,20 +4830,18 @@ async function dispatchAllQueued() {
 }
 
 async function printAllQueued() {
-  let toPrint = _pqOrders.filter(o => o.allFound && !o.dispatched);
+  const batchSel = _pqBatchId ? _phLoad().find(b => b.id === _pqBatchId) : null;
+  let toPrint = _pqOrders.filter(o => o.allFound && (batchSel || !o.dispatched));
   // apply date filter same as renderPqList
-  if (_pqDate !== 'all') {
+  if (!batchSel && _pqDate !== 'all') {
     const target = _pqDate === 'today' ? _istDateStr(0) : _pqDate === 'yesterday' ? _istDateStr(1) : _pqDate;
     toPrint = toPrint.filter(o => _scanDate(o) === target);
   }
-  if (_pqBatchId) {
-    const batch = _phLoad().find(b => b.id === _pqBatchId);
-    if (batch) { const s = new Set(batch.names); toPrint = toPrint.filter(o => s.has(o.order_name)); }
-  }
-  if (_pqFilter === 'toprint')   toPrint = toPrint.filter(o => (!o.printed && !o.print_initiated) && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name]));
-  if (_pqFilter === 'initiated') toPrint = toPrint.filter(o => o.print_initiated && !o.printed);
-  if (_pqFilter === 'printed')   toPrint = toPrint.filter(o => o.printed);
-  if (_pqFilter === 'noawb')     toPrint = toPrint.filter(o => _pqAwbMapLoaded && !_pqHasAwbMap[o.order_name]);
+  if (batchSel) { const s = new Set(batchSel.names); toPrint = toPrint.filter(o => s.has(o.order_name)); }
+  if (!batchSel && _pqFilter === 'toprint')   toPrint = toPrint.filter(o => (!o.printed && !o.print_initiated) && (!_pqAwbMapLoaded || _pqHasAwbMap[o.order_name]));
+  if (!batchSel && _pqFilter === 'initiated') toPrint = toPrint.filter(o => o.print_initiated && !o.printed);
+  if (!batchSel && _pqFilter === 'printed')   toPrint = toPrint.filter(o => o.printed);
+  if (!batchSel && _pqFilter === 'noawb')     toPrint = toPrint.filter(o => _pqAwbMapLoaded && !_pqHasAwbMap[o.order_name]);
   const orderNames = toPrint.map(o => o.order_name);
   console.log('[PrintAll] filter:', _pqFilter, '| orders to print:', orderNames.length, '| names:', orderNames.slice(0,5));
   if (!orderNames.length) return alert('No visible orders to print.');
