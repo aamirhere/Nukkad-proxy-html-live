@@ -3805,7 +3805,9 @@ async function noStockAll(title) {
   renderOrders();
   updateEmergencyBadge();
   try {
-    await Promise.all(units.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
+    const rs = await Promise.all(units.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
+    const skipped = rs.filter(r => r && r.skipped).length;
+    if (skipped) { units.forEach(u => { const k = stateKey(u); delete localState[k]; const i = currentUnits.findIndex(x => stateKey(x) === k); if (i >= 0) currentUnits[i].is_emergency = false; }); renderOrders(); updateEmergencyBadge(); toast(`Not marked: ${rs.find(r => r.skipped).reason || 'not a production item'}`); return; }
     toast(`Marked ${units.length} unit${units.length !== 1 ? 's' : ''} as no stock`);
   } catch { toast('Sync failed'); }
 }
@@ -3892,7 +3894,8 @@ async function markEmergency(u) {
   renderOrders();
   updateEmergencyBadge();
   try {
-    await api({ action: 'save_emergency', ...u, date, is_emergency: true });
+    const r = await api({ action: 'save_emergency', ...u, date, is_emergency: true });
+    if (r && r.skipped) { delete localState[k]; if (idx >= 0) currentUnits[idx].is_emergency = false; renderOrders(); updateEmergencyBadge(); toast(`Not marked: ${r.reason || 'not a production item'}`); return; }
     toast(`⚠ Saved: ${u.order_name} → No Stock`);
   } catch { toast('Save failed — please retry'); }
 }
