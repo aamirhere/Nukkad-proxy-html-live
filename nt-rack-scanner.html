@@ -4693,7 +4693,7 @@ function renderPqList() {
   if (!orders.length) {
     const missing = batchSel ? batchSel.names.filter(n => !_pqOrders.some(o => o.order_name === n)) : [];
     list.innerHTML = batchSel
-      ? `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${_pqOrders.length ? `This batch's ${batchSel.count} orders are no longer in the queue${missing.length ? ` (${missing.slice(0, 6).join(', ')}${missing.length > 6 ? '…' : ''})` : ''}. Dispatched orders leave the queue after 3 days.` : 'The queue has not loaded. Tap ↻ Refresh, then pick the batch again.'}</div>`
+      ? `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">${_pqOrders.length ? `This batch's ${batchSel.count} orders have left the queue${missing.length ? ` (${missing.slice(0, 6).join(', ')}${missing.length > 6 ? '…' : ''})` : ''}. Tap <b>Reprint batch</b> to print them anyway.` : 'The queue has not loaded. Tap ↻ Refresh, then pick the batch again.'}</div>`
       : `<div style="text-align:center;color:var(--muted);padding:24px;font-size:.84rem">No matched orders for this period.</div>`;
     return;
   }
@@ -4842,7 +4842,8 @@ async function printAllQueued() {
   if (!batchSel && _pqFilter === 'initiated') toPrint = toPrint.filter(o => o.print_initiated && !o.printed);
   if (!batchSel && _pqFilter === 'printed')   toPrint = toPrint.filter(o => o.printed);
   if (!batchSel && _pqFilter === 'noawb')     toPrint = toPrint.filter(o => _pqAwbMapLoaded && !_pqHasAwbMap[o.order_name]);
-  const orderNames = toPrint.map(o => o.order_name);
+  // Slips are fetched by order name, so a history batch reprints even after its orders have left the queue
+  const orderNames = batchSel ? batchSel.names.slice() : toPrint.map(o => o.order_name);
   console.log('[PrintAll] filter:', _pqFilter, '| orders to print:', orderNames.length, '| names:', orderNames.slice(0,5));
   if (!orderNames.length) return alert('No visible orders to print.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
