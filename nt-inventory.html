@@ -3598,7 +3598,7 @@ function renderOrders() {
     ? currentUnits.filter(u => u.is_emergency && !u.picked)
     : currentUnits;
   if (ordersSourceFilter !== 'all') units = units.filter(u => (u.source || 'website') === ordersSourceFilter);
-  if (activeColor) units = units.filter(u => u.color && u.color.toLowerCase().includes(activeColor.toLowerCase()));
+  if (activeColor) units = units.filter(u => u.color && u.color.toLowerCase().startsWith(activeColor.toLowerCase()));
 
   // print header: date + which view was printed
   {
@@ -3622,8 +3622,9 @@ function renderOrders() {
 
   // color chips
   // Exclude Amazon city-name "colors" — only show finish/variant colors from website orders
-  const isColour = c => /^[A-Za-z]+$/.test(c.trim());
-  const colors = [...new Set(currentUnits.filter(u => u.source !== 'amazon').map(u => u.color).filter(c => c && isColour(c)))].sort();
+  // "Gold (+Rs. 300)" is still the colour Gold: the chip uses the leading word
+  const colourWord = c => { const m = /^([A-Za-z]+)\s*(\(|$)/.exec((c || '').trim()); return m ? m[1] : ''; };
+  const colors = [...new Set(currentUnits.filter(u => u.source !== 'amazon').map(u => colourWord(u.color)).filter(Boolean))].sort();
   document.getElementById('colorChips').innerHTML = [
     `<button class="color-chip${!activeColor ? ' active' : ''}" onclick="setColor('')">All</button>`,
     ...colors.map(c => `<button class="color-chip${activeColor === c ? ' active' : ''}" onclick="setColor('${c}')">${c}</button>`),
