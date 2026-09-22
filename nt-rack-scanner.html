@@ -4478,8 +4478,7 @@ function buildPqBatchChips() {
 function setPqBatch(id) {
   _pqBatchId = id || null;
   buildPqBatchChips();
-  const btn = document.querySelector('[onclick="printAllQueued()"]');
-  if (btn && !btn.disabled) btn.textContent = _pqBatchId ? 'Reprint batch' : 'Print All';
+  _pqBtnLabel();
   if (_pqBatchId && !_pqOrders.length) { loadPrintQueue(); return; }
   renderPqList();
 }
@@ -4509,8 +4508,14 @@ function _pqCounts() {
   };
 }
 
+function _pqBtnLabel() {
+  const btn = document.querySelector('[onclick="printAllQueued()"]');
+  if (btn && !btn.disabled) btn.textContent = _pqBatchId ? 'Reprint batch' : 'Print All';
+}
 function setPqFilter(f) {
   _pqFilter = f;
+  if (_pqBatchId) { _pqBatchId = null; buildPqBatchChips(); }
+  _pqBtnLabel();
   const counts = _pqCounts();
   const labels = { All: 'All', ToPrint: 'To Print', Initiated: '🖨 Initiated', Printed: 'Printed' };
   const countKeys = { All: 'all', ToPrint: 'toprint', Initiated: 'initiated', Printed: 'printed' };
@@ -4554,6 +4559,8 @@ function _scanDate(o) {
 
 function setPqDate(key) {
   _pqDate = key;
+  if (_pqBatchId) { _pqBatchId = null; buildPqBatchChips(); }
+  _pqBtnLabel();
   document.querySelectorAll('#pqDateChips button').forEach(b => {
     const active = b.dataset.pqdate === key;
     b.style.background  = active ? 'var(--accent)' : '#fff';
@@ -4860,11 +4867,11 @@ async function printAllQueued() {
       slips = slips.concat((fetched || []).filter(s => !s.error));
     }
   } catch(e) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
+    if (btn) { btn.disabled = false; _pqBtnLabel(); }
     return alert('Failed to fetch slips: ' + e.message);
   }
   if (!slips.length) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
+    if (btn) { btn.disabled = false; _pqBtnLabel(); }
     return alert('No printable slips found.');
   }
   const slipHtmls = await Promise.all(slips.map(slip => buildSlipHtml(slip)));
@@ -4895,7 +4902,7 @@ async function printAllQueued() {
     document.body.classList.remove('printing-slip','bulk-print');
     ov.style.display = 'none';
     sc.innerHTML = '';
-    if (btn) { btn.disabled = false; btn.textContent = 'Print All'; }
+    if (btn) { btn.disabled = false; _pqBtnLabel(); }
     // save to print history + mark as initiated
     _phAdd(orderNames);
     buildPqBatchChips();
