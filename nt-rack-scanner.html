@@ -2021,8 +2021,9 @@ function findMatches(quote, color) {
       results.push({ it, qScore, cScore: 0.5, score: qScore * 0.75 + 0.5 * 0.25 });
     }
   }
-  results.sort((a, b) => b.score - a.score);
-  return results.slice(0, 4);
+  // Same score → oldest order first, so a piece goes to the customer who has waited longest; the list is long enough to reach today's orders
+  results.sort((a, b) => (b.score - a.score) || String(a.it.order_date || '').localeCompare(String(b.it.order_date || '')) || String(a.it.order_name).localeCompare(String(b.it.order_name)));
+  return results.slice(0, 40);
 }
 
 function handleVisionResult(vision) {
