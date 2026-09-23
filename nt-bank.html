@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bank to Tally</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca;--ff:Fraunces,Georgia,serif;--fb:Nunito,'Helvetica Neue',sans-serif;--red:#c62828;--green:#1a7f37}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--fb);color:var(--ink);background:#fdf5ec;font-size:14px}
+header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:3px solid var(--accent);padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-family:var(--ff);font-size:1.15rem;margin:0}
+header .acct{font-size:.8rem;color:var(--ink2)}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
+nav button{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:6px 14px;font:inherit;font-weight:700;color:var(--ink2);cursor:pointer}
+nav button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+main{padding:14px 16px 60px;max-width:1400px;margin:0 auto}
+.view{display:none}.view.on{display:block}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.bar input,.bar select,td select,td input{font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+.btn{font:inherit;font-weight:700;padding:7px 14px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:var(--red)}
+.btn:disabled{opacity:.5;cursor:default}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.note{font-size:.8rem;color:var(--ink2)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px}
+.tile{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tile .n{font-family:var(--ff);font-size:1.3rem}.tile .l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.tw{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:.82rem}
+th{position:sticky;top:0;background:#f8e8d2;text-align:left;padding:8px;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);z-index:2;white-space:nowrap}
+td{padding:6px 8px;border-top:1px solid #f3ebdf;vertical-align:top}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.narr{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2);font-size:.76rem}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.7rem;font-weight:700}
+.c-None{background:#fde8e8;color:var(--red)}.c-Low{background:#fff3e0;color:#b05000}.c-Medium{background:#fff8dc;color:#8a6d00}.c-High{background:#e8f5e9;color:var(--green)}
+.lay{font-size:.68rem;color:var(--muted)}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:26px;text-align:center;background:#fff;color:var(--ink2)}
+.drop.over{border-color:var(--accent);background:#fff8f3}
+.prog{height:8px;background:#f3ebdf;border-radius:4px;overflow:hidden;margin-top:8px}.prog i{display:block;height:100%;background:var(--accent);width:0}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:20px;font-size:.84rem;display:none;z-index:50}
+.modal{position:fixed;inset:0;background:rgba(58,43,29,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:40}
+.modal.open{display:flex}
+.modal .panel{background:#fff;border-radius:16px;width:min(520px,100%);padding:18px;max-height:90vh;overflow:auto}
+.modal label{display:block;font-size:.75rem;color:var(--ink2);margin:8px 0 3px}
+.modal input,.modal select{width:100%;font:inherit;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px}
+.warn{background:#fff3e0;border:1px solid #f2c9b4;border-radius:10px;padding:10px 12px;font-size:.82rem;margin-bottom:10px}
+datalist{display:none}
+@media (max-width:700px){td.narr{max-width:180px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏦 Bank to Tally</h1>
+  <span class="acct" id="acctLabel">no statement yet</span>
+  <select id="acctSel" onchange="setAccount(this.value)" style="display:none;font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"></select>
+  <nav>
+    <button class="on" onclick="go('import')">Import</button>
+    <button onclick="go('payees')">Payees</button>
+    <button onclick="go('txns')">Transactions</button>
+    <button onclick="go('rules')">Rules</button>
+    <button onclick="go('ledgers')">Ledgers</button>
+    <button onclick="go('summary')">Summary</button>
+    <button onclick="go('export')">Export</button>
+  </nav>
+</header>
+<main>
+
+<section class="view on" id="v-import">
+  <div class="card">
+    <div class="drop" id="drop" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');fileChosen(event.dataTransfer.files[0])">
+      <div style="font-family:var(--ff);font-size:1.05rem;margin-bottom:6px">Drop the HDFC statement here</div>
+      <div class="note">The <b>Acct_Statement_….xls</b> export from HDFC NetBanking. Rows already imported are skipped, so re-uploading is safe.</div>
+      <div style="margin-top:12px"><input type="file" id="file" accept=".xls,.xlsx,.csv" onchange="fileChosen(this.files[0])"></div>
+      <div id="impStatus" class="note" style="margin-top:10px"></div>
+      <div class="prog" id="impProg" style="display:none"><i id="impBar"></i></div>
+    </div>
+  </div>
+  <div class="card" id="acctCard" style="display:none">
+    <div style="font-weight:800;margin-bottom:6px">Statements loaded</div>
+    <div id="acctList" class="note"></div>
+  </div>
+</section>
+
+<section class="view" id="v-payees">
+  <div class="bar">
+    <select id="pConf" onchange="renderPayees()"><option value="unknown_low">Unknown + Low</option><option value="None">Unknown only</option><option value="Low">Low only</option><option value="Medium">Medium</option><option value="High">High</option><option value="">All</option></select>
+    <label class="note">Total ≥ ₹ <input id="pMin" type="number" value="20000" style="width:100px" oninput="renderPayees()"></label>
+    <input id="pQ" placeholder="Search payee…" oninput="renderPayees()" style="flex:1;min-width:160px">
+    <button class="btn" onclick="loadPayees(true)">↻ Refresh</button>
+    <span class="note" id="pCount"></span>
+  </div>
+  <div class="tw"><table id="pTable"><thead><tr><th>Payee</th><th>Txns</th><th>Total paid (Dr)</th><th>Total received (Cr)</th><th>Suggested</th><th>Conf.</th><th>Your ledger</th><th>Sample narration</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section class="view" id="v-txns">
+  <div class="bar">
+    <select id="tMonth" onchange="loadTxns()"><option value="">All months</option></select>
+    <select id="tConf" onchange="loadTxns()"><option value="">Any confidence</option><option>None</option><option>Low</option><option>Medium</option><option>High</option></select>
+    <select id="tCat" onchange="loadTxns()"><option value="">Any category</option></select>
+    <input id="tQ" placeholder="Search narration / payee / ref…" onkeydown="if(event.key==='Enter')loadTxns()" style="flex:1;min-width:180px">
+    <button class="btn" onclick="loadTxns()">Search</button>
+    <span class="note" id="tCount"></span>
+  </div>
+  <div class="tw"><table id="tTable"><thead><tr><th>Date</th><th>Narration</th><th>Ref</th><th>Debit</th><th>Credit</th><th>Payee</th><th>Final category</th><th>By</th><th>Conf.</th></tr></thead><tbody></tbody></table></div>
+  <div class="bar" style="margin-top:8px"><button class="btn" id="tMore" onclick="loadTxns(true)" style="display:none">Load more</button></div>
+</section>
+
+<section class="view" id="v-rules">
+  <div class="card">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <b>Keyword rules</b>
+      <span class="note">Matched against <code>PAYEE | NARRATION</code> in upper case. First match from the top wins, so rules you add go above the seeded ones. Any change re-runs classification for every transaction.</span>
+      <button class="btn primary" style="margin-left:auto" onclick="ruleEdit()">+ Add rule</button>
+    </div>
+  </div>
+  <div class="tw"><table id="rTable"><thead><tr><th>#</th><th>Pattern</th><th>Type</th><th>Ledger / category</th><th>Conf.</th><th>Dir.</th><th>On</th><th></th></tr></thead><tbody></tbody></table></div>
+  <div class="card" style="margin-top:14px"><b>Payee rules</b> <span class="note">Set from the Payees tab. A payee rule beats keyword rules for every transaction of that payee.</span></div>
+  <div class="tw"><table id="prTable"><thead><tr><th>Payee</th><th>Ledger</th><th></th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section class="view" id="v-ledgers">
+  <div class="card">
+    <b>Tally ledger master</b>
+    <div class="note" style="margin:4px 0 8px">Upload the CA's ledger list (Excel or CSV with a name column and optionally a group column). Every dropdown then offers these exact names. Until then the working categories are used.</div>
+    <div class="bar"><input type="file" id="ledFile" accept=".xls,.xlsx,.csv" onchange="ledgerFile(this.files[0])"><label class="note"><input type="checkbox" id="ledReplace"> replace existing list</label><span class="note" id="ledCount"></span></div>
+  </div>
+  <div class="card">
+    <b>Settings</b>
+    <div class="bar" style="margin-top:6px">
+      <label class="note">Bank ledger <input id="sBank" style="width:200px"></label>
+      <label class="note">Company <input id="sCompany" style="width:220px"></label>
+      <button class="btn" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+  <div class="card">
+    <b>Category → Tally ledger map</b>
+    <div class="note" style="margin:4px 0 8px">One-time mapping from the working categories to the CA's ledger names. Unmapped categories export under their own name.</div>
+    <div class="tw" style="border:none"><table id="mapTable"><thead><tr><th>Working category</th><th>Txns</th><th>Tally ledger</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</section>
+
+<section class="view" id="v-summary">
+  <div class="tiles" id="sTiles"></div>
+  <div id="sCheck" class="warn" style="display:none"></div>
+  <div class="bar"><b>By category</b></div>
+  <div class="tw" style="margin-bottom:14px"><table id="sCat"><thead><tr><th>Category</th><th>Debit</th><th>Credit</th><th>Txns</th></tr></thead><tbody></tbody></table></div>
+  <div class="bar"><b>By month</b></div>
+  <div class="tw"><table id="sMon"><thead><tr><th>Month</th><th>Debit</th><th>Credit</th><th>Txns</th><th>Unknown</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section class="view" id="v-export">
+  <div class="card">
+    <div class="bar">
+      <select id="xMonth"><option value="">Whole statement</option></select>
+      <button class="btn primary" onclick="doExport('xml')">⬇ Tally XML</button>
+      <button class="btn" onclick="doExport('xlsx')">⬇ Excel</button>
+      <span class="note" id="xStatus"></span>
+    </div>
+    <div class="note">Debits become <b>Payment</b> vouchers, credits become <b>Receipt</b> vouchers, one per transaction. Rows still tagged UNKNOWN are left out and listed below.</div>
+  </div>
+  <div id="xWarn"></div>
+</section>
+</main>
+
+<div class="modal" id="ruleModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="panel">
+    <div style="font-family:var(--ff);font-size:1.05rem" id="ruleTitle">Add rule</div>
+    <input type="hidden" id="rId">
+    <label>Pattern</label><input id="rPattern" placeholder="e.g. BLUE DART|BLUEDART">
+    <label><input type="checkbox" id="rRegex" checked style="width:auto"> treat as regular expression (untick for plain keyword)</label>
+    <label>Ledger / category</label><input id="rCategory" list="ledgerList">
+    <label>Confidence</label><select id="rConf"><option>High</option><option selected>Medium</option><option>Low</option></select>
+    <label>Applies to</label><select id="rDir"><option value="any">Debits and credits</option><option value="dr">Debits only</option><option value="cr">Credits only</option></select>
+    <label>Position (lower runs first)</label><input id="rOrder" type="number">
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.getElementById('ruleModal').classList.remove('open')">Cancel</button><button class="btn primary" onclick="ruleSave()">Save & re-run</button></div>
+  </div>
+</div>
+<datalist id="ledgerList"></datalist>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-bank';
+const UNKNOWN = 'UNKNOWN – needs your tag';
+let ACCOUNT = localStorage.getItem('nt_bank_account') || '';
+let _accounts = [], _payees = [], _ledgers = [], _catMap = {}, _settings = {}, _txnOffset = 0, _catCounts = {};
+
+async function api(body) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({ error: 'Bad response' }));
+  if (d.error) throw new Error(d.error);
+  return d;
+}
+let _toastT;
+function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(_toastT); _toastT = setTimeout(() => t.style.display = 'none', 2600); }
+const inr = n => (+n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtDate = d => { const [y, m, dd] = String(d).split('-'); return `${dd}-${m}-${y}`; };
+
+function go(v) {
+  document.querySelectorAll('.view').forEach(x => x.classList.toggle('on', x.id === 'v-' + v));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.textContent.toLowerCase().startsWith(v.slice(0, 4))));
+  if (v === 'payees') loadPayees();
+  if (v === 'txns') loadTxns();
+  if (v === 'rules') loadRules();
+  if (v === 'ledgers') loadLedgers();
+  if (v === 'summary') loadSummary();
+  if (v === 'export') fillMonths();
+}
+
+// ── accounts ────────────────────────────────────────────────────────────────
+async function loadAccounts() {
+  try { _accounts = (await api({ action: 'accounts' })).accounts || []; } catch (e) { toast(e.message); return; }
+  const sel = document.getElementById('acctSel');
+  sel.innerHTML = _accounts.map(a => `<option value="${a.account}">…${a.account.slice(-4)} · ${a.rows} rows · ${a.months[0] || ''} → ${a.months[a.months.length - 1] || ''}</option>`).join('');
+  sel.style.display = _accounts.length > 1 ? '' : 'none';
+  if (!_accounts.find(a => a.account === ACCOUNT)) ACCOUNT = _accounts[0]?.account || '';
+  sel.value = ACCOUNT;
+  document.getElementById('acctLabel').textContent = ACCOUNT ? `A/c …${ACCOUNT.slice(-4)}` : 'no statement yet';
+  const card = document.getElementById('acctCard');
+  card.style.display = _accounts.length ? '' : 'none';
+  document.getElementById('acctList').innerHTML = _accounts.map(a => `<div><b>${a.account}</b> · ${a.rows} transactions · ${a.months.length} months (${a.months[0]} to ${a.months[a.months.length - 1]})</div>`).join('');
+  fillMonths();
+}
+function setAccount(a) { ACCOUNT = a; localStorage.setItem('nt_bank_account', a); document.getElementById('acctLabel').textContent = `A/c …${a.slice(-4)}`; _payees = []; fillMonths(); }
+function months() { return (_accounts.find(a => a.account === ACCOUNT) || {}).months || []; }
+function fillMonths() {
+  const opts = months().map(m => `<option value="${m}">${m}</option>`).join('');
+  document.getElementById('tMonth').innerHTML = '<option value="">All months</option>' + opts;
+  document.getElementById('xMonth').innerHTML = '<option value="">Whole statement</option>' + opts;
+}
+
+// ── import ──────────────────────────────────────────────────────────────────
+function sheetRows(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = e => { try { const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', raw: false }); res(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: null })); } catch (err) { rej(err); } };
+    fr.onerror = () => rej(new Error('Could not read file'));
+    fr.readAsArrayBuffer(file);
+  });
+}
+// Same rules as the server parser: header block skipped, only DD/MM/YY rows kept
+function parseStatement(rows) {
+  let account = '', start = -1;
+  rows.forEach((r, i) => { (r || []).forEach(c => { const m = /Account No\s*:\s*(\d+)/i.exec(String(c || '')); if (m) account = m[1]; }); if (String((r || [])[0] || '').trim() === 'Date' && start < 0) start = i + 1; });
+  if (start < 0) throw new Error('This does not look like an HDFC statement: no "Date" header row');
+  const iso = d => { const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec(String(d || '').trim()); return m ? `20${m[3]}-${m[2]}-${m[1]}` : null; };
+  const num = v => { if (v == null || v === '') return 0; const n = parseFloat(String(v).replace(/,/g, '')); return Number.isFinite(n) ? n : 0; };
+  const out = [];
+  for (let i = start; i < rows.length; i++) {
+    const r = rows[i] || []; const d = iso(r[0]); if (!d) continue;
+    out.push({ txn_date: d, narration: String(r[1] || '').trim(), ref_no: String(r[2] || '').trim(), value_date: iso(r[3]), debit: num(r[4]), credit: num(r[5]), balance: r[6] == null || r[6] === '' ? null : num(r[6]) });
+  }
+  return { account, rows: out };
+}
+async function fileChosen(file) {
+  if (!file) return;
+  const st = document.getElementById('impStatus'), prog = document.getElementById('impProg'), bar = document.getElementById('impBar');
+  st.textContent = 'Reading file…'; prog.style.display = ''; bar.style.width = '2%';
+  try {
+    const { account, rows } = parseStatement(await sheetRows(file));
+    if (!account) throw new Error('Account number not found in the header');
+    if (!rows.length) throw new Error('No transaction rows found');
+    const dr = rows.reduce((s, r) => s + r.debit, 0), cr = rows.reduce((s, r) => s + r.credit, 0);
+    st.innerHTML = `Account <b>${account}</b> · ${rows.length} rows · debit ₹${inr(dr)} · credit ₹${inr(cr)}. Uploading…`;
+    const CH = 800; let inserted = 0, dup = 0, classified = 0;
+    for (let i = 0; i < rows.length; i += CH) {
+      const last = i + CH >= rows.length;
+      const r = await api({ action: 'import', account, rows: rows.slice(i, i + CH), chunk_done: last });
+      inserted += r.inserted || 0; dup += r.duplicates || 0; if (last) classified = r.classified || 0;
+      bar.style.width = Math.round(Math.min(i + CH, rows.length) / rows.length * 100) + '%';
+      st.innerHTML = `Account <b>${account}</b> · ${Math.min(i + CH, rows.length)}/${rows.length} sent · ${inserted} new · ${dup} already there${last ? ` · ${classified} classified` : ''}`;
+    }
+    ACCOUNT = account; localStorage.setItem('nt_bank_account', account);
+    await loadAccounts();
+    toast(`Imported ${inserted} new rows`);
+    _payees = [];
+    go('payees');
+  } catch (e) { st.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
+  finally { document.getElementById('file').value = ''; }
+}
+
+// ── payees ──────────────────────────────────────────────────────────────────
+async function loadPayees(force) {
+  if (!ACCOUNT) { document.querySelector('#pTable tbody').innerHTML = '<tr><td colspan="8" class="note">Import a statement first.</td></tr>'; return; }
+  if (!_payees.length || force) {
+    document.querySelector('#pTable tbody').innerHTML = '<tr><td colspan="8" class="note">Loading…</td></tr>';
+    try { _payees = (await api({ action: 'payees', account: ACCOUNT })).payees; } catch (e) { toast(e.message); return; }
+    if (!_ledgers.length) await loadLedgerOptions();
+  }
+  renderPayees();
+}
+function ledgerOptions(current) {
+  const names = _ledgers.length ? _ledgers.map(l => l.name) : workingCategories();
+  const opts = names.map(n => `<option value="${esc(n)}"${n === current ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  return `<option value="">— use suggestion —</option>${current && !names.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : ''}${opts}`;
+}
+function workingCategories() {
+  const set = new Set(Object.keys(_catCounts));
+  _payees.forEach(p => set.add(p.suggested_category));
+  set.delete(UNKNOWN); set.delete(null); set.delete(undefined);
+  return [...set].sort();
+}
+function renderPayees() {
+  const conf = document.getElementById('pConf').value, min = +document.getElementById('pMin').value || 0, q = document.getElementById('pQ').value.trim().toLowerCase();
+  const list = _payees.filter(p => {
+    if (conf === 'unknown_low' && !['None', 'Low'].includes(p.confidence)) return false;
+    if (conf && conf !== 'unknown_low' && p.confidence !== conf) return false;
+    if (p.total < min) return false;
+    if (q && !p.counterparty.toLowerCase().includes(q) && !(p.sample || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  document.getElementById('pCount').textContent = `${list.length} of ${_payees.length} payees`;
+  document.querySelector('#pTable tbody').innerHTML = list.map(p => `<tr>
+    <td><b>${esc(p.counterparty)}</b><div class="lay">${esc(p.first ? fmtDate(p.first) : '')} → ${esc(p.last ? fmtDate(p.last) : '')}</div></td>
+    <td class="num">${p.txns}</td><td class="num">${inr(p.debit)}</td><td class="num">${inr(p.credit)}</td>
+    <td>${esc(p.suggested_category)}${p.categories.length > 1 ? `<div class="lay">now: ${esc(p.categories.join(', '))}</div>` : ''}</td>
+    <td><span class="pill c-${p.confidence}">${p.confidence}</span></td>
+    <td><select onchange="payeeSet(${JSON.stringify(p.counterparty).replace(/"/g, '&quot;')}, this.value, this)">${ledgerOptions(p.ledger)}</select></td>
+    <td class="narr" title="${esc(p.sample)}">${esc(p.sample)}</td></tr>`).join('') || '<tr><td colspan="8" class="note">Nothing matches this filter.</td></tr>';
+}
+async function payeeSet(cp, ledger, sel) {
+  sel.disabled = true;
+  try {
+    const r = await api({ action: 'payee_set', counterparty: cp, ledger: ledger || null, account: ACCOUNT });
+    toast(ledger ? `${cp} → ${ledger} (${r.reclassified} rows updated)` : `Rule removed (${r.reclassified} rows updated)`);
+    const p = _payees.find(x => x.counterparty === cp); if (p) { p.ledger = ledger || null; p.categories = [ledger ? `${ledger} (${p.txns})` : `${p.suggested_category} (${p.txns})`]; }
+  } catch (e) { toast(e.message); }
+  sel.disabled = false;
+}
+
+// ── transactions ────────────────────────────────────────────────────────────
+async function loadTxns(more) {
+  if (!ACCOUNT) return;
+  const tb = document.querySelector('#tTable tbody');
+  if (!more) { _txnOffset = 0; tb.innerHTML = '<tr><td colspan="9" class="note">Loading…</td></tr>'; }
+  if (!_ledgers.length) await loadLedgerOptions();
+  const body = { action: 'transactions', account: ACCOUNT, month: document.getElementById('tMonth').value, confidence: document.getElementById('tConf').value, category: document.getElementById('tCat').value, q: document.getElementById('tQ').value.trim(), limit: 500, offset: _txnOffset };
+  let rows;
+  try { rows = (await api(body)).rows; } catch (e) { toast(e.message); return; }
+  const html = rows.map(t => `<tr data-id="${t.id}">
+    <td style="white-space:nowrap">${fmtDate(t.txn_date)}</td>
+    <td class="narr" title="${esc(t.narration)}">${esc(t.narration)}</td>
+    <td class="lay">${esc(t.ref_no)}</td>
+    <td class="num">${+t.debit ? inr(t.debit) : ''}</td><td class="num">${+t.credit ? inr(t.credit) : ''}</td>
+    <td>${esc(t.counterparty)}</td>
+    <td><select onchange="overrideSet('${t.id}', this.value, this)">${ledgerOptions(t.override_category || '')}</select><div class="lay">${esc(t.final_category)}</div></td>
+    <td class="lay">${t.final_layer}</td>
+    <td><span class="pill c-${t.confidence}">${t.confidence}</span></td></tr>`).join('');
+  if (more) tb.insertAdjacentHTML('beforeend', html); else tb.innerHTML = html || '<tr><td colspan="9" class="note">No transactions match.</td></tr>';
+  _txnOffset += rows.length;
+  document.getElementById('tMore').style.display = rows.length === 500 ? '' : 'none';
+  document.getElementById('tCount').textContent = `${_txnOffset} shown`;
+}
+async function overrideSet(id, cat, sel) {
+  sel.disabled = true;
+  try {
+    const r = await api({ action: 'override', id, category: cat || null });
+    sel.parentElement.querySelector('.lay').textContent = r.final_category;
+    sel.closest('tr').children[7].textContent = r.final_layer;
+    toast(cat ? 'Line overridden' : 'Override removed');
+  } catch (e) { toast(e.message); }
+  sel.disabled = false;
+}
+
+// ── rules ───────────────────────────────────────────────────────────────────
+async function loadRules() {
+  let d; try { d = await api({ action: 'rules' }); } catch (e) { toast(e.message); return; }
+  if (!_ledgers.length) await loadLedgerOptions();
+  document.querySelector('#rTable tbody').innerHTML = d.rules.map((r, i) => `<tr style="${r.active ? '' : 'opacity:.5'}">
+    <td class="lay">${r.sort_order}</td><td><code>${esc(r.pattern)}</code></td><td class="lay">${r.is_regex ? 'regex' : 'keyword'}</td>
+    <td>${esc(r.category)}</td><td><span class="pill c-${r.confidence}">${r.confidence}</span></td><td class="lay">${r.direction}</td>
+    <td>${r.active ? '✓' : '—'}</td>
+    <td style="white-space:nowrap"><button class="btn" onclick='ruleEdit(${JSON.stringify(r).replace(/'/g, '&#39;')})'>Edit</button> <button class="btn danger" onclick="ruleDelete('${r.id}')">✕</button></td></tr>`).join('');
+  document.querySelector('#prTable tbody').innerHTML = d.payees.map(p => `<tr><td>${esc(p.counterparty)}</td><td>${esc(p.ledger)}</td><td><button class="btn danger" onclick="payeeSet(${JSON.stringify(p.counterparty).replace(/"/g, '&quot;')}, '', this).then(loadRules)">Remove</button></td></tr>`).join('') || '<tr><td colspan="3" class="note">No payee rules yet.</td></tr>';
+}
+function ruleEdit(r) {
+  r = r || {};
+  document.getElementById('ruleTitle').textContent = r.id ? 'Edit rule' : 'Add rule';
+  document.getElementById('rId').value = r.id || '';
+  document.getElementById('rPattern').value = r.pattern || '';
+  document.getElementById('rRegex').checked = r.is_regex !== false;
+  document.getElementById('rCategory').value = r.category || '';
+  document.getElementById('rConf').value = r.confidence || 'Medium';
+  document.getElementById('rDir').value = r.direction || 'any';
+  document.getElementById('rOrder').value = r.sort_order ?? '';
+  document.getElementById('ruleModal').classList.add('open');
+  setTimeout(() => document.getElementById('rPattern').focus(), 50);
+}
+async function ruleSave() {
+  const rule = { id: document.getElementById('rId').value || undefined, pattern: document.getElementById('rPattern').value.trim(), is_regex: document.getElementById('rRegex').checked, category: document.getElementById('rCategory').value.trim(), confidence: document.getElementById('rConf').value, direction: document.getElementById('rDir').value, sort_order: document.getElementById('rOrder').value === '' ? undefined : +document.getElementById('rOrder').value };
+  if (!rule.pattern || !rule.category) { toast('Pattern and ledger are required'); return; }
+  try { const r = await api({ action: 'rule_save', rule, account: ACCOUNT }); toast(`Saved · ${r.reclassified} rows re-tagged`); document.getElementById('ruleModal').classList.remove('open'); _payees = []; loadRules(); }
+  catch (e) { toast(e.message); }
+}
+async function ruleDelete(id) {
+  if (!confirm('Delete this rule and re-run classification?')) return;
+  try { const r = await api({ action: 'rule_delete', id, account: ACCOUNT }); toast(`Deleted · ${r.reclassified} rows re-tagged`); _payees = []; loadRules(); } catch (e) { toast(e.message); }
+}
+
+// ── ledgers / settings / map ────────────────────────────────────────────────
+async function loadLedgerOptions() {
+  try { const d = await api({ action: 'ledgers' }); _ledgers = d.ledgers || []; _catMap = {}; (d.category_map || []).forEach(m => _catMap[m.category] = m.ledger); _settings = d.settings || {}; } catch (e) { toast(e.message); }
+  if (!Object.keys(_catCounts).length && ACCOUNT) { try { const s = await api({ action: 'summary', account: ACCOUNT }); _catCounts = {}; s.by_category.forEach(c => _catCounts[c.category] = c.txns); } catch {} }
+  document.getElementById('ledgerList').innerHTML = (_ledgers.length ? _ledgers.map(l => l.name) : workingCategories()).map(n => `<option value="${esc(n)}">`).join('');
+}
+async function loadLedgers() {
+  await loadLedgerOptions();
+  document.getElementById('ledCount').textContent = _ledgers.length ? `${_ledgers.length} ledgers loaded` : 'no ledger list yet';
+  document.getElementById('sBank').value = _settings.bank_ledger || '';
+  document.getElementById('sCompany').value = _settings.company || '';
+  const cats = Object.keys(_catCounts).sort((a, b) => _catCounts[b] - _catCounts[a]);
+  document.querySelector('#mapTable tbody').innerHTML = cats.map(c => `<tr><td>${esc(c)}</td><td class="num">${_catCounts[c]}</td><td><input list="ledgerList" value="${esc(_catMap[c] || '')}" placeholder="same as category" onchange="mapSet(${JSON.stringify(c).replace(/"/g, '&quot;')}, this.value)" style="width:100%"></td></tr>`).join('') || '<tr><td colspan="3" class="note">Import a statement first.</td></tr>';
+}
+async function ledgerFile(file) {
+  if (!file) return;
+  try {
+    const rows = await sheetRows(file);
+    const hdr = (rows[0] || []).map(c => String(c || '').toLowerCase());
+    let ni = hdr.findIndex(h => /ledger|name/.test(h)), gi = hdr.findIndex(h => /group|parent|under/.test(h));
+    const start = ni >= 0 ? 1 : 0; if (ni < 0) ni = 0;
+    const list = rows.slice(start).map(r => ({ name: r[ni], grp: gi >= 0 ? r[gi] : null })).filter(r => r.name);
+    const d = await api({ action: 'ledgers_upload', rows: list, replace: document.getElementById('ledReplace').checked });
+    toast(`${d.ledgers} ledgers saved`); _ledgers = []; loadLedgers();
+  } catch (e) { toast(e.message); }
+  document.getElementById('ledFile').value = '';
+}
+async function saveSettings() {
+  try { await api({ action: 'settings_set', settings: { bank_ledger: document.getElementById('sBank').value.trim(), company: document.getElementById('sCompany').value.trim() } }); toast('Settings saved'); } catch (e) { toast(e.message); }
+}
+async function mapSet(category, ledger) {
+  try { await api({ action: 'category_map', category, ledger: ledger.trim() || null }); _catMap[category] = ledger.trim(); toast('Mapping saved'); } catch (e) { toast(e.message); }
+}
+
+// ── summary ─────────────────────────────────────────────────────────────────
+async function loadSummary() {
+  if (!ACCOUNT) return;
+  let s; try { s = await api({ action: 'summary', account: ACCOUNT }); } catch (e) { toast(e.message); return; }
+  _catCounts = {}; s.by_category.forEach(c => _catCounts[c.category] = c.txns);
+  const tile = (n, l) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  document.getElementById('sTiles').innerHTML = tile(s.rows, 'transactions') + tile('₹' + inr(s.debit), 'total debit') + tile('₹' + inr(s.credit), 'total credit') + tile(s.unknown, 'still unknown');
+  const chk = document.getElementById('sCheck');
+  chk.style.display = ''; chk.style.background = s.balanced ? '#e8f5e9' : '#fde8e8';
+  chk.innerHTML = s.balanced ? `✓ Tagged rows add up to the statement: debit ₹${inr(s.tagged_debit)} · credit ₹${inr(s.tagged_credit)}` : `⚠ Mismatch: tagged debit ₹${inr(s.tagged_debit)} vs statement ₹${inr(s.debit)}, tagged credit ₹${inr(s.tagged_credit)} vs ₹${inr(s.credit)}`;
+  document.querySelector('#sCat tbody').innerHTML = s.by_category.map(c => `<tr><td>${esc(c.category)}</td><td class="num">${inr(c.debit)}</td><td class="num">${inr(c.credit)}</td><td class="num">${c.txns}</td></tr>`).join('');
+  document.querySelector('#sMon tbody').innerHTML = s.by_month.map(m => `<tr><td>${m.month}</td><td class="num">${inr(m.debit)}</td><td class="num">${inr(m.credit)}</td><td class="num">${m.txns}</td><td class="num" style="color:${m.unknown ? 'var(--red)' : 'inherit'}">${m.unknown}</td></tr>`).join('');
+  document.getElementById('tCat').innerHTML = '<option value="">Any category</option>' + s.by_category.map(c => `<option value="${esc(c.category)}">${esc(c.category)} (${c.txns})</option>`).join('');
+}
+
+// ── export ──────────────────────────────────────────────────────────────────
+function download(name, content, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function doExport(format) {
+  if (!ACCOUNT) { toast('Import a statement first'); return; }
+  const month = document.getElementById('xMonth').value, st = document.getElementById('xStatus');
+  st.textContent = 'Building…';
+  try {
+    const d = await api({ action: 'export', account: ACCOUNT, month, format });
+    const stem = `Tally_${ACCOUNT.slice(-4)}_${month || 'all'}`;
+    if (format === 'xml') download(stem + '.xml', d.xml, 'application/xml;charset=utf-8');
+    else {
+      const ws = XLSX.utils.json_to_sheet(d.rows.map(r => ({ Date: fmtDate(r.date), 'Voucher Type': r.voucher_type, 'Dr Ledger': r.dr_ledger, 'Cr Ledger': r.cr_ledger, Amount: r.amount, Narration: r.narration, 'Ref No': r.ref_no, Category: r.category })));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Vouchers');
+      download(stem + '.xlsx', XLSX.write(wb, { type: 'array', bookType: 'xlsx' }), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+    st.textContent = `${d.count} vouchers exported · bank ledger "${d.bank_ledger}"${d.company ? ` · company "${d.company}"` : ''}`;
+    document.getElementById('xWarn').innerHTML = d.skipped ? `<div class="warn"><b>${d.skipped} rows left out</b> because they are still UNKNOWN. Tag them on the Payees or Transactions tab and export again.<div style="max-height:220px;overflow:auto;margin-top:6px;font-size:.76rem">${d.skipped_rows.map(r => `${fmtDate(r.date)} · ${esc(r.narration)} · ${+r.debit ? 'Dr ' + inr(r.debit) : 'Cr ' + inr(r.credit)}`).join('<br>')}</div></div>` : '';
+  } catch (e) { st.textContent = ''; toast(e.message); }
+}
+
+loadAccounts();
+</script>
+</body>
+</html>
