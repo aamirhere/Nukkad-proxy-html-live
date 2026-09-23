@@ -29,12 +29,15 @@ main{padding:14px 16px 60px;max-width:1400px;margin:0 auto}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px}
 .tile{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .tile .n{font-family:var(--ff);font-size:1.3rem}.tile .l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.tw{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
-table{border-collapse:collapse;width:100%;font-size:.82rem}
+.tw{background:#fff;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:.8rem;table-layout:fixed}
+td,th{overflow-wrap:anywhere}
 th{position:sticky;top:0;background:#f8e8d2;text-align:left;padding:8px;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);z-index:2;white-space:nowrap}
 td{padding:6px 8px;border-top:1px solid #f3ebdf;vertical-align:top}
 td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-td.narr{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2);font-size:.76rem}
+td.narr{color:var(--ink2);font-size:.72rem;line-height:1.3}
+td select,td input{width:100%;max-width:100%}
+th.w1{width:5%}th.w2{width:9%}th.w3{width:12%}th.w4{width:16%}th.w5{width:22%}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.7rem;font-weight:700}
 .c-None{background:#fde8e8;color:var(--red)}.c-Low{background:#fff3e0;color:#b05000}.c-Medium{background:#fff8dc;color:#8a6d00}.c-High{background:#e8f5e9;color:var(--green)}
 .lay{font-size:.68rem;color:var(--muted)}
@@ -49,7 +52,7 @@ td.narr{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowra
 .modal input,.modal select{width:100%;font:inherit;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px}
 .warn{background:#fff3e0;border:1px solid #f2c9b4;border-radius:10px;padding:10px 12px;font-size:.82rem;margin-bottom:10px}
 datalist{display:none}
-@media (max-width:700px){td.narr{max-width:180px}}
+@media (max-width:700px){table{font-size:.72rem}th,td{padding:5px 4px}.hm{display:none}}
 </style>
 </head>
 <body>
@@ -93,7 +96,7 @@ datalist{display:none}
     <button class="btn" onclick="loadPayees(true)">↻ Refresh</button>
     <span class="note" id="pCount"></span>
   </div>
-  <div class="tw"><table id="pTable"><thead><tr><th>Payee</th><th>Txns</th><th>Total paid (Dr)</th><th>Total received (Cr)</th><th>Suggested</th><th>Conf.</th><th>Your ledger</th><th>Sample narration</th></tr></thead><tbody></tbody></table></div>
+  <div class="tw"><table id="pTable"><thead><tr><th class="w4">Payee</th><th class="w1">Txns</th><th class="w2">Paid (Dr)</th><th class="w2">Received (Cr)</th><th class="w3">Suggested</th><th class="w1">Conf.</th><th class="w4">Your ledger</th><th class="hm">Sample narration</th></tr></thead><tbody></tbody></table></div>
 </section>
 
 <section class="view" id="v-txns">
@@ -105,7 +108,7 @@ datalist{display:none}
     <button class="btn" onclick="loadTxns()">Search</button>
     <span class="note" id="tCount"></span>
   </div>
-  <div class="tw"><table id="tTable"><thead><tr><th>Date</th><th>Narration</th><th>Ref</th><th>Debit</th><th>Credit</th><th>Payee</th><th>Final category</th><th>By</th><th>Conf.</th></tr></thead><tbody></tbody></table></div>
+  <div class="tw"><table id="tTable"><thead><tr><th class="w2">Date</th><th class="w5">Narration</th><th class="w2 hm">Ref</th><th class="w2">Debit</th><th class="w2">Credit</th><th class="w3 hm">Payee</th><th class="w4">Final category</th><th class="w1 hm">By</th><th class="w1">Conf.</th></tr></thead><tbody></tbody></table></div>
   <div class="bar" style="margin-top:8px"><button class="btn" id="tMore" onclick="loadTxns(true)" style="display:none">Load more</button></div>
 </section>
 
@@ -117,7 +120,7 @@ datalist{display:none}
       <button class="btn primary" style="margin-left:auto" onclick="ruleEdit()">+ Add rule</button>
     </div>
   </div>
-  <div class="tw"><table id="rTable"><thead><tr><th>#</th><th>Pattern</th><th>Type</th><th>Ledger / category</th><th>Conf.</th><th>Dir.</th><th>On</th><th></th></tr></thead><tbody></tbody></table></div>
+  <div class="tw"><table id="rTable"><thead><tr><th class="w1">#</th><th class="w5">Pattern</th><th class="w1 hm">Type</th><th class="w4">Ledger / category</th><th class="w1">Conf.</th><th class="w1">Dir.</th><th class="w1 hm">On</th><th class="w2"></th></tr></thead><tbody></tbody></table></div>
   <div class="card" style="margin-top:14px"><b>Payee rules</b> <span class="note">Set from the Payees tab. A payee rule beats keyword rules for every transaction of that payee.</span></div>
   <div class="tw"><table id="prTable"><thead><tr><th>Payee</th><th>Ledger</th><th></th></tr></thead><tbody></tbody></table></div>
 </section>
@@ -320,7 +323,7 @@ function renderPayees() {
     <td>${esc(p.suggested_category)}${p.categories.length > 1 ? `<div class="lay">now: ${esc(p.categories.join(', '))}</div>` : ''}</td>
     <td><span class="pill c-${p.confidence}">${p.confidence}</span></td>
     <td><select onchange="payeeSet(${JSON.stringify(p.counterparty).replace(/"/g, '&quot;')}, this.value, this)">${ledgerOptions(p.ledger)}</select></td>
-    <td class="narr" title="${esc(p.sample)}">${esc(p.sample)}</td></tr>`).join('') || '<tr><td colspan="8" class="note">Nothing matches this filter.</td></tr>';
+    <td class="narr hm" title="${esc(p.sample)}">${esc(p.sample)}</td></tr>`).join('') || '<tr><td colspan="8" class="note">Nothing matches this filter.</td></tr>';
 }
 async function payeeSet(cp, ledger, sel) {
   sel.disabled = true;
@@ -344,11 +347,11 @@ async function loadTxns(more) {
   const html = rows.map(t => `<tr data-id="${t.id}">
     <td style="white-space:nowrap">${fmtDate(t.txn_date)}</td>
     <td class="narr" title="${esc(t.narration)}">${esc(t.narration)}</td>
-    <td class="lay">${esc(t.ref_no)}</td>
+    <td class="lay hm">${esc(t.ref_no)}</td>
     <td class="num">${+t.debit ? inr(t.debit) : ''}</td><td class="num">${+t.credit ? inr(t.credit) : ''}</td>
-    <td>${esc(t.counterparty)}</td>
+    <td class="hm">${esc(t.counterparty)}</td>
     <td><select onchange="overrideSet('${t.id}', this.value, this)">${ledgerOptions(t.override_category || '')}</select><div class="lay">${esc(t.final_category)}</div></td>
-    <td class="lay">${t.final_layer}</td>
+    <td class="lay hm">${t.final_layer}</td>
     <td><span class="pill c-${t.confidence}">${t.confidence}</span></td></tr>`).join('');
   if (more) tb.insertAdjacentHTML('beforeend', html); else tb.innerHTML = html || '<tr><td colspan="9" class="note">No transactions match.</td></tr>';
   _txnOffset += rows.length;
@@ -371,9 +374,9 @@ async function loadRules() {
   let d; try { d = await api({ action: 'rules' }); } catch (e) { toast(e.message); return; }
   if (!_ledgers.length) await loadLedgerOptions();
   document.querySelector('#rTable tbody').innerHTML = d.rules.map((r, i) => `<tr style="${r.active ? '' : 'opacity:.5'}">
-    <td class="lay">${r.sort_order}</td><td><code>${esc(r.pattern)}</code></td><td class="lay">${r.is_regex ? 'regex' : 'keyword'}</td>
+    <td class="lay">${r.sort_order}</td><td><code>${esc(r.pattern)}</code></td><td class="lay hm">${r.is_regex ? 'regex' : 'keyword'}</td>
     <td>${esc(r.category)}</td><td><span class="pill c-${r.confidence}">${r.confidence}</span></td><td class="lay">${r.direction}</td>
-    <td>${r.active ? '✓' : '—'}</td>
+    <td class="hm">${r.active ? '✓' : '—'}</td>
     <td style="white-space:nowrap"><button class="btn" onclick='ruleEdit(${JSON.stringify(r).replace(/'/g, '&#39;')})'>Edit</button> <button class="btn danger" onclick="ruleDelete('${r.id}')">✕</button></td></tr>`).join('');
   document.querySelector('#prTable tbody').innerHTML = d.payees.map(p => `<tr><td>${esc(p.counterparty)}</td><td>${esc(p.ledger)}</td><td><button class="btn danger" onclick="payeeSet(${JSON.stringify(p.counterparty).replace(/"/g, '&quot;')}, '', this).then(loadRules)">Remove</button></td></tr>`).join('') || '<tr><td colspan="3" class="note">No payee rules yet.</td></tr>';
 }
