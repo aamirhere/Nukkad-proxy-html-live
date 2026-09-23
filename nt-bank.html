@@ -41,6 +41,8 @@ th.w1{width:5%}th.w2{width:9%}th.w3{width:12%}th.w4{width:16%}th.w5{width:22%}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.7rem;font-weight:700}
 .c-None{background:#fde8e8;color:var(--red)}.c-Low{background:#fff3e0;color:#b05000}.c-Medium{background:#fff8dc;color:#8a6d00}.c-High{background:#e8f5e9;color:var(--green)}
 .lay{font-size:.68rem;color:var(--muted)}
+td select{font-weight:700}
+select.sel-None{background:#fde8e8;border-color:#e57373;color:var(--red)}select.sel-Low{background:#fff3e0;border-color:#f0b27a;color:#b05000}select.sel-Medium{background:#fff8dc;border-color:#e6d27a;color:#8a6d00}select.sel-High{background:#e8f5e9;border-color:#9ccc9c;color:var(--green)}select.sel-set{background:#e8eefc;border-color:#7c9be6;color:#1a3f9c}
 .drop{border:2px dashed var(--line);border-radius:12px;padding:26px;text-align:center;background:#fff;color:var(--ink2)}
 .drop.over{border-color:var(--accent);background:#fff8f3}
 .prog{height:8px;background:#f3ebdf;border-radius:4px;overflow:hidden;margin-top:8px}.prog i{display:block;height:100%;background:var(--accent);width:0}
@@ -296,11 +298,13 @@ async function loadPayees(force) {
   }
   renderPayees();
 }
-function ledgerOptions(current) {
+// The dropdown shows the category in force: the suggestion when nothing was set, or the rule/override; picking another name changes it, the first option puts the suggestion back
+function ledgerOptions(current, suggested) {
   const names = _ledgers.length ? _ledgers.map(l => l.name) : workingCategories();
-  const opts = names.map(n => `<option value="${esc(n)}"${n === current ? ' selected' : ''}>${esc(n)}</option>`).join('');
-  return `<option value="">— use suggestion —</option>${current && !names.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : ''}${opts}`;
+  const opts = names.filter(n => n !== suggested).map(n => `<option value="${esc(n)}"${n === current ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  return `<option value=""${current ? '' : ' selected'}>${esc(suggested || UNKNOWN)} · suggested</option>${current && !names.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : ''}${opts}`;
 }
+function selCls(current, conf) { return current ? 'sel-set' : `sel-${conf || 'None'}`; }
 function workingCategories() {
   const set = new Set(Object.keys(_catCounts));
   _payees.forEach(p => set.add(p.suggested_category));
@@ -322,7 +326,7 @@ function renderPayees() {
     <td class="num">${p.txns}</td><td class="num">${inr(p.debit)}</td><td class="num">${inr(p.credit)}</td>
     <td>${esc(p.suggested_category)}${p.categories.length > 1 ? `<div class="lay">now: ${esc(p.categories.join(', '))}</div>` : ''}</td>
     <td><span class="pill c-${p.confidence}">${p.confidence}</span></td>
-    <td><select onchange="payeeSet(${JSON.stringify(p.counterparty).replace(/"/g, '&quot;')}, this.value, this)">${ledgerOptions(p.ledger)}</select></td>
+    <td><select class="${selCls(p.ledger, p.confidence)}" onchange="payeeSet(${JSON.stringify(p.counterparty).replace(/"/g, '&quot;')}, this.value, this)">${ledgerOptions(p.ledger, p.suggested_category)}</select><div class="lay">${p.ledger ? 'your rule' : (p.confidence === 'None' ? 'no suggestion, pick a ledger' : 'suggested, change if wrong')}</div></td>
     <td class="narr hm" title="${esc(p.sample)}">${esc(p.sample)}</td></tr>`).join('') || '<tr><td colspan="8" class="note">Nothing matches this filter.</td></tr>';
 }
 async function payeeSet(cp, ledger, sel) {
@@ -331,6 +335,7 @@ async function payeeSet(cp, ledger, sel) {
     const r = await api({ action: 'payee_set', counterparty: cp, ledger: ledger || null, account: ACCOUNT });
     toast(ledger ? `${cp} → ${ledger} (${r.reclassified} rows updated)` : `Rule removed (${r.reclassified} rows updated)`);
     const p = _payees.find(x => x.counterparty === cp); if (p) { p.ledger = ledger || null; p.categories = [ledger ? `${ledger} (${p.txns})` : `${p.suggested_category} (${p.txns})`]; }
+    sel.className = selCls(ledger, p && p.confidence); const lay = sel.parentElement.querySelector('.lay'); if (lay) lay.textContent = ledger ? 'your rule' : 'suggested, change if wrong';
   } catch (e) { toast(e.message); }
   sel.disabled = false;
 }
@@ -350,7 +355,7 @@ async function loadTxns(more) {
     <td class="lay hm">${esc(t.ref_no)}</td>
     <td class="num">${+t.debit ? inr(t.debit) : ''}</td><td class="num">${+t.credit ? inr(t.credit) : ''}</td>
     <td class="hm">${esc(t.counterparty)}</td>
-    <td><select onchange="overrideSet('${t.id}', this.value, this)">${ledgerOptions(t.override_category || '')}</select><div class="lay">${esc(t.final_category)}</div></td>
+    <td><select class="${selCls(t.override_category, t.confidence)}" onchange="overrideSet('${t.id}', this.value, this)">${ledgerOptions(t.override_category || '', t.final_layer === 'payee' ? t.final_category : t.suggested_category)}</select><div class="lay">${t.final_layer === 'payee' ? 'payee rule' : t.final_layer === 'override' ? 'line override' : 'suggested'}</div></td>
     <td class="lay hm">${t.final_layer}</td>
     <td><span class="pill c-${t.confidence}">${t.confidence}</span></td></tr>`).join('');
   if (more) tb.insertAdjacentHTML('beforeend', html); else tb.innerHTML = html || '<tr><td colspan="9" class="note">No transactions match.</td></tr>';
@@ -362,7 +367,8 @@ async function overrideSet(id, cat, sel) {
   sel.disabled = true;
   try {
     const r = await api({ action: 'override', id, category: cat || null });
-    sel.parentElement.querySelector('.lay').textContent = r.final_category;
+    sel.parentElement.querySelector('.lay').textContent = r.final_layer === 'payee' ? 'payee rule' : r.final_layer === 'override' ? 'line override' : 'suggested';
+    sel.className = cat ? 'sel-set' : sel.className.replace('sel-set', 'sel-Low');
     sel.closest('tr').children[7].textContent = r.final_layer;
     toast(cat ? 'Line overridden' : 'Override removed');
   } catch (e) { toast(e.message); }
