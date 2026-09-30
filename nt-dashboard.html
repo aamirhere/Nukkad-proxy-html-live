@@ -526,7 +526,7 @@ function listBlock(title, items, id, top = 8) {
 }
 async function loadBlocks() {
   const t = istToday();
-  try { const d = await api({ action: 'shop', since: t, until: t }); _shop['shop|' + t + '|' + t] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); document.getElementById('shopRow').innerHTML = `${d.orders} orders · ${d.cod} COD · ${d.prepaid} prepaid<br>${d.new_customers} new · ${d.returning_customers} returning${d.products[0] ? `<br>top: ${esc(d.products[0].title)}` : ''}`; }
+  try { const d = await api({ action: 'shop', since: t, until: t }); _shop['shop|' + t + '|' + t] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); document.getElementById('shopRow').innerHTML = `${d.orders} orders · ${d.cod} COD · ${d.prepaid} prepaid<br>${d.new_customers} new · ${d.returning_customers} returning${d.designs && d.designs[0] ? `<br>top: ${esc(d.designs[0].title)}` : ''}`; }
   catch (e) { document.getElementById('shopKpi').textContent = '—'; document.getElementById('shopRow').textContent = e.message; }
   try { const d = await api({ action: 'amazon', since: t, until: t }); _shop['amazon|' + t + '|' + t] = d; document.getElementById('amzKpi').textContent = d.orders; document.getElementById('amzRow').innerHTML = `${d.units} pcs · ${d.cod} COD · ${d.fba} FBA${d.revenue ? ` · ${inr(d.revenue)}` : ''}${d.designs[0] ? `<br>top: ${esc(d.designs[0].title)}` : ''}`; }
   catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
