@@ -56,7 +56,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .cc .sold ul{margin:3px 0 0;padding-left:14px;color:var(--ink2);line-height:1.4}
 .cc .hl{display:inline-block;font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:8px;margin-bottom:3px;background:#eee;color:#3a2b1d}
 .hl.picking{background:#d8f3dc;color:#1a7f37}.hl.steady{background:#e9ddca;color:#6f5b46}.hl.new{background:#dbe9ff;color:#1a3f9c}.hl.dropping{background:#ffe1c2;color:#b3480f}.hl.fatigued{background:#ffd6d6;color:#b00020}.hl.needs{background:#f3e0ff;color:#6a1b9a}.hl.quiet,.hl.paused{background:#eee;color:#888}
-.chart{width:100%;height:120px;display:block}
+.chart{width:100%;height:auto;display:block;font-family:var(--fb)}
 .vd{border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:10px}
 .vd.healthy{background:#e8f5e9}.vd.watch{background:#fff8dc}.vd.fatigued{background:#fde8e8}.vd.quiet{background:#f5efe6}
 .note{font-size:.76rem;color:var(--ink2)}
@@ -215,11 +215,16 @@ function toggleColl(i) { const r = document.getElementById('coll-' + i); if (r) 
 let _cre = [], _creIdx = -1, _creSort = 'roas';
 function openCreative(i) { _creIdx = i; document.getElementById('creModal').classList.add('open'); loadCreative(); }
 function lineChart(series, key, color, fmt) {
-  const W = 600, H = 120, p = 6, n = series.length;
+  const W = 600, H = 210, L = 58, R = 12, T = 14, B = 34, n = series.length;
   const vals = series.map(r => +r[key] || 0), max = Math.max(...vals, 0.0001);
-  const pts = vals.map((v, i) => `${p + (i / Math.max(n - 1, 1)) * (W - 2 * p)},${H - p - (v / max) * (H - 2 * p)}`).join(' ');
-  const last = vals[n - 1], peak = Math.max(...vals);
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/><text x="${p}" y="12" font-size="11" fill="#9c8a76">${fmt(peak)} peak</text><text x="${W - p}" y="${H - 8}" font-size="11" fill="#3a2b1d" text-anchor="end">${fmt(last)} latest</text></svg>`;
+  const x = i => L + (i / Math.max(n - 1, 1)) * (W - L - R), y = v => T + (1 - v / max) * (H - T - B);
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="#e9ddca" stroke-width="1"/><text x="${L - 6}" y="${y(max * f) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${fmt(max * f)}</text>`).join('');
+  const step = n > 20 ? 5 : n > 10 ? 2 : 1;
+  const xTicks = series.map((r, i) => (i % step === 0 || i === n - 1) ? `<text x="${x(i)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${r.date.slice(8)}/${r.date.slice(5, 7)}</text>` : '').join('');
+  const dots = vals.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${color}"><title>${series[i].date}: ${fmt(v)}</title></circle>`).join('');
+  const last = vals[n - 1], peak = Math.max(...vals), avg = vals.reduce((a, b) => a + b, 0) / (n || 1);
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yTicks}${xTicks}<line x1="${L}" x2="${W - R}" y1="${y(avg)}" y2="${y(avg)}" stroke="${color}" stroke-dasharray="4 4" opacity=".45"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>${dots}</svg><div class="note" style="display:flex;justify-content:space-between;margin-top:4px"><span>latest <b style="color:${color}">${fmt(last)}</b></span><span>avg ${fmt(avg)}</span><span>peak ${fmt(peak)}</span></div>`;
 }
 async function loadCreative() {
   const r = _cre[_creIdx]; if (!r) return;
