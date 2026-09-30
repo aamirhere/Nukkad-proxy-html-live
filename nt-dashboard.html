@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NukkadTales Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca;--ff:Fraunces,Georgia,serif;--fb:Nunito,'Helvetica Neue',sans-serif;--red:#c62828;--green:#1a7f37}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--fb);color:var(--ink);font-size:14px;min-height:100vh;background:
+  radial-gradient(ellipse 120% 60% at 80% 0%,rgba(240,175,110,.22) 0%,transparent 65%),
+  radial-gradient(ellipse 80% 50% at 10% 100%,rgba(212,84,31,.1) 0%,transparent 60%),
+  linear-gradient(168deg,#fdf5ec 0%,#f8e8d2 42%,#f2d0b0 100%);border-top:3px solid var(--accent)}
+header{padding:16px 18px 6px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+header h1{font-family:var(--ff);font-size:1.4rem;margin:0}
+header .sub{color:var(--ink2);font-size:.82rem}
+main{padding:10px 18px 60px;max-width:1300px;margin:0 auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;cursor:pointer;transition:transform .12s,box-shadow .12s;position:relative;min-height:128px}
+.block:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(58,43,29,.1)}
+.block.soon{cursor:default;opacity:.6}
+.block .t{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.9rem}
+.block .t .ic{font-size:1.1rem}
+.block .kpi{font-family:var(--ff);font-size:1.6rem;margin:8px 0 2px;line-height:1}
+.block .kl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.block .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:.78rem;color:var(--ink2)}
+.block .row b{color:var(--ink)}
+.block .open{position:absolute;right:12px;top:12px;font-size:.7rem;color:var(--muted)}
+.block .err{color:var(--red);font-size:.78rem;margin-top:8px}
+.modal{position:fixed;inset:0;background:rgba(58,43,29,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:40}
+.modal.open{display:flex}
+.panel{background:#fff;border-radius:16px;width:min(1080px,100%);max-height:92vh;overflow:auto;padding:18px 20px 24px}
+.panel h2{font-family:var(--ff);margin:0 0 4px;font-size:1.25rem}
+.panel .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.panel .hd .x{margin-left:auto;border:none;background:#f5efe6;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer}
+.btn{font:inherit;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px}
+.tile{background:#fdf5ec;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tile .n{font-family:var(--ff);font-size:1.35rem;line-height:1.1}.tile .l{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}.tile .s{font-size:.72rem;color:var(--ink2);margin-top:3px}
+.sec{font-weight:800;margin:14px 0 6px;font-size:.88rem;display:flex;align-items:baseline;gap:8px}.sec small{font-weight:400;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:.8rem;table-layout:fixed}
+th{text-align:left;padding:6px 8px;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);background:#f8e8d2}
+td{padding:6px 8px;border-top:1px solid #f3ebdf;vertical-align:middle;overflow-wrap:anywhere}
+td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cre{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.cc{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.cc img{width:100%;aspect-ratio:1;object-fit:cover;background:#f5efe6;display:block}
+.cc .b{padding:8px 10px}.cc .nm{font-weight:700;font-size:.8rem;line-height:1.25;max-height:2.5em;overflow:hidden}.cc .m{font-size:.72rem;color:var(--ink2);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}.cc .m b{color:var(--ink)}
+.rank{position:absolute;background:var(--accent);color:#fff;font-size:.68rem;font-weight:800;padding:2px 7px;border-radius:0 0 8px 0}
+.note{font-size:.76rem;color:var(--ink2)}
+.warn{background:#fff3e0;border:1px solid #f2c9b4;border-radius:10px;padding:10px 12px;font-size:.8rem;margin-bottom:10px}
+.skel{height:14px;border-radius:6px;background:linear-gradient(90deg,#f3ebdf,#faf5ee,#f3ebdf);background-size:200% 100%;animation:sk 1.2s infinite}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media (max-width:600px){.panel{padding:14px}.tile .n{font-size:1.15rem}}
+</style>
+</head>
+<body>
+<header><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span></header>
+<main>
+  <div class="grid">
+    <div class="block" id="b-ads" onclick="openAds()">
+      <span class="open">tap to expand ↗</span>
+      <div class="t"><span class="ic">📣</span>Ads</div>
+      <div class="kpi" id="adsKpi"><span class="skel" style="display:block;width:60%"></span></div>
+      <div class="kl">spend today · both accounts</div>
+      <div class="row" id="adsRow"></div>
+    </div>
+    <div class="block soon"><div class="t"><span class="ic">💰</span>COD</div><div class="kpi">—</div><div class="kl">COD share · remittance</div><div class="row">coming next</div></div>
+    <div class="block soon"><div class="t"><span class="ic">✕</span>Cancellations</div><div class="kpi">—</div><div class="kl">cancel rate</div><div class="row">coming next</div></div>
+    <div class="block soon"><div class="t"><span class="ic">↩</span>Returns</div><div class="kpi">—</div><div class="kl">RTO rate</div><div class="row">coming next</div></div>
+    <div class="block soon"><div class="t"><span class="ic">🎧</span>Customer support</div><div class="kpi">—</div><div class="kl">open tickets</div><div class="row">coming next</div></div>
+    <div class="block soon"><div class="t"><span class="ic">🏭</span>Production</div><div class="kpi">—</div><div class="kl">emergencies · dispatch</div><div class="row">coming next</div></div>
+  </div>
+</main>
+
+<div class="modal" id="adsModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="panel">
+    <div class="hd"><h2>📣 Ads</h2><span class="note" id="adsWhen"></span><button class="btn" onclick="loadAds(true)">↻ Refresh</button><button class="x" onclick="document.getElementById('adsModal').classList.remove('open')">✕</button></div>
+    <div id="adsBody"><div class="skel" style="height:80px"></div></div>
+  </div>
+</div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-dashboard';
+const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
+const inr2 = n => '₹' + (+n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const x = v => v == null ? '—' : v;
+let _ads = null, _adsAt = 0;
+document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
+
+async function api(body) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({ error: 'Bad response' }));
+  if (d.error) throw new Error(d.error);
+  return d;
+}
+
+async function loadAds(force) {
+  if (!force && _ads && Date.now() - _adsAt < 5 * 60e3) { renderAdsBlock(); renderAdsModal(); return; }
+  try { _ads = await api({ action: 'ads' }); _adsAt = Date.now(); }
+  catch (e) { document.getElementById('adsKpi').innerHTML = `<span style="font-size:.9rem;color:var(--red)">${esc(e.message)}</span>`; document.getElementById('adsBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  renderAdsBlock(); renderAdsModal();
+}
+function openAds() { document.getElementById('adsModal').classList.add('open'); loadAds(); }
+
+function renderAdsBlock() {
+  const a = _ads, b = a.blended, s = a.shopify;
+  document.getElementById('adsKpi').textContent = a.meta_error ? '—' : inr(b.spend_today);
+  document.getElementById('adsRow').innerHTML = (a.meta_error ? `<span class="err">${esc(a.meta_error)}</span>` : `<span>ROAS <b>${x(b.roas_today)}</b></span><span>CPM <b>${b.cpm_today == null ? '—' : inr(b.cpm_today)}</b></span>`)
+    + `<span>Revenue <b>${inr(s.today.revenue)}</b></span><span>Orders <b>${s.today.orders}</b></span>${s.best_seller ? `<span>Top <b>${esc(s.best_seller.title)}</b> ×${s.best_seller.qty}</span>` : ''}`;
+}
+function renderAdsModal() {
+  const a = _ads, b = a.blended, s = a.shopify;
+  document.getElementById('adsWhen').textContent = `${a.today} · fetched ${new Date(a.generated_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })} IST`;
+  const tile = (n, l, sub = '') => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  let h = '';
+  if (a.meta_error) h += `<div class="warn"><b>Meta not connected:</b> ${esc(a.meta_error)}. Add a System User token as <code>META_ACCESS_TOKEN</code> in Netlify (ads_read scope) and refresh. Shopify figures below are live.</div>`;
+  h += `<div class="tiles">
+    ${tile(a.meta_error ? '—' : inr(b.spend_today), 'Spend today', `yesterday ${inr(b.spend_yesterday)}`)}
+    ${tile(inr(s.today.revenue), 'Shopify revenue today', `yesterday ${inr(s.yesterday.revenue)} · ${s.today.orders} orders (${s.today.cod} COD)`)}
+    ${tile(a.meta_error ? '—' : x(b.roas_today), 'Blended ROAS', `yesterday ${x(b.roas_yesterday)}`)}
+    ${tile(a.meta_error || b.cpm_today == null ? '—' : inr2(b.cpm_today), 'CPM today', 'blended, both accounts')}
+    ${tile(s.best_seller ? esc(s.best_seller.title) : '—', 'Best seller today', s.best_seller ? `${s.best_seller.qty} pcs · ${inr(s.best_seller.revenue)}` : 'no orders yet')}
+    ${tile(s.best_collection[0] ? esc(s.best_collection[0].title) : '—', 'Best collection today', s.best_collection[0] ? `${s.best_collection[0].qty} pcs` : '')}
+  </div>`;
+  if (a.accounts.length) {
+    h += `<div class="sec">By account <small>each account counts "today" in its own timezone</small></div><table><thead><tr><th>Account</th><th class="num">Spend today</th><th class="num">Yesterday</th><th class="num">Last 7d</th><th class="num">CPM</th><th class="num">Meta ROAS</th><th class="num">Purchases</th><th class="num">CTR</th></tr></thead><tbody>`;
+    for (const ac of a.accounts) h += `<tr><td><b>${esc(ac.label)}</b><div class="note">${esc(ac.id)}</div></td><td class="num">${inr(ac.today.spend)}</td><td class="num">${inr(ac.yesterday.spend)}</td><td class="num">${inr(ac.last_7d.spend)}</td><td class="num">${inr2(ac.today.cpm)}</td><td class="num">${x(ac.today.meta_roas || ac.today.roas || null)}</td><td class="num">${ac.today.purchases}</td><td class="num">${ac.today.ctr ? ac.today.ctr.toFixed(2) + '%' : '—'}</td></tr>`;
+    h += `</tbody></table><div class="note" style="margin-top:6px">${esc(b.note)}</div>`;
+  }
+  h += `<div class="sec">Best sellers today <small>Shopify, IST day</small></div><table><thead><tr><th>Design</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>${s.today.products.map(p => `<tr><td>${esc(p.title)}</td><td class="num">${p.qty}</td><td class="num">${inr(p.revenue)}</td></tr>`).join('') || '<tr><td colspan="3" class="note">No orders yet today.</td></tr>'}</tbody></table>`;
+  if (s.best_collection.length) h += `<div class="sec">Collections today</div><table><thead><tr><th>Collection</th><th class="num">Pieces</th></tr></thead><tbody>${s.best_collection.map(c => `<tr><td>${esc(c.title)}</td><td class="num">${c.qty}</td></tr>`).join('')}</tbody></table>`;
+  if (!a.meta_error) {
+    const c = a.creatives;
+    h += `<div class="sec">Best creatives <small>last 7 days · ranked by ROAS among ads that spent ≥ ${inr(c.min_spend)} · ${c.considered} ads considered</small></div>`;
+    h += c.ranked.length ? `<div class="cre">${c.ranked.map((r, i) => `<div class="cc" style="position:relative"><span class="rank">#${i + 1}</span>${r.thumb ? `<img src="${esc(r.thumb)}" alt="">` : '<div style="aspect-ratio:1;background:#f5efe6"></div>'}<div class="b"><div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span>spend <b>${inr(r.spend)}</b></span><span>buys <b>${r.purchases}</b></span><span>CPM <b>${inr(r.cpm)}</b></span></div><div class="note" style="margin-top:4px">${esc(r.account)} · ${esc(r.campaign || '')}</div></div></div>`).join('')}</div>` : '<div class="note">No ad has spent enough in the last 7 days to rank.</div>';
+  }
+  document.getElementById('adsBody').innerHTML = h;
+}
+loadAds();
+</script>
+</body>
+</html>
