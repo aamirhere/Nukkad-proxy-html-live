@@ -594,21 +594,31 @@ async function openDesign(pid, i) {
 function renderDesign(d) {
   const pct = (a, b) => b ? Math.round(((a - b) / b) * 100) : null;
   const tile = (n, l, sub = '') => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const dd = _dsgDays[d.product_id] || 7, t = d.today;
+  const from = addD(t, -(dd - 1)), pfrom = addD(from, -dd), pto = addD(from, -1);
+  const byDay = {}; for (const r of d.rows) byDay[r.day] = r;
+  const fold = (a, b) => { const o = { qty: 0, revenue: 0, orders: 0, t599: 0, t999: 0, cancelled: 0, colors: {}, prices: {} }; for (const r of d.rows) if (r.day >= a && r.day <= b) { o.qty += r.qty; o.revenue += r.revenue; o.orders += r.orders; o.t599 += r.t599; o.t999 += r.t999; o.cancelled += r.cancelled; for (const k in r.colors) o.colors[k] = (o.colors[k] || 0) + r.colors[k]; for (const k in r.prices) o.prices[k] = (o.prices[k] || 0) + r.prices[k]; } return o; };
+  const cur = fold(from, t), prev = fold(pfrom, pto);
+  const with_ = {}; for (const p of d.pairs) if (p.day >= from && p.day <= t) with_[p.title] = (with_[p.title] || 0) + p.n;
+  const bought = Object.entries(with_).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const ser = [], pser = [];
+  for (let k = 0; k < dd; k++) { const a = addD(from, k), b = addD(pfrom, k); ser.push({ day: a, qty: byDay[a] ? byDay[a].qty : 0 }); pser.push({ day: b, qty: byDay[b] ? byDay[b].qty : 0 }); }
   const cover = d.cover_days == null ? (d.stock == null ? 'no count' : `${d.stock} in stock`) : `${d.cover_days} days`;
   const covCls = d.cover_days != null && d.cover_days <= 3 ? 'fatigued' : d.cover_days != null && d.cover_days <= 7 ? 'watch' : 'healthy';
-  const read = [];
-  if (pct(d.l7.qty, d.p7.qty) != null && pct(d.l7.qty, d.p7.qty) >= 30) read.push(`Rising: ${d.l7.qty} pcs this week vs ${d.p7.qty} last week.`);
-  else if (pct(d.l7.qty, d.p7.qty) != null && pct(d.l7.qty, d.p7.qty) <= -30) read.push(`Slowing: ${d.l7.qty} pcs this week vs ${d.p7.qty} last week.`);
-  else read.push(`Steady: ${d.l7.qty} pcs this week, ${d.p7.qty} last week.`);
+  const read = [], mv = pct(cur.qty, prev.qty);
+  if (mv != null && mv >= 30) read.push(`Rising: ${cur.qty} pcs in the last ${dd} days vs ${prev.qty} before.`);
+  else if (mv != null && mv <= -30) read.push(`Slowing: ${cur.qty} pcs in the last ${dd} days vs ${prev.qty} before.`);
+  else read.push(`Steady: ${cur.qty} pcs in the last ${dd} days, ${prev.qty} before.`);
   if (d.cover_days != null && d.cover_days <= 3) read.push(`Only ${d.stock} painted at ${d.daily_rate}/day: paint more now.`);
   else if (d.cover_days != null && d.cover_days <= 7) read.push(`${d.stock} painted covers about a week at ${d.daily_rate}/day: add it to the next dispatch.`);
-  if (d.tiers.t999 > d.tiers.t599) read.push(`Mostly custom (${d.tiers.t999} of ${d.tiers.t599 + d.tiers.t999} pcs at ₹1299+): people want their own words on it.`);
-  if (d.l30.cancelled >= 3) read.push(`${d.l30.cancelled} pcs cancelled in 30 days.`);
+  if (cur.t999 > cur.t599) read.push(`Mostly custom (${cur.t999} of ${cur.t599 + cur.t999} pcs at ₹1299+): people want their own words on it.`);
+  if (cur.cancelled >= 3) read.push(`${cur.cancelled} pcs cancelled in this window.`);
   const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], wmax = Math.max(...d.weekday, 1);
-  let h = `<div class="vd ${covCls}" style="margin-bottom:8px"><b>${esc(d.title || '')}</b> · stock cover <b>${cover}</b>${d.counted_at ? ` <span class="note">(counted ${d.counted_at.slice(0, 10)})</span>` : ''}<div>${read.map(esc).join(' ')}</div></div>`;
-  h += `<div class="tiles">${tile(d.l7.qty, 'Pieces, 7d', `prev ${d.p7.qty} ${sg(pct(d.l7.qty, d.p7.qty))}`)}${tile(d.l30.qty, 'Pieces, 30d', `prev ${d.p30.qty} ${sg(pct(d.l30.qty, d.p30.qty))}`)}${tile(inr(d.l30.revenue), 'Revenue, 30d', `prev ${inr(d.p30.revenue)}`)}${tile((d.prices || []).map(([pr, n]) => `<span style="font-size:.55em;white-space:nowrap">₹${pr}×${n}</span>`).join(' ') || '—', 'Price points, 30d')}${tile(d.l90.qty, 'Pieces, 90d', `since ${d.first_seen || '—'}`)}</div>`;
-  const dd = _dsgDays[d.product_id] || 7, ser = d.series.slice(-dd).map(r => ({ day: r.date, qty: r.qty })), pser = dd <= 15 ? d.series.slice(-2 * dd, -dd).map(r => ({ day: r.date, qty: r.qty })) : null;
-  h += `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="tile"><div class="l" style="display:flex;justify-content:space-between;align-items:center">Pieces per day <select onchange="_dsgDays['${d.product_id}']=+this.value;document.getElementById('dsg-body-${d._i}').innerHTML=renderDesign(_design['${d.product_id}'])" style="font:inherit;font-size:.72rem;padding:2px 4px;border:1px solid var(--line);border-radius:6px">${[3, 7, 15, 30].map(n => `<option value="${n}"${n === dd ? ' selected' : ''}>Last ${n} days</option>`).join('')}</select></div>${trendChart(ser, pser, 'qty', '#d4541f', v => String(Math.round(v)))}</div><div class="tile"><div class="l">Colours, 30d</div>${hbar(d.colors)}</div><div class="tile"><div class="l">Bought together, 30d</div>${hbar(d.bought_with.map(x => [x.title, x.n]))}</div><div class="tile"><div class="l">Weekday, 90d</div><div class="hours" style="height:70px">${d.weekday.map((n, i) => `<div class="hr" title="${wd[i]} · ${n}"><div class="note" style="text-align:center;font-size:.62rem">${n}</div><div class="hb" style="height:${Math.round(n / wmax * 100)}%;background:#1a3f9c"></div><div class="hl">${wd[i]}</div></div>`).join('')}</div></div></div>`;
+  const sel = `<select onchange="_dsgDays['${d.product_id}']=+this.value;document.getElementById('dsg-body-${d._i}').innerHTML=renderDesign(_design['${d.product_id}'])" onclick="event.stopPropagation()" style="font:inherit;font-size:.78rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[3, 7, 15, 30, 60, 90].map(n => `<option value="${n}"${n === dd ? ' selected' : ''}>Last ${n} days</option>`).join('')}</select>`;
+  let h = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b>${esc(d.title || '')}</b><span class="note">${from} → ${t} vs ${pfrom} → ${pto}</span><span style="margin-left:auto">${sel}</span></div>`;
+  h += `<div class="vd ${covCls}" style="margin-bottom:8px">stock cover <b>${cover}</b>${d.counted_at ? ` <span class="note">(counted ${d.counted_at.slice(0, 10)})</span>` : ''}<div>${read.map(esc).join(' ')}</div></div>`;
+  h += `<div class="tiles">${tile(cur.qty, `Pieces, ${dd}d`, `prev ${prev.qty} ${sg(mv)}`)}${tile(cur.orders, 'Orders', `prev ${prev.orders}`)}${tile(inr(cur.revenue), 'Revenue', `prev ${inr(prev.revenue)} ${sg(pct(cur.revenue, prev.revenue))}`)}${tile(Object.entries(cur.prices).sort((a, b) => a[0] - b[0]).map(([pr, n]) => `<span style="font-size:.55em;white-space:nowrap">₹${pr}×${n}</span>`).join(' ') || '—', 'Price points')}${tile(cur.cancelled, 'Cancelled pcs', `prev ${prev.cancelled}`)}${tile(d.first_seen || '—', 'First sold', `${d.rows.reduce((n, r) => n + r.qty, 0)} pcs in 90d`)}</div>`;
+  h += `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="tile"><div class="l">Pieces per day · dotted = previous ${dd} days</div>${trendChart(ser, dd <= 30 ? pser : null, 'qty', '#d4541f', v => String(Math.round(v)))}</div><div class="tile"><div class="l">Colours, ${dd}d</div>${hbar(Object.entries(cur.colors).sort((a, b) => b[1] - a[1]))}</div><div class="tile"><div class="l">Bought together, ${dd}d</div>${hbar(bought)}</div><div class="tile"><div class="l">Weekday, 90d</div><div class="hours" style="height:80px">${d.weekday.map((n, i) => `<div class="hr" title="${wd[i]} · ${n}"><div class="note" style="text-align:center;font-size:.62rem">${n}</div><div class="hb" style="height:${Math.round(n / wmax * 100)}%;background:#1a3f9c"></div><div class="hl">${wd[i]}</div></div>`).join('')}</div></div></div>`;
   return h;
 }
 function listBlock(title, items, id, top = 8) {
