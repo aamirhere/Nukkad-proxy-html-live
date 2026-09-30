@@ -237,7 +237,7 @@ async function loadAds(force) {
   const body = document.getElementById('adsBody');
   document.getElementById('b-ads').classList.add('loading'); document.querySelector('#adsModal .panel').classList.add('loading');
   if (_ads) document.getElementById('adsWhen').textContent = 'Updating…'; else body.innerHTML = '<div class="skel" style="height:80px"></div>';
-  const seq = ++_loadSeq;
+  const seq = ++_loadSeq, prevCre = _ads && _ads.creatives;
   try { _ads = await api({ action: 'ads', ..._range, skip_creatives: true, force: !!force }); _adsAt = Date.now(); }
   catch (e) { document.getElementById('adsKpi').innerHTML = `<span style="font-size:.9rem;color:var(--red)">${esc(e.message)}</span>`; document.getElementById('adsBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; document.getElementById('b-ads').classList.remove('loading'); document.querySelector('#adsModal .panel').classList.remove('loading'); return; }
   if (seq !== _loadSeq) return;
@@ -248,10 +248,12 @@ async function loadAds(force) {
   if (!_ads.meta_error) {
     // The server computes creatives in the background: poll until the cache is filled (up to 3 minutes)
     let tries = 0, c = null;
+    // A forced refresh only accepts a result computed after the one on screen
+    const prevAt = force === 'hard' ? ((prevCre && prevCre.computed_at) || new Date().toISOString()) : null;
     while (tries++ < 36) {
       // Live today from Meta by default; any other range comes straight from the snapshot (instant, includes ads paused since)
       const liveToday = (!_range.since || _range.since === istToday()) && (!_range.until || _range.until === istToday());
-      try { c = liveToday ? await api({ action: 'creatives', since: istToday(), until: istToday(), force: force === 'hard' && tries === 1 }) : await api({ action: 'creatives_hist', ..._range }); } catch (e) { c = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
+      try { c = liveToday ? await api({ action: 'creatives', since: istToday(), until: istToday(), force: force === 'hard' && tries === 1, newer_than: prevAt }) : await api({ action: 'creatives_hist', ..._range }); } catch (e) { c = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
       if (seq !== _loadSeq) return;
       if (!c.pending) break;
       const el = document.getElementById('creSection'); if (el) el.innerHTML = `<div class="sec">Creatives <small>reading Meta in the background… ${tries * 5}s</small></div><div class="skel" style="height:60px"></div>`;
