@@ -199,7 +199,7 @@ function renderAdsModal() {
     for (const ac of a.accounts) h += `<tr><td><b>${esc(ac.label)}</b><div class="note">${esc(ac.id)}${ac.timezone && ac.timezone !== 'Asia/Kolkata' ? ` · ${esc(ac.timezone)} → shown on IST days` : ''}</div></td><td class="num">${inr(ac.today.spend)}</td><td class="num">${inr(ac.yesterday.spend)}</td><td class="num">${inr(ac.last_7d.spend)}</td><td class="num">${inr2(ac.today.cpm)}</td><td class="num">${x(ac.today.meta_roas || ac.today.roas || null)}</td><td class="num">${ac.today.purchases}</td><td class="num">${ac.today.ctr ? ac.today.ctr.toFixed(2) + '%' : '—'}</td></tr>`;
     h += `</tbody></table><div class="note" style="margin-top:6px">${esc(b.note)}</div>`;
   }
-  h += `<div class="sec">Designs sold <small>Shopify, IST days · tap a collection pill to filter, tap a row for where the order came from</small></div><div id="soldWrap"></div>`;
+  h += `<div class="sec">Designs sold <small>Shopify, IST days · tap a row for where the order came from</small></div><div id="soldWrap"></div>`;
   h += `<div id="aiSection"></div><div id="audSection"></div>`;
   if (!a.meta_error) h += `<div id="creSection"><div class="sec">Creatives <small>loading every running ad…</small></div><div class="skel" style="height:60px"></div></div>`;
   document.getElementById('adsBody').innerHTML = h;
@@ -253,16 +253,20 @@ function renderCreatives() {
   el.innerHTML = h;
 }
 function toggleSold(i) { const u = document.getElementById('sold-' + i), a = document.getElementById('sold-arr-' + i); const open = u.style.display === 'none'; u.style.display = open ? '' : 'none'; if (a) a.textContent = open ? '▴' : '▾'; }
-let _collSel = '', _soldMore = false;
+let _collMore = false, _soldMore = false;
 function renderSold() {
   const s = _ads.shopify, el = document.getElementById('soldWrap'); if (!el || !s) return;
   const all = s.today.products || [];
-  const pills = [['', 'All', all.reduce((n, p) => n + p.qty, 0)], ...s.best_collection.map(c => [c.title, c.title, c.qty])];
-  let h = `<div class="pills">${pills.map(([v, l, n]) => `<span class="pill${v === _collSel ? ' on' : ''}" onclick="_collSel=${JSON.stringify(v)};_soldMore=false;renderSold()">${esc(l)} <b>${n}</b></span>`).join('')}</div>`;
-  const list = _collSel ? all.filter(p => (p.collections || []).includes(_collSel)) : all;
-  const show = _soldMore ? list : list.slice(0, 8);
-  h += `<table><thead><tr><th>Design</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>${show.map((p, i) => `<tr class="prow" onclick="togglePr(${i})"><td><span id="pr-arr-${i}" class="arr">▸</span> ${esc(p.title)}</td><td class="num">${p.qty}</td><td class="num">${inr(p.revenue)}</td></tr><tr id="pr-${i}" style="display:none"><td colspan="3" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${(p.sources || []).map(([k, n]) => `<li>${esc(k)} <b>×${n}</b></li>`).join('') || '<li>No source recorded</li>'}</ul></td></tr>`).join('') || '<tr><td colspan="3" class="note">No orders in this range.</td></tr>'}</tbody></table>`;
-  if (list.length > 8) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_soldMore=!_soldMore;renderSold()">${_soldMore ? 'Show less' : `Show all ${list.length}`}</button></div>`;
+  const prow = (p, id) => `<tr class="prow" onclick="togglePr('${id}')"><td><span id="pr-arr-${id}" class="arr">▸</span> ${esc(p.title)}</td><td class="num">${p.qty}</td><td class="num">${inr(p.revenue)}</td></tr><tr id="pr-${id}" style="display:none"><td colspan="3" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${(p.sources || []).map(([k, n]) => `<li>${esc(k)} <b>×${n}</b></li>`).join('') || '<li>No source recorded</li>'}</ul></td></tr>`;
+  const show = _soldMore ? all : all.slice(0, 8);
+  let h = `<table><thead><tr><th>Design</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>${show.map((p, i) => prow(p, 'a' + i)).join('') || '<tr><td colspan="3" class="note">No orders in this range.</td></tr>'}</tbody></table>`;
+  if (all.length > 8) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_soldMore=!_soldMore;renderSold()">${_soldMore ? 'Show less' : `Show all ${all.length}`}</button></div>`;
+  const colls = s.best_collection || [];
+  if (colls.length) {
+    const cshow = _collMore ? colls : colls.slice(0, 5);
+    h += `<div class="sec" style="margin-top:14px">Collections <small>tap one to see its designs</small></div><table><thead><tr><th>Collection</th><th class="num">Pieces</th></tr></thead><tbody>${cshow.map((c, i) => { const items = all.filter(p => (p.collections || []).includes(c.title)); return `<tr class="prow" onclick="togglePr('c${i}')"><td><span id="pr-arr-c${i}" class="arr">▸</span> ${esc(c.title)} <span class="note">· ${items.length} design${items.length === 1 ? '' : 's'}</span></td><td class="num"><b>${c.qty}</b></td></tr><tr id="pr-c${i}" style="display:none"><td colspan="2" style="padding:0 0 0 14px;background:#fdf8f1"><table style="margin:0"><tbody>${items.map((p, k) => prow(p, `c${i}p${k}`)).join('')}</tbody></table></td></tr>`; }).join('')}</tbody></table>`;
+    if (colls.length > 5) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_collMore=!_collMore;renderSold()">${_collMore ? 'Show less' : `Show all ${colls.length} collections`}</button></div>`;
+  }
   el.innerHTML = h;
 }
 function togglePr(i) { const r = document.getElementById('pr-' + i), a = document.getElementById('pr-arr-' + i); const open = r.style.display === 'none'; r.style.display = open ? '' : 'none'; if (a) a.textContent = open ? '▾' : '▸'; }
