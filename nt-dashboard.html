@@ -94,7 +94,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 
 <div class="modal" id="creModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:41">
   <div class="panel" style="width:min(900px,100%)">
-    <div class="hd"><h2 id="creTitle">Creative</h2><select id="creDays" onchange="loadCreative()" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="30">Last 30 days</option><option value="60">Last 60 days</option><option value="90">Last 90 days</option></select><button class="x" onclick="document.getElementById('creModal').classList.remove('open')">✕</button></div>
+    <div class="hd"><h2 id="creTitle">Creative</h2><select id="creDays" onchange="loadCreative()" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="3">Last 3 days</option><option value="7" selected>Last 7 days</option><option value="15">Last 15 days</option><option value="30">Last 30 days</option></select><button class="x" onclick="document.getElementById('creModal').classList.remove('open')">✕</button></div>
     <div id="creBody"><div class="skel" style="height:80px"></div></div>
   </div>
 </div>
@@ -311,7 +311,7 @@ async function loadCreative() {
   const wk = d.weekly.length > 1;
   const src = wk && d.series.length > 45 ? d.weekly : d.series;
   h += `<div class="sec">Trend <small>${src === d.weekly ? 'weekly' : 'daily'} · ${d.since} → ${d.until} · IST days</small></div>`;
-  h += `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">${[['ROAS', 'roas', '#d4541f', v => v.toFixed(2)], ['Sales', 'purchases', '#1a7f37', v => String(Math.round(v))], ['Spend', 'spend', '#6f5b46', inr], ['CTR %', 'ctr', '#1a3f9c', v => v.toFixed(2)], ['CPM', 'cpm', '#8a6d00', inr], ['Frequency', 'frequency', '#b05000', v => v.toFixed(2)]].map(([l, k, col, f]) => `<div class="tile"><div class="l">${l}</div>${lineChart(src, k, col, f)}</div>`).join('')}</div>`;
+  h += `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">${[['ROAS', 'roas', '#d4541f', v => v.toFixed(2)], ['Sales', 'purchases', '#1a7f37', v => String(Math.round(v))], ['Spend', 'spend', '#6f5b46', inr], ['CTR %', 'ctr', '#1a3f9c', v => v.toFixed(2)], ['CPM', 'cpm', '#8a6d00', inr], ['Frequency', 'frequency', '#b05000', v => v.toFixed(2)]].map(([l, k, col, f]) => `<div class="tile"><div class="l">${l}</div>${lineChart(src, k, col, f)}</div>`).join('')}</div>`;
   h += `<div class="sec">Week by week</div><table><thead><tr><th>Week of</th><th class="num">Spend</th><th class="num">Sales</th><th class="num">ROAS</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">Freq</th></tr></thead><tbody>${d.weekly.slice().reverse().map(w => `<tr><td>${w.week}</td><td class="num">${inr(w.spend)}</td><td class="num">${w.purchases}</td><td class="num">${w.roas}</td><td class="num">${w.ctr}%</td><td class="num">${inr(w.cpm)}</td><td class="num">${w.frequency}</td></tr>`).join('')}</tbody></table>`;
   body.innerHTML = h;
 }
