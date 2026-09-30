@@ -61,6 +61,17 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .sug{display:flex;flex-direction:column;gap:5px;margin:6px 0}
 .sug-row{display:flex;gap:8px;align-items:flex-start;font-size:.85rem;line-height:1.4}.sug-row .hl{flex-shrink:0;margin-top:2px}
 .hl{display:inline-block;font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:8px;background:#eee;color:#3a2b1d}
+.mixes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-bottom:12px}
+.mix{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.mix-h{display:flex;justify-content:space-between;font-size:.8rem;font-weight:800;color:var(--ink2);margin-bottom:6px}
+.mix-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:#f3ebdf}.mix-bar span{display:block;height:100%}
+.mix-l{display:flex;justify-content:space-between;font-size:.75rem;color:var(--ink2);margin-top:6px}.mix-l i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.hours{display:flex;align-items:flex-end;gap:2px;height:90px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 8px 4px;margin-bottom:12px}
+.hr{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;min-width:0}.hb{background:var(--accent);border-radius:3px 3px 0 0;min-height:1px;opacity:.85}.hl{font-size:.6rem;color:var(--muted);text-align:center;height:12px}
+.hbars{display:flex;flex-direction:column;gap:4px}.hbr{display:flex;align-items:center;gap:6px;font-size:.78rem}.hk{flex:0 0 42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hv{flex:1;height:8px;background:#f3ebdf;border-radius:4px;overflow:hidden}.hv i{display:block;height:100%;background:var(--accent);border-radius:4px}.hbr b{width:28px;text-align:right}
+.mv{font-size:.65rem;font-weight:800;padding:1px 5px;border-radius:6px;background:#eee;color:#888;margin-left:2px}.mv.up{background:#d8f3dc;color:#1a7f37}.mv.dn{background:#ffd6d6;color:#b00020}.mv.new{background:#dbe9ff;color:#1a3f9c}
+.cov{font-weight:800;color:#1a7f37}.cov.warn{color:#b3480f}.cov.bad{color:#b00020}
+.dt td{vertical-align:middle}
 .cc .hl{display:inline-block;font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:8px;margin-bottom:3px;background:#eee;color:#3a2b1d}
 .hl.picking{background:#d8f3dc;color:#1a7f37}.hl.steady{background:#e9ddca;color:#6f5b46}.hl.new{background:#dbe9ff;color:#1a3f9c}.hl.dropping{background:#ffe1c2;color:#b3480f}.hl.fatigued{background:#ffd6d6;color:#b00020}.hl.needs{background:#f3e0ff;color:#6a1b9a}.hl.quiet,.hl.paused{background:#eee;color:#888}
 .chart{width:100%;height:auto;display:block;font-family:var(--fb)}
@@ -427,11 +438,24 @@ function renderShop(d) {
   document.getElementById('shopWhen').textContent = `${rangeLbl} · vs ${p.since === p.until ? p.since : `${p.since} → ${p.until}`}`;
   let h = '';
   if (_shopKind === 'shop') {
-    h += `<div class="tiles">${tile(inr(d.revenue), 'Revenue', `prev ${inr(p.revenue || 0)} ${sg(pctDiff(d.revenue, p.revenue))}`)}${tile(d.orders, 'Orders', `prev ${p.orders || 0} ${sg(pctDiff(d.orders, p.orders))} · ${d.units} pcs`)}${tile(`${d.cod} <span style="font-size:.6em">· ${d.cod_share}%</span>`, 'COD orders', `prepaid ${d.prepaid}`)}${tile(inr(d.aov), 'Avg order', `prev ${inr(p.aov || 0)}`)}${tile(`${d.new_customers} <span style="font-size:.6em">/ ${d.returning_customers}</span>`, 'New / returning', `prev ${p.new_customers || 0} / ${p.returning_customers || 0}`)}${tile(d.cancelled, 'Cancelled', `prev ${p.cancelled || 0}`)}</div>`;
-    h += listBlock('Designs sold', d.products.map(x => ({ title: x.title, qty: x.qty, revenue: x.revenue, sub: x.sources })), 'sp');
-    h += listBlock('Collections', d.collections.map(c => ({ title: c.title, qty: c.qty, sub: d.products.filter(x => (x.collections || []).includes(c.title)).map(x => [x.title, x.qty]) })), 'sc', 5);
-    if (d.sources && d.sources.length) h += `<div class="sec">Where orders came from <small>UTM on the order, else referrer</small></div><table><thead><tr><th>Source › campaign › ad</th><th class="num">Pieces</th></tr></thead><tbody>${d.sources.map(x => `<tr><td>${esc(x.source)}</td><td class="num">${x.qty}</td></tr>`).join('')}</tbody></table>`;
-    if (d.daily && d.daily.length > 1) h += `<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Day by day (${d.daily.length})</summary><table style="margin-top:6px"><thead><tr><th>Day</th><th class="num">Orders</th><th class="num">COD</th><th class="num">Revenue</th></tr></thead><tbody>${d.daily.map(x => `<tr><td>${x.day}</td><td class="num">${x.orders}</td><td class="num">${x.cod}</td><td class="num">${inr(x.revenue)}</td></tr>`).join('')}</tbody></table></details>`;
+    if (d.backfilling) h += `<div class="warn">First open: pulling the last 90 days from Shopify in the background. Trends and design history fill in over the next few minutes; today's numbers below are live.</div>`;
+    h += `<div class="tiles">${tile(inr(d.revenue), 'Revenue', `prev ${inr(p.revenue || 0)} ${sg(pctDiff(d.revenue, p.revenue))}`)}${tile(`${d.orders} <span style="font-size:.6em">· ${d.units} pcs</span>`, 'Orders', `prev ${p.orders || 0} ${sg(pctDiff(d.orders, p.orders))}`)}${tile(inr(d.aov), 'Avg order', `prev ${inr(p.aov || 0)} ${sg(pctDiff(d.aov, p.aov))}`)}${tile(`${d.cod} <span style="font-size:.6em">· ${d.cod_share}%</span>`, 'COD orders', `prepaid ${d.prepaid} · prev COD ${p.cod_share || 0}%`)}${tile(`${d.new_customers} <span style="font-size:.6em">/ ${d.returning_customers}</span>`, 'New / returning', `prev ${p.new_customers || 0} / ${p.returning_customers || 0}`)}${tile(d.cancelled, 'Cancelled', `prev ${p.cancelled || 0}`)}</div>`;
+    // trend: this period vs the one before, same shape
+    if (d.daily.length > 1) h += `<div class="sec">Trend <small>${d.since} → ${d.until} · dotted = previous period</small></div><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))"><div class="tile"><div class="l">Revenue</div>${trendChart(d.daily, d.prev_daily, 'revenue', '#d4541f', inr)}</div><div class="tile"><div class="l">Orders</div>${trendChart(d.daily, d.prev_daily, 'orders', '#1a7f37', v => String(Math.round(v)))}</div></div>`;
+    // mix bars
+    const bar = (l, a, an, b, bn, ca, cb, sub) => `<div class="mix"><div class="mix-h"><span>${l}</span><span class="note">${sub || ''}</span></div><div class="mix-bar"><span style="width:${a + b ? a / (a + b) * 100 : 0}%;background:${ca}" title="${an}"></span><span style="width:${a + b ? b / (a + b) * 100 : 0}%;background:${cb}" title="${bn}"></span></div><div class="mix-l"><span><i style="background:${ca}"></i>${an} <b>${a}</b> · ${a + b ? Math.round(a / (a + b) * 100) : 0}%</span><span><i style="background:${cb}"></i>${bn} <b>${b}</b></span></div></div>`;
+    h += `<div class="sec">Mix</div><div class="mixes">${bar('Price tier (pieces)', d.t599, '₹599 ready', d.t999, '₹999 custom', '#e0a96d', '#d4541f', `prev custom ${p.t599 + p.t999 ? Math.round(p.t999 / (p.t599 + p.t999) * 100) : 0}%`)}${bar('Payment (orders)', d.prepaid, 'Prepaid', d.cod, 'COD', '#1a7f37', '#b3480f', `prev COD ${p.cod_share || 0}%`)}${bar('Customers (orders)', d.new_customers, 'New', d.returning_customers, 'Returning', '#1a3f9c', '#7b5ea7')}${bar('Discounts (orders)', d.orders - d.discount_orders, 'Full price', d.discount_orders, 'With discount', '#9c8a76', '#c98b2e', `${inr(d.discount_amount)} given · ${d.discount_share}%`)}</div>`;
+    // hour of day
+    if (d.hours && d.hours.some(x => x)) { const mx = Math.max(...d.hours, 1); h += `<div class="sec">Orders by hour <small>IST${d.fulfil_days != null ? ` · avg ${d.fulfil_days} days order → dispatch` : ''}</small></div><div class="hours">${d.hours.map((n, i) => `<div class="hr" title="${i}:00 · ${n} orders"><div class="hb" style="height:${Math.round(n / mx * 100)}%"></div><div class="hl">${i % 3 === 0 ? i : ''}</div></div>`).join('')}</div>`; }
+    // designs
+    const arrow = x => x.prev_rank == null ? '<span class="mv new">new</span>' : x.rank < x.prev_rank ? `<span class="mv up">▲${x.prev_rank - x.rank}</span>` : x.rank > x.prev_rank ? `<span class="mv dn">▼${x.rank - x.prev_rank}</span>` : '<span class="mv">=</span>';
+    const cover = x => x.cover_days == null ? '' : `<span class="cov ${x.cover_days <= 3 ? 'bad' : x.cover_days <= 7 ? 'warn' : ''}" title="${x.stock} in stock at ${x.daily_rate}/day">${x.cover_days}d</span>`;
+    const more = !!_shopMore.sp, show = more ? d.designs : d.designs.slice(0, 10);
+    h += `<div class="sec">Designs <small>tap one for its story · rank move vs previous period · 30-day sparkline · stock cover</small></div><table class="dt"><thead><tr><th>#</th><th>Design</th><th class="num">Pieces</th><th class="num">Revenue</th><th>30 days</th><th class="num">Cover</th></tr></thead><tbody>${show.map((x, i) => `<tr class="prow" onclick="openDesign('${x.product_id}', '${i}')"><td class="num">${x.rank} ${arrow(x)}</td><td>${esc(x.title)}<div class="note">${x.t999 ? `${x.t999} custom · ` : ''}${x.colors.slice(0, 3).map(([c, n]) => `${esc(c)} ${n}`).join(' · ')}</div></td><td class="num"><b>${x.qty}</b><div class="note">prev ${x.prev_qty}</div></td><td class="num">${inr(x.revenue)}</td><td>${sparkline(x.spark)}</td><td class="num">${cover(x)}</td></tr><tr id="dsg-${i}" style="display:none"><td colspan="6" style="background:#fdf8f1;padding:0"><div id="dsg-body-${i}" style="padding:10px 12px"></div></td></tr>`).join('') || '<tr><td colspan="6" class="note">Nothing in this range.</td></tr>'}</tbody></table>`;
+    if (d.designs.length > 10) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore.sp=!_shopMore.sp;renderShop(_shop[_shopKind+'|'+_shopRange.since+'|'+_shopRange.until])">${more ? 'Show less' : `Show all ${d.designs.length}`}</button></div>`;
+    // geography
+    if (d.states.length) h += `<div class="sec">Where they ship</div><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))"><div class="tile"><div class="l">Top states</div>${hbar(d.states.map(x => [x.state, x.qty]))}</div><div class="tile"><div class="l">Top cities</div>${hbar(d.cities.map(x => [x.city, x.qty]))}</div></div>`;
+    if (d.daily.length > 1) h += `<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Day by day (${d.daily.length})</summary><table style="margin-top:6px"><thead><tr><th>Day</th><th class="num">Orders</th><th class="num">Pieces</th><th class="num">Custom</th><th class="num">COD</th><th class="num">Revenue</th></tr></thead><tbody>${d.daily.slice().reverse().map(x => `<tr><td>${x.day}</td><td class="num">${x.orders}</td><td class="num">${x.units}</td><td class="num">${x.t999}</td><td class="num">${x.cod}</td><td class="num">${inr(x.revenue)}</td></tr>`).join('')}</tbody></table></details>`;
   } else {
     h += `<div class="tiles">${tile(d.orders, 'Orders', `prev ${p.orders || 0} ${sg(pctDiff(d.orders, p.orders))} · ${d.units} pcs`)}${tile(inr(d.revenue), 'Revenue', `prev ${inr(p.revenue || 0)}${d.priced_share < 100 ? ` · ${d.priced_share}% of units priced` : ''}`)}${tile(`${d.cod} <span style="font-size:.6em">/ ${d.prepaid}</span>`, 'COD / prepaid', `prev COD ${p.cod || 0}`)}${tile(`${d.fba} <span style="font-size:.6em">/ ${d.mfn}</span>`, 'FBA / self-ship', '')}${tile(`${d.pending} <span style="font-size:.6em">/ ${d.shipped}</span>`, 'Pending / shipped', '')}${tile(d.cancelled, 'Cancelled', `prev ${p.cancelled || 0}`)}</div>`;
     h += listBlock('Designs sold', d.designs.map(x => ({ title: x.title, qty: x.qty, revenue: x.revenue, sub: x.fba ? [['via FBA', x.fba], ['self-ship', x.qty - x.fba]] : null })), 'ap');
@@ -440,6 +464,57 @@ function renderShop(d) {
     h += `<div class="note" style="margin-top:8px">${esc(d.note)}</div>`;
   }
   body.innerHTML = h;
+}
+function trendChart(series, prev, key, color, fmt) {
+  const W = 600, H = 190, L = 58, R = 12, T = 14, B = 30, n = series.length;
+  const a = series.map(r => +r[key] || 0), b = (prev || []).map(r => +r[key] || 0);
+  const max = Math.max(...a, ...b, 0.0001), x = (i, m) => L + (i / Math.max(m - 1, 1)) * (W - L - R), y = v => T + (1 - v / max) * (H - T - B);
+  const pts = (arr) => arr.map((v, i) => `${x(i, arr.length).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const yT = [0, .5, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="#e9ddca"/><text x="${L - 6}" y="${y(max * f) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${fmt(max * f)}</text>`).join('');
+  const step = n > 20 ? 5 : n > 10 ? 2 : 1;
+  const xT = series.map((r, i) => (i % step === 0 || i === n - 1) ? `<text x="${x(i, n)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${r.day.slice(8)}/${r.day.slice(5, 7)}</text>` : '').join('');
+  const colW = (W - L - R) / Math.max(n, 1);
+  const hover = a.map((v, i) => `<rect x="${x(i, n) - colW / 2}" y="${T}" width="${colW}" height="${H - T - B}" fill="transparent" onmousemove="chartTip(event, '${series[i].day}', '${fmt(v)}${b[i] != null ? ' (prev ' + fmt(b[i]) + ')' : ''}')" onmouseleave="chartTip()" ontouchstart="chartTip(event, '${series[i].day}', '${fmt(v)}')"/>`).join('');
+  const labels = n <= 15 ? a.map((v, i) => `<text x="${x(i, n)}" y="${Math.max(T + 10, y(v) - 7)}" font-size="10.5" font-weight="700" fill="${color}" text-anchor="middle">${fmt(v)}</text>`).join('') : '';
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yT}${xT}${b.length ? `<polyline points="${pts(b)}" fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="4 4" opacity=".45"/>` : ''}<polyline points="${pts(a)}" fill="none" stroke="${color}" stroke-width="2.2"/>${a.map((v, i) => `<circle cx="${x(i, n)}" cy="${y(v)}" r="3" fill="${color}" pointer-events="none"/>`).join('')}${labels}${hover}</svg><div class="note" style="display:flex;justify-content:space-between;margin-top:4px"><span>total <b style="color:${color}">${fmt(a.reduce((s, v) => s + v, 0))}</b></span><span>prev ${fmt(b.reduce((s, v) => s + v, 0))}</span><span>best day ${fmt(Math.max(...a, 0))}</span></div>`;
+}
+function sparkline(arr, color = '#d4541f') {
+  const W = 120, H = 28, n = arr.length, max = Math.max(...arr, 1);
+  const pts = arr.map((v, i) => `${(i / Math.max(n - 1, 1)) * W},${H - 2 - (v / max) * (H - 6)}`).join(' ');
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6"/><circle cx="${W}" cy="${H - 2 - (arr[n - 1] / max) * (H - 6)}" r="2.5" fill="${color}"/></svg>`;
+}
+function hbar(rows) {
+  const mx = Math.max(...rows.map(r => r[1]), 1);
+  return `<div class="hbars">${rows.map(([k, n]) => `<div class="hbr"><span class="hk">${esc(k)}</span><span class="hv"><i style="width:${Math.round(n / mx * 100)}%"></i></span><b>${n}</b></div>`).join('') || '<div class="note">—</div>'}</div>`;
+}
+const _design = {};
+async function openDesign(pid, i) {
+  const row = document.getElementById('dsg-' + i), body = document.getElementById('dsg-body-' + i);
+  if (!row) return;
+  if (row.style.display !== 'none') { row.style.display = 'none'; return; }
+  row.style.display = '';
+  if (_design[pid]) { body.innerHTML = renderDesign(_design[pid]); return; }
+  body.innerHTML = '<div class="skel" style="height:60px"></div>';
+  try { const d = await api({ action: 'design', product_id: pid }); _design[pid] = d; body.innerHTML = renderDesign(d); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
+}
+function renderDesign(d) {
+  const pct = (a, b) => b ? Math.round(((a - b) / b) * 100) : null;
+  const tile = (n, l, sub = '') => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const cover = d.cover_days == null ? (d.stock == null ? 'no count' : `${d.stock} in stock`) : `${d.cover_days} days`;
+  const covCls = d.cover_days != null && d.cover_days <= 3 ? 'fatigued' : d.cover_days != null && d.cover_days <= 7 ? 'watch' : 'healthy';
+  const read = [];
+  if (pct(d.l7.qty, d.p7.qty) != null && pct(d.l7.qty, d.p7.qty) >= 30) read.push(`Rising: ${d.l7.qty} pcs this week vs ${d.p7.qty} last week.`);
+  else if (pct(d.l7.qty, d.p7.qty) != null && pct(d.l7.qty, d.p7.qty) <= -30) read.push(`Slowing: ${d.l7.qty} pcs this week vs ${d.p7.qty} last week.`);
+  else read.push(`Steady: ${d.l7.qty} pcs this week, ${d.p7.qty} last week.`);
+  if (d.cover_days != null && d.cover_days <= 3) read.push(`Only ${d.stock} painted at ${d.daily_rate}/day: paint more now.`);
+  else if (d.cover_days != null && d.cover_days <= 7) read.push(`${d.stock} painted covers about a week at ${d.daily_rate}/day: add it to the next dispatch.`);
+  if (d.tiers.t999 > d.tiers.t599) read.push(`Mostly custom (${d.tiers.t999} of ${d.tiers.t599 + d.tiers.t999}): people want their own words on it.`);
+  if (d.l30.cancelled >= 3) read.push(`${d.l30.cancelled} pcs cancelled in 30 days.`);
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], wmax = Math.max(...d.weekday, 1);
+  let h = `<div class="vd ${covCls}" style="margin-bottom:8px"><b>${esc(d.title || '')}</b> · stock cover <b>${cover}</b>${d.counted_at ? ` <span class="note">(counted ${d.counted_at.slice(0, 10)})</span>` : ''}<div>${read.map(esc).join(' ')}</div></div>`;
+  h += `<div class="tiles">${tile(d.l7.qty, 'Pieces, 7d', `prev ${d.p7.qty} ${sg(pct(d.l7.qty, d.p7.qty))}`)}${tile(d.l30.qty, 'Pieces, 30d', `prev ${d.p30.qty} ${sg(pct(d.l30.qty, d.p30.qty))}`)}${tile(inr(d.l30.revenue), 'Revenue, 30d', `prev ${inr(d.p30.revenue)}`)}${tile(`${d.tiers.t599} <span style="font-size:.6em">/ ${d.tiers.t999}</span>`, 'Ready / custom, 30d')}${tile(d.l90.qty, 'Pieces, 90d', `since ${d.first_seen || '—'}`)}</div>`;
+  h += `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="tile"><div class="l">Pieces per day, 30d</div>${trendChart(d.series.map(r => ({ day: r.date, qty: r.qty })), null, 'qty', '#d4541f', v => String(Math.round(v)))}</div><div class="tile"><div class="l">Colours, 30d</div>${hbar(d.colors)}</div><div class="tile"><div class="l">Bought together, 30d</div>${hbar(d.bought_with.map(x => [x.title, x.n]))}</div><div class="tile"><div class="l">Weekday, 90d</div><div class="hours" style="height:70px">${d.weekday.map((n, i) => `<div class="hr" title="${wd[i]} · ${n}"><div class="hb" style="height:${Math.round(n / wmax * 100)}%;background:#1a3f9c"></div><div class="hl">${wd[i]}</div></div>`).join('')}</div></div></div>`;
+  return h;
 }
 function listBlock(title, items, id, top = 8) {
   const more = !!_shopMore[id], show = more ? items : items.slice(0, top);
