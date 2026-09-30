@@ -175,7 +175,7 @@ function renderAdsModal() {
   if (a.meta_error) h += `<div class="warn"><b>Meta not connected:</b> ${esc(a.meta_error)}. Add a System User token as <code>META_ACCESS_TOKEN</code> in Netlify (ads_read scope) and refresh. Shopify figures below are live.</div>`;
   h += `<div class="tiles">
     ${tile(a.meta_error ? '—' : inr(b.spend_today), 'Spend', `${prevLbl} ${inr(b.spend_yesterday)}`)}
-    ${tile(inr(s.today.revenue), 'Shopify revenue', `${prevLbl} ${inr(s.yesterday.revenue)} · ${s.today.orders} orders (${s.today.cod} COD)`)}
+    ${tile(`${inr(s.today.revenue)} <span style="font-size:.6em;white-space:nowrap">· ${s.today.orders} orders</span>`, 'Shopify revenue', `${prevLbl} ${inr(s.yesterday.revenue)} · ${s.yesterday.orders} orders · today ${s.today.cod} COD`)}
     ${tile(a.meta_error ? '—' : x(b.roas_today), 'Blended ROAS', `${prevLbl} ${x(b.roas_yesterday)}`)}
     ${tile(a.meta_error || b.cpm_today == null ? '—' : inr2(b.cpm_today), 'CPM', 'blended, both accounts')}
     ${tile(s.best_seller ? esc(s.best_seller.title) : '—', 'Best seller', s.best_seller ? `${s.best_seller.qty} pcs · ${inr(s.best_seller.revenue)}` : 'no orders')}
