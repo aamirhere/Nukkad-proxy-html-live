@@ -249,7 +249,7 @@ async function loadAds(force) {
     let tries = 0, c = null;
     while (tries++ < 36) {
       // Live today from Meta by default; any other range comes straight from the snapshot (instant, includes ads paused since)
-      const liveToday = _range.since === istToday() && _range.until === istToday();
+      const liveToday = (!_range.since || _range.since === istToday()) && (!_range.until || _range.until === istToday());
       try { c = liveToday ? await api({ action: 'creatives', since: istToday(), until: istToday(), force: force === 'hard' && tries === 1 }) : await api({ action: 'creatives_hist', ..._range }); } catch (e) { c = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
       if (seq !== _loadSeq) return;
       if (!c.pending) break;
@@ -770,7 +770,7 @@ async function refreshAll() {
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
-_g = { ...presetRange('today'), label: 'today' }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
+_g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
 loadAds(); loadBlocks(); loadCrawl();
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
