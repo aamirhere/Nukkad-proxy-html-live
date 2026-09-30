@@ -246,7 +246,7 @@ function renderAdsModal() {
   renderAi(); renderAudience();
   if (a.creatives) renderCreatives();
 }
-const SHOW_AI = false, SHOW_FORECAST = false;
+const SHOW_AI = false, SHOW_FORECAST = false, SHOW_DXC = false;
 let _ai = null, _aud = null, _aiPoll = null;
 async function loadAi() { if (!SHOW_AI) return; try { _ai = await api({ action: 'ai' }); } catch (e) { _ai = { error: e.message }; } renderAi(); if (_ads && _ads.creatives) renderCreatives(); }
 async function loadAudience() { try { _aud = await api({ action: 'audience', ..._range }); } catch (e) { _aud = { error: e.message }; } renderAudience(); }
@@ -326,9 +326,11 @@ function renderPlan() {
   const lot = rows.map(b => { const [k, why, n] = advise(b); return { b, k, why, n }; }).filter(x => x.n > 0);
   let h = '';
   if (lot.length) h += `<div class="vd healthy" style="margin-bottom:10px"><b>🎬 Next creative lot: ${lot.reduce((s, x) => s + x.n, 0)} cuts across ${lot.length} designs</b><ul style="margin:6px 0 0 18px;padding:0;line-height:1.6">${lot.map(x => `<li><b>${esc(x.b.title)}</b> · ${x.n} ${x.k === 'build' ? 'new creatives' : 'variations'} <span class="note">· ${x.b.qty7} pcs/wk · ${esc(x.why)}</span></li>`).join('')}</ul><div class="note" style="margin-top:4px">Based on what sells this week and which running ads are tiring. Re-check after the lot goes live.</div></div>`;
+  if (SHOW_DXC) {
   const more = !!_shopMore.plan, show = more ? rows : rows.slice(0, 5);
   h += `<div class="sec">Designs × creatives <small>last 7 days · which design each ad pushes (from what it sold and its name/copy) · reads only for the top sellers</small></div><table><thead><tr><th>Design</th><th class="num">Pcs/wk</th><th class="num">Ads running</th><th class="num">Ad spend/wk</th><th>Read</th></tr></thead><tbody>${show.map((b, i) => { const [k, why] = advise(b); return `<tr class="prow" onclick="togglePr('pl${i}')"><td><span id="pr-arr-pl${i}" class="arr">▸</span> ${esc(b.title)}</td><td class="num"><b>${b.qty7}</b></td><td class="num">${b.running}${b.tired ? ` <span class="note">(${b.tired} tiring)</span>` : ''}</td><td class="num">${inr(b.spend)}</td><td>${k === '—' ? '<span class="note">—</span>' : `<span class="hl ${adCls(k)}">${k}</span> <span class="note">${esc(why)}</span>`}</td></tr><tr id="pr-pl${i}" style="display:none"><td colspan="5" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${b.creatives.map(c => `<li>${esc(c.name)} · <span class="hl ${tagCls(c.tag)}">${c.tag}</span> · ROAS ${c.roas} · ${inr(c.spend)}/wk</li>`).join('') || '<li>No ad found for this design</li>'}</ul></td></tr>`; }).join('')}</tbody></table>`;
   if (rows.length > 5) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore.plan=!_shopMore.plan;renderPlan()">${more ? 'Show less' : `Show all ${rows.length}`}</button></div>`;
+  }
   if (SHOW_FORECAST) {
   const T = _planTarget, gap = T - revDay, f = v => '₹' + Math.round(v).toLocaleString('en-IN');
   const DECAY = 0.85;
