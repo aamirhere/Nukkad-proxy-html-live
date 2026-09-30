@@ -51,6 +51,8 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .cc .tags{position:absolute;top:6px;left:6px;display:flex;gap:4px;flex-wrap:wrap}
 .tag{background:rgba(58,43,29,.85);color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:8px}
 .tag.pdt{background:#1a3f9c}.tag.ist{background:#1a7f37}.tag.off{background:#888}.tag.dup{background:var(--accent)}
+.cc .hl{display:inline-block;font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:8px;margin-bottom:3px;background:#eee;color:#3a2b1d}
+.hl.picking{background:#d8f3dc;color:#1a7f37}.hl.steady{background:#e9ddca;color:#6f5b46}.hl.new{background:#dbe9ff;color:#1a3f9c}.hl.dropping{background:#ffe1c2;color:#b3480f}.hl.fatigued{background:#ffd6d6;color:#b00020}.hl.needs{background:#f3e0ff;color:#6a1b9a}.hl.quiet,.hl.paused{background:#eee;color:#888}
 .chart{width:100%;height:120px;display:block}
 .vd{border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:10px}
 .vd.healthy{background:#e8f5e9}.vd.watch{background:#fff8dc}.vd.fatigued{background:#fde8e8}.vd.quiet{background:#f5efe6}
@@ -197,15 +199,16 @@ function renderCreatives() {
   let h = '';
   {
     const c = a.creatives, L = c.list || [];
-    h += `<div class="sec">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · tap one for its history</small></div>`;
+    const key = _creSort; L.sort((x, y) => (y[key] - x[key]) || (y.spend - x.spend));
+    h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · tap one for its history</small><select onchange="_creSort=this.value;renderCreatives()" style="margin-left:auto;font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['roas', 'ROAS high → low'], ['spend', 'Spend high → low'], ['purchases', 'Sales high → low'], ['ctr', 'CTR high → low']].map(([v, l]) => `<option value="${v}"${v === key ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`;
     _cre = L;
     if (c.errors && c.errors.length) h += `<div class="warn">${c.errors.map(esc).join('<br>')}</div>`;
-    h += L.length ? `<div class="cre">${L.map((r, i) => `<div class="cc" onclick="openCreative(${i})"><div class="tags">${r.accounts.map(x => `<span class="tag ${/pdt/i.test(x) ? 'pdt' : 'ist'}">${esc(x)}</span>`).join('')}${r.copies > 1 ? `<span class="tag dup">×${r.copies}</span>` : ''}${r.running ? '' : '<span class="tag off">paused</span>'}${r.is_video ? '<span class="tag">▶</span>' : ''}</div>${r.thumb ? `<img src="${esc(r.thumb)}" alt="" loading="lazy">` : '<div class="ph"></div>'}<div class="b"><div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span><b>${inr(r.spend)}</b></span><span>${r.purchases} sales</span></div></div></div>`).join('')}</div>` : '<div class="note">No running creatives found in this range.</div>';
+    h += L.length ? `<div class="cre">${L.map((r, i) => `<div class="cc" onclick="openCreative(${i})"><div class="tags">${r.accounts.map(x => `<span class="tag ${/pdt/i.test(x) ? 'pdt' : 'ist'}">${esc(x)}</span>`).join('')}${r.copies > 1 ? `<span class="tag dup">×${r.copies}</span>` : ''}${r.running ? '' : '<span class="tag off">paused</span>'}${r.is_video ? '<span class="tag">▶</span>' : ''}</div>${r.thumb ? `<img src="${esc(r.thumb)}" alt="" loading="lazy">` : '<div class="ph"></div>'}<div class="b">${r.tag ? `<span class="hl ${r.tag.split(' ')[0]}" title="${esc(r.tag_why || '')}">${esc(r.tag)}</span>` : ''}<div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span><b>${inr(r.spend)}</b></span><span>${r.purchases} sales</span></div></div></div>`).join('')}</div>` : '<div class="note">No running creatives found in this range.</div>';
   }
   el.innerHTML = h;
 }
 function toggleColl(i) { const r = document.getElementById('coll-' + i); if (r) r.style.display = r.style.display === 'none' ? '' : 'none'; }
-let _cre = [], _creIdx = -1;
+let _cre = [], _creIdx = -1, _creSort = 'roas';
 function openCreative(i) { _creIdx = i; document.getElementById('creModal').classList.add('open'); loadCreative(); }
 function lineChart(series, key, color, fmt) {
   const W = 600, H = 120, p = 6, n = series.length;
@@ -222,7 +225,7 @@ async function loadCreative() {
   let d; try { d = await api({ action: 'creative', ad_ids: r.ads.map(x => x.ad_id), days }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   const ch = d.change, sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + v + '%';
   const label = { healthy: '✅ Healthy', watch: '⚠ Watch', fatigued: '🔻 Fatigued, refresh this creative', quiet: '💤 Quiet' }[d.status];
-  let h = `<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">${r.thumb ? `<img src="${esc(r.thumb)}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;background:#111">` : ''}<div style="flex:1;min-width:220px"><div class="vd ${d.status}"><b>${label}</b><div>${d.verdict.map(esc).join(' ')}</div></div><div class="note">Runs as ${r.ads.length} ad${r.ads.length > 1 ? 's' : ''}: ${r.ads.map(x => `${esc(x.account)} · ${esc(x.campaign || '')} · ${x.status === 'ACTIVE' ? 'running' : x.status.toLowerCase()}${x.preview ? ` <a href="${esc(x.preview)}" target="_blank" rel="noopener">↗</a>` : ''}`).join('<br>')}</div></div></div>`;
+  let h = `<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">${r.thumb ? `<img src="${esc(r.thumb)}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;background:#111">` : ''}<div style="flex:1;min-width:220px"><div class="vd ${d.status}"><b>${label}</b><div>${d.verdict.map(esc).join(' ')}</div></div><div class="note">Runs as ${r.ads.length} ad${r.ads.length > 1 ? 's' : ''}: ${r.ads.map(x => `${esc(x.account)} · ${esc(x.campaign || '')} · ${x.status === 'ACTIVE' ? 'running' : x.status.toLowerCase()}${x.preview ? ` <a href="${esc(x.preview)}" target="_blank" rel="noopener">↗</a>` : ''}`).join('<br>')}</div></div></div>${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}`;
   h += `<div class="tiles">${[['ROAS', d.last7.roas, sgn(ch.roas)], ['Spend, last 7d', inr(d.last7.spend), `prev ${inr(d.prev7.spend)}`], ['Sales, last 7d', d.last7.purchases, `prev ${d.prev7.purchases}`], ['CTR', d.last7.ctr + '%', sgn(ch.ctr)], ['CPM', inr(d.last7.cpm), sgn(ch.cpm)], ['Frequency', d.last7.frequency, sgn(ch.frequency)]].map(([l, n, s2]) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s2}</div></div>`).join('')}</div>`;
   const wk = d.weekly.length > 1;
   const src = wk && d.series.length > 45 ? d.weekly : d.series;
