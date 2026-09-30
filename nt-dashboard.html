@@ -24,10 +24,10 @@ main{padding:10px 18px 60px;max-width:1300px;margin:0 auto}
 .block .t .ic{font-size:1.1rem}
 .block .kpi{font-family:var(--ff);font-size:1.6rem;margin:8px 0 2px;line-height:1}
 .block .kl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.block .row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;margin-top:10px;font-size:.78rem;color:var(--ink2)}
+.block .row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;margin-top:10px;font-size:.78rem;color:var(--ink2)}
 .block .row b{color:var(--ink)}
 .block .st{display:flex;flex-direction:column;gap:1px;min-width:0}
-.block .st i{font-style:normal;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.block .st i{font-style:normal;font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .block .st b{font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .block .st.wide{grid-column:1 / -1;flex-direction:row;align-items:baseline;gap:6px;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px}
 .block .st.wide b{white-space:normal}
@@ -221,7 +221,7 @@ function renderAdsBlock() {
   document.getElementById('adsKpi').textContent = a.meta_error ? '—' : inr(b.spend_today);
   const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`;
   document.getElementById('adsRow').innerHTML = (a.meta_error ? `<span class="err" style="grid-column:1/-1">${esc(a.meta_error)}</span>` : st('ROAS', x(b.roas_today)) + st('CPM', b.cpm_today == null ? '—' : inr(b.cpm_today)) + st('Orders', s.today.orders))
-    + st('Revenue', inr(s.today.revenue)) + st('Yesterday', inr(b.spend_yesterday)) + st('ROAS yest.', x(b.roas_yesterday))
+    + st('Revenue', inr(s.today.revenue)) + st('Yest. spend', inr(b.spend_yesterday)) + st('Yest. ROAS', x(b.roas_yesterday))
     + (s.best_seller ? `<span class="st wide"><i>Top</i><b>${esc(s.best_seller.title)} ×${s.best_seller.qty}</b></span>` : '');
 }
 function renderAdsModal() {
@@ -654,9 +654,9 @@ function listBlock(title, items, id, top = 8) {
 }
 async function loadBlocks() {
   const t = istToday();
-  try { const d = await api({ action: 'shop', since: t, until: t }); _shop['shop|' + t + '|' + t] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('shopRow').innerHTML = st('Orders', d.orders) + st('AOV', inr(d.aov)) + st('Pieces', d.units) + st('COD / prepaid', `${d.cod} / ${d.prepaid}`) + st('New / return', `${d.new_customers} / ${d.returning_customers}`) + st('Cancelled', d.cancelled) + (d.designs && d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
+  try { const d = await api({ action: 'shop', since: t, until: t }); _shop['shop|' + t + '|' + t] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('shopRow').innerHTML = st('Orders', d.orders) + st('AOV', inr(d.aov)) + st('Pieces', d.units) + st('COD · Prepaid', `${d.cod} · ${d.prepaid}`) + st('New · Repeat', `${d.new_customers} · ${d.returning_customers}`) + st('Cancel', d.cancelled) + (d.designs && d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
   catch (e) { document.getElementById('shopKpi').textContent = '—'; document.getElementById('shopRow').textContent = e.message; }
-  try { const d = await api({ action: 'amazon', since: t, until: t }); _shop['amazon|' + t + '|' + t] = d; document.getElementById('amzKpi').textContent = d.orders; const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('amzRow').innerHTML = st('Pieces', d.units) + st('Revenue', d.revenue ? inr(d.revenue) : '—') + st('Cancelled', d.cancelled) + st('COD / prepaid', `${d.cod} / ${d.prepaid}`) + st('FBA / self', `${d.fba} / ${d.mfn}`) + st('Pending', d.pending) + (d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
+  try { const d = await api({ action: 'amazon', since: t, until: t }); _shop['amazon|' + t + '|' + t] = d; document.getElementById('amzKpi').textContent = d.orders; const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('amzRow').innerHTML = st('Pieces', d.units) + st('Revenue', d.revenue ? inr(d.revenue) : '—') + st('Cancelled', d.cancelled) + st('COD · Prepaid', `${d.cod} · ${d.prepaid}`) + st('FBA · Self', `${d.fba} · ${d.mfn}`) + st('Pending', d.pending) + (d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
   catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
 }
 async function refreshShopBlock(b) {
