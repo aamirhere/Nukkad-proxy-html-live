@@ -182,6 +182,7 @@ function renderAdsModal() {
     const c = a.creatives, L = c.list || [];
     h += `<div class="sec">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · tap one for its history</small></div>`;
     _cre = L;
+    if (c.errors && c.errors.length) h += `<div class="warn">${c.errors.map(esc).join('<br>')}</div>`;
     h += L.length ? `<div class="cre">${L.map((r, i) => `<div class="cc" onclick="openCreative(${i})"><div class="tags">${r.accounts.map(x => `<span class="tag ${/pdt/i.test(x) ? 'pdt' : 'ist'}">${esc(x)}</span>`).join('')}${r.copies > 1 ? `<span class="tag dup">×${r.copies}</span>` : ''}${r.running ? '' : '<span class="tag off">paused</span>'}${r.is_video ? '<span class="tag">▶</span>' : ''}</div>${r.thumb ? `<img src="${esc(r.thumb)}" alt="" loading="lazy">` : '<div class="ph"></div>'}<div class="b"><div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span><b>${inr(r.spend)}</b></span><span>${r.purchases} sales</span></div></div></div>`).join('')}</div>` : '<div class="note">No running creatives found in this range.</div>';
   }
   document.getElementById('adsBody').innerHTML = h;
