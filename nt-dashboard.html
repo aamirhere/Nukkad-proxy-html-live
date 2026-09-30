@@ -228,6 +228,19 @@ function renderAi() {
 }
 const sugCls = t => ({ scale: 'picking', refresh: 'fatigued', kill: 'fatigued', test: 'new', budget: 'steady', audience: 'needs' }[t] || 'steady');
 const verdictCls = v => ({ scale: 'picking', hold: 'steady', watch: 'dropping', refresh: 'fatigued', kill: 'fatigued', test: 'new' }[v] || 'steady');
+async function adToggle(adId, status, btn) {
+  const ad = _cre[_creIdx] && _cre[_creIdx].ads.find(a => String(a.ad_id) === String(adId));
+  if (!confirm(`${status === 'PAUSED' ? 'Pause' : 'Resume'} this ad on Meta?\n\n${ad ? ad.name : adId}`)) return;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await api({ action: 'ad_status', ad_id: adId, status });
+    if (ad) ad.status = r.status;
+    const st = document.getElementById('adst-' + adId); if (st) st.textContent = r.status === 'ACTIVE' ? 'running' : r.status.toLowerCase();
+    btn.textContent = r.status === 'ACTIVE' ? '⏸ Pause' : '▶ Resume'; btn.setAttribute('onclick', `adToggle('${adId}', '${r.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'}', this)`);
+    _adsAt = 0;
+  } catch (e) { alert(e.message); btn.textContent = status === 'PAUSED' ? '⏸ Pause' : '▶ Resume'; }
+  btn.disabled = false;
+}
 function todayIst() { return new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10); }
 async function runAi() { try { await api({ action: 'ai_run', force: true }); } catch (e) { alert(e.message); return; } _ai = { ...(_ai || {}), running: { started: new Date().toISOString() } }; renderAi(); }
 function renderAudience() {
@@ -293,7 +306,7 @@ async function loadCreative() {
   let d; try { d = await api({ action: 'creative', ad_ids: r.ads.map(x => x.ad_id), days }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   const ch = d.change, sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + v + '%';
   const label = { healthy: '✅ Healthy', watch: '⚠ Watch', fatigued: '🔻 Fatigued, refresh this creative', quiet: '💤 Quiet' }[d.status];
-  let h = `<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">${r.thumb ? `<img src="${esc(r.thumb)}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;background:#111">` : ''}<div style="flex:1;min-width:220px"><div class="vd ${d.status}"><b>${label}</b><div>${d.verdict.map(esc).join(' ')}</div></div><div class="note">Runs as ${r.ads.length} ad${r.ads.length > 1 ? 's' : ''}: ${r.ads.map(x => `${esc(x.account)} · ${esc(x.campaign || '')} · ${x.status === 'ACTIVE' ? 'running' : x.status.toLowerCase()}${x.preview ? ` <a href="${esc(x.preview)}" target="_blank" rel="noopener">↗</a>` : ''}`).join('<br>')}</div></div></div>${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}${(_ai && _ai.notes && _ai.notes[r.key]) ? `<div class="vd ${_ai.notes[r.key].verdict === 'scale' ? 'healthy' : /kill|refresh/.test(_ai.notes[r.key].verdict) ? 'fatigued' : 'watch'}" style="margin-bottom:10px"><b>🐦 Gul says: ${esc(_ai.notes[r.key].verdict)}</b><div>${esc(_ai.notes[r.key].reason || '')}</div><div style="margin-top:4px"><b>Do:</b> ${esc(_ai.notes[r.key].action || '')}</div></div>` : ''}`;
+  let h = `<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">${r.thumb ? `<img src="${esc(r.thumb)}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;background:#111">` : ''}<div style="flex:1;min-width:220px"><div class="vd ${d.status}"><b>${label}</b><div>${d.verdict.map(esc).join(' ')}</div></div><div class="note">Runs as ${r.ads.length} ad${r.ads.length > 1 ? 's' : ''}: ${r.ads.map(x => `${esc(x.account)} · ${esc(x.campaign || '')} · <span id="adst-${x.ad_id}">${x.status === 'ACTIVE' ? 'running' : x.status.toLowerCase()}</span>${x.preview ? ` <a href="${esc(x.preview)}" target="_blank" rel="noopener">↗</a>` : ''} <button class="btn" style="padding:1px 8px;font-size:.7rem;margin-left:4px" onclick="adToggle('${x.ad_id}', ${x.status === 'ACTIVE' ? "'PAUSED'" : "'ACTIVE'"}, this)">${x.status === 'ACTIVE' ? '⏸ Pause' : '▶ Resume'}</button>`).join('<br>')}</div></div></div>${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}${(_ai && _ai.notes && _ai.notes[r.key]) ? `<div class="vd ${_ai.notes[r.key].verdict === 'scale' ? 'healthy' : /kill|refresh/.test(_ai.notes[r.key].verdict) ? 'fatigued' : 'watch'}" style="margin-bottom:10px"><b>🐦 Gul says: ${esc(_ai.notes[r.key].verdict)}</b><div>${esc(_ai.notes[r.key].reason || '')}</div><div style="margin-top:4px"><b>Do:</b> ${esc(_ai.notes[r.key].action || '')}</div></div>` : ''}`;
   h += `<div class="tiles">${[['ROAS', d.last7.roas, sgn(ch.roas)], ['Spend, last 7d', inr(d.last7.spend), `prev ${inr(d.prev7.spend)}`], ['Sales, last 7d', d.last7.purchases, `prev ${d.prev7.purchases}`], ['CTR', d.last7.ctr + '%', sgn(ch.ctr)], ['CPM', inr(d.last7.cpm), sgn(ch.cpm)], ['Frequency', d.last7.frequency, sgn(ch.frequency)]].map(([l, n, s2]) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s2}</div></div>`).join('')}</div>`;
   const wk = d.weekly.length > 1;
   const src = wk && d.series.length > 45 ? d.weekly : d.series;
