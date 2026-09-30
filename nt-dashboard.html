@@ -96,6 +96,14 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .vd.healthy{background:#e8f5e9}.vd.watch{background:#fff8dc}.vd.fatigued{background:#fde8e8}.vd.quiet{background:#f5efe6}
 .note{font-size:.76rem;color:var(--ink2)}
 .warn{background:#fff3e0;border:1px solid #f2c9b4;border-radius:10px;padding:10px 12px;font-size:.8rem;margin-bottom:10px}
+.block.loading .kpi,.block.loading .row,.block.loading .st.wide{position:relative}
+.block.loading .kpi{color:transparent}.block.loading .kpi::after,.block.loading .st b::after{content:'';position:absolute;inset:0;border-radius:6px;background:linear-gradient(90deg,#f3ebdf,#faf5ee,#f3ebdf);background-size:200% 100%;animation:sk 1.2s infinite}
+.block.loading .st b{position:relative;color:transparent}.block.loading .st.wide b{color:transparent}
+.block.loading{box-shadow:inset 0 3px 0 var(--ac)}
+.panel.loading > *:not(.hd){opacity:.35;pointer-events:none;transition:opacity .2s}
+.panel.loading .hd:first-child::after{content:'';display:block;position:absolute;left:0;right:0;bottom:-2px;height:3px;background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:50% 100%;animation:slide 1s linear infinite}
+.panel .hd:first-child{position:relative}
+@keyframes slide{0%{background-position:-50% 0}100%{background-position:150% 0}}
 .skel{height:14px;border-radius:6px;background:linear-gradient(90deg,#f3ebdf,#faf5ee,#f3ebdf);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 @media (max-width:600px){.panel{padding:14px}.tile .n{font-size:1.15rem}}
@@ -223,13 +231,15 @@ async function api(body) {
 async function loadAds(force) {
   if (!force && _ads && Date.now() - _adsAt < 5 * 60e3) { renderAdsBlock(); renderAdsModal(); return; }
   const body = document.getElementById('adsBody');
+  document.getElementById('b-ads').classList.add('loading'); document.querySelector('#adsModal .panel').classList.add('loading');
   if (_ads) document.getElementById('adsWhen').textContent = 'Updating…'; else body.innerHTML = '<div class="skel" style="height:80px"></div>';
   const seq = ++_loadSeq;
   try { _ads = await api({ action: 'ads', ..._range, skip_creatives: true, force: !!force }); _adsAt = Date.now(); }
-  catch (e) { document.getElementById('adsKpi').innerHTML = `<span style="font-size:.9rem;color:var(--red)">${esc(e.message)}</span>`; document.getElementById('adsBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  catch (e) { document.getElementById('adsKpi').innerHTML = `<span style="font-size:.9rem;color:var(--red)">${esc(e.message)}</span>`; document.getElementById('adsBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; document.getElementById('b-ads').classList.remove('loading'); document.querySelector('#adsModal .panel').classList.remove('loading'); return; }
   if (seq !== _loadSeq) return;
   _ads.creatives = null;
   renderAdsBlock(); renderAdsModal();
+  document.getElementById('b-ads').classList.remove('loading'); document.querySelector('#adsModal .panel').classList.remove('loading');
   loadAi(); loadAudience();
   if (!_ads.meta_error) {
     // The server computes creatives in the background: poll until the cache is filled (up to 3 minutes)
@@ -576,10 +586,13 @@ function openShop(kind) {
 async function loadShop(force) {
   const key = _shopKind + '|' + _shopRange.since + '|' + _shopRange.until, body = document.getElementById('shopBody');
   if (!force && _shop[key]) { renderShop(_shop[key]); return; }
-  body.innerHTML = '<div class="skel" style="height:80px"></div>'; document.getElementById('shopWhen').textContent = 'Loading…';
+  const panel = document.querySelector('#shopModal .panel'); panel.classList.add('loading');
+  if (!body.innerHTML.trim() || body.querySelector('.skel')) body.innerHTML = '<div class="skel" style="height:80px"></div>';
+  document.getElementById('shopWhen').textContent = 'Loading…';
   const seq = ++_shopSeq;
   try { const d = await api({ action: _shopKind === 'shop' ? 'shop' : 'amazon', ..._shopRange }); if (seq !== _shopSeq) return; _shop[key] = d; renderShop(d); }
   catch (e) { if (seq !== _shopSeq) return; body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; document.getElementById('shopWhen').textContent = ''; }
+  panel.classList.remove('loading');
 }
 const pctDiff = (a, b) => b ? Math.round(((a - b) / b) * 100) : null, sg = v => v == null ? '' : `<span style="color:${v >= 0 ? '#1a7f37' : '#b00020'}">${v > 0 ? '+' : ''}${v}%</span>`;
 function renderShop(d) {
@@ -711,6 +724,7 @@ function gApply(r, label) {
   // popups follow the page filter
   _range = { since: r.since, until: r.until }; document.getElementById('adsPreset').value = label; document.getElementById('adsFrom').value = r.since; document.getElementById('adsTo').value = r.until; document.getElementById('adsDay').value = r.since === r.until ? r.since : '';
   _shopRange = { since: r.since, until: r.until }; document.getElementById('shopPreset').value = label; document.getElementById('shopFrom').value = r.since; document.getElementById('shopTo').value = r.until; document.getElementById('shopDay').value = r.since === r.until ? r.since : '';
+  ['b-ads', 'b-shop', 'b-amz'].forEach(id => document.getElementById(id).classList.add('loading'));
   _adsAt = 0; _shop = {}; loadAds(true); loadBlocks();
 }
 function gPreset(v) { const r = presetRange(v); if (r) gApply(r, v); }
@@ -718,10 +732,13 @@ function gDay(v) { if (v) gApply({ since: v, until: v }, 'custom'); }
 function gCustom() { const f = document.getElementById('gFrom').value, u = document.getElementById('gTo').value; if (!f || !u) return; document.getElementById('gPreset').value = 'custom'; gApply({ since: f, until: u }, 'custom'); }
 async function loadBlocks() {
   const t = _g.since || istToday(), u = _g.until || t;
+  ['b-shop', 'b-amz'].forEach(id => document.getElementById(id).classList.add('loading'));
   try { const d = await api({ action: 'shop', since: t, until: u }); _shop['shop|' + t + '|' + u] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('shopRow').innerHTML = st('Orders', d.orders) + st('AOV', inr(d.aov)) + st('Pieces', d.units) + st('COD · Paid', `${d.cod} · ${d.prepaid}`) + st('New · Old', `${d.new_customers} · ${d.returning_customers}`) + st('Cancel', d.cancelled) + (d.designs && d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
   catch (e) { document.getElementById('shopKpi').textContent = '—'; document.getElementById('shopRow').textContent = e.message; }
+  document.getElementById('b-shop').classList.remove('loading');
   try { const d = await api({ action: 'amazon', since: t, until: u }); _shop['amazon|' + t + '|' + u] = d; document.getElementById('amzKpi').textContent = d.orders; const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('amzRow').innerHTML = st('Pieces', d.units) + st('Revenue', d.revenue ? inr(d.revenue) : '—') + st('Cancelled', d.cancelled) + st('COD · Paid', `${d.cod} · ${d.prepaid}`) + st('FBA · Self', `${d.fba} · ${d.mfn}`) + st('Pending', d.pending) + (d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
   catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
+  document.getElementById('b-amz').classList.remove('loading');
 }
 async function refreshShopBlock(b) {
   b.disabled = true; b.textContent = '…'; _shop = {};
