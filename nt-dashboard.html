@@ -85,7 +85,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 </style>
 </head>
 <body>
-<header><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span></header>
+<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><button class="btn" id="refreshAll" style="margin-left:auto" onclick="refreshAll()">↻ Refresh all</button></header>
 <main>
   <div class="grid">
     <div class="block" id="b-ads" onclick="openAds()">
@@ -646,6 +646,13 @@ async function loadBlocks() {
   catch (e) { document.getElementById('shopKpi').textContent = '—'; document.getElementById('shopRow').textContent = e.message; }
   try { const d = await api({ action: 'amazon', since: t, until: t }); _shop['amazon|' + t + '|' + t] = d; document.getElementById('amzKpi').textContent = d.orders; document.getElementById('amzRow').innerHTML = `${d.units} pcs · ${d.cod} COD · ${d.fba} FBA${d.revenue ? ` · ${inr(d.revenue)}` : ''}${d.designs[0] ? `<br>top: ${esc(d.designs[0].title)}` : ''}`; }
   catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
+}
+async function refreshAll() {
+  const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
+  _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
+  try { await Promise.all([loadAds(true), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
+  document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
+  b.disabled = false; b.textContent = '↻ Refresh all';
 }
 loadAds(); loadBlocks();
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
