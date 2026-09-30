@@ -39,6 +39,7 @@ main{padding:10px 18px 60px;max-width:1300px;margin:0 auto}
 .block .st.wide i{color:var(--ac)}
 .block .st.wide b{white-space:normal;font-size:.85rem}
 .block .open{background:#fff;border-color:var(--ac-bg2);color:var(--ac)}
+.filterbar{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
 .block .open{position:absolute;right:12px;top:12px;font-size:.7rem;color:var(--muted)}
 .block .t{padding-right:86px}
 .block .err{color:var(--red);font-size:.78rem;margin-top:8px}
@@ -103,26 +104,36 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 <body>
 <header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><button class="btn" id="refreshAll" style="margin-left:auto" onclick="refreshAll()">↻ Refresh all</button></header>
 <main>
+  <div class="hd filterbar" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    <select id="gPreset" onchange="gPreset(this.value)" style="font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px">
+      <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7">Last 7 days</option><option value="15">Last 15 days</option><option value="30">Last 30 days</option><option value="mtd">This month</option><option value="lm">Last month</option><option value="custom">Custom</option>
+    </select>
+    <span class="note">one day</span><input type="date" id="gDay" onchange="gDay(this.value)" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
+    <span class="note">or from</span><input type="date" id="gFrom" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <span class="note">to</span>
+    <input type="date" id="gTo" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
+    <button class="btn" onclick="gCustom()">Apply</button>
+    <span class="note" id="gLabel" style="margin-left:auto"></span>
+  </div>
   <div class="grid">
     <div class="block" id="b-ads" onclick="openAds()">
       <button class="btn open" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();this.disabled=true;this.textContent='…';_adsAt=0;loadAds('hard').finally(()=>{this.disabled=false;this.textContent='↻ Refresh'})">↻ Refresh</button>
       <div class="t"><span class="ic">📣</span>Ads</div>
       <div class="kpi" id="adsKpi"><span class="skel" style="display:block;width:60%"></span></div>
-      <div class="kl">spend today · both accounts</div>
+      <div class="kl" id="adsKl">spend today · both accounts</div>
       <div class="row" id="adsRow"></div>
     </div>
     <div class="block" id="b-shop" onclick="openShop('shop')">
       <button class="btn open" id="shopRefresh" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();refreshShopBlock(this)">↻ Refresh</button>
       <div class="t"><span class="ic">🛍</span>Shopify</div>
       <div class="kpi" id="shopKpi"><span class="skel" style="display:block;width:60%"></span></div>
-      <div class="kl">revenue today</div>
+      <div class="kl" id="shopKl">revenue today</div>
       <div class="row" id="shopRow"></div>
     </div>
     <div class="block" id="b-amz" onclick="openShop('amazon')">
       <button class="btn open" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();refreshShopBlock(this)">↻ Refresh</button>
       <div class="t"><span class="ic">📦</span>Amazon</div>
       <div class="kpi" id="amzKpi"><span class="skel" style="display:block;width:60%"></span></div>
-      <div class="kl">orders today</div>
+      <div class="kl" id="amzKl">orders today</div>
       <div class="row" id="amzRow"></div>
     </div>
     <div class="block soon"><div class="t"><span class="ic">✕</span>Cancellations</div><div class="kpi">—</div><div class="kl">cancel rate</div><div class="row">coming next</div></div>
@@ -137,9 +148,10 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     <div class="hd"><h2 id="shopTitle">🛍 Shopify</h2><span class="note" id="shopWhen"></span><button class="x" onclick="document.getElementById('shopModal').classList.remove('open')">✕</button></div>
     <div class="hd" style="gap:6px">
       <select id="shopPreset" onchange="shopPreset(this.value)" style="font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px">
-        <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="mtd">This month</option><option value="lm">Last month</option><option value="custom">Custom</option>
+        <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7">Last 7 days</option><option value="15">Last 15 days</option><option value="30">Last 30 days</option><option value="mtd">This month</option><option value="lm">Last month</option><option value="custom">Custom</option>
       </select>
-      <input type="date" id="shopFrom" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <span class="note">to</span>
+      <span class="note">one day</span><input type="date" id="shopDay" onchange="document.getElementById('shopFrom').value=this.value;document.getElementById('shopTo').value=this.value;shopCustom()" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
+      <span class="note">or from</span><input type="date" id="shopFrom" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <span class="note">to</span>
       <input type="date" id="shopTo" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
       <button class="btn" onclick="shopCustom()">Apply</button>
       <button class="btn" onclick="loadShop(true)">↻ Refresh</button>
@@ -158,9 +170,10 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     <div class="hd"><h2>📣 Ads</h2><span class="note" id="adsWhen"></span><button class="x" onclick="document.getElementById('adsModal').classList.remove('open')">✕</button></div>
     <div class="hd" style="gap:6px">
       <select id="adsPreset" onchange="adsPreset(this.value)" style="font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px">
-        <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="mtd">This month</option><option value="lm">Last month</option><option value="custom">Custom…</option>
+        <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7">Last 7 days</option><option value="15">Last 15 days</option><option value="30">Last 30 days</option><option value="mtd">This month</option><option value="lm">Last month</option><option value="custom">Custom…</option>
       </select>
-      <input type="date" id="adsFrom" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <span class="note">to</span>
+      <span class="note">one day</span><input type="date" id="adsDay" onchange="document.getElementById('adsFrom').value=this.value;document.getElementById('adsTo').value=this.value;adsCustom()" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
+      <span class="note">or from</span><input type="date" id="adsFrom" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <span class="note">to</span>
       <input type="date" id="adsTo" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
       <button class="btn" onclick="adsCustom()">Apply</button>
       <button class="btn" onclick="loadAds('hard')">↻ Refresh</button>
@@ -183,6 +196,7 @@ function adsPreset(v) {
   if (v === 'today') _range = { since: t, until: t };
   else if (v === 'yesterday') _range = { since: addD(t, -1), until: addD(t, -1) };
   else if (v === '7') _range = { since: addD(t, -6), until: t };
+  else if (v === '15') _range = { since: addD(t, -14), until: t };
   else if (v === '30') _range = { since: addD(t, -29), until: t };
   else if (v === 'mtd') _range = { since: t.slice(0, 8) + '01', until: t };
   else if (v === 'lm') { const f = new Date(t.slice(0, 7) + '-01T00:00:00Z'); f.setUTCMonth(f.getUTCMonth() - 1); const m = f.toISOString().slice(0, 7); _range = { since: m + '-01', until: addD(t.slice(0, 8) + '01', -1) }; }
@@ -531,6 +545,7 @@ function presetRange(v) {
   if (v === 'today') return { since: t, until: t };
   if (v === 'yesterday') return { since: addD(t, -1), until: addD(t, -1) };
   if (v === '7') return { since: addD(t, -6), until: t };
+  if (v === '15') return { since: addD(t, -14), until: t };
   if (v === '30') return { since: addD(t, -29), until: t };
   if (v === 'mtd') return { since: t.slice(0, 8) + '01', until: t };
   if (v === 'lm') { const f = new Date(t.slice(0, 7) + '-01T00:00:00Z'); f.setUTCMonth(f.getUTCMonth() - 1); const m = f.toISOString().slice(0, 7); return { since: m + '-01', until: addD(t.slice(0, 8) + '01', -1) }; }
@@ -671,11 +686,26 @@ function listBlock(title, items, id, top = 8) {
   if (items.length > top) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore['${id}']=!_shopMore['${id}'];renderShop(_shop[_shopKind+'|'+_shopRange.since+'|'+_shopRange.until])">${more ? 'Show less' : `Show all ${items.length}`}</button></div>`;
   return h;
 }
+let _g = { since: null, until: null, label: 'today' };
+function gApply(r, label) {
+  _g = { ...r, label };
+  document.getElementById('gFrom').value = r.since; document.getElementById('gTo').value = r.until; document.getElementById('gDay').value = r.since === r.until ? r.since : '';
+  document.getElementById('gLabel').textContent = r.since === r.until ? r.since : `${r.since} → ${r.until}`;
+  const short = r.since === r.until ? (r.since === istToday() ? 'today' : r.since === addD(istToday(), -1) ? 'yesterday' : r.since) : `${r.since} → ${r.until}`;
+  document.getElementById('adsKl').textContent = `spend ${short} · both accounts`; document.getElementById('shopKl').textContent = `revenue ${short}`; document.getElementById('amzKl').textContent = `orders ${short}`;
+  // popups follow the page filter
+  _range = { since: r.since, until: r.until }; document.getElementById('adsPreset').value = label; document.getElementById('adsFrom').value = r.since; document.getElementById('adsTo').value = r.until; document.getElementById('adsDay').value = r.since === r.until ? r.since : '';
+  _shopRange = { since: r.since, until: r.until }; document.getElementById('shopPreset').value = label; document.getElementById('shopFrom').value = r.since; document.getElementById('shopTo').value = r.until; document.getElementById('shopDay').value = r.since === r.until ? r.since : '';
+  _adsAt = 0; _shop = {}; loadAds(true); loadBlocks();
+}
+function gPreset(v) { const r = presetRange(v); if (r) gApply(r, v); }
+function gDay(v) { if (v) gApply({ since: v, until: v }, 'custom'); }
+function gCustom() { const f = document.getElementById('gFrom').value, u = document.getElementById('gTo').value; if (!f || !u) return; document.getElementById('gPreset').value = 'custom'; gApply({ since: f, until: u }, 'custom'); }
 async function loadBlocks() {
-  const t = istToday();
-  try { const d = await api({ action: 'shop', since: t, until: t }); _shop['shop|' + t + '|' + t] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('shopRow').innerHTML = st('Orders', d.orders) + st('AOV', inr(d.aov)) + st('Pieces', d.units) + st('COD · Paid', `${d.cod} · ${d.prepaid}`) + st('New · Old', `${d.new_customers} · ${d.returning_customers}`) + st('Cancel', d.cancelled) + (d.designs && d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
+  const t = _g.since || istToday(), u = _g.until || t;
+  try { const d = await api({ action: 'shop', since: t, until: u }); _shop['shop|' + t + '|' + u] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('shopRow').innerHTML = st('Orders', d.orders) + st('AOV', inr(d.aov)) + st('Pieces', d.units) + st('COD · Paid', `${d.cod} · ${d.prepaid}`) + st('New · Old', `${d.new_customers} · ${d.returning_customers}`) + st('Cancel', d.cancelled) + (d.designs && d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
   catch (e) { document.getElementById('shopKpi').textContent = '—'; document.getElementById('shopRow').textContent = e.message; }
-  try { const d = await api({ action: 'amazon', since: t, until: t }); _shop['amazon|' + t + '|' + t] = d; document.getElementById('amzKpi').textContent = d.orders; const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('amzRow').innerHTML = st('Pieces', d.units) + st('Revenue', d.revenue ? inr(d.revenue) : '—') + st('Cancelled', d.cancelled) + st('COD · Paid', `${d.cod} · ${d.prepaid}`) + st('FBA · Self', `${d.fba} · ${d.mfn}`) + st('Pending', d.pending) + (d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
+  try { const d = await api({ action: 'amazon', since: t, until: u }); _shop['amazon|' + t + '|' + u] = d; document.getElementById('amzKpi').textContent = d.orders; const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`; document.getElementById('amzRow').innerHTML = st('Pieces', d.units) + st('Revenue', d.revenue ? inr(d.revenue) : '—') + st('Cancelled', d.cancelled) + st('COD · Paid', `${d.cod} · ${d.prepaid}`) + st('FBA · Self', `${d.fba} · ${d.mfn}`) + st('Pending', d.pending) + (d.designs[0] ? `<span class="st wide"><i>Top</i><b>${esc(d.designs[0].title)} ×${d.designs[0].qty}</b></span>` : ''); }
   catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
 }
 async function refreshShopBlock(b) {
@@ -690,6 +720,7 @@ async function refreshAll() {
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
+_g = { ...presetRange('today'), label: 'today' }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
 loadAds(); loadBlocks();
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => {
