@@ -648,6 +648,16 @@ async function loadBlocks() {
   catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
 }
 loadAds(); loadBlocks();
+// Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
+setInterval(() => {
+  if (document.hidden) return;
+  loadBlocks();
+  if (document.getElementById('shopModal').classList.contains('open')) loadShop(true);
+}, 2 * 60e3);
+setInterval(() => {
+  if (document.hidden) return;
+  if (document.getElementById('adsModal').classList.contains('open')) loadAds(true); else { _adsAt = 0; loadAds(); }
+}, 5 * 60e3);
 </script>
 </body>
 </html>
