@@ -581,15 +581,15 @@ function hbar(rows) {
   const mx = Math.max(...rows.map(r => r[1]), 1);
   return `<div class="hbars">${rows.map(([k, n]) => `<div class="hbr"><span class="hk">${esc(k)}</span><span class="hv"><i style="width:${Math.round(n / mx * 100)}%"></i></span><b>${n}</b></div>`).join('') || '<div class="note">—</div>'}</div>`;
 }
-const _design = {};
+const _design = {}, _dsgDays = {};
 async function openDesign(pid, i) {
   const row = document.getElementById('dsg-' + i), body = document.getElementById('dsg-body-' + i);
   if (!row) return;
   if (row.style.display !== 'none') { row.style.display = 'none'; return; }
   row.style.display = '';
-  if (_design[pid]) { body.innerHTML = renderDesign(_design[pid]); return; }
+  if (_design[pid]) { _design[pid]._i = i; body.innerHTML = renderDesign(_design[pid]); return; }
   body.innerHTML = '<div class="skel" style="height:60px"></div>';
-  try { const d = await api({ action: 'design', product_id: pid }); _design[pid] = d; body.innerHTML = renderDesign(d); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
+  try { const d = await api({ action: 'design', product_id: pid }); d._i = i; _design[pid] = d; body.innerHTML = renderDesign(d); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
 }
 function renderDesign(d) {
   const pct = (a, b) => b ? Math.round(((a - b) / b) * 100) : null;
@@ -607,7 +607,8 @@ function renderDesign(d) {
   const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], wmax = Math.max(...d.weekday, 1);
   let h = `<div class="vd ${covCls}" style="margin-bottom:8px"><b>${esc(d.title || '')}</b> · stock cover <b>${cover}</b>${d.counted_at ? ` <span class="note">(counted ${d.counted_at.slice(0, 10)})</span>` : ''}<div>${read.map(esc).join(' ')}</div></div>`;
   h += `<div class="tiles">${tile(d.l7.qty, 'Pieces, 7d', `prev ${d.p7.qty} ${sg(pct(d.l7.qty, d.p7.qty))}`)}${tile(d.l30.qty, 'Pieces, 30d', `prev ${d.p30.qty} ${sg(pct(d.l30.qty, d.p30.qty))}`)}${tile(inr(d.l30.revenue), 'Revenue, 30d', `prev ${inr(d.p30.revenue)}`)}${tile((d.prices || []).map(([pr, n]) => `<span style="font-size:.55em;white-space:nowrap">₹${pr}×${n}</span>`).join(' ') || '—', 'Price points, 30d')}${tile(d.l90.qty, 'Pieces, 90d', `since ${d.first_seen || '—'}`)}</div>`;
-  h += `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="tile"><div class="l">Pieces per day, 30d</div>${trendChart(d.series.map(r => ({ day: r.date, qty: r.qty })), null, 'qty', '#d4541f', v => String(Math.round(v)))}</div><div class="tile"><div class="l">Colours, 30d</div>${hbar(d.colors)}</div><div class="tile"><div class="l">Bought together, 30d</div>${hbar(d.bought_with.map(x => [x.title, x.n]))}</div><div class="tile"><div class="l">Weekday, 90d</div><div class="hours" style="height:70px">${d.weekday.map((n, i) => `<div class="hr" title="${wd[i]} · ${n}"><div class="hb" style="height:${Math.round(n / wmax * 100)}%;background:#1a3f9c"></div><div class="hl">${wd[i]}</div></div>`).join('')}</div></div></div>`;
+  const dd = _dsgDays[d.product_id] || 7, ser = d.series.slice(-dd).map(r => ({ day: r.date, qty: r.qty })), pser = dd <= 15 ? d.series.slice(-2 * dd, -dd).map(r => ({ day: r.date, qty: r.qty })) : null;
+  h += `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="tile"><div class="l" style="display:flex;justify-content:space-between;align-items:center">Pieces per day <select onchange="_dsgDays['${d.product_id}']=+this.value;document.getElementById('dsg-body-${d._i}').innerHTML=renderDesign(_design['${d.product_id}'])" style="font:inherit;font-size:.72rem;padding:2px 4px;border:1px solid var(--line);border-radius:6px">${[3, 7, 15, 30].map(n => `<option value="${n}"${n === dd ? ' selected' : ''}>Last ${n} days</option>`).join('')}</select></div>${trendChart(ser, pser, 'qty', '#d4541f', v => String(Math.round(v)))}</div><div class="tile"><div class="l">Colours, 30d</div>${hbar(d.colors)}</div><div class="tile"><div class="l">Bought together, 30d</div>${hbar(d.bought_with.map(x => [x.title, x.n]))}</div><div class="tile"><div class="l">Weekday, 90d</div><div class="hours" style="height:70px">${d.weekday.map((n, i) => `<div class="hr" title="${wd[i]} · ${n}"><div class="note" style="text-align:center;font-size:.62rem">${n}</div><div class="hb" style="height:${Math.round(n / wmax * 100)}%;background:#1a3f9c"></div><div class="hl">${wd[i]}</div></div>`).join('')}</div></div></div>`;
   return h;
 }
 function listBlock(title, items, id, top = 8) {
