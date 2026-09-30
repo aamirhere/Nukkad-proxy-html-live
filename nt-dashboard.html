@@ -84,7 +84,20 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <div class="kl">spend today · both accounts</div>
       <div class="row" id="adsRow"></div>
     </div>
-    <div class="block soon"><div class="t"><span class="ic">💰</span>COD</div><div class="kpi">—</div><div class="kl">COD share · remittance</div><div class="row">coming next</div></div>
+    <div class="block" id="b-shop" onclick="openShop('shop')">
+      <span class="open">tap to expand ↗</span>
+      <div class="t"><span class="ic">🛍</span>Shopify</div>
+      <div class="kpi" id="shopKpi"><span class="skel" style="display:block;width:60%"></span></div>
+      <div class="kl">revenue today</div>
+      <div class="row" id="shopRow"></div>
+    </div>
+    <div class="block" id="b-amz" onclick="openShop('amazon')">
+      <span class="open">tap to expand ↗</span>
+      <div class="t"><span class="ic">📦</span>Amazon</div>
+      <div class="kpi" id="amzKpi"><span class="skel" style="display:block;width:60%"></span></div>
+      <div class="kl">orders today</div>
+      <div class="row" id="amzRow"></div>
+    </div>
     <div class="block soon"><div class="t"><span class="ic">✕</span>Cancellations</div><div class="kpi">—</div><div class="kl">cancel rate</div><div class="row">coming next</div></div>
     <div class="block soon"><div class="t"><span class="ic">↩</span>Returns</div><div class="kpi">—</div><div class="kl">RTO rate</div><div class="row">coming next</div></div>
     <div class="block soon"><div class="t"><span class="ic">🎧</span>Customer support</div><div class="kpi">—</div><div class="kl">open tickets</div><div class="row">coming next</div></div>
@@ -92,6 +105,21 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
   </div>
 </main>
 
+<div class="modal" id="shopModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="panel">
+    <div class="hd"><h2 id="shopTitle">🛍 Shopify</h2><span class="note" id="shopWhen"></span><button class="x" onclick="document.getElementById('shopModal').classList.remove('open')">✕</button></div>
+    <div class="hd" style="gap:6px">
+      <select id="shopPreset" onchange="shopPreset(this.value)" style="font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px">
+        <option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="mtd">This month</option><option value="lm">Last month</option><option value="custom">Custom</option>
+      </select>
+      <input type="date" id="shopFrom" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <span class="note">to</span>
+      <input type="date" id="shopTo" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
+      <button class="btn" onclick="shopCustom()">Apply</button>
+      <button class="btn" onclick="loadShop(true)">↻ Refresh</button>
+    </div>
+    <div id="shopBody"><div class="skel" style="height:80px"></div></div>
+  </div>
+</div>
 <div class="modal" id="creModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:41">
   <div class="panel" style="width:min(900px,100%)">
     <div class="hd"><h2 id="creTitle">Creative</h2><select id="creDays" style="display:none"><option value="3">Last 3 days</option><option value="7" selected>Last 7 days</option><option value="15">Last 15 days</option><option value="30">Last 30 days</option></select><button class="x" onclick="document.getElementById('creModal').classList.remove('open')">✕</button></div>
@@ -345,7 +373,70 @@ function renderCreative() {
   h += `<div class="sec">Week by week</div><table><thead><tr><th>Week of</th><th class="num">Spend</th><th class="num">Sales</th><th class="num">ROAS</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">Freq</th></tr></thead><tbody>${d.weekly.slice().reverse().map(w => `<tr><td>${w.week}</td><td class="num">${inr(w.spend)}</td><td class="num">${w.purchases}</td><td class="num">${w.roas}</td><td class="num">${w.ctr}%</td><td class="num">${inr(w.cpm)}</td><td class="num">${w.frequency}</td></tr>`).join('')}</tbody></table>`;
   body.innerHTML = h;
 }
-loadAds();
+// ---- Shopify / Amazon blocks ----
+let _shopKind = 'shop', _shopRange = { since: null, until: null }, _shop = {}, _shopSeq = 0, _shopMore = {};
+function presetRange(v) {
+  const t = istToday();
+  if (v === 'today') return { since: t, until: t };
+  if (v === 'yesterday') return { since: addD(t, -1), until: addD(t, -1) };
+  if (v === '7') return { since: addD(t, -6), until: t };
+  if (v === '30') return { since: addD(t, -29), until: t };
+  if (v === 'mtd') return { since: t.slice(0, 8) + '01', until: t };
+  if (v === 'lm') { const f = new Date(t.slice(0, 7) + '-01T00:00:00Z'); f.setUTCMonth(f.getUTCMonth() - 1); const m = f.toISOString().slice(0, 7); return { since: m + '-01', until: addD(t.slice(0, 8) + '01', -1) }; }
+  return null;
+}
+function shopPreset(v) { const r = presetRange(v); if (!r) return; _shopRange = r; document.getElementById('shopFrom').value = r.since; document.getElementById('shopTo').value = r.until; loadShop(true); }
+function shopCustom() { const f = document.getElementById('shopFrom').value, u = document.getElementById('shopTo').value; if (!f || !u) return; document.getElementById('shopPreset').value = 'custom'; _shopRange = { since: f, until: u }; loadShop(true); }
+function openShop(kind) {
+  _shopKind = kind; document.getElementById('shopTitle').textContent = kind === 'shop' ? '🛍 Shopify' : '📦 Amazon';
+  if (!_shopRange.since) { _shopRange = presetRange('today'); document.getElementById('shopPreset').value = 'today'; document.getElementById('shopFrom').value = _shopRange.since; document.getElementById('shopTo').value = _shopRange.until; }
+  document.getElementById('shopModal').classList.add('open'); loadShop();
+}
+async function loadShop(force) {
+  const key = _shopKind + '|' + _shopRange.since + '|' + _shopRange.until, body = document.getElementById('shopBody');
+  if (!force && _shop[key]) { renderShop(_shop[key]); return; }
+  body.innerHTML = '<div class="skel" style="height:80px"></div>'; document.getElementById('shopWhen').textContent = 'Loading…';
+  const seq = ++_shopSeq;
+  try { const d = await api({ action: _shopKind === 'shop' ? 'shop' : 'amazon', ..._shopRange }); if (seq !== _shopSeq) return; _shop[key] = d; renderShop(d); }
+  catch (e) { if (seq !== _shopSeq) return; body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; document.getElementById('shopWhen').textContent = ''; }
+}
+const pctDiff = (a, b) => b ? Math.round(((a - b) / b) * 100) : null, sg = v => v == null ? '' : `<span style="color:${v >= 0 ? '#1a7f37' : '#b00020'}">${v > 0 ? '+' : ''}${v}%</span>`;
+function renderShop(d) {
+  const body = document.getElementById('shopBody'), tile = (n, l, sub = '') => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const rangeLbl = d.since === d.until ? d.since : `${d.since} → ${d.until}`, p = d.prev || {};
+  document.getElementById('shopWhen').textContent = `${rangeLbl} · vs ${p.since === p.until ? p.since : `${p.since} → ${p.until}`}`;
+  let h = '';
+  if (_shopKind === 'shop') {
+    h += `<div class="tiles">${tile(inr(d.revenue), 'Revenue', `prev ${inr(p.revenue || 0)} ${sg(pctDiff(d.revenue, p.revenue))}`)}${tile(d.orders, 'Orders', `prev ${p.orders || 0} ${sg(pctDiff(d.orders, p.orders))} · ${d.units} pcs`)}${tile(`${d.cod} <span style="font-size:.6em">· ${d.cod_share}%</span>`, 'COD orders', `prepaid ${d.prepaid}`)}${tile(inr(d.aov), 'Avg order', `prev ${inr(p.aov || 0)}`)}${tile(`${d.new_customers} <span style="font-size:.6em">/ ${d.returning_customers}</span>`, 'New / returning', `prev ${p.new_customers || 0} / ${p.returning_customers || 0}`)}${tile(d.cancelled, 'Cancelled', `prev ${p.cancelled || 0}`)}</div>`;
+    h += listBlock('Designs sold', d.products.map(x => ({ title: x.title, qty: x.qty, revenue: x.revenue, sub: x.sources })), 'sp');
+    h += listBlock('Collections', d.collections.map(c => ({ title: c.title, qty: c.qty, sub: d.products.filter(x => (x.collections || []).includes(c.title)).map(x => [x.title, x.qty]) })), 'sc', 5);
+    if (d.sources && d.sources.length) h += `<div class="sec">Where orders came from <small>UTM on the order, else referrer</small></div><table><thead><tr><th>Source › campaign › ad</th><th class="num">Pieces</th></tr></thead><tbody>${d.sources.map(x => `<tr><td>${esc(x.source)}</td><td class="num">${x.qty}</td></tr>`).join('')}</tbody></table>`;
+    if (d.daily && d.daily.length > 1) h += `<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Day by day (${d.daily.length})</summary><table style="margin-top:6px"><thead><tr><th>Day</th><th class="num">Orders</th><th class="num">COD</th><th class="num">Revenue</th></tr></thead><tbody>${d.daily.map(x => `<tr><td>${x.day}</td><td class="num">${x.orders}</td><td class="num">${x.cod}</td><td class="num">${inr(x.revenue)}</td></tr>`).join('')}</tbody></table></details>`;
+  } else {
+    h += `<div class="tiles">${tile(d.orders, 'Orders', `prev ${p.orders || 0} ${sg(pctDiff(d.orders, p.orders))} · ${d.units} pcs`)}${tile(inr(d.revenue), 'Revenue', `prev ${inr(p.revenue || 0)}${d.priced_share < 100 ? ` · ${d.priced_share}% of units priced` : ''}`)}${tile(`${d.cod} <span style="font-size:.6em">/ ${d.prepaid}</span>`, 'COD / prepaid', `prev COD ${p.cod || 0}`)}${tile(`${d.fba} <span style="font-size:.6em">/ ${d.mfn}</span>`, 'FBA / self-ship', '')}${tile(`${d.pending} <span style="font-size:.6em">/ ${d.shipped}</span>`, 'Pending / shipped', '')}${tile(d.cancelled, 'Cancelled', `prev ${p.cancelled || 0}`)}</div>`;
+    h += listBlock('Designs sold', d.designs.map(x => ({ title: x.title, qty: x.qty, revenue: x.revenue, sub: x.fba ? [['via FBA', x.fba], ['self-ship', x.qty - x.fba]] : null })), 'ap');
+    if (d.states && d.states.length) h += `<div class="sec">Top states</div><table><thead><tr><th>State</th><th class="num">Pieces</th></tr></thead><tbody>${d.states.map(x => `<tr><td>${esc(x.state)}</td><td class="num">${x.qty}</td></tr>`).join('')}</tbody></table>`;
+    if (d.daily && d.daily.length > 1) h += `<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Day by day (${d.daily.length})</summary><table style="margin-top:6px"><thead><tr><th>Day</th><th class="num">Orders</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>${d.daily.map(x => `<tr><td>${x.day}</td><td class="num">${x.orders}</td><td class="num">${x.units}</td><td class="num">${inr(x.revenue)}</td></tr>`).join('')}</tbody></table></details>`;
+    h += `<div class="note" style="margin-top:8px">${esc(d.note)}</div>`;
+  }
+  body.innerHTML = h;
+}
+function listBlock(title, items, id, top = 8) {
+  const more = !!_shopMore[id], show = more ? items : items.slice(0, top);
+  let h = `<div class="sec" style="margin-top:12px">${title}</div><table><thead><tr><th>Name</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>`;
+  h += show.map((x, i) => { const rid = `${id}-${i}`, hasSub = x.sub && x.sub.length; return `<tr class="prow" ${hasSub ? `onclick="togglePr('${rid}')"` : ''}><td>${hasSub ? `<span id="pr-arr-${rid}" class="arr">▸</span> ` : ''}${esc(x.title)}</td><td class="num">${x.qty}</td><td class="num">${x.revenue != null ? inr(x.revenue) : ''}</td></tr>${hasSub ? `<tr id="pr-${rid}" style="display:none"><td colspan="3" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${x.sub.map(([k, n]) => `<li>${esc(k)} <b>×${n}</b></li>`).join('')}</ul></td></tr>` : ''}`; }).join('') || `<tr><td colspan="3" class="note">Nothing in this range.</td></tr>`;
+  h += `</tbody></table>`;
+  if (items.length > top) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore['${id}']=!_shopMore['${id}'];renderShop(_shop[_shopKind+'|'+_shopRange.since+'|'+_shopRange.until])">${more ? 'Show less' : `Show all ${items.length}`}</button></div>`;
+  return h;
+}
+async function loadBlocks() {
+  const t = istToday();
+  try { const d = await api({ action: 'shop', since: t, until: t }); _shop['shop|' + t + '|' + t] = d; document.getElementById('shopKpi').textContent = inr(d.revenue); document.getElementById('shopRow').innerHTML = `${d.orders} orders · ${d.cod} COD · ${d.prepaid} prepaid<br>${d.new_customers} new · ${d.returning_customers} returning${d.products[0] ? `<br>top: ${esc(d.products[0].title)}` : ''}`; }
+  catch (e) { document.getElementById('shopKpi').textContent = '—'; document.getElementById('shopRow').textContent = e.message; }
+  try { const d = await api({ action: 'amazon', since: t, until: t }); _shop['amazon|' + t + '|' + t] = d; document.getElementById('amzKpi').textContent = d.orders; document.getElementById('amzRow').innerHTML = `${d.units} pcs · ${d.cod} COD · ${d.fba} FBA${d.revenue ? ` · ${inr(d.revenue)}` : ''}${d.designs[0] ? `<br>top: ${esc(d.designs[0].title)}` : ''}`; }
+  catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
+}
+loadAds(); loadBlocks();
 </script>
 </body>
 </html>
