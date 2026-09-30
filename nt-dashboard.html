@@ -232,8 +232,17 @@ async function loadAds(force) {
   renderAdsBlock(); renderAdsModal();
   loadAi(); loadAudience();
   if (!_ads.meta_error) {
-    try { const c = await api({ action: 'creatives', ..._range, force: force === 'hard' }); if (seq !== _loadSeq) return; _ads.creatives = c; _ads.creatives_range = c.range; }
-    catch (e) { if (seq !== _loadSeq) return; _ads.creatives = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
+    // The server computes creatives in the background: poll until the cache is filled (up to 3 minutes)
+    let tries = 0, c = null;
+    while (tries++ < 36) {
+      try { c = await api({ action: 'creatives', ..._range, force: force === 'hard' && tries === 1 }); } catch (e) { c = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
+      if (seq !== _loadSeq) return;
+      if (!c.pending) break;
+      const el = document.getElementById('creSection'); if (el) el.innerHTML = `<div class="sec">Creatives <small>reading Meta in the background… ${tries * 5}s</small></div><div class="skel" style="height:60px"></div>`;
+      await new Promise(r => setTimeout(r, 5000));
+    }
+    if (c.pending) c = { list: [], ads_seen: 0, total_spend: 0, errors: ['Still computing. Open again in a minute.'] };
+    _ads.creatives = c; _ads.creatives_range = c.range;
     renderCreatives();
   }
 }
@@ -425,7 +434,7 @@ function renderCreatives() {
     const fmtPills = `<div class="pills" style="margin:0 0 8px">${[['', 'All formats', L.length], ['video', 'Video', nv], ['image', 'Image', L.length - nv]].map(([v, l, n]) => `<span class="pill${v === _creFmt ? ' on' : ''}" onclick="_creFmt='${v}';renderCreatives()">${l} <b>${n}</b></span>`).join('')}</div>`;
     const L2 = L.filter(c => (!_creType || creativeType(c) === _creType) && (!_creFmt || (_creFmt === 'video') === !!c.is_video));
     h += creativeTypes(L);
-    h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · ${c.utm_orders || 0} Shopify orders matched to ads${c.snapshot ? ` · snapshot ${c.snapshot.days}d / ${c.snapshot.cards_with_rows} of ${c.snapshot.cards} cards` : ''}${c.cached ? ' · cached' : ''} · tap one for its history</small><select onchange="_creSort=this.value;renderCreatives()" style="margin-left:auto;font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['roas', 'ROAS high → low'], ['spend', 'Spend high → low'], ['purchases', 'Sales high → low'], ['ctr', 'CTR high → low']].map(([v, l]) => `<option value="${v}"${v === key ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`;
+    h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · ${c.utm_orders || 0} Shopify orders matched to ads${c.snapshot ? ` · snapshot ${c.snapshot.days}d / ${c.snapshot.cards_with_rows} of ${c.snapshot.cards} cards` : ''}${c.computed_at ? ` · read ${new Date(c.computed_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}` : ''}${c.refreshing ? ' · refreshing…' : ''} · tap one for its history</small><select onchange="_creSort=this.value;renderCreatives()" style="margin-left:auto;font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['roas', 'ROAS high → low'], ['spend', 'Spend high → low'], ['purchases', 'Sales high → low'], ['ctr', 'CTR high → low']].map(([v, l]) => `<option value="${v}"${v === key ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`;
     _cre = L2;
     if (c.errors && c.errors.length) h += `<div class="warn">${c.errors.map(esc).join('<br>')}</div>`;
     h += typePills + fmtPills;
