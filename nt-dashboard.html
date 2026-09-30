@@ -63,9 +63,9 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .cc:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(58,43,29,.12)}
 .cc img,.cc .ph{width:100%;aspect-ratio:1;object-fit:cover;background:#111;display:block}
 .cc .b{padding:6px 8px}.cc .nm{font-weight:700;font-size:.72rem;line-height:1.2;max-height:2.4em;overflow:hidden}.cc .m{font-size:.68rem;color:var(--ink2);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap}.cc .m b{color:var(--ink)}
-.cc .tags{position:absolute;top:6px;left:6px;right:80px;display:flex;gap:4px;flex-wrap:wrap}
+.cc .tags{position:absolute;top:6px;left:6px;right:80px;display:flex;gap:4px;flex-wrap:wrap;z-index:2}
 .tag{background:rgba(58,43,29,.85);color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:8px}
-.fmtsel{position:absolute;left:6px;top:32px;font:inherit;font-size:.62rem;font-weight:800;padding:2px 4px;border-radius:8px;border:none;background:rgba(255,255,255,.92);color:#3a2b1d;cursor:pointer;max-width:92px}.fmtsel.set{background:var(--accent);color:#fff}.tag.pdt{background:#1a3f9c}.tag.ist{background:#1a7f37}.tag.off{background:#888}.tag.dup{background:var(--accent)}
+.fmtsel{position:absolute;z-index:2;left:6px;top:32px;font:inherit;font-size:.62rem;font-weight:800;padding:2px 4px;border-radius:8px;border:none;background:rgba(255,255,255,.92);color:#3a2b1d;cursor:pointer;max-width:92px}.fmtsel.set{background:var(--accent);color:#fff}.tag.pdt{background:#1a3f9c}.tag.ist{background:#1a7f37}.tag.off{background:#888}.tag.dup{background:var(--accent)}
 .cc .sold{margin-top:4px;border-top:1px dashed var(--line);padding-top:4px;font-size:.68rem;color:#1a7f37}
 .cc .sold-h{font-weight:800}
 .cc .sold ul{margin:3px 0 0;padding-left:14px;color:var(--ink2);line-height:1.4}
@@ -90,11 +90,10 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .cc.paused img,.cc.paused .ph{filter:grayscale(.85) brightness(.92)}
 .cc.paused{background:#f7f3ee;border-style:dashed}
 .cc.paused .nm{color:var(--ink2)}
-.hl.paused{background:#b9ad9e;color:#fff}
-.cc .ctype{position:absolute;right:6px;bottom:auto;top:6px;font:inherit;font-size:.62rem;font-weight:800;padding:2px 4px;border-radius:8px;border:none;background:rgba(58,43,29,.85);color:#fff;cursor:pointer;max-width:70px}
+.cc .ctype{position:absolute;z-index:2;right:6px;bottom:auto;top:6px;font:inherit;font-size:.62rem;font-weight:800;padding:2px 4px;border-radius:8px;border:none;background:rgba(58,43,29,.85);color:#fff;cursor:pointer;max-width:70px}
 .cc .ctype.set{background:var(--accent)}
 .cc .hl{display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;line-height:1;padding:4px 9px;border-radius:999px;margin-bottom:5px;background:#eee;color:#3a2b1d;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
-.hl.picking{background:#1a7f37;color:#fff}.hl.steady{background:#6f5b46;color:#fff}.hl.new{background:#1a3f9c;color:#fff}.hl.dropping{background:#e08a2e;color:#fff}.hl.fatigued{background:#c62828;color:#fff}.hl.needs{background:#6a1b9a;color:#fff}.hl.quiet,.hl.paused{background:#c9b89f;color:#fff}
+.hl.picking{background:#1a7f37;color:#fff}.hl.steady{background:#6f5b46;color:#fff}.hl.new{background:#1a3f9c;color:#fff}.hl.dropping{background:#e08a2e;color:#fff}.hl.fatigued{background:#c62828;color:#fff}.hl.needs{background:#6a1b9a;color:#fff}.hl.quiet{background:#d4a017;color:#3a2b1d}.hl.paused{background:#4b5563;color:#fff}.hl.watch{background:#f2b705;color:#3a2b1d}.hl.kill{background:#7f0000;color:#fff}
 .chart{width:100%;height:auto;display:block;font-family:var(--fb)}
 .vd{border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:10px}
 .vd.healthy{background:#e8f5e9}.vd.watch{background:#fff8dc}.vd.fatigued{background:#fde8e8}.vd.quiet{background:#f5efe6}
@@ -541,7 +540,7 @@ function ruleRead(l3, l7, p7, active, live) {
   if (l7.spend >= 900 && l7.purchases < 5) why.push(`Only ${l7.purchases} sale${l7.purchases === 1 ? '' : 's'} this week, so one order swings the ROAS a lot.`);
   return { verdict, tag, cls, action, why };
 }
-const tagCls = t => ({ scale: 'picking', hold: 'steady', watch: 'dropping', fading: 'dropping', fatigue: 'fatigued', pause: 'fatigued', 'turning up': 'new', 'too early': 'quiet' }[t] || 'steady');
+const tagCls = t => ({ scale: 'picking', hold: 'steady', watch: 'watch', fading: 'dropping', fatigue: 'fatigued', pause: 'kill', 'turning up': 'new', 'too early': 'quiet' }[t] || 'steady');
 function adviceBox(d, addD) {
   const u = d.until, l3 = _sumRange(d.series, addD(u, -2), u), l7 = _sumRange(d.series, addD(u, -6), u), p7 = _sumRange(d.series, addD(u, -13), addD(u, -7));
   const r0 = _cre[_creIdx] || {}, f = v => '₹' + Math.round(v).toLocaleString('en-IN');
