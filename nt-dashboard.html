@@ -114,7 +114,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 </style>
 </head>
 <body>
-<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><span class="note" id="crawlLine" style="margin-left:auto"></span><button class="btn" id="refreshAll" onclick="refreshAll()">↻ Refresh all</button></header>
+<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><span onclick="openLog()" title="" style="display:inline-block;width:14px;height:14px;margin-left:6px;cursor:default;opacity:.18;font-size:.7rem;line-height:14px;text-align:center;user-select:none">·</span><span class="note" id="crawlLine" style="margin-left:auto"></span><button class="btn" id="refreshAll" onclick="refreshAll()">↻ Refresh all</button></header>
 <main>
   <div class="hd filterbar" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">
     <select id="gPreset" onchange="gPreset(this.value)" style="font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px">
@@ -169,6 +169,13 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <button class="btn" onclick="loadShop(true)">↻ Refresh</button>
     </div>
     <div id="shopBody"><div class="skel" style="height:80px"></div></div>
+  </div>
+</div>
+<div class="modal" id="logModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:45">
+  <div class="panel">
+    <div class="hd"><h2>Journal</h2><span class="note" id="logWhen"></span><button class="x" onclick="document.getElementById('logModal').classList.remove('open')">✕</button></div>
+    <div style="display:flex;gap:6px;margin-bottom:10px"><input id="logNote" placeholder="Add a note for today (what you changed, what you saw)…" style="flex:1;font:inherit;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px"><button class="btn" onclick="addNote()">Save note</button></div>
+    <div id="logBody"><div class="skel" style="height:80px"></div></div>
   </div>
 </div>
 <div class="modal" id="creModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:41">
@@ -766,6 +773,21 @@ async function refreshShopBlock(b) {
   b.disabled = true; b.textContent = '…'; _shop = {};
   try { await loadBlocks(); if (document.getElementById('shopModal').classList.contains('open')) await loadShop(true); } catch {}
   b.disabled = false; b.textContent = '↻ Refresh';
+}
+// Journal: every refresh writes a compact row server-side; this reads them by day. Claude reads the same table.
+let _log = null;
+async function openLog() { document.getElementById('logModal').classList.add('open'); loadLog(); }
+async function loadLog() {
+  const body = document.getElementById('logBody'); body.innerHTML = '<div class="skel" style="height:80px"></div>';
+  try { _log = await api({ action: 'log_read', days: 30 }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  document.getElementById('logWhen').textContent = `${_log.since} → ${_log.until} · ${_log.days.reduce((n, d) => n + d.entries.length, 0)} entries`;
+  const fmtV = v => typeof v === 'number' ? (Number.isInteger(v) ? v.toLocaleString('en-IN') : v.toFixed(2)) : Array.isArray(v) ? v.map(x => typeof x === 'object' ? Object.entries(x).map(([k, y]) => `${k} ${fmtV(y)}`).join(' · ') : fmtV(x)).join('; ') : typeof v === 'object' && v ? Object.entries(v).map(([k, y]) => `${k} ${fmtV(y)}`).join(' · ') : String(v);
+  const kindIcon = { ads: '📣', shop: '🛍', creatives: '🎬', crawl: '🕸', note: '📝' };
+  body.innerHTML = _log.days.map((d, i) => `<details${i === 0 ? ' open' : ''} style="margin-bottom:8px"><summary style="cursor:pointer;font-weight:800">${d.day} <span class="note">· ${d.entries.length} entries · ${[...new Set(d.entries.map(e => e.kind))].map(k => kindIcon[k] || k).join(' ')}</span></summary><div style="margin:6px 0 0 10px">${d.entries.map(e => `<div style="padding:6px 0;border-bottom:1px dashed var(--line);font-size:.8rem"><b>${kindIcon[e.kind] || ''} ${esc(e.kind)}</b> <span class="note">${new Date(e.at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}</span>${e.note ? `<div style="margin-top:3px">${esc(e.note)}</div>` : ''}${e.data ? `<div class="note" style="margin-top:3px;line-height:1.5">${Object.entries(e.data).filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length)).map(([k, v]) => `<span style="white-space:nowrap"><b>${esc(k)}</b> ${esc(fmtV(v))}</span>`).join(' &nbsp;·&nbsp; ')}</div>` : ''}</div>`).join('')}</div></details>`).join('') || '<div class="note">Nothing yet. Rows appear as the dashboard refreshes.</div>';
+}
+async function addNote() {
+  const inp = document.getElementById('logNote'), t = inp.value.trim(); if (!t) return;
+  try { await api({ action: 'log_write', kind: 'note', note: t }); inp.value = ''; loadLog(); } catch (e) { alert(e.message); }
 }
 async function loadCrawl() {
   try {
