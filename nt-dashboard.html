@@ -505,7 +505,8 @@ function _sumRange(series, from, to) { const a = _zero(); for (const r of series
 function ruleRead(l3, l7, p7, active) {
   const pct = (a, b) => b ? Math.round(((a - b) / b) * 100) : null, f = v => '₹' + Math.round(v).toLocaleString('en-IN'), daily7 = l7.spend / 7, why = [];
   let verdict, cls, action, tag;
-  if (active < 3 || l7.spend < 900) { verdict = 'Too early to judge'; tag = 'too early'; cls = 'watch'; action = `Give it ${Math.max(3 - active, 2)} more days at the current budget, then decide.`; why.push(`${active} day${active === 1 ? '' : 's'} with spend, ${f(l7.spend)} in the last 7.`); }
+  // Under four days of spend nothing is judged, however much was spent: one day's ROAS is noise
+  if (active < 4 || l7.spend < 900) { verdict = 'Too early to judge'; tag = 'too early'; cls = 'watch'; action = `Give it ${Math.max(4 - active, 2)} more days at the current budget, then decide.`; why.push(`${active} day${active === 1 ? '' : 's'} with spend, ${f(l7.spend)} in the last 7.`); }
   else if (l7.roas < 1.5 && l3.roas < 1.5 && l7.spend >= 1500) { verdict = 'Close it'; tag = 'pause'; cls = 'fatigued'; action = 'Pause now. Neither the week nor the last 3 days pay back.'; why.push(`ROAS ${l7.roas} over 7 days and ${l3.roas} over the last 3 on ${f(l7.spend)} spend.`); }
   else if (l7.roas < 2 && l3.roas >= 2.5) { verdict = 'Turning up, wait'; tag = 'turning up'; cls = 'watch'; action = 'Give it 2 more days. If the 3-day ROAS holds above 2.5, keep it and consider a small raise.'; why.push(`Week ROAS ${l7.roas} but the last 3 days are at ${l3.roas}.`); }
   else if (l7.roas >= 3 && l3.roas >= 2.5) { verdict = 'Scale'; tag = 'scale'; cls = 'healthy'; action = `Raise the daily budget about 20% (from ~${f(daily7)} to ~${f(daily7 * 1.2)}) and re-check in 3 days.`; why.push(`ROAS ${l7.roas} over 7 days, ${l3.roas} over the last 3, ${l7.purchases} sales.`); }
