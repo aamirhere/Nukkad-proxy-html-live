@@ -236,7 +236,8 @@ async function loadAds(force) {
     let tries = 0, c = null;
     while (tries++ < 36) {
       // Live today from Meta by default; any other range comes straight from the snapshot (instant, includes ads paused since)
-      try { c = _creRange ? await api({ action: 'creatives_hist', ..._creRange }) : await api({ action: 'creatives', since: istToday(), until: istToday(), force: force === 'hard' && tries === 1 }); } catch (e) { c = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
+      const liveToday = _range.since === istToday() && _range.until === istToday();
+      try { c = liveToday ? await api({ action: 'creatives', since: istToday(), until: istToday(), force: force === 'hard' && tries === 1 }) : await api({ action: 'creatives_hist', ..._range }); } catch (e) { c = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
       if (seq !== _loadSeq) return;
       if (!c.pending) break;
       const el = document.getElementById('creSection'); if (el) el.innerHTML = `<div class="sec">Creatives <small>reading Meta in the background… ${tries * 5}s</small></div><div class="skel" style="height:60px"></div>`;
@@ -436,8 +437,7 @@ function renderCreatives() {
     const fmtPills = `<div class="pills" style="margin:0 0 8px">${[['', 'All formats', L.length], ...['video', 'image', 'catalog'].filter(f => fc[f]).map(f => [f, f[0].toUpperCase() + f.slice(1), fc[f]])].map(([v, l, n]) => `<span class="pill${v === _creFmt ? ' on' : ''}" onclick="_creFmt='${v}';renderCreatives()">${l} <b>${n}</b></span>`).join('')}</div>`;
     const L2 = L.filter(c => (!_creType || creativeType(c) === _creType) && (!_creFmt || fmtOf(c) === _creFmt));
     h += creativeTypes(L);
-    const rangeSel = `<select onchange="creRange(this.value)" style="font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['live', 'Today, live'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['15', 'Last 15 days'], ['30', 'Last 30 days'], ['mtd', 'This month'], ['lm', 'Last month'], ['page', 'Page filter']].map(([v, l]) => `<option value="${v}"${v === _crePreset ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
-    h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Creatives ${rangeSel}<small>${c.from_snapshot ? `${esc(c.range)} · from the daily snapshot` : 'today so far, live'} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · ${c.utm_orders || 0} Shopify orders matched to ads${c.snapshot ? ` · snapshot ${c.snapshot.days}d / ${c.snapshot.cards_with_rows} of ${c.snapshot.cards} cards` : ''}${c.computed_at ? ` · read ${new Date(c.computed_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}` : ''}${c.refreshing ? ' · refreshing…' : ''} · tap one for its history</small><select onchange="_creSort=this.value;renderCreatives()" style="margin-left:auto;font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['roas', 'ROAS high → low'], ['spend', 'Spend high → low'], ['purchases', 'Sales high → low'], ['ctr', 'CTR high → low']].map(([v, l]) => `<option value="${v}"${v === key ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`;
+    h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Creatives <small>${c.from_snapshot ? `${esc(c.range)} · from the daily snapshot` : 'today so far, live'} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · ${c.utm_orders || 0} Shopify orders matched to ads${c.snapshot ? ` · snapshot ${c.snapshot.days}d / ${c.snapshot.cards_with_rows} of ${c.snapshot.cards} cards` : ''}${c.computed_at ? ` · read ${new Date(c.computed_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}` : ''}${c.refreshing ? ' · refreshing…' : ''} · tap one for its history</small><select onchange="_creSort=this.value;renderCreatives()" style="margin-left:auto;font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['roas', 'ROAS high → low'], ['spend', 'Spend high → low'], ['purchases', 'Sales high → low'], ['ctr', 'CTR high → low']].map(([v, l]) => `<option value="${v}"${v === key ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`;
     _cre = L2;
     if (c.errors && c.errors.length) h += `<div class="warn">${c.errors.map(esc).join('<br>')}</div>`;
     h += typePills + fmtPills;
@@ -464,13 +464,8 @@ function renderSold() {
   el.innerHTML = h;
 }
 function togglePr(i) { const r = document.getElementById('pr-' + i), a = document.getElementById('pr-arr-' + i); const open = r.style.display === 'none'; r.style.display = open ? '' : 'none'; if (a) a.textContent = open ? '▾' : '▸'; }
-function creRange(v) {
-  _crePreset = v;
-  _creRange = v === 'live' ? null : v === 'page' ? { since: _range.since, until: _range.until } : presetRange(v);
-  _adsAt = 0; loadAds(true);
-}
 function toggleColl(i) { const r = document.getElementById('coll-' + i); if (r) r.style.display = r.style.display === 'none' ? '' : 'none'; }
-let _cre = [], _creIdx = -1, _creSort = 'roas', _creType = '', _creFmt = '', _creRange = null, _crePreset = 'live';
+let _cre = [], _creIdx = -1, _creSort = 'roas', _creType = '', _creFmt = '';
 function openCreative(i) { _creIdx = i; document.getElementById('creModal').classList.add('open'); loadCreative(); }
 function chartTip(ev, date, val) {
   let t = document.getElementById('chartTip');
