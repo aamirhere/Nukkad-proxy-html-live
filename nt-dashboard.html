@@ -141,11 +141,21 @@ async function api(body) {
 
 async function loadAds(force) {
   if (!force && _ads && Date.now() - _adsAt < 5 * 60e3) { renderAdsBlock(); renderAdsModal(); return; }
-  document.getElementById('adsBody').innerHTML = '<div class="skel" style="height:80px"></div>';
-  try { _ads = await api({ action: 'ads', ..._range }); _adsAt = Date.now(); }
+  const body = document.getElementById('adsBody');
+  if (_ads) document.getElementById('adsWhen').textContent = 'Updating…'; else body.innerHTML = '<div class="skel" style="height:80px"></div>';
+  const seq = ++_loadSeq;
+  try { _ads = await api({ action: 'ads', ..._range, skip_creatives: true }); _adsAt = Date.now(); }
   catch (e) { document.getElementById('adsKpi').innerHTML = `<span style="font-size:.9rem;color:var(--red)">${esc(e.message)}</span>`; document.getElementById('adsBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  if (seq !== _loadSeq) return;
+  _ads.creatives = null;
   renderAdsBlock(); renderAdsModal();
+  if (!_ads.meta_error) {
+    try { const c = await api({ action: 'creatives', ..._range }); if (seq !== _loadSeq) return; _ads.creatives = c; _ads.creatives_range = c.range; }
+    catch (e) { if (seq !== _loadSeq) return; _ads.creatives = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
+    renderCreatives();
+  }
 }
+let _loadSeq = 0;
 function openAds() { document.getElementById('adsModal').classList.add('open'); loadAds(); }
 
 function renderAdsBlock() {
@@ -179,14 +189,21 @@ function renderAdsModal() {
   h += `<div class="sec">Best sellers <small>Shopify, IST days</small></div><table><thead><tr><th>Design</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>${s.today.products.map(p => `<tr><td>${esc(p.title)}</td><td class="num">${p.qty}</td><td class="num">${inr(p.revenue)}</td></tr>`).join('') || '<tr><td colspan="3" class="note">No orders yet today.</td></tr>'}</tbody></table>`;
   if (s.best_collection.length) h += `<div class="sec">Collections <small>tap a row to see which designs sold and where the order came from</small></div><table><thead><tr><th>Collection</th><th class="num">Pieces</th></tr></thead><tbody>${s.best_collection.map((c, i) => `<tr onclick="toggleColl(${i})" style="cursor:pointer"><td>${esc(c.title)} <span class="note">▾</span></td><td class="num">${c.qty}</td></tr><tr id="coll-${i}" style="display:none"><td colspan="2" style="background:#fdf5ec;padding:6px 10px">${(s.collection_products[c.title] || []).map(p => `<div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0;border-top:1px solid #f3ebdf"><b style="min-width:180px">${esc(p.title)}</b><span>${p.qty} pcs · ${inr(p.revenue)}</span><span class="note">${p.sources.map(([k, n]) => `${esc(k)} (${n})`).join(' · ')}</span></div>`).join('')}</td></tr>`).join('')}</tbody></table>`;
   if (s.sources && s.sources.length) h += `<div class="sec">Where orders came from <small>UTM on the landing page, else referrer</small></div><table><thead><tr><th>Source › campaign › ad</th><th class="num">Pieces</th></tr></thead><tbody>${s.sources.map(x => `<tr><td>${esc(x.source)}</td><td class="num">${x.qty}</td></tr>`).join('')}</tbody></table>`;
-  if (!a.meta_error) {
+  if (!a.meta_error) h += `<div id="creSection"><div class="sec">Creatives <small>loading every running ad…</small></div><div class="skel" style="height:60px"></div></div>`;
+  document.getElementById('adsBody').innerHTML = h;
+  if (a.creatives) renderCreatives();
+}
+function renderCreatives() {
+  const a = _ads, el = document.getElementById('creSection'); if (!el || !a.creatives) return;
+  let h = '';
+  {
     const c = a.creatives, L = c.list || [];
     h += `<div class="sec">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · tap one for its history</small></div>`;
     _cre = L;
     if (c.errors && c.errors.length) h += `<div class="warn">${c.errors.map(esc).join('<br>')}</div>`;
     h += L.length ? `<div class="cre">${L.map((r, i) => `<div class="cc" onclick="openCreative(${i})"><div class="tags">${r.accounts.map(x => `<span class="tag ${/pdt/i.test(x) ? 'pdt' : 'ist'}">${esc(x)}</span>`).join('')}${r.copies > 1 ? `<span class="tag dup">×${r.copies}</span>` : ''}${r.running ? '' : '<span class="tag off">paused</span>'}${r.is_video ? '<span class="tag">▶</span>' : ''}</div>${r.thumb ? `<img src="${esc(r.thumb)}" alt="" loading="lazy">` : '<div class="ph"></div>'}<div class="b"><div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span><b>${inr(r.spend)}</b></span><span>${r.purchases} sales</span></div></div></div>`).join('')}</div>` : '<div class="note">No running creatives found in this range.</div>';
   }
-  document.getElementById('adsBody').innerHTML = h;
+  el.innerHTML = h;
 }
 function toggleColl(i) { const r = document.getElementById('coll-' + i); if (r) r.style.display = r.style.display === 'none' ? '' : 'none'; }
 let _cre = [], _creIdx = -1;
