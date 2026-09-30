@@ -58,6 +58,9 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .pill{border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:.8rem;cursor:pointer;background:#fff;color:var(--ink2)}
 .pill b{color:var(--ink)}.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}.pill.on b{color:#fff}
 .prow{cursor:pointer}.prow .arr{display:inline-block;width:12px;color:var(--muted)}
+.sug{display:flex;flex-direction:column;gap:5px;margin:6px 0}
+.sug-row{display:flex;gap:8px;align-items:flex-start;font-size:.85rem;line-height:1.4}.sug-row .hl{flex-shrink:0;margin-top:2px}
+.hl{display:inline-block;font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:8px;background:#eee;color:#3a2b1d}
 .cc .hl{display:inline-block;font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:8px;margin-bottom:3px;background:#eee;color:#3a2b1d}
 .hl.picking{background:#d8f3dc;color:#1a7f37}.hl.steady{background:#e9ddca;color:#6f5b46}.hl.new{background:#dbe9ff;color:#1a3f9c}.hl.dropping{background:#ffe1c2;color:#b3480f}.hl.fatigued{background:#ffd6d6;color:#b00020}.hl.needs{background:#f3e0ff;color:#6a1b9a}.hl.quiet,.hl.paused{background:#eee;color:#888}
 .chart{width:100%;height:auto;display:block;font-family:var(--fb)}
@@ -158,6 +161,7 @@ async function loadAds(force) {
   if (seq !== _loadSeq) return;
   _ads.creatives = null;
   renderAdsBlock(); renderAdsModal();
+  loadAi(); loadAudience();
   if (!_ads.meta_error) {
     try { const c = await api({ action: 'creatives', ..._range }); if (seq !== _loadSeq) return; _ads.creatives = c; _ads.creatives_range = c.range; }
     catch (e) { if (seq !== _loadSeq) return; _ads.creatives = { list: [], ads_seen: 0, total_spend: 0, errors: [e.message] }; }
@@ -184,7 +188,7 @@ function renderAdsModal() {
   if (a.meta_error) h += `<div class="warn"><b>Meta not connected:</b> ${esc(a.meta_error)}. Add a System User token as <code>META_ACCESS_TOKEN</code> in Netlify (ads_read scope) and refresh. Shopify figures below are live.</div>`;
   h += `<div class="tiles">
     ${tile(a.meta_error ? '—' : inr(b.spend_today), 'Spend', `${prevLbl} ${inr(b.spend_yesterday)}`)}
-    ${tile(`${inr(s.today.revenue)} <span style="font-size:.6em;white-space:nowrap">· ${s.today.orders} orders</span>`, 'Shopify revenue', `${prevLbl} ${inr(s.yesterday.revenue)} · ${s.yesterday.orders} orders · today ${s.today.cod} COD`)}
+    ${tile(`${inr(s.today.revenue)} <span style="font-size:.6em;white-space:nowrap">· ${s.today.orders} orders</span>`, 'Shopify revenue', `${prevLbl} ${inr(s.yesterday.revenue)} · ${s.yesterday.orders} orders<br><b>${s.today.new_customers ?? '–'}</b> new · <b>${s.today.returning_customers ?? '–'}</b> returning · ${s.today.cod} COD`)}
     ${tile(a.meta_error ? '—' : x(b.roas_today), 'Blended ROAS', `${prevLbl} ${x(b.roas_yesterday)}`)}
     ${tile(a.meta_error || b.cpm_today == null ? '—' : inr2(b.cpm_today), 'CPM', 'blended, both accounts')}
     ${tile(s.best_seller ? esc(s.best_seller.title) : '—', 'Best seller', s.best_seller ? `${s.best_seller.qty} pcs · ${inr(s.best_seller.revenue)}` : 'no orders')}
@@ -196,10 +200,45 @@ function renderAdsModal() {
     h += `</tbody></table><div class="note" style="margin-top:6px">${esc(b.note)}</div>`;
   }
   h += `<div class="sec">Designs sold <small>Shopify, IST days · tap a collection pill to filter, tap a row for where the order came from</small></div><div id="soldWrap"></div>`;
+  h += `<div id="aiSection"></div><div id="audSection"></div>`;
   if (!a.meta_error) h += `<div id="creSection"><div class="sec">Creatives <small>loading every running ad…</small></div><div class="skel" style="height:60px"></div></div>`;
   document.getElementById('adsBody').innerHTML = h;
   renderSold();
+  renderAi(); renderAudience();
   if (a.creatives) renderCreatives();
+}
+let _ai = null, _aud = null, _aiPoll = null;
+async function loadAi() { try { _ai = await api({ action: 'ai' }); } catch (e) { _ai = { error: e.message }; } renderAi(); if (_ads && _ads.creatives) renderCreatives(); }
+async function loadAudience() { try { _aud = await api({ action: 'audience', ..._range }); } catch (e) { _aud = { error: e.message }; } renderAudience(); }
+function renderAi() {
+  const el = document.getElementById('aiSection'); if (!el) return;
+  if (!_ai) { el.innerHTML = '<div class="sec">Gul\'s daily read <small>loading…</small></div><div class="skel" style="height:40px"></div>'; return; }
+  const r = _ai.latest, running = _ai.running && _ai.running.started && !_ai.running.done;
+  let h = `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">🐦 Gul's daily read <small>${r ? `${r.day} · ${esc(r.trigger || '')} · ₹${r.cost_inr} · ${esc(r.model || '')}` : 'not run yet'}</small><span style="margin-left:auto;display:flex;gap:6px;align-items:center;font-size:.78rem"><label style="cursor:pointer"><input type="checkbox" ${_ai.auto ? 'checked' : ''} onchange="setAiAuto(this.checked)"> auto nightly 11:30pm</label><button class="btn" ${running ? 'disabled' : ''} onclick="runAi()">${running ? 'Running…' : (r && r.day === todayIst() ? '↻ Re-run now' : '▶ Run now')}</button></span></div>`;
+  if (_ai.error) h += `<div class="warn">${esc(_ai.error)}</div>`;
+  if (_ai.running && _ai.running.error) h += `<div class="warn">Last run failed: ${esc(_ai.running.error)}</div>`;
+  if (r) {
+    h += `<div class="vd healthy" style="margin-bottom:8px"><div>${esc(r.account_note || r.summary || '')}</div></div>`;
+    const sug = r.suggestions || [];
+    if (sug.length) h += `<div class="sug">${sug.map(x => `<div class="sug-row"><span class="hl ${sugCls(x.type)}">${esc(x.type || '')}</span><span>${esc(x.text || '')}</span></div>`).join('')}</div>`;
+    if (_ai.history && _ai.history.length > 1) h += `<details style="margin-top:6px"><summary class="note" style="cursor:pointer">Earlier reads (${_ai.history.length - 1})</summary>${_ai.history.slice(1).map(x => `<div class="note" style="margin:6px 0"><b>${x.day}</b> · ₹${x.cost_inr} — ${esc(x.summary || '')}</div>`).join('')}</details>`;
+  } else if (!_ai.error) h += `<div class="note">Press Run now for the first read. It snapshots 30 days of ads first, so the first run takes a few minutes.</div>`;
+  el.innerHTML = h;
+  if (running && !_aiPoll) _aiPoll = setTimeout(() => { _aiPoll = null; loadAi(); }, 15000);
+}
+const sugCls = t => ({ scale: 'picking', refresh: 'fatigued', kill: 'fatigued', test: 'new', budget: 'steady', audience: 'needs' }[t] || 'steady');
+const verdictCls = v => ({ scale: 'picking', hold: 'steady', watch: 'dropping', refresh: 'fatigued', kill: 'fatigued', test: 'new' }[v] || 'steady');
+function todayIst() { return new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10); }
+async function runAi() { try { await api({ action: 'ai_run', force: true }); } catch (e) { alert(e.message); return; } _ai = { ...(_ai || {}), running: { started: new Date().toISOString() } }; renderAi(); }
+async function setAiAuto(on) { try { await api({ action: 'ai_setting', auto: on }); } catch (e) { alert(e.message); } }
+function renderAudience() {
+  const el = document.getElementById('audSection'); if (!el) return;
+  if (!_aud) { el.innerHTML = '<div class="sec">Audience <small>loading…</small></div><div class="skel" style="height:40px"></div>'; return; }
+  if (_aud.error) { el.innerHTML = `<div class="sec">Audience</div><div class="warn">${esc(_aud.error)}</div>`; return; }
+  let h = `<div class="sec">Audience <small>${esc(_aud.since)} → ${esc(_aud.until)} · engaged people vs a new pool · ${_aud.snapshot_days} snapshot day${_aud.snapshot_days === 1 ? '' : 's'}</small></div>`;
+  if (!_aud.snapshot_days) h += `<div class="note">No snapshot for these days yet. The nightly run (or Run now above) fills it.</div>`;
+  else h += `<table><thead><tr><th>Audience</th><th class="num">Ads</th><th class="num">Spend</th><th class="num">Meta sales</th><th class="num">Meta ROAS</th><th class="num">Shopify orders</th><th class="num">Shopify ROAS</th><th class="num">CPM</th><th class="num">Freq</th></tr></thead><tbody>${_aud.groups.map(g => `<tr><td><b>${esc(g.audience)}</b></td><td class="num">${g.ads}</td><td class="num">${inr(g.spend)}</td><td class="num">${g.purchases}</td><td class="num">${g.roas}</td><td class="num">${g.shop_orders}</td><td class="num">${g.shop_roas}</td><td class="num">${inr(g.cpm)}</td><td class="num">${g.frequency}</td></tr>`).join('')}</tbody></table><div class="note" style="margin-top:6px">${_aud.unattributed} of ${_aud.shop_orders_total} Shopify orders carried no ad id. ${esc(_aud.note)}</div>`;
+  el.innerHTML = h;
 }
 function renderCreatives() {
   const a = _ads, el = document.getElementById('creSection'); if (!el || !a.creatives) return;
@@ -210,7 +249,7 @@ function renderCreatives() {
     h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · tap one for its history</small><select onchange="_creSort=this.value;renderCreatives()" style="margin-left:auto;font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['roas', 'ROAS high → low'], ['spend', 'Spend high → low'], ['purchases', 'Sales high → low'], ['ctr', 'CTR high → low']].map(([v, l]) => `<option value="${v}"${v === key ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`;
     _cre = L;
     if (c.errors && c.errors.length) h += `<div class="warn">${c.errors.map(esc).join('<br>')}</div>`;
-    h += L.length ? `<div class="cre">${L.map((r, i) => `<div class="cc" onclick="openCreative(${i})"><div class="tags">${r.accounts.map(x => `<span class="tag ${/pdt/i.test(x) ? 'pdt' : 'ist'}">${esc(x)}</span>`).join('')}${r.copies > 1 ? `<span class="tag dup">×${r.copies}</span>` : ''}${r.running ? '' : '<span class="tag off">paused</span>'}${r.is_video ? '<span class="tag">▶</span>' : ''}</div>${r.thumb ? `<img src="${esc(r.thumb)}" alt="" loading="lazy">` : '<div class="ph"></div>'}<div class="b">${r.tag ? `<span class="hl ${r.tag.split(' ')[0]}" title="${esc(r.tag_why || '')}">${esc(r.tag)}</span>` : ''}<div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span><b>${inr(r.spend)}</b></span><span>${r.purchases} sales</span></div>${r.shopify && r.shopify.items && r.shopify.items.length ? `<div class="sold" onclick="event.stopPropagation();toggleSold(${i})"><span class="sold-h">🛍 ${r.shopify.qty} pcs sold via this ad · ${inr(r.shopify.revenue)} <span id="sold-arr-${i}">▾</span></span><ul id="sold-${i}" style="display:none">${r.shopify.items.map(it => `<li>${esc(it.title)} <b>×${it.qty}</b></li>`).join('')}</ul></div>` : ''}</div></div>`).join('')}</div>` : '<div class="note">No running creatives found in this range.</div>';
+    h += L.length ? `<div class="cre">${L.map((r, i) => `<div class="cc" onclick="openCreative(${i})"><div class="tags">${r.accounts.map(x => `<span class="tag ${/pdt/i.test(x) ? 'pdt' : 'ist'}">${esc(x)}</span>`).join('')}${r.copies > 1 ? `<span class="tag dup">×${r.copies}</span>` : ''}${r.running ? '' : '<span class="tag off">paused</span>'}${r.is_video ? '<span class="tag">▶</span>' : ''}</div>${r.thumb ? `<img src="${esc(r.thumb)}" alt="" loading="lazy">` : '<div class="ph"></div>'}<div class="b">${r.tag ? `<span class="hl ${r.tag.split(' ')[0]}" title="${esc(r.tag_why || '')}">${esc(r.tag)}</span>` : ''}${(_ai && _ai.notes && _ai.notes[r.key]) ? `<span class="hl ${verdictCls(_ai.notes[r.key].verdict)}" title="${esc(_ai.notes[r.key].reason || '')}">🐦 ${esc(_ai.notes[r.key].verdict)}</span>` : ''}<div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span><b>${inr(r.spend)}</b></span><span>${r.purchases} sales</span></div>${r.shopify && r.shopify.items && r.shopify.items.length ? `<div class="sold" onclick="event.stopPropagation();toggleSold(${i})"><span class="sold-h">🛍 ${r.shopify.qty} pcs sold via this ad · ${inr(r.shopify.revenue)} <span id="sold-arr-${i}">▾</span></span><ul id="sold-${i}" style="display:none">${r.shopify.items.map(it => `<li>${esc(it.title)} <b>×${it.qty}</b></li>`).join('')}</ul></div>` : ''}</div></div>`).join('')}</div>` : '<div class="note">No running creatives found in this range.</div>';
   }
   el.innerHTML = h;
 }
@@ -251,7 +290,7 @@ async function loadCreative() {
   let d; try { d = await api({ action: 'creative', ad_ids: r.ads.map(x => x.ad_id), days }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   const ch = d.change, sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + v + '%';
   const label = { healthy: '✅ Healthy', watch: '⚠ Watch', fatigued: '🔻 Fatigued, refresh this creative', quiet: '💤 Quiet' }[d.status];
-  let h = `<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">${r.thumb ? `<img src="${esc(r.thumb)}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;background:#111">` : ''}<div style="flex:1;min-width:220px"><div class="vd ${d.status}"><b>${label}</b><div>${d.verdict.map(esc).join(' ')}</div></div><div class="note">Runs as ${r.ads.length} ad${r.ads.length > 1 ? 's' : ''}: ${r.ads.map(x => `${esc(x.account)} · ${esc(x.campaign || '')} · ${x.status === 'ACTIVE' ? 'running' : x.status.toLowerCase()}${x.preview ? ` <a href="${esc(x.preview)}" target="_blank" rel="noopener">↗</a>` : ''}`).join('<br>')}</div></div></div>${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}`;
+  let h = `<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">${r.thumb ? `<img src="${esc(r.thumb)}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;background:#111">` : ''}<div style="flex:1;min-width:220px"><div class="vd ${d.status}"><b>${label}</b><div>${d.verdict.map(esc).join(' ')}</div></div><div class="note">Runs as ${r.ads.length} ad${r.ads.length > 1 ? 's' : ''}: ${r.ads.map(x => `${esc(x.account)} · ${esc(x.campaign || '')} · ${x.status === 'ACTIVE' ? 'running' : x.status.toLowerCase()}${x.preview ? ` <a href="${esc(x.preview)}" target="_blank" rel="noopener">↗</a>` : ''}`).join('<br>')}</div></div></div>${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}${(_ai && _ai.notes && _ai.notes[r.key]) ? `<div class="vd ${_ai.notes[r.key].verdict === 'scale' ? 'healthy' : /kill|refresh/.test(_ai.notes[r.key].verdict) ? 'fatigued' : 'watch'}" style="margin-bottom:10px"><b>🐦 Gul says: ${esc(_ai.notes[r.key].verdict)}</b><div>${esc(_ai.notes[r.key].reason || '')}</div><div style="margin-top:4px"><b>Do:</b> ${esc(_ai.notes[r.key].action || '')}</div></div>` : ''}`;
   h += `<div class="tiles">${[['ROAS', d.last7.roas, sgn(ch.roas)], ['Spend, last 7d', inr(d.last7.spend), `prev ${inr(d.prev7.spend)}`], ['Sales, last 7d', d.last7.purchases, `prev ${d.prev7.purchases}`], ['CTR', d.last7.ctr + '%', sgn(ch.ctr)], ['CPM', inr(d.last7.cpm), sgn(ch.cpm)], ['Frequency', d.last7.frequency, sgn(ch.frequency)]].map(([l, n, s2]) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s2}</div></div>`).join('')}</div>`;
   const wk = d.weekly.length > 1;
   const src = wk && d.series.length > 45 ? d.weekly : d.series;
