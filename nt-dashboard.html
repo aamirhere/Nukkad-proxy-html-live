@@ -54,6 +54,10 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .cc .sold{margin-top:4px;border-top:1px dashed var(--line);padding-top:4px;font-size:.68rem;color:#1a7f37;cursor:pointer}
 .cc .sold-h{font-weight:800}
 .cc .sold ul{margin:3px 0 0;padding-left:14px;color:var(--ink2);line-height:1.4}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.pill{border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:.8rem;cursor:pointer;background:#fff;color:var(--ink2)}
+.pill b{color:var(--ink)}.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}.pill.on b{color:#fff}
+.prow{cursor:pointer}.prow .arr{display:inline-block;width:12px;color:var(--muted)}
 .cc .hl{display:inline-block;font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:8px;margin-bottom:3px;background:#eee;color:#3a2b1d}
 .hl.picking{background:#d8f3dc;color:#1a7f37}.hl.steady{background:#e9ddca;color:#6f5b46}.hl.new{background:#dbe9ff;color:#1a3f9c}.hl.dropping{background:#ffe1c2;color:#b3480f}.hl.fatigued{background:#ffd6d6;color:#b00020}.hl.needs{background:#f3e0ff;color:#6a1b9a}.hl.quiet,.hl.paused{background:#eee;color:#888}
 .chart{width:100%;height:auto;display:block;font-family:var(--fb)}
@@ -191,10 +195,10 @@ function renderAdsModal() {
     for (const ac of a.accounts) h += `<tr><td><b>${esc(ac.label)}</b><div class="note">${esc(ac.id)}${ac.timezone && ac.timezone !== 'Asia/Kolkata' ? ` · ${esc(ac.timezone)} → shown on IST days` : ''}</div></td><td class="num">${inr(ac.today.spend)}</td><td class="num">${inr(ac.yesterday.spend)}</td><td class="num">${inr(ac.last_7d.spend)}</td><td class="num">${inr2(ac.today.cpm)}</td><td class="num">${x(ac.today.meta_roas || ac.today.roas || null)}</td><td class="num">${ac.today.purchases}</td><td class="num">${ac.today.ctr ? ac.today.ctr.toFixed(2) + '%' : '—'}</td></tr>`;
     h += `</tbody></table><div class="note" style="margin-top:6px">${esc(b.note)}</div>`;
   }
-  h += `<div class="sec">Best sellers <small>Shopify, IST days</small></div><table><thead><tr><th>Design</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>${s.today.products.map(p => `<tr><td>${esc(p.title)}</td><td class="num">${p.qty}</td><td class="num">${inr(p.revenue)}</td></tr>`).join('') || '<tr><td colspan="3" class="note">No orders yet today.</td></tr>'}</tbody></table>`;
-  if (s.best_collection.length) h += `<div class="sec">Collections <small>tap a row to see which designs sold and where the order came from</small></div><table><thead><tr><th>Collection</th><th class="num">Pieces</th></tr></thead><tbody>${s.best_collection.map((c, i) => `<tr onclick="toggleColl(${i})" style="cursor:pointer"><td>${esc(c.title)} <span class="note">▾</span></td><td class="num">${c.qty}</td></tr><tr id="coll-${i}" style="display:none"><td colspan="2" style="background:#fdf5ec;padding:6px 10px">${(s.collection_products[c.title] || []).map(p => `<div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0;border-top:1px solid #f3ebdf"><b style="min-width:180px">${esc(p.title)}</b><span>${p.qty} pcs · ${inr(p.revenue)}</span><ul class="note" style="margin:2px 0 0;padding-left:18px;flex-basis:100%;line-height:1.5">${p.sources.map(([k, n]) => `<li>${esc(k)} <b>×${n}</b></li>`).join('')}</ul></div>`).join('')}</td></tr>`).join('')}</tbody></table>`;
+  h += `<div class="sec">Designs sold <small>Shopify, IST days · tap a collection pill to filter, tap a row for where the order came from</small></div><div id="soldWrap"></div>`;
   if (!a.meta_error) h += `<div id="creSection"><div class="sec">Creatives <small>loading every running ad…</small></div><div class="skel" style="height:60px"></div></div>`;
   document.getElementById('adsBody').innerHTML = h;
+  renderSold();
   if (a.creatives) renderCreatives();
 }
 function renderCreatives() {
@@ -211,6 +215,19 @@ function renderCreatives() {
   el.innerHTML = h;
 }
 function toggleSold(i) { const u = document.getElementById('sold-' + i), a = document.getElementById('sold-arr-' + i); const open = u.style.display === 'none'; u.style.display = open ? '' : 'none'; if (a) a.textContent = open ? '▴' : '▾'; }
+let _collSel = '', _soldMore = false;
+function renderSold() {
+  const s = _ads.shopify, el = document.getElementById('soldWrap'); if (!el || !s) return;
+  const all = s.today.products || [];
+  const pills = [['', 'All', all.reduce((n, p) => n + p.qty, 0)], ...s.best_collection.map(c => [c.title, c.title, c.qty])];
+  let h = `<div class="pills">${pills.map(([v, l, n]) => `<span class="pill${v === _collSel ? ' on' : ''}" onclick="_collSel=${JSON.stringify(v)};_soldMore=false;renderSold()">${esc(l)} <b>${n}</b></span>`).join('')}</div>`;
+  const list = _collSel ? all.filter(p => (p.collections || []).includes(_collSel)) : all;
+  const show = _soldMore ? list : list.slice(0, 8);
+  h += `<table><thead><tr><th>Design</th><th class="num">Pieces</th><th class="num">Revenue</th></tr></thead><tbody>${show.map((p, i) => `<tr class="prow" onclick="togglePr(${i})"><td><span id="pr-arr-${i}" class="arr">▸</span> ${esc(p.title)}</td><td class="num">${p.qty}</td><td class="num">${inr(p.revenue)}</td></tr><tr id="pr-${i}" style="display:none"><td colspan="3" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${(p.sources || []).map(([k, n]) => `<li>${esc(k)} <b>×${n}</b></li>`).join('') || '<li>No source recorded</li>'}</ul></td></tr>`).join('') || '<tr><td colspan="3" class="note">No orders in this range.</td></tr>'}</tbody></table>`;
+  if (list.length > 8) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_soldMore=!_soldMore;renderSold()">${_soldMore ? 'Show less' : `Show all ${list.length}`}</button></div>`;
+  el.innerHTML = h;
+}
+function togglePr(i) { const r = document.getElementById('pr-' + i), a = document.getElementById('pr-arr-' + i); const open = r.style.display === 'none'; r.style.display = open ? '' : 'none'; if (a) a.textContent = open ? '▾' : '▸'; }
 function toggleColl(i) { const r = document.getElementById('coll-' + i); if (r) r.style.display = r.style.display === 'none' ? '' : 'none'; }
 let _cre = [], _creIdx = -1, _creSort = 'roas';
 function openCreative(i) { _creIdx = i; document.getElementById('creModal').classList.add('open'); loadCreative(); }
