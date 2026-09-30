@@ -214,7 +214,7 @@ function renderAi() {
   const el = document.getElementById('aiSection'); if (!el) return;
   if (!_ai) { el.innerHTML = '<div class="sec">Gul\'s daily read <small>loading…</small></div><div class="skel" style="height:40px"></div>'; return; }
   const r = _ai.latest, running = _ai.running && _ai.running.started && !_ai.running.done;
-  let h = `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">🐦 Gul's daily read <small>${r ? `${r.day} · ${esc(r.trigger || '')} · ₹${r.cost_inr} · ${esc(r.model || '')}` : 'not run yet'}</small><span style="margin-left:auto;display:flex;gap:6px;align-items:center;font-size:.78rem"><label style="cursor:pointer"><input type="checkbox" ${_ai.auto ? 'checked' : ''} onchange="setAiAuto(this.checked)"> auto nightly 11:30pm</label><button class="btn" ${running ? 'disabled' : ''} onclick="runAi()">${running ? 'Running…' : (r && r.day === todayIst() ? '↻ Re-run now' : '▶ Run now')}</button></span></div>`;
+  let h = `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">🐦 Gul's daily read <small>${r ? `run ${r.day}${r.through ? ` · through ${r.through}` : ''} · ₹${r.cost_inr} · ${esc(r.model || '')}` : 'not run yet'}</small><span style="margin-left:auto;display:flex;gap:6px;align-items:center;font-size:.78rem"><span class="note">manual only · reads whole days up to yesterday</span><button class="btn" ${running ? 'disabled' : ''} onclick="runAi()">${running ? 'Running…' : (r && r.day === todayIst() ? '↻ Re-run now' : '▶ Run now')}</button></span></div>`;
   if (_ai.error) h += `<div class="warn">${esc(_ai.error)}</div>`;
   if (_ai.running && _ai.running.error) h += `<div class="warn">Last run failed: ${esc(_ai.running.error)}</div>`;
   if (r) {
@@ -222,7 +222,7 @@ function renderAi() {
     const sug = r.suggestions || [];
     if (sug.length) h += `<div class="sug">${sug.map(x => `<div class="sug-row"><span class="hl ${sugCls(x.type)}">${esc(x.type || '')}</span><span>${esc(x.text || '')}</span></div>`).join('')}</div>`;
     if (_ai.history && _ai.history.length > 1) h += `<details style="margin-top:6px"><summary class="note" style="cursor:pointer">Earlier reads (${_ai.history.length - 1})</summary>${_ai.history.slice(1).map(x => `<div class="note" style="margin:6px 0"><b>${x.day}</b> · ₹${x.cost_inr} — ${esc(x.summary || '')}</div>`).join('')}</details>`;
-  } else if (!_ai.error) h += `<div class="note">Press Run now for the first read. It snapshots 30 days of ads first, so the first run takes a few minutes.</div>`;
+  } else if (!_ai.error) h += `<div class="note">Press Run now for the first read. It snapshots 30 days of ads first, so the first run takes a few minutes. Nothing runs on its own; each press costs about ₹40.</div>`;
   el.innerHTML = h;
   if (running && !_aiPoll) _aiPoll = setTimeout(() => { _aiPoll = null; loadAi(); }, 15000);
 }
@@ -230,7 +230,6 @@ const sugCls = t => ({ scale: 'picking', refresh: 'fatigued', kill: 'fatigued', 
 const verdictCls = v => ({ scale: 'picking', hold: 'steady', watch: 'dropping', refresh: 'fatigued', kill: 'fatigued', test: 'new' }[v] || 'steady');
 function todayIst() { return new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10); }
 async function runAi() { try { await api({ action: 'ai_run', force: true }); } catch (e) { alert(e.message); return; } _ai = { ...(_ai || {}), running: { started: new Date().toISOString() } }; renderAi(); }
-async function setAiAuto(on) { try { await api({ action: 'ai_setting', auto: on }); } catch (e) { alert(e.message); } }
 function renderAudience() {
   const el = document.getElementById('audSection'); if (!el) return;
   if (!_aud) { el.innerHTML = '<div class="sec">Audience <small>loading…</small></div><div class="skel" style="height:40px"></div>'; return; }
