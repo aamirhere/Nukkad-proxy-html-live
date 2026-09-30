@@ -102,7 +102,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 </style>
 </head>
 <body>
-<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><button class="btn" id="refreshAll" style="margin-left:auto" onclick="refreshAll()">↻ Refresh all</button></header>
+<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><span class="note" id="crawlLine" style="margin-left:auto"></span><button class="btn" id="refreshAll" onclick="refreshAll()">↻ Refresh all</button></header>
 <main>
   <div class="hd filterbar" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">
     <select id="gPreset" onchange="gPreset(this.value)" style="font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px">
@@ -728,6 +728,13 @@ async function refreshShopBlock(b) {
   try { await loadBlocks(); if (document.getElementById('shopModal').classList.contains('open')) await loadShop(true); } catch {}
   b.disabled = false; b.textContent = '↻ Refresh';
 }
+async function loadCrawl() {
+  try {
+    const c = await api({ action: 'crawl_status' }), el = document.getElementById('crawlLine');
+    const one = (l, st) => !st ? `${l}: not started` : st.done ? `${l}: 1 year in` : `${l}: ${st.pct}% back to ${st.cursor}${st.paused_until && new Date(st.paused_until) > new Date() ? ' · paused by Meta' : ''}`;
+    el.innerHTML = `History · ${one('ads', c.ads)} · ${one('store', c.shop)} <a href="#" onclick="event.preventDefault();api({action:'crawl_kick'}).then(()=>{this.textContent='running…';setTimeout(loadCrawl,20000)})">run a pass</a>`;
+  } catch {}
+}
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
@@ -736,7 +743,7 @@ async function refreshAll() {
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks();
+loadAds(); loadBlocks(); loadCrawl();
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => {
   if (document.hidden) return;
