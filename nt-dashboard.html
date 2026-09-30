@@ -239,7 +239,7 @@ function renderAdsModal() {
     h += `</tbody></table><div class="note" style="margin-top:6px">${esc(b.note)}</div>`;
   }
   h += `<div class="sec">Designs sold <small>Shopify, IST days · tap a row for where the order came from</small></div><div id="soldWrap"></div>`;
-  h += `<div id="aiSection"></div><div id="audSection"></div>`;
+  h += `<div id="aiSection"></div><div id="planSection"></div><div id="audSection"></div>`;
   if (!a.meta_error) h += `<div id="creSection"><div class="sec">Creatives <small>loading every running ad…</small></div><div class="skel" style="height:60px"></div></div>`;
   document.getElementById('adsBody').innerHTML = h;
   renderSold();
@@ -284,6 +284,73 @@ async function adToggle(adId, status, btn) {
 }
 function todayIst() { return new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10); }
 async function runAi() { try { await api({ action: 'ai_run', force: true }); } catch (e) { alert(e.message); return; } _ai = { ...(_ai || {}), running: { started: new Date().toISOString() } }; renderAi(); }
+// ---- Planner: designs × creatives, and what it takes to reach a revenue target. Arithmetic only, assumptions stated. ----
+let _plan7 = null, _planTarget = 120000, _planLoading = false;
+async function loadPlan7() {
+  if (_plan7 || _planLoading) return; _planLoading = true;
+  try { const t = istToday(); _plan7 = await api({ action: 'shop', since: addD(t, -6), until: t }); } catch (e) { _plan7 = { error: e.message }; }
+  _planLoading = false; renderPlan();
+}
+function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function creativeDesigns(c, designs) {
+  const out = {};
+  for (const it of ((c.shopify && c.shopify.items) || [])) out[it.title] = (out[it.title] || 0) + it.qty;
+  const hay = ' ' + norm(c.name + ' ' + (c.title || '') + ' ' + (c.body || '')) + ' ';
+  for (const d of designs) { const t = norm(d.title); if (t.length >= 5 && hay.includes(' ' + t + ' ')) out[d.title] = out[d.title] || 0; }
+  return Object.keys(out);
+}
+function renderPlan() {
+  const el = document.getElementById('planSection'); if (!el || !_ads || !_ads.creatives) return;
+  if (!_plan7) { loadPlan7(); el.innerHTML = '<div class="sec">Plan <small>loading 7-day store numbers…</small></div>'; return; }
+  if (_plan7.error) { el.innerHTML = `<div class="sec">Plan</div><div class="warn">${esc(_plan7.error)}</div>`; return; }
+  const cre = (_ads.creatives.list || []).filter(c => c.last7 && c.last3);
+  const S = _plan7, designs = S.designs || [];
+  const revDay = S.revenue / 7, spendDay = cre.reduce((n, c) => n + c.last7.spend, 0) / 7, blended = spendDay ? revDay / spendDay : 0;
+  const byDesign = {}; for (const d of designs) byDesign[d.title] = { title: d.title, qty7: d.l7, cover: d.cover_days, creatives: [], running: 0, tired: 0, spend: 0 };
+  for (const c of cre) {
+    const R = ruleRead(c.last3, c.last7, c.prev7 || {}, c.active_days || 0);
+    for (const t of creativeDesigns(c, designs)) { const b = (byDesign[t] ||= { title: t, qty7: 0, cover: null, creatives: [], running: 0, tired: 0, spend: 0 }); b.creatives.push({ name: c.name, tag: R.tag, roas: c.last7.roas, spend: c.last7.spend }); if (c.running) b.running++; if (/fatigue|fading|pause/.test(R.tag)) b.tired++; b.spend += c.last7.spend; }
+  }
+  const rows = Object.values(byDesign).filter(b => b.qty7 > 0 || b.creatives.length).sort((a, b) => b.qty7 - a.qty7);
+  const advise = b => {
+    if (b.qty7 >= 5 && b.running === 0) return ['build', `Sells ${b.qty7}/wk with no ad: brief 2 creatives.`];
+    if (b.running && b.tired >= Math.max(1, Math.ceil(b.running / 2))) return ['variations', `${b.tired} of ${b.running} running ads are tiring: cut ${b.tired + 1} fresh variations.`];
+    if (b.qty7 >= 8 && b.running === 1) return ['variations', `One ad carries ${b.qty7}/wk: add 2 variations so it does not depend on one cut.`];
+    if (b.cover != null && b.cover <= 5 && b.running) return ['stock', `Only ${b.cover} days of stock: paint before scaling.`];
+    if (b.running >= 3 && b.qty7 < 3) return ['too many', `${b.running} ads for ${b.qty7} pcs/wk: trim to the best one.`];
+    return b.running ? ['ok', `${b.running} running, ${b.qty7} pcs/wk.`] : ['—', `${b.qty7} pcs/wk, no ad.`];
+  };
+  const adCls = k => ({ build: 'picking', variations: 'needs', stock: 'fatigued', 'too many': 'dropping', ok: 'steady' }[k] || 'quiet');
+  const more = !!_shopMore.plan, show = more ? rows : rows.slice(0, 12);
+  let h = `<div class="sec">Designs × creatives <small>last 7 days · which design each ad pushes (from what it sold and its name/copy)</small></div><table><thead><tr><th>Design</th><th class="num">Pcs/wk</th><th class="num">Ads</th><th class="num">Ad spend</th><th>Read</th></tr></thead><tbody>${show.map((b, i) => { const [k, why] = advise(b); return `<tr class="prow" onclick="togglePr('pl${i}')"><td><span id="pr-arr-pl${i}" class="arr">▸</span> ${esc(b.title)}${b.cover != null && b.cover <= 5 ? ` <span class="cov bad">${b.cover}d stock</span>` : ''}</td><td class="num">${b.qty7}</td><td class="num">${b.running}${b.tired ? ` <span class="note">(${b.tired} tiring)</span>` : ''}</td><td class="num">${inr(b.spend)}</td><td><span class="hl ${adCls(k)}">${k}</span> <span class="note">${esc(why)}</span></td></tr><tr id="pr-pl${i}" style="display:none"><td colspan="5" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${b.creatives.map(c => `<li>${esc(c.name)} · <span class="hl ${tagCls(c.tag)}">${c.tag}</span> · ROAS ${c.roas} · ${inr(c.spend)}/wk</li>`).join('') || '<li>No ad found for this design</li>'}</ul></td></tr>`; }).join('')}</tbody></table>`;
+  if (rows.length > 12) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore.plan=!_shopMore.plan;renderPlan()">${more ? 'Show less' : `Show all ${rows.length}`}</button></div>`;
+  const T = _planTarget, gap = T - revDay;
+  const DECAY = 0.85, HIT = 3;
+  const steps = []; let addSpend = 0, addRev = 0, freed = 0;
+  for (const c of cre) {
+    const R = ruleRead(c.last3, c.last7, c.prev7 || {}, c.active_days || 0), d = c.last7.spend / 7;
+    if (R.tag === 'scale') { const e = d * 0.2; addSpend += e; addRev += e * c.last7.roas * DECAY; steps.push({ name: c.name, what: `+20% (₹${Math.round(d)} → ₹${Math.round(d * 1.2)}/day)`, rev: e * c.last7.roas * DECAY, spend: e }); }
+    else if (R.tag === 'hold' && c.last7.roas >= 2.5) { const e = d * 0.1; addSpend += e; addRev += e * c.last7.roas * DECAY; steps.push({ name: c.name, what: `+10% (₹${Math.round(d)} → ₹${Math.round(d * 1.1)}/day)`, rev: e * c.last7.roas * DECAY, spend: e }); }
+    else if (R.tag === 'pause' && c.running) { freed += d; steps.push({ name: c.name, what: `pause, frees ₹${Math.round(d)}/day`, rev: -d * c.last7.roas, spend: -d }); }
+  }
+  const healthy = cre.filter(c => /scale|hold/.test(ruleRead(c.last3, c.last7, c.prev7 || {}, c.active_days || 0).tag));
+  const perNewRev = healthy.length ? healthy.reduce((n, c) => n + c.last7.purchase_value, 0) / healthy.length / 7 : revDay * 0.05;
+  const perNewSpend = healthy.length ? healthy.reduce((n, c) => n + c.last7.spend, 0) / healthy.length / 7 : spendDay * 0.05;
+  const stillGap = Math.max(0, gap - addRev), newAds = Math.ceil(stillGap / Math.max(perNewRev, 1)), briefs = newAds * HIT;
+  const newSpend = newAds * perNewSpend, totalSpend = spendDay + addSpend - freed + newSpend, totalRev = revDay + addRev + newAds * perNewRev;
+  const f = v => '₹' + Math.round(v).toLocaleString('en-IN');
+  h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Reach a daily revenue <small>arithmetic on the last 7 days, not a forecast</small><span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.8rem">target ₹<input type="number" value="${T}" step="5000" style="width:100px;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:8px" onchange="_planTarget=+this.value||0;renderPlan()">/day</span></div>`;
+  h += `<div class="tiles">${[[f(revDay), 'Now per day', `${S.orders} orders in 7d`], [f(spendDay), 'Ad spend per day', `blended ROAS ${blended.toFixed(2)}`], [f(T), 'Target per day', gap > 0 ? `gap ${f(gap)}` : 'already there'], [f(totalSpend), 'Budget needed', `≈ ${f(totalRev)}/day · ROAS ${totalSpend ? (totalRev / totalSpend).toFixed(2) : '—'}`]].map(([n, l, s2]) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s2}</div></div>`).join('')}</div>`;
+  if (gap > 0) {
+    h += `<div class="vd watch" style="margin-bottom:10px"><b>Path, in order</b><ol style="margin:6px 0 0 18px;padding:0;line-height:1.6">`;
+    h += `<li><b>Scale what works</b>: ${steps.filter(x => x.spend > 0).length} ads, +${f(addSpend)}/day for about +${f(addRev)}/day.</li>`;
+    if (freed) h += `<li><b>Pause the losers</b>: frees ${f(freed)}/day (drops about ${f(-steps.filter(x => x.spend < 0).reduce((n, x) => n + x.rev, 0))}/day of low-ROAS revenue).</li>`;
+    h += `<li><b>New creatives</b>: still ${f(stillGap)}/day short. A working creative here averages ${f(perNewRev)}/day on ${f(perNewSpend)}/day, so you need about <b>${newAds} more working ads</b>. About 1 in ${HIT} briefs works, so brief <b>${briefs}</b>. Start with the "build" and "variations" rows above.</li>`;
+    h += `</ol><div class="note" style="margin-top:6px">Assumes ROAS slips ~15% when an ad's budget rises, that new ads perform like today's healthy ones, and that today's fatigued ads keep fading. None of that is guaranteed: treat the budget as the order of magnitude, move in 20% steps, and re-read every 3 days.</div></div>`;
+    if (steps.length) h += `<details><summary class="note" style="cursor:pointer">Per-ad moves (${steps.length})</summary><table style="margin-top:6px"><thead><tr><th>Ad</th><th>Move</th><th class="num">Spend/day</th><th class="num">Revenue/day</th></tr></thead><tbody>${steps.sort((a, b) => b.rev - a.rev).map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.what)}</td><td class="num">${x.spend > 0 ? '+' : ''}${f(x.spend)}</td><td class="num">${x.rev > 0 ? '+' : ''}${f(x.rev)}</td></tr>`).join('')}</tbody></table></details>`;
+  }
+  el.innerHTML = h;
+}
 function renderAudience() {
   const el = document.getElementById('audSection'); if (!el) return;
   if (!_aud) { el.innerHTML = '<div class="sec">Audience <small>loading…</small></div><div class="skel" style="height:40px"></div>'; return; }
@@ -305,6 +372,7 @@ function renderCreatives() {
     h += L.length ? `<div class="cre">${L.map((r, i) => `<div class="cc" onclick="openCreative(${i})"><div class="tags">${r.accounts.map(x => `<span class="tag ${/pdt/i.test(x) ? 'pdt' : 'ist'}">${esc(x)}</span>`).join('')}${r.copies > 1 ? `<span class="tag dup">×${r.copies}</span>` : ''}${r.running ? '' : '<span class="tag off">paused</span>'}${r.is_video ? '<span class="tag">▶</span>' : ''}</div>${r.thumb ? `<img src="${esc(r.thumb)}" alt="" loading="lazy">` : '<div class="ph"></div>'}<div class="b">${(() => { if (!r.last7 || !r.last3) return ''; const R = ruleRead(r.last3, r.last7, r.prev7 || {}, r.active_days || 0); return `<span class="hl ${tagCls(R.tag)}" title="${esc(R.action)} ${esc(R.why.join(' '))}">${esc(R.tag)}</span>`; })()}${(SHOW_AI && _ai && _ai.notes && _ai.notes[r.key]) ? `<span class="hl ${verdictCls(_ai.notes[r.key].verdict)}" title="${esc(_ai.notes[r.key].reason || '')}">🐦 ${esc(_ai.notes[r.key].verdict)}</span>` : ''}<div class="nm" title="${esc(r.name)}">${esc(r.name)}</div><div class="m"><span>ROAS <b>${r.roas}</b></span><span><b>${inr(r.spend)}</b></span><span class="sold-h" onclick="event.stopPropagation();toggleSold(${i})" style="cursor:pointer;color:#1a7f37" title="Meta-attributed purchases · Shopify orders that carried this ad">${r.purchases} Meta · ${r.shopify ? r.shopify.orders : 0} Shopify <span id="sold-arr-${i}">▾</span></span></div><div class="sold" id="sold-${i}" style="display:none" onclick="event.stopPropagation()">${(r.shopify && r.shopify.items && r.shopify.items.length) ? `<ul>${r.shopify.items.map(it => `<li>${esc(it.title)} <b>×${it.qty}</b></li>`).join('')}</ul>` : `<div class="note">No matched Shopify order.</div>`}</div></div></div>`).join('')}</div>` : '<div class="note">No running creatives found in this range.</div>';
   }
   el.innerHTML = h;
+  renderPlan();
 }
 function toggleSold(i) { const u = document.getElementById('sold-' + i), a = document.getElementById('sold-arr-' + i); const open = u.style.display === 'none'; u.style.display = open ? '' : 'none'; if (a) a.textContent = open ? '▴' : '▾'; }
 let _collMore = false, _soldMore = false;
