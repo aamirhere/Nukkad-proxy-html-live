@@ -574,6 +574,8 @@ async function openDesign(pid, i) {
   const row = document.getElementById('dsg-' + i), body = document.getElementById('dsg-body-' + i);
   if (!row) return;
   if (row.style.display !== 'none') { row.style.display = 'none'; return; }
+  // One story open at a time
+  document.querySelectorAll('tr[id^="dsg-"]').forEach(r => { if (r !== row) r.style.display = 'none'; });
   row.style.display = '';
   if (_design[pid]) { _design[pid]._i = i; body.innerHTML = renderDesign(_design[pid]); return; }
   body.innerHTML = '<div class="skel" style="height:60px"></div>';
