@@ -745,6 +745,7 @@ async function refreshAll() {
 _g = { ...presetRange('today'), label: 'today' }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
 loadAds(); loadBlocks(); loadCrawl();
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
+setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
 setInterval(() => {
   if (document.hidden) return;
   loadBlocks();
