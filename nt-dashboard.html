@@ -286,6 +286,13 @@ function togglePr(i) { const r = document.getElementById('pr-' + i), a = documen
 function toggleColl(i) { const r = document.getElementById('coll-' + i); if (r) r.style.display = r.style.display === 'none' ? '' : 'none'; }
 let _cre = [], _creIdx = -1, _creSort = 'roas';
 function openCreative(i) { _creIdx = i; document.getElementById('creModal').classList.add('open'); loadCreative(); }
+function chartTip(ev, date, val) {
+  let t = document.getElementById('chartTip');
+  if (!t) { t = document.createElement('div'); t.id = 'chartTip'; t.style.cssText = 'position:fixed;z-index:99;background:#3a2b1d;color:#fff;font-size:.75rem;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap;display:none'; document.body.appendChild(t); }
+  if (!ev) { t.style.display = 'none'; return; }
+  const p = ev.touches ? ev.touches[0] : ev;
+  t.textContent = `${date} · ${val}`; t.style.display = 'block'; t.style.left = (p.clientX + 12) + 'px'; t.style.top = (p.clientY - 28) + 'px';
+}
 function lineChart(series, key, color, fmt) {
   const W = 600, H = 210, L = 58, R = 12, T = 14, B = 34, n = series.length;
   const vals = series.map(r => +r[key] || 0), max = Math.max(...vals, 0.0001);
@@ -294,9 +301,12 @@ function lineChart(series, key, color, fmt) {
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="#e9ddca" stroke-width="1"/><text x="${L - 6}" y="${y(max * f) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${fmt(max * f)}</text>`).join('');
   const step = n > 20 ? 5 : n > 10 ? 2 : 1;
   const xTicks = series.map((r, i) => (i % step === 0 || i === n - 1) ? `<text x="${x(i)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${r.date.slice(8)}/${r.date.slice(5, 7)}</text>` : '').join('');
-  const dots = vals.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${color}"><title>${series[i].date}: ${fmt(v)}</title></circle>`).join('');
+  // A value label on every point when the range is short; hover targets are wide columns, not the tiny dots
+  const colW = (W - L - R) / Math.max(n, 1);
+  const labels = n <= 15 ? vals.map((v, i) => `<text x="${x(i)}" y="${Math.max(T + 10, y(v) - 7)}" font-size="10.5" font-weight="700" fill="${color}" text-anchor="middle">${fmt(v)}</text>`).join('') : '';
+  const dots = vals.map((v, i) => `<rect x="${x(i) - colW / 2}" y="${T}" width="${colW}" height="${H - T - B}" fill="transparent" onmousemove="chartTip(event, '${series[i].date}', '${fmt(v).replace(/'/g, '')}')" onmouseleave="chartTip()" ontouchstart="chartTip(event, '${series[i].date}', '${fmt(v).replace(/'/g, '')}')"/><circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="${color}" pointer-events="none"/>`).join('');
   const last = vals[n - 1], peak = Math.max(...vals), avg = vals.reduce((a, b) => a + b, 0) / (n || 1);
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yTicks}${xTicks}<line x1="${L}" x2="${W - R}" y1="${y(avg)}" y2="${y(avg)}" stroke="${color}" stroke-dasharray="4 4" opacity=".45"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>${dots}</svg><div class="note" style="display:flex;justify-content:space-between;margin-top:4px"><span>latest <b style="color:${color}">${fmt(last)}</b></span><span>avg ${fmt(avg)}</span><span>peak ${fmt(peak)}</span></div>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yTicks}${xTicks}<line x1="${L}" x2="${W - R}" y1="${y(avg)}" y2="${y(avg)}" stroke="${color}" stroke-dasharray="4 4" opacity=".45"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>${labels}${dots}</svg><div class="note" style="display:flex;justify-content:space-between;margin-top:4px"><span>latest <b style="color:${color}">${fmt(last)}</b></span><span>avg ${fmt(avg)}</span><span>peak ${fmt(peak)}</span></div>`;
 }
 let _creData = null;
 async function loadCreative() {
