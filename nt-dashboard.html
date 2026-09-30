@@ -312,18 +312,23 @@ function renderPlan() {
     for (const t of creativeDesigns(c, designs)) { const b = (byDesign[t] ||= { title: t, qty7: 0, cover: null, creatives: [], running: 0, tired: 0, spend: 0 }); b.creatives.push({ name: c.name, tag: R.tag, roas: c.last7.roas, spend: c.last7.spend }); if (c.running) b.running++; if (/fatigue|fading|pause/.test(R.tag)) b.tired++; b.spend += c.last7.spend; }
   }
   const rows = Object.values(byDesign).filter(b => b.qty7 > 0 || b.creatives.length).sort((a, b) => b.qty7 - a.qty7);
+  // Only the sellers get a read: the top 10 by pieces, or anything doing 10+ a week. Ads are not made for the long tail.
+  const TOPN = 10, sellers = new Set(rows.slice(0, TOPN).concat(rows.filter(b => b.qty7 >= 10)).map(b => b.title));
   const advise = b => {
-    if (b.qty7 >= 5 && b.running === 0) return ['build', `Sells ${b.qty7}/wk with no ad: brief 2 creatives.`];
-    if (b.running && b.tired >= Math.max(1, Math.ceil(b.running / 2))) return ['variations', `${b.tired} of ${b.running} running ads are tiring: cut ${b.tired + 1} fresh variations.`];
-    if (b.qty7 >= 8 && b.running === 1) return ['variations', `One ad carries ${b.qty7}/wk: add 2 variations so it does not depend on one cut.`];
-    if (b.cover != null && b.cover <= 5 && b.running) return ['stock', `Only ${b.cover} days of stock: paint before scaling.`];
-    if (b.running >= 3 && b.qty7 < 3) return ['too many', `${b.running} ads for ${b.qty7} pcs/wk: trim to the best one.`];
-    return b.running ? ['ok', `${b.running} running, ${b.qty7} pcs/wk.`] : ['—', `${b.qty7} pcs/wk, no ad.`];
+    if (!sellers.has(b.title)) return ['—', '', 0];
+    if (b.running === 0) return ['build', `Sells ${b.qty7}/wk with no ad running: brief 2 creatives.`, 2];
+    if (b.tired >= Math.max(1, Math.ceil(b.running / 2))) return ['variations', `${b.tired} of ${b.running} ads tiring: cut ${b.tired + 1} fresh variations.`, b.tired + 1];
+    if (b.running === 1) return ['variations', `One ad carries ${b.qty7}/wk: add 2 variations so it does not hang on one cut.`, 2];
+    if (b.running >= 4 && b.qty7 < 10) return ['too many', `${b.running} ads for ${b.qty7} pcs/wk: keep the best 2.`, 0];
+    return ['ok', `${b.running} running.`, 0];
   };
-  const adCls = k => ({ build: 'picking', variations: 'needs', stock: 'fatigued', 'too many': 'dropping', ok: 'steady' }[k] || 'quiet');
-  const more = !!_shopMore.plan, show = more ? rows : rows.slice(0, 12);
-  let h = `<div class="sec">Designs × creatives <small>last 7 days · which design each ad pushes (from what it sold and its name/copy)</small></div><table><thead><tr><th>Design</th><th class="num">Pcs/wk</th><th class="num">Ads</th><th class="num">Ad spend</th><th>Read</th></tr></thead><tbody>${show.map((b, i) => { const [k, why] = advise(b); return `<tr class="prow" onclick="togglePr('pl${i}')"><td><span id="pr-arr-pl${i}" class="arr">▸</span> ${esc(b.title)}${b.cover != null && b.cover <= 5 ? ` <span class="cov bad">${b.cover}d stock</span>` : ''}</td><td class="num">${b.qty7}</td><td class="num">${b.running}${b.tired ? ` <span class="note">(${b.tired} tiring)</span>` : ''}</td><td class="num">${inr(b.spend)}</td><td><span class="hl ${adCls(k)}">${k}</span> <span class="note">${esc(why)}</span></td></tr><tr id="pr-pl${i}" style="display:none"><td colspan="5" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${b.creatives.map(c => `<li>${esc(c.name)} · <span class="hl ${tagCls(c.tag)}">${c.tag}</span> · ROAS ${c.roas} · ${inr(c.spend)}/wk</li>`).join('') || '<li>No ad found for this design</li>'}</ul></td></tr>`; }).join('')}</tbody></table>`;
-  if (rows.length > 12) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore.plan=!_shopMore.plan;renderPlan()">${more ? 'Show less' : `Show all ${rows.length}`}</button></div>`;
+  const adCls = k => ({ build: 'picking', variations: 'needs', 'too many': 'dropping', ok: 'steady' }[k] || 'quiet');
+  const lot = rows.map(b => { const [k, why, n] = advise(b); return { b, k, why, n }; }).filter(x => x.n > 0);
+  let h = '';
+  if (lot.length) h += `<div class="vd healthy" style="margin-bottom:10px"><b>🎬 Next creative lot: ${lot.reduce((s, x) => s + x.n, 0)} cuts across ${lot.length} designs</b><ul style="margin:6px 0 0 18px;padding:0;line-height:1.6">${lot.map(x => `<li><b>${esc(x.b.title)}</b> · ${x.n} ${x.k === 'build' ? 'new creatives' : 'variations'} <span class="note">· ${x.b.qty7} pcs/wk · ${esc(x.why)}</span></li>`).join('')}</ul><div class="note" style="margin-top:4px">Based on what sells this week and which running ads are tiring. Re-check after the lot goes live.</div></div>`;
+  const more = !!_shopMore.plan, show = more ? rows : rows.slice(0, 5);
+  h += `<div class="sec">Designs × creatives <small>last 7 days · which design each ad pushes (from what it sold and its name/copy) · reads only for the top sellers</small></div><table><thead><tr><th>Design</th><th class="num">Pcs/wk</th><th class="num">Ads running</th><th class="num">Ad spend/wk</th><th>Read</th></tr></thead><tbody>${show.map((b, i) => { const [k, why] = advise(b); return `<tr class="prow" onclick="togglePr('pl${i}')"><td><span id="pr-arr-pl${i}" class="arr">▸</span> ${esc(b.title)}</td><td class="num"><b>${b.qty7}</b></td><td class="num">${b.running}${b.tired ? ` <span class="note">(${b.tired} tiring)</span>` : ''}</td><td class="num">${inr(b.spend)}</td><td>${k === '—' ? '<span class="note">—</span>' : `<span class="hl ${adCls(k)}">${k}</span> <span class="note">${esc(why)}</span>`}</td></tr><tr id="pr-pl${i}" style="display:none"><td colspan="5" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${b.creatives.map(c => `<li>${esc(c.name)} · <span class="hl ${tagCls(c.tag)}">${c.tag}</span> · ROAS ${c.roas} · ${inr(c.spend)}/wk</li>`).join('') || '<li>No ad found for this design</li>'}</ul></td></tr>`; }).join('')}</tbody></table>`;
+  if (rows.length > 5) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore.plan=!_shopMore.plan;renderPlan()">${more ? 'Show less' : `Show all ${rows.length}`}</button></div>`;
   const T = _planTarget, gap = T - revDay;
   const DECAY = 0.85, HIT = 3;
   const steps = []; let addSpend = 0, addRev = 0, freed = 0;
