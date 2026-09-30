@@ -246,7 +246,7 @@ function renderAdsModal() {
   renderAi(); renderAudience();
   if (a.creatives) renderCreatives();
 }
-const SHOW_AI = false;
+const SHOW_AI = false, SHOW_FORECAST = false;
 let _ai = null, _aud = null, _aiPoll = null;
 async function loadAi() { if (!SHOW_AI) return; try { _ai = await api({ action: 'ai' }); } catch (e) { _ai = { error: e.message }; } renderAi(); if (_ads && _ads.creatives) renderCreatives(); }
 async function loadAudience() { try { _aud = await api({ action: 'audience', ..._range }); } catch (e) { _aud = { error: e.message }; } renderAudience(); }
@@ -329,6 +329,7 @@ function renderPlan() {
   const more = !!_shopMore.plan, show = more ? rows : rows.slice(0, 5);
   h += `<div class="sec">Designs × creatives <small>last 7 days · which design each ad pushes (from what it sold and its name/copy) · reads only for the top sellers</small></div><table><thead><tr><th>Design</th><th class="num">Pcs/wk</th><th class="num">Ads running</th><th class="num">Ad spend/wk</th><th>Read</th></tr></thead><tbody>${show.map((b, i) => { const [k, why] = advise(b); return `<tr class="prow" onclick="togglePr('pl${i}')"><td><span id="pr-arr-pl${i}" class="arr">▸</span> ${esc(b.title)}</td><td class="num"><b>${b.qty7}</b></td><td class="num">${b.running}${b.tired ? ` <span class="note">(${b.tired} tiring)</span>` : ''}</td><td class="num">${inr(b.spend)}</td><td>${k === '—' ? '<span class="note">—</span>' : `<span class="hl ${adCls(k)}">${k}</span> <span class="note">${esc(why)}</span>`}</td></tr><tr id="pr-pl${i}" style="display:none"><td colspan="5" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${b.creatives.map(c => `<li>${esc(c.name)} · <span class="hl ${tagCls(c.tag)}">${c.tag}</span> · ROAS ${c.roas} · ${inr(c.spend)}/wk</li>`).join('') || '<li>No ad found for this design</li>'}</ul></td></tr>`; }).join('')}</tbody></table>`;
   if (rows.length > 5) h += `<div style="text-align:center;margin-top:6px"><button class="btn" onclick="_shopMore.plan=!_shopMore.plan;renderPlan()">${more ? 'Show less' : `Show all ${rows.length}`}</button></div>`;
+  if (SHOW_FORECAST) {
   const T = _planTarget, gap = T - revDay, f = v => '₹' + Math.round(v).toLocaleString('en-IN');
   const DECAY = 0.85;
   const steps = []; let addSpend = 0, addRev = 0;
@@ -342,6 +343,7 @@ function renderPlan() {
   if (!spendDay) h += `<div class="note" style="margin-bottom:8px">No ad spend in the snapshot yet. Numbers fill in once the creatives load.</div>`;
   h += `<div class="tiles">${[[f(revDay), 'Now per day', `${S.orders} orders in 7d`], [f(spendDay), 'Ad spend per day', `blended ROAS ${blended.toFixed(2)}`], [f(T), 'Target per day', gap > 0 ? `gap ${f(gap)}` : 'already there'], [gap > 0 && blended ? f(spendDay + needAtSlip) : '—', 'Spend per day to get there', gap > 0 && blended ? `+${f(needAtSlip)} if ROAS slips 15% · +${f(needAtBlended)} if it holds` : '']].map(([n, l, s2]) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s2}</div></div>`).join('')}</div>`;
   if (gap > 0 && steps.length) h += `<details><summary class="note" style="cursor:pointer">Where the first +${f(addSpend)}/day can go (${steps.length} ads that earn it · about +${f(addRev)}/day)</summary><table style="margin-top:6px"><thead><tr><th>Ad</th><th>Move</th><th class="num">Spend/day</th><th class="num">Revenue/day</th></tr></thead><tbody>${steps.sort((a, b) => b.rev - a.rev).map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.what)}</td><td class="num">+${f(x.spend)}</td><td class="num">+${f(x.rev)}</td></tr>`).join('')}</tbody></table></details>`;
+  }
   el.innerHTML = h;
 }
 function renderAudience() {
@@ -353,12 +355,30 @@ function renderAudience() {
   else h += `<table><thead><tr><th>Audience</th><th class="num">Ads</th><th class="num">Spend</th><th class="num">Meta sales</th><th class="num">Meta ROAS</th><th class="num">Shopify orders</th><th class="num">Shopify ROAS</th><th class="num">CPM</th><th class="num">Freq</th></tr></thead><tbody>${_aud.groups.map(g => `<tr><td><b>${esc(g.audience)}</b></td><td class="num">${g.ads}</td><td class="num">${inr(g.spend)}</td><td class="num">${g.purchases}</td><td class="num">${g.roas}</td><td class="num">${g.shop_orders}</td><td class="num">${g.shop_roas}</td><td class="num">${inr(g.cpm)}</td><td class="num">${g.frequency}</td></tr>`).join('')}</tbody></table><div class="note" style="margin-top:6px">${_aud.unattributed} of ${_aud.shop_orders_total} Shopify orders carried no ad id. ${esc(_aud.note)}</div>${(_aud.daily && _aud.daily.length > 1) ? `<details style="margin-top:8px"><summary class="note" style="cursor:pointer">Day by day (${_aud.daily.length} days)</summary><table style="margin-top:6px"><thead><tr><th>Day</th><th class="num">Engaged spend</th><th class="num">Engaged sales</th><th class="num">Engaged ROAS</th><th class="num">Shopify</th><th class="num">New pool spend</th><th class="num">New pool sales</th><th class="num">New pool ROAS</th><th class="num">Shopify</th></tr></thead><tbody>${_aud.daily.map(d => `<tr><td>${d.day}</td><td class="num">${inr(d.engaged.spend)}</td><td class="num">${d.engaged.purchases}</td><td class="num">${d.engaged.roas}</td><td class="num">${d.engaged.shop}</td><td class="num">${inr(d.new_pool.spend)}</td><td class="num">${d.new_pool.purchases}</td><td class="num">${d.new_pool.roas}</td><td class="num">${d.new_pool.shop}</td></tr>`).join('')}</tbody></table></details>` : ''}`;
   el.innerHTML = h;
 }
+// Which kind of creative earns the sales: AI-made, DS (direct selling), UGC, or a real shoot. Read from the ad names.
+function creativeType(c) {
+  const n = ' ' + (c.name || '') + ' ' + (c.ads || []).map(a => a.name || '').join(' ') + ' ';
+  if (/\bUGC\b/i.test(n)) return 'UGC';
+  if (/\bAI\b/i.test(n)) return 'AI';
+  if (/\bDS\b/i.test(n)) return 'DS';
+  return 'Shoot / mix';
+}
+function creativeTypes(L) {
+  const T = {}; const order = ['AI', 'DS', 'UGC', 'Shoot / mix'];
+  for (const c of L) { const t = (T[creativeType(c)] ||= { type: creativeType(c), n: 0, running: 0, spend: 0, purchases: 0, value: 0, shop: 0, shop_rev: 0, tiring: 0 }); t.n++; if (c.running) t.running++; t.spend += c.spend || 0; t.purchases += c.purchases || 0; t.value += c.purchase_value || 0; t.shop += (c.shopify && c.shopify.orders) || 0; t.shop_rev += (c.shopify && c.shopify.revenue) || 0; if (c.last7 && c.last3 && /fatigue|fading|pause/.test(ruleRead(c.last3, c.last7, c.prev7 || {}, c.active_days || 0).tag)) t.tiring++; }
+  const rows = order.filter(k => T[k]).map(k => T[k]); if (!rows.length) return '';
+  const totS = rows.reduce((s, t) => s + t.spend, 0) || 1, totP = rows.reduce((s, t) => s + t.purchases, 0) || 1, totO = rows.reduce((s, t) => s + t.shop, 0) || 1;
+  const col = { AI: '#7b5ea7', DS: '#d4541f', UGC: '#1a7f37', 'Shoot / mix': '#1a3f9c' };
+  const seg = (key, tot) => `<div class="mix-bar" style="height:14px">${rows.map(t => `<span style="width:${t[key] / tot * 100}%;background:${col[t.type]}" title="${t.type} ${Math.round(t[key] / tot * 100)}%"></span>`).join('')}</div>`;
+  return `<div class="sec">Creative types <small>from the ad names: AI, DS = direct selling, UGC, else a real shoot or mix · selected range</small></div><div class="tile" style="margin-bottom:12px"><div class="mixes" style="margin-bottom:8px"><div><div class="mix-h"><span>Share of spend</span></div>${seg('spend', totS)}</div><div><div class="mix-h"><span>Share of Meta sales</span></div>${seg('purchases', totP)}</div><div><div class="mix-h"><span>Share of Shopify orders</span></div>${seg('shop', totO)}</div></div><table style="margin:0"><thead><tr><th>Type</th><th class="num">Creatives</th><th class="num">Running</th><th class="num">Spend</th><th class="num">Meta sales</th><th class="num">ROAS</th><th class="num">Shopify orders</th><th class="num">Shopify ROAS</th><th class="num">Tiring</th></tr></thead><tbody>${rows.map(t => `<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col[t.type]};margin-right:6px;vertical-align:middle"></i><b>${t.type}</b></td><td class="num">${t.n}</td><td class="num">${t.running}</td><td class="num">${inr(t.spend)} <span class="note">${Math.round(t.spend / totS * 100)}%</span></td><td class="num">${t.purchases} <span class="note">${Math.round(t.purchases / totP * 100)}%</span></td><td class="num"><b>${t.spend ? (t.value / t.spend).toFixed(2) : '—'}</b></td><td class="num">${t.shop} <span class="note">${Math.round(t.shop / totO * 100)}%</span></td><td class="num">${t.spend ? (t.shop_rev / t.spend).toFixed(2) : '—'}</td><td class="num">${t.tiring}</td></tr>`).join('')}</tbody></table></div>`;
+}
 function renderCreatives() {
   const a = _ads, el = document.getElementById('creSection'); if (!el || !a.creatives) return;
   let h = '';
   {
     const c = a.creatives, L = c.list || [];
     const key = _creSort; L.sort((x, y) => (y[key] - x[key]) || (y.spend - x.spend));
+    h += creativeTypes(L);
     h += `<div class="sec" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Creatives <small>${esc(a.creatives_range)} · ${L.length} creatives across ${c.ads_seen} ads · ${inr(c.total_spend)} spent · ${c.utm_orders || 0} Shopify orders matched to ads · tap one for its history</small><select onchange="_creSort=this.value;renderCreatives()" style="margin-left:auto;font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:8px">${[['roas', 'ROAS high → low'], ['spend', 'Spend high → low'], ['purchases', 'Sales high → low'], ['ctr', 'CTR high → low']].map(([v, l]) => `<option value="${v}"${v === key ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`;
     _cre = L;
     if (c.errors && c.errors.length) h += `<div class="warn">${c.errors.map(esc).join('<br>')}</div>`;
