@@ -1707,6 +1707,8 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <p id="dvSub" style="margin-bottom:10px"></p>
     <input type="search" id="dvSearch" placeholder="🧘 Tap to check design by design…" readonly onclick="dzOpen()" onfocus="this.blur();dzOpen()" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid var(--accent);border-radius:10px;font-family:inherit;font-size:.9rem;margin-bottom:8px;background:#fdf5ec;color:var(--accent);font-weight:700;cursor:pointer">
     <div id="dvBody"></div>
+    <div id="dvExtra"></div>
+    <button class="btn btn-ghost" style="margin-top:6px;font-size:.8rem" onclick="dvAddOpen()">＋ Add a design that arrived but is not on the list</button>
     <div id="dvTotals" style="font-size:.8rem;color:var(--ink2);margin:8px 0"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="dvClose()">Later</button>
@@ -2188,7 +2190,7 @@ function dvOpenAll() {
   dvRender({ ids: _incoming.map(l => l.id), title: `Carton check · ${_incoming.length} lists together`, sub: `${pcs} pcs across ${items.length} designs from ${_incoming.map(l => { const [y, m, d] = l.dispatch_date.split('-'); return d + '-' + m; }).join(' + ')}. Count each design once; the numbers are matched back to the lists for you.`, items });
 }
 function dvRender(v) {
-  _dvList = v;
+  _dvList = v; _dvExtra = []; const ex = document.getElementById('dvExtra'); if (ex) ex.innerHTML = '';
   v.items = [...v.items].sort((a, b) => ((b.emergency || 0) > 0) - ((a.emergency || 0) > 0) || (b.emergency || 0) - (a.emergency || 0) || ((b.fba || 0) > 0) - ((a.fba || 0) > 0) || b.qty - a.qty);
   document.getElementById('dvTitle').textContent = v.title;
   document.getElementById('dvSub').textContent = v.sub;
@@ -2237,25 +2239,46 @@ function dvChanged(i, inp) {
   dvTotals();
   dvSaveDraft();
 }
+let _dvExtra = [];
+function dvAddOpen() {
+  _dlSwap = { dv: true };
+  dlSwapOpen('', 0, '', 0);
+  document.getElementById('dlSwapFrom').textContent = 'Pick the design that arrived. You will then type how many.';
+  document.querySelector('#dlSwapModal div div').textContent = 'Add a design';
+  _dlSwap = { dv: true };
+}
+function dvAddPick(handle, title) {
+  dlSwapClose();
+  if (_dvExtra.some(e => e.handle === handle) || [...document.querySelectorAll('#dvBody .dv-in')].some(i => i.dataset.h === handle)) { toast('Already on the list: change its number instead'); return; }
+  _dvExtra.push({ handle, title });
+  dvRenderExtra();
+  setTimeout(() => { const i = document.getElementById('dvx-' + handle); if (i) { i.focus(); i.select(); } }, 50);
+}
+function dvRenderExtra() {
+  const el = document.getElementById('dvExtra');
+  el.innerHTML = _dvExtra.length ? `<table style="width:100%;border-collapse:collapse"><tbody><tr><td colspan="3" style="padding:8px 8px 3px;font-size:.7rem;font-weight:800;letter-spacing:.05em;color:#1a7f37">➕ NOT ON THE LIST — arrived anyway</td></tr>${_dvExtra.map(e => `<tr class="dv-row diff"><td><b>${e.title}</b><div style="font-size:.68rem;color:var(--muted)">sent 0 · goes on the list as stock</div></td><td style="text-align:right;color:var(--muted)">0</td><td style="text-align:right;white-space:nowrap"><input type="number" min="0" inputmode="numeric" class="dv-in-extra" id="dvx-${e.handle}" value="${e.qty || ''}" placeholder="0" oninput="dvTotals()" style="width:64px"> <button onclick="_dvExtra=_dvExtra.filter(x=>x.handle!=='${e.handle}');dvRenderExtra();dvTotals()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem" title="Remove">✕</button></td></tr>`).join('')}</tbody></table>` : '';
+}
 function dvTotals() {
   const ins = [...document.querySelectorAll('#dvBody .dv-in')];
-  const counted = ins.reduce((s, i) => s + (parseInt(i.value, 10) || 0), 0), sent = ins.reduce((s, i) => s + parseInt(i.dataset.sent, 10), 0);
-  const diffs = ins.filter(i => (parseInt(i.value, 10) || 0) !== parseInt(i.dataset.sent, 10)).length;
+  const extraQty = [...document.querySelectorAll('#dvExtra .dv-in-extra')].reduce((s, i) => s + (parseInt(i.value, 10) || 0), 0);
+  const counted = ins.reduce((s, i) => s + (parseInt(i.value, 10) || 0), 0) + extraQty, sent = ins.reduce((s, i) => s + parseInt(i.dataset.sent, 10), 0);
+  const diffs = ins.filter(i => (parseInt(i.value, 10) || 0) !== parseInt(i.dataset.sent, 10)).length + (extraQty ? _dvExtra.length : 0);
   document.getElementById('dvTotals').innerHTML = diffs ? `<b>${counted}</b> counted vs ${sent} sent · <span style="color:#b05000;font-weight:700">${diffs} design${diffs !== 1 ? 's' : ''} differ</span>` : `<b>${counted}</b> counted · matches what was sent`;
 }
 function dvClose() { dvSaveDraft(); document.getElementById('dvModal').classList.remove('open'); loadIncoming(); }
 async function dvConfirm() {
   if (!_dvList) return;
   const counts = [...document.querySelectorAll('#dvBody .dv-in')].map(i => ({ handle: i.dataset.h, counted: parseInt(i.value, 10) || 0 }));
+  const extra = _dvExtra.map(e => ({ handle: e.handle, title: e.title, qty: parseInt(document.getElementById('dvx-' + e.handle)?.value, 10) || 0 })).filter(e => e.qty > 0);
   const broken = [...document.querySelectorAll('#dvBody .dv-broken')].map(i => ({ handle: i.dataset.h, title: i.dataset.title, qty: parseInt(i.value, 10) || 0 })).filter(b => b.qty > 0);
   if (broken.length && !confirm(`${broken.reduce((s, b) => s + b.qty, 0)} broken piece${broken.reduce((s, b) => s + b.qty, 0) !== 1 ? 's' : ''} → ask production to make them again?\n\n${broken.map(b => `${b.qty}× ${b.title}`).join('\n')}\n\nThey appear on the Emergency page as "Replacement".`)) return;
   const btn = document.getElementById('dvConfirmBtn'); btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const r = _dvList.ids.length > 1 ? await api({ action: 'dispatch_verify_multi', ids: _dvList.ids, counts, broken }) : await api({ action: 'dispatch_verify', id: _dvList.ids[0], counts, broken });
+    const r = _dvList.ids.length > 1 ? await api({ action: 'dispatch_verify_multi', ids: _dvList.ids, counts, broken, extra }) : await api({ action: 'dispatch_verify', id: _dvList.ids[0], counts, broken, extra });
     const rep = r.replacements ? ` · ${r.replacements} replacement${r.replacements !== 1 ? 's' : ''} requested` : '';
     toast(r.changed ? `✓ Confirmed — ${r.changed} line${r.changed !== 1 ? 's' : ''} corrected${rep}` : `✓ Confirmed — matches${rep}`);
     try { localStorage.removeItem(dvDraftKey(_dvList.ids)); for (const id of _dvList.ids) localStorage.removeItem(dvDraftKey([id])); } catch {}
-    _dvList = null; document.getElementById('dvModal').classList.remove('open'); loadIncoming();
+    _dvList = null; _dvExtra = []; document.getElementById('dvModal').classList.remove('open'); loadIncoming();
     const res = await api({ action: 'load_products' }); allProducts = res.products || []; renderInventory();
   } catch (e) { toast('Failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '✓ Confirm list'; }
@@ -5372,6 +5395,7 @@ function dlSwapOpen(id, idx, title, qty) {
     </div>`;
     document.body.appendChild(m);
   }
+  document.querySelector('#dlSwapModal div div').textContent = 'Change design';
   document.getElementById('dlSwapFrom').textContent = `${title} · ${qty} pcs stays ${qty} pcs on the new design`;
   const inp = document.getElementById('dlSwapInput'); inp.value = '';
   document.getElementById('dlSwapList').style.display = 'none';
@@ -5396,6 +5420,7 @@ function dlSwapSearch(raw) {
 }
 async function dlSwapPick(handle, title) {
   if (!_dlSwap) return;
+  if (_dlSwap.dv) { dvAddPick(handle, title); return; }
   const { id, idx } = _dlSwap;
   const list = document.getElementById('dlSwapList');
   list.innerHTML = '<div style="padding:10px;font-size:.8rem;color:var(--ink2)">Changing…</div>';
