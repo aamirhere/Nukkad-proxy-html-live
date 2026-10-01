@@ -305,6 +305,8 @@ function renderAdsBlock() {
 }
 function renderAdsModal() {
   const a = _ads, b = a.blended, s = a.shopify;
+  // same-hour figures from the pace read, only when the popup is on today and the pace day is today
+  const same = (a.since === istToday() && a.until === istToday() && _pace && _pace.is_today && _pace.day === istToday()) ? { ..._pace.so_far, at: _pace.at } : null;
   const lbl = a.since === a.until ? a.since : `${a.since} → ${a.until} (${a.days} days)`;
   const prevLbl = a.days === 1 ? 'previous day' : `previous ${a.days} days`;
   document.getElementById('adsWhen').textContent = `${lbl} · fetched ${new Date(a.generated_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })} IST`;
@@ -313,9 +315,9 @@ function renderAdsModal() {
   let h = '';
   if (a.meta_error) h += `<div class="warn"><b>Meta not connected:</b> ${esc(a.meta_error)}. Add a System User token as <code>META_ACCESS_TOKEN</code> in Netlify (ads_read scope) and refresh. Shopify figures below are live.</div>`;
   h += `<div class="tiles">
-    ${tile(a.meta_error ? '—' : inr(b.spend_today), 'Spend', `${prevLbl} ${inr(b.spend_yesterday)}`)}
-    ${tile(`${inr(s.today.revenue)} <span style="font-size:.6em;white-space:nowrap">· ${s.today.orders} orders</span>`, 'Shopify revenue', `${prevLbl} ${inr(s.yesterday.revenue)} · ${s.yesterday.orders} orders<br><b>${s.today.new_customers ?? '–'}</b> new · <b>${s.today.returning_customers ?? '–'}</b> returning · ${s.today.cod} COD`)}
-    ${tile(a.meta_error ? '—' : x(b.roas_today), 'Blended ROAS', `${prevLbl} ${x(b.roas_yesterday)}`)}
+    ${tile(a.meta_error ? '—' : inr(b.spend_today), 'Spend', `${prevLbl} ${inr(b.spend_yesterday)}${same ? `<br><b>${inr(same.spend_prev)}</b> yesterday by ${same.at}` : ''}`)}
+    ${tile(`${inr(s.today.revenue)} <span style="font-size:.6em;white-space:nowrap">· ${s.today.orders} orders</span>`, 'Shopify revenue', `${prevLbl} ${inr(s.yesterday.revenue)} · ${s.yesterday.orders} orders${same ? `<br><b>${inr(same.rev_prev)}</b> · <b>${same.orders_prev}</b> orders yesterday by ${same.at}` : ''}<br><b>${s.today.new_customers ?? '–'}</b> new · <b>${s.today.returning_customers ?? '–'}</b> returning · ${s.today.cod} COD`)}
+    ${tile(a.meta_error ? '—' : x(b.roas_today), 'Blended ROAS', `${prevLbl} ${x(b.roas_yesterday)}${same ? `<br><b>${same.roas_prev}</b> yesterday by ${same.at}` : ''}`)}
     ${tile(a.meta_error || b.cpm_today == null ? '—' : inr2(b.cpm_today), 'CPM', 'blended, both accounts')}
     ${tile(s.best_seller ? esc(s.best_seller.title) : '—', 'Best seller', s.best_seller ? `${s.best_seller.qty} pcs · ${inr(s.best_seller.revenue)}` : 'no orders')}
     ${tile(s.best_collection[0] ? esc(s.best_collection[0].title) : '—', 'Best collection', s.best_collection[0] ? `${s.best_collection[0].qty} pcs` : '')}
@@ -840,7 +842,7 @@ async function loadPace(force) {
   const body = document.getElementById('paceBody'), seq = ++_paceSeq;
   const dayEl = document.getElementById('paceDay'); if (!dayEl.value) dayEl.value = istToday();
   if (force) document.getElementById('pace').classList.add('loading'); else body.innerHTML = '<div class="skel" style="height:120px"></div>';
-  try { const d = await api({ action: 'pace', day: dayEl.value, compare: document.getElementById('paceCmp').value }); if (seq !== _paceSeq) return; _pace = d; renderPace(); }
+  try { const d = await api({ action: 'pace', day: dayEl.value, compare: document.getElementById('paceCmp').value }); if (seq !== _paceSeq) return; _pace = d; renderPace(); if (_ads && document.getElementById('adsModal').classList.contains('open')) renderAdsModal(); }
   catch (e) { if (seq !== _paceSeq) return; body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
   document.getElementById('pace').classList.remove('loading');
 }
