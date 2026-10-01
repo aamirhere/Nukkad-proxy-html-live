@@ -174,6 +174,18 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     </div>
     <div id="paceBody"><div class="skel" style="height:120px"></div></div>
   </section>
+  <section id="basket" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">🧺 AOV &amp; baskets</h2>
+      <span class="note" id="bkWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="bkGroup" onchange="loadBasket(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="week">by week</option><option value="month">by month</option></select>
+        <select id="bkDays" onchange="loadBasket(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="30">last 30 days</option><option value="60">last 60 days</option><option value="90" selected>last 90 days</option><option value="180">last 180 days</option></select>
+        <button class="btn" onclick="loadBasket(true)">↻</button>
+      </span>
+    </div>
+    <div id="bkBody"><div class="skel" style="height:120px"></div></div>
+  </section>
 </main>
 
 <div class="modal" id="shopModal" onclick="if(event.target===this)this.classList.remove('open')">
@@ -568,6 +580,90 @@ function lineChart(series, key, color, fmt) {
   const last = vals[n - 1], peak = Math.max(...vals), avg = vals.reduce((a, b) => a + b, 0) / (n || 1);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yTicks}${xTicks}<line x1="${L}" x2="${W - R}" y1="${y(avg)}" y2="${y(avg)}" stroke="${color}" stroke-dasharray="4 4" opacity=".45"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>${labels}${dots}</svg><div class="note" style="display:flex;justify-content:space-between;margin-top:4px"><span>latest <b style="color:${color}">${fmt(last)}</b></span><span>avg ${fmt(avg)}</span><span>peak ${fmt(peak)}</span></div>`;
 }
+// ---------- AOV & baskets ----------
+let _bk = null;
+function aovChart(series, baseline) {
+  const W = 600, H = 220, L = 58, R = 12, T = 16, B = 34, n = series.length;
+  const vals = series.map(r => r.aov), max = Math.max(...vals, baseline * 1.15, 1), min = 0;
+  const x = i => L + (i + 0.5) / Math.max(n, 1) * (W - L - R), y = v => T + (1 - (v - min) / (max - min)) * (H - T - B);
+  const yT = [0, 0.25, 0.5, 0.75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="#e9ddca"/><text x="${L - 6}" y="${y(max * f) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${inr(max * f)}</text>`).join('');
+  const colW = (W - L - R) / Math.max(n, 1);
+  const lbl = r => _bk.group === 'month' ? new Date(r.key + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' }) : `${r.key.slice(8)}/${r.key.slice(5, 7)}`;
+  const step = n > 16 ? 2 : 1;
+  const xT = series.map((r, i) => i % step === 0 || i === n - 1 ? `<text x="${x(i)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${lbl(r)}</text>` : '').join('');
+  const bars = series.map((r, i) => { const col = r.aov >= baseline ? '#2e8b57' : '#d4541f'; const w = Math.min(colW * 0.6, 34); return `<rect x="${x(i) - w / 2}" y="${y(r.aov)}" width="${w}" height="${Math.max(0, y(0) - y(r.aov))}" rx="4" fill="${col}" opacity="${r.partial ? .45 : .9}"/><text x="${x(i)}" y="${y(r.aov) - 5}" font-size="10.5" font-weight="700" fill="${col}" text-anchor="middle">${n <= 14 ? inr(r.aov) : ''}</text><rect x="${x(i) - colW / 2}" y="${T}" width="${colW}" height="${H - T - B}" fill="transparent" onmousemove="chartTip(event, '${_bk.group === 'month' ? r.key : 'week of ' + r.key}', 'AOV ${inr(r.aov)} · ${r.orders} orders · ${r.over_share}% ≥ ${inr(baseline)} · ${r.multi_share}% multi · ${r.custom_share}% custom${r.partial ? ' (so far)' : ''}')" onmouseleave="chartTip()"/>`; }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yT}${xT}${bars}<line x1="${L}" x2="${W - R}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="#3a2b1d" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${W - R}" y="${y(baseline) - 5}" font-size="10.5" font-weight="700" fill="#3a2b1d" text-anchor="end">base ${inr(baseline)}</text></svg>`;
+}
+function shareChart(series, keys, colors, labels) {
+  const W = 600, H = 170, L = 44, R = 12, T = 14, B = 34, n = series.length;
+  const x = i => L + (i / Math.max(n - 1, 1)) * (W - L - R), y = v => T + (1 - v / 100) * (H - T - B);
+  const yT = [0, 25, 50, 75, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#e9ddca"/><text x="${L - 6}" y="${y(v) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${v}%</text>`).join('');
+  const lbl = r => _bk.group === 'month' ? new Date(r.key + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' }) : `${r.key.slice(8)}/${r.key.slice(5, 7)}`;
+  const step = n > 16 ? 2 : 1;
+  const xT = series.map((r, i) => i % step === 0 || i === n - 1 ? `<text x="${x(i)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${lbl(r)}</text>` : '').join('');
+  const lines = keys.map((k, j) => `<polyline points="${series.map((r, i) => `${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join(' ')}" fill="none" stroke="${colors[j]}" stroke-width="2"/>${series.map((r, i) => `<circle cx="${x(i)}" cy="${y(r[k])}" r="3" fill="${colors[j]}" pointer-events="none"/>`).join('')}`).join('');
+  const colW = (W - L - R) / Math.max(n, 1);
+  const hover = series.map((r, i) => `<rect x="${x(i) - colW / 2}" y="${T}" width="${colW}" height="${H - T - B}" fill="transparent" onmousemove="chartTip(event, '${_bk.group === 'month' ? r.key : 'week of ' + r.key}', '${keys.map((k, j) => `${labels[j]} ${r[k]}%`).join(' · ')}')" onmouseleave="chartTip()"/>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yT}${xT}${lines}${hover}</svg><div class="legend">${keys.map((k, j) => `<span><i style="background:${colors[j]}"></i>${labels[j]}</span>`).join('')}</div>`;
+}
+async function loadBasket(force) {
+  const body = document.getElementById('bkBody');
+  if (force) body.innerHTML = '<div class="skel" style="height:120px"></div>';
+  try { _bk = await api({ action: 'basket', group: document.getElementById('bkGroup').value, days: +document.getElementById('bkDays').value }); }
+  catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  const d = _bk, t = d.total, base = d.baseline;
+  document.getElementById('bkWhen').textContent = `${d.since} → ${d.until} · ${t.orders} orders`;
+  const done = d.series.filter(s => !s.partial), last = done[done.length - 1], prev = done[done.length - 2];
+  const delta = (a, b, f = v => v) => a != null && b != null ? `<span style="color:${a >= b ? '#2e8b57' : '#c0392b'}">${a >= b ? '▲' : '▼'} ${f(Math.abs(a - b))} vs ${d.group === 'month' ? 'last month' : 'last week'}</span>` : '';
+  const tile = (n, l, s, col) => `<div class="tile"><div class="n" style="${col ? 'color:' + col : ''}">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const multi = d.size.find(x => x.units !== '1'), single = d.size.find(x => x.units === '1');
+  const multiAov = d.size.filter(x => x.units !== '1').reduce((a, x) => ({ o: a.o + x.orders, r: a.r + x.revenue }), { o: 0, r: 0 });
+  const cust = d.type.filter(x => x.type.startsWith('custom')).reduce((a, x) => ({ o: a.o + x.orders, r: a.r + x.revenue }), { o: 0, r: 0 });
+  const noCust = d.type.filter(x => !x.type.startsWith('custom')).reduce((a, x) => ({ o: a.o + x.orders, r: a.r + x.revenue }), { o: 0, r: 0 });
+  const mAov = multiAov.o ? Math.round(multiAov.r / multiAov.o) : 0, cAov = cust.o ? Math.round(cust.r / cust.o) : 0, ncAov = noCust.o ? Math.round(noCust.r / noCust.o) : 0;
+  // What would it take to reach the baseline: every extra multi-item order at the multi AOV lifts the blend
+  const needMulti = t.aov < base && mAov > single?.aov ? Math.ceil((base - t.aov) / (mAov - single.aov) * 100) : 0;
+  const read = [];
+  read.push(`AOV is <b>${inr(t.aov)}</b> against the ₹1,000 base: ${t.aov >= base ? 'above the line' : `<b>${inr(base - t.aov)}</b> short`}. ${last ? `${d.group === 'month' ? 'Last full month' : 'Last full week'} ${inr(last.aov)}${prev ? ` (${last.aov >= prev.aov ? 'up' : 'down'} ${inr(Math.abs(last.aov - prev.aov))} on the one before)` : ''}.` : ''}`);
+  read.push(`<b>${t.multi_share}%</b> of orders carry more than one piece and they average <b>${inr(mAov)}</b>, against <b>${inr(single?.aov || 0)}</b> for single-piece orders. <b>${t.custom_share}%</b> of orders hold a custom piece, averaging <b>${inr(cAov)}</b> against <b>${inr(ncAov)}</b> without.`);
+  if (needMulti) read.push(`To reach ₹1,000 on the current mix, the multi-piece share needs to rise about <b>${needMulti} points</b> (to ~${t.multi_share + needMulti}%), or the custom share needs to grow instead.`);
+  if (d.pairs[0]) read.push(`Most common pair: <b>${esc(d.pairs[0].pair)}</b>, in ${d.pairs[0].n} orders (${d.pairs[0].share}% of multi orders). A bundle built from the top pairs is the cheapest AOV lift there is: the customer already wants both.`);
+  const pairRow = p => `<tr><td>${esc(p.pair)}${p.same ? ' <span class="note">two of one</span>' : ''}</td><td style="text-align:right;font-weight:700">${p.n}</td><td style="text-align:right;color:var(--muted)">${p.share}%</td><td style="text-align:right">${inr(p.price)}</td><td style="text-align:right;color:var(--ink2)">${p.aov != null ? inr(p.aov) : ''}</td></tr>`;
+  const typeName = { '599 only · single': 'One ready piece', '599 only · multi': 'Several ready pieces', 'custom only': 'Custom only', 'custom + 599': 'Custom + ready pieces' };
+  body.innerHTML = `
+    ${d.filling ? '<div class="warn">Filling order history from Shopify in the background, numbers will complete in a few minutes.</div>' : ''}
+    <div class="read">${read.map(r => `<p>${r}</p>`).join('')}</div>
+    <div class="pt">
+      ${tile(inr(t.aov), 'AOV, this window', (last && prev ? delta(last.aov, prev.aov, inr) : `${t.orders} orders`), t.aov >= base ? '#2e8b57' : '#d4541f')}
+      ${tile(t.over_share + '%', 'orders ≥ ₹1,000', last && prev ? delta(last.over_share, prev.over_share, v => v + ' pts') : '')}
+      ${tile(t.multi_share + '%', 'multi-piece orders', `avg ${inr(mAov)} · single ${inr(single?.aov || 0)}`)}
+      ${tile(t.custom_share + '%', 'orders with custom', `avg ${inr(cAov)} · without ${inr(ncAov)}`)}
+      ${tile(d.multi_orders, 'multi-piece orders', `${d.pairs.length} distinct pairs seen`)}
+    </div>
+    <div class="charts">
+      <div><div class="note" style="margin-bottom:4px"><b>AOV ${d.group === 'month' ? 'by month' : 'by week'}</b> · green above the ₹1,000 base, faded = still running</div>${aovChart(d.series, base)}</div>
+      <div><div class="note" style="margin-bottom:4px"><b>Share of orders</b> · what is pushing the average</div>${shareChart(d.series, ['over_share', 'multi_share', 'custom_share'], ['#3a2b1d', '#2e8b57', '#d4541f'], ['≥ ₹1,000', 'multi-piece', 'with custom'])}</div>
+    </div>
+    <div class="charts" style="margin-top:12px">
+      <div>
+        <div class="note" style="margin-bottom:4px"><b>Basket makeup</b> · share of orders and what each kind averages</div>
+        <table class="dt" style="table-layout:auto"><thead><tr><th>Basket</th><th style="text-align:right">Orders</th><th style="text-align:right">Share</th><th style="text-align:right">AOV</th></tr></thead><tbody>
+          ${d.type.map(x => `<tr><td>${typeName[x.type] || x.type}</td><td style="text-align:right;font-weight:700">${x.orders}</td><td style="text-align:right;color:var(--muted)">${x.share}%</td><td style="text-align:right;color:${x.aov >= base ? '#2e8b57' : 'var(--ink)'}">${inr(x.aov)}</td></tr>`).join('')}
+          <tr><td colspan="4" class="note" style="padding-top:8px">By pieces per order</td></tr>
+          ${d.size.map(x => `<tr><td>${x.units} piece${x.units === '1' ? '' : 's'}</td><td style="text-align:right;font-weight:700">${x.orders}</td><td style="text-align:right;color:var(--muted)">${x.share}%</td><td style="text-align:right;color:${x.aov >= base ? '#2e8b57' : 'var(--ink)'}">${inr(x.aov)}</td></tr>`).join('')}
+        </tbody></table>
+        <div class="note" style="margin-top:8px"><b>Order value spread</b></div>
+        <div style="display:flex;gap:3px;align-items:flex-end;height:60px;margin-top:4px">${d.dist.map(b => { const mx = Math.max(...d.dist.map(z => z.n), 1); return `<div title="${inr(b.from)}–${inr(b.from + 249)}: ${b.n} orders" style="flex:1;background:${b.from >= base ? '#2e8b57' : '#d4541f'};opacity:.85;height:${Math.max(3, b.n / mx * 100)}%;border-radius:3px 3px 0 0"></div>`; }).join('')}</div>
+        <div class="note" style="display:flex;justify-content:space-between"><span>${inr(d.dist[0]?.from || 0)}</span><span>₹1,000</span><span>${inr(3000)}+</span></div>
+      </div>
+      <div>
+        <div class="note" style="margin-bottom:4px"><b>Bought together</b> · ready-made pairs in multi-piece orders, for bundles</div>
+        ${d.pairs.length ? `<table class="dt" style="table-layout:auto"><thead><tr><th>Pair</th><th style="text-align:right">Orders</th><th style="text-align:right">of multi</th><th style="text-align:right">List price</th><th style="text-align:right">Order AOV</th></tr></thead><tbody>${d.pairs.map(pairRow).join('')}</tbody></table>` : '<div class="note">No pairs yet in this window.</div>'}
+        ${d.trios.length ? `<div class="note" style="margin-top:8px"><b>Trios</b> · ${d.trios.map(x => `${esc(x.trio)} <b>${x.n}</b>`).join(' · ')}</div>` : ''}
+        ${d.custom_with.length ? `<div class="note" style="margin-top:8px"><b>Added next to a custom piece</b> · ${d.custom_with.map(x => `${esc(x.title)} <b>${x.n}</b>`).join(' · ')}</div>` : ''}
+      </div>
+    </div>`;
+}
 let _creData = null;
 async function loadCreative() {
   const r = _cre[_creIdx]; if (!r) return;
@@ -899,13 +995,13 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
-  loadPace(true);
+  loadPace(true); loadBasket(true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks(); loadCrawl(); loadPace();
+loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadBasket();
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
 setInterval(() => { if (!document.hidden && document.getElementById('paceDay').value === istToday()) loadPace(true); }, 5 * 60e3);
