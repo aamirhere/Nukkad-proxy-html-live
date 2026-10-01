@@ -39,7 +39,7 @@ main{padding:10px 18px 60px;max-width:1300px;margin:0 auto}
 .block .st.wide i{color:var(--ac)}
 .block .st.wide b{white-space:normal;font-size:.85rem}
 .block .open{background:#fff;border-color:var(--ac-bg2);color:var(--ac)}
-.pace{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.pace{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:14px}
 .pace .read{background:#fdf5ec;border:1px solid #f2d0b0;border-radius:12px;padding:10px 12px;font-size:.86rem;line-height:1.55;margin-bottom:10px}
 .pace .read p{margin:0 0 4px}
 .pace .pt{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
@@ -134,18 +134,6 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     <button class="btn" onclick="gCustom()">Apply</button>
     <span class="note" id="gLabel" style="margin-left:auto"></span>
   </div>
-  <section id="pace" class="pace">
-    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <h2 style="margin:0;font-size:1.05rem">⏱ Pace</h2>
-      <span class="note" id="paceWhen"></span>
-      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input type="date" id="paceDay" onchange="loadPace(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px">
-        <select id="paceCmp" onchange="loadPace(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="prev">vs the day before</option><option value="week">vs same weekday last week</option></select>
-        <button class="btn" onclick="loadPace(true)">↻</button>
-      </span>
-    </div>
-    <div id="paceBody"><div class="skel" style="height:120px"></div></div>
-  </section>
   <div class="grid">
     <div class="block" id="b-ads" onclick="openAds()">
       <button class="btn open" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();this.disabled=true;this.textContent='…';_adsAt=0;loadAds('hard').finally(()=>{this.disabled=false;this.textContent='↻ Refresh'})">↻ Refresh</button>
@@ -168,11 +156,21 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <div class="kl" id="amzKl">orders today</div>
       <div class="row" id="amzRow"></div>
     </div>
-    <div class="block soon"><div class="t"><span class="ic">✕</span>Cancellations</div><div class="kpi">—</div><div class="kl">cancel rate</div><div class="row">coming next</div></div>
     <div class="block soon"><div class="t"><span class="ic">↩</span>Returns</div><div class="kpi">—</div><div class="kl">RTO rate</div><div class="row">coming next</div></div>
-    <div class="block soon"><div class="t"><span class="ic">🎧</span>Customer support</div><div class="kpi">—</div><div class="kl">open tickets</div><div class="row">coming next</div></div>
     <div class="block soon"><div class="t"><span class="ic">🏭</span>Production</div><div class="kpi">—</div><div class="kl">emergencies · dispatch</div><div class="row">coming next</div></div>
   </div>
+  <section id="pace" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">⏱ Pace</h2>
+      <span class="note" id="paceWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="paceDay" onchange="loadPace(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px">
+        <select id="paceCmp" onchange="loadPace(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="prev">vs the day before</option><option value="week">vs same weekday last week</option></select>
+        <button class="btn" onclick="loadPace(true)">↻</button>
+      </span>
+    </div>
+    <div id="paceBody"><div class="skel" style="height:120px"></div></div>
+  </section>
 </main>
 
 <div class="modal" id="shopModal" onclick="if(event.target===this)this.classList.remove('open')">
