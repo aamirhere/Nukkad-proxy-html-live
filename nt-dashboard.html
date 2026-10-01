@@ -471,7 +471,7 @@ function renderCreatives() {
     // formats live on the type row, after a divider; a third row filters by the rule verdict
     const fmtPills = `<span class="note" style="align-self:center;padding:0 4px">·</span>${['video', 'image', 'carousel', 'catalog'].filter(f => fc[f]).map(f => `<span class="pill${f === _creFmt ? ' on' : ''}" onclick="_creFmt=_creFmt==='${f}'?'':'${f}';renderCreatives()">${f[0].toUpperCase() + f.slice(1)} <b>${fc[f]}</b></span>`).join('')}`;
     const vc = {}; for (const c of L.filter(x => pass(x, 'verdict'))) { const v = verdictOf(c); if (v) vc[v] = (vc[v] || 0) + 1; }
-    const verdictPills = `<div class="pills" style="margin:0 0 8px">${[['', 'All reads', L.filter(x => pass(x, 'verdict')).length], ...['scale', 'hold', 'turning up', 'watch', 'fading', 'fatigue', 'pause', 'too early', 'paused'].filter(v => vc[v]).map(v => [v, v[0].toUpperCase() + v.slice(1), vc[v]])].map(([v, l, n]) => `<span class="pill${v === _creVerdict ? ' on' : ''}" onclick="_creVerdict='${v}';renderCreatives()">${l} <b>${n}</b></span>`).join('')}</div>`;
+    const verdictPills = `<div class="pills" style="margin:0 0 8px">${[['', 'All reads', L.filter(x => pass(x, 'verdict')).length], ...['scale', 'hold', 'turning up', 'watch', 'weak start', 'fading', 'fatigue', 'pause', 'too early', 'paused'].filter(v => vc[v]).map(v => [v, v[0].toUpperCase() + v.slice(1), vc[v]])].map(([v, l, n]) => `<span class="pill${v === _creVerdict ? ' on' : ''}" onclick="_creVerdict='${v}';renderCreatives()">${l} <b>${n}</b></span>`).join('')}</div>`;
     const Ls = L.filter(x => pass(x, 'stat')), nRun = Ls.filter(c => c.running).length;
     const statPills = `<div class="pills" style="margin:0 0 8px">${[['', 'All', Ls.length], ['run', 'Running', nRun], ['paused', 'Paused', Ls.length - nRun]].map(([v, l, n]) => `<span class="pill${v === _creStat ? ' on' : ''}" onclick="_creStat='${v}';renderCreatives()">${l} <b>${n}</b></span>`).join('')}</div>`;
     const L2 = L.filter(c => pass(c));
@@ -547,7 +547,8 @@ function ruleRead(l3, l7, p7, active, live) {
   const pct = (a, b) => b ? Math.round(((a - b) / b) * 100) : null, f = v => '₹' + Math.round(v).toLocaleString('en-IN'), daily7 = l7.spend / 7, why = [];
   let verdict, cls, action, tag;
   // Under four days of spend nothing is judged, however much was spent: one day's ROAS is noise
-  if (active < 4 || l7.spend < 900) { verdict = 'Too early to judge'; tag = 'too early'; cls = 'watch'; action = `Give it ${Math.max(4 - active, 2)} more days at the current budget, then decide.`; why.push(`${live ? `Live ${active} day${active === 1 ? '' : 's'} (since ${live})` : `${active} day${active === 1 ? '' : 's'} with spend`}, ${f(l7.spend)} in the last 7.`); }
+  if (active >= 3 && active < 4 && l7.spend >= 1500 && l7.roas < 1.5 && l3.roas < 1.5) { verdict = 'Weak start'; tag = 'weak start'; cls = 'watch'; action = `One more day only. If the 4-day ROAS is still under 1.5 tomorrow, pause it${l7.ctr >= 1.5 ? ' and move the creative into an ad set that already converts: the CTR shows the hook works, the audience is not buying' : ''}.`; why.push(`Live ${active} days, ${f(l7.spend)} spent, ROAS ${l7.roas} and never above 2 on any day.`); }
+  else if (active < 4 || l7.spend < 900) { verdict = 'Too early to judge'; tag = 'too early'; cls = 'watch'; action = `Give it ${Math.max(4 - active, 2)} more days at the current budget, then decide.`; why.push(`${live ? `Live ${active} day${active === 1 ? '' : 's'} (since ${live})` : `${active} day${active === 1 ? '' : 's'} with spend`}, ${f(l7.spend)} in the last 7.`); }
   else if (l7.roas < 1.5 && l3.roas < 1.5 && l7.spend >= 1500) { verdict = 'Close it'; tag = 'pause'; cls = 'fatigued'; action = 'Pause now. Neither the week nor the last 3 days pay back.'; why.push(`ROAS ${l7.roas} over 7 days and ${l3.roas} over the last 3 on ${f(l7.spend)} spend.`); }
   else if (l7.roas < 2 && l3.roas >= 2.5) { verdict = 'Turning up, wait'; tag = 'turning up'; cls = 'watch'; action = 'Give it 2 more days. If the 3-day ROAS holds above 2.5, keep it and consider a small raise.'; why.push(`Week ROAS ${l7.roas} but the last 3 days are at ${l3.roas}.`); }
   else if (l7.roas >= 3 && l3.roas >= 2.5) { verdict = 'Scale'; tag = 'scale'; cls = 'healthy'; action = `Raise the daily budget about 20% (from ~${f(daily7)} to ~${f(daily7 * 1.2)}) and re-check in 3 days.`; why.push(`ROAS ${l7.roas} over 7 days, ${l3.roas} over the last 3, ${l7.purchases} sales.`); }
@@ -559,7 +560,7 @@ function ruleRead(l3, l7, p7, active, live) {
   if (l7.spend >= 900 && l7.purchases < 5) why.push(`Only ${l7.purchases} sale${l7.purchases === 1 ? '' : 's'} this week, so one order swings the ROAS a lot.`);
   return { verdict, tag, cls, action, why };
 }
-const tagCls = t => ({ scale: 'picking', hold: 'steady', watch: 'watch', fading: 'dropping', fatigue: 'fatigued', pause: 'kill', 'turning up': 'new', 'too early': 'quiet' }[t] || 'steady');
+const tagCls = t => ({ scale: 'picking', hold: 'steady', watch: 'watch', fading: 'dropping', fatigue: 'fatigued', pause: 'kill', 'turning up': 'new', 'too early': 'quiet', 'weak start': 'dropping' }[t] || 'steady');
 function adviceBox(d, addD) {
   const u = d.until, l3 = _sumRange(d.series, addD(u, -2), u), l7 = _sumRange(d.series, addD(u, -6), u), p7 = _sumRange(d.series, addD(u, -13), addD(u, -7));
   const r0 = _cre[_creIdx] || {}, f = v => '₹' + Math.round(v).toLocaleString('en-IN');
