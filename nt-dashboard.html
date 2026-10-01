@@ -470,7 +470,8 @@ function creativeType(c) {
 // Six words at most: what to do next with this creative, from its rule tag
 function nextStep(R, r) {
   const d7 = r.last7 ? Math.round(r.last7.spend / 7) : 0;
-  return { scale: `Raise budget 20% → ₹${Math.round(d7 * 1.2).toLocaleString('en-IN')}/day`, hold: 'Keep as is, re-check in 3 days', 'turning up': 'Give it 2 more days', watch: '3 more days, then decide', 'weak start': 'One more day, then pause', fading: 'Make 2 variations like this', fatigue: 'Refresh: new hook, same idea', pause: 'Pause it now', 'too early': 'Wait, too new to judge' }[R.tag] || '';
+  const onIst = (r.accounts || []).some(a => /ist new/i.test(a));
+  return { scale: onIst ? `Raise budget 20% → ₹${Math.round(d7 * 1.2).toLocaleString('en-IN')}/day` : 'Duplicate to IST new, or raise 20%', hold: 'Keep as is, re-check in 3 days', 'turning up': 'Give it 2 more days', watch: '3 more days, then decide', 'weak start': 'One more day, then pause', fading: 'Make 2 variations like this', fatigue: 'Refresh: new hook, same idea', pause: 'Pause it now', 'too early': 'Wait, too new to judge' }[R.tag] || '';
 }
 // What shows over the thumbnail on hover: the numbers that matter for the last week
 function hoverCard(r) {
@@ -585,7 +586,7 @@ function ruleRead(l3, l7, p7, active, live) {
   else if (active < 4 || l7.spend < 900) { verdict = 'Too early to judge'; tag = 'too early'; cls = 'watch'; action = `Give it ${Math.max(4 - active, 2)} more days at the current budget, then decide.`; why.push(`${live ? `Live ${active} day${active === 1 ? '' : 's'} (since ${live})` : `${active} day${active === 1 ? '' : 's'} with spend`}, ${f(l7.spend)} in the last 7.`); }
   else if (l7.roas < 1.5 && l3.roas < 1.5 && l7.spend >= 1500) { verdict = 'Close it'; tag = 'pause'; cls = 'fatigued'; action = 'Pause now. Neither the week nor the last 3 days pay back.'; why.push(`ROAS ${l7.roas} over 7 days and ${l3.roas} over the last 3 on ${f(l7.spend)} spend.`); }
   else if (l7.roas < 2 && l3.roas >= 2.5) { verdict = 'Turning up, wait'; tag = 'turning up'; cls = 'watch'; action = 'Give it 2 more days. If the 3-day ROAS holds above 2.5, keep it and consider a small raise.'; why.push(`Week ROAS ${l7.roas} but the last 3 days are at ${l3.roas}.`); }
-  else if (l7.roas >= 3 && l3.roas >= 2.5) { verdict = 'Scale'; tag = 'scale'; cls = 'healthy'; action = `Raise the daily budget about 20% (from ~${f(daily7)} to ~${f(daily7 * 1.2)}) and re-check in 3 days.`; why.push(`ROAS ${l7.roas} over 7 days, ${l3.roas} over the last 3, ${l7.purchases} sales.`); }
+  else if (l7.roas >= 3 && l3.roas >= 2.5) { verdict = 'Scale'; tag = 'scale'; cls = 'healthy'; action = `Scale it: duplicate the ad into IST new (your usual route), or raise the daily budget about 20% (from ~${f(daily7)} to ~${f(daily7 * 1.2)}). Re-check in 3 days.`; why.push(`ROAS ${l7.roas} over 7 days, ${l3.roas} over the last 3, ${l7.purchases} sales.`); }
   else if (l7.roas >= 2 && l3.roas < 1.5) { verdict = 'Fading'; tag = 'fading'; cls = 'watch'; action = 'Give it 2 more days. If the 3-day ROAS stays under 1.5, pause and put a fresh cut of the same idea live.'; why.push(`Week ROAS ${l7.roas} but only ${l3.roas} in the last 3 days${pct(l3.ctr, l7.ctr) != null && pct(l3.ctr, l7.ctr) <= -15 ? `, CTR down ${-pct(l3.ctr, l7.ctr)}%` : ''}.`); }
   else if (l7.roas >= 2) { verdict = 'Hold'; tag = 'hold'; cls = 'healthy'; action = 'Keep the budget as is. Re-check in 3 days.'; why.push(`ROAS ${l7.roas} over 7 days, ${l3.roas} over the last 3.`); }
   else { verdict = 'Watch'; tag = 'watch'; cls = 'watch'; action = 'Give it 3 more days at the same budget, then close it if ROAS is still under 2.'; why.push(`ROAS ${l7.roas} over 7 days, ${l3.roas} over the last 3 on ${f(l7.spend)}.`); }
