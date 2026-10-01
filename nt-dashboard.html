@@ -139,7 +139,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <button class="btn open" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();this.disabled=true;this.textContent='…';_adsAt=0;loadAds('hard').finally(()=>{this.disabled=false;this.textContent='↻ Refresh'})">↻ Refresh</button>
       <div class="t"><span class="ic">📣</span>Ads</div>
       <div class="kpi" id="adsKpi"><span class="skel" style="display:block;width:60%"></span></div>
-      <div class="kl" id="adsKl">spend today · both accounts</div>
+      <div class="kl" id="adsKl">spend today · all accounts</div>
       <div class="row" id="adsRow"></div>
     </div>
     <div class="block" id="b-shop" onclick="openShop('shop')">
@@ -292,7 +292,7 @@ function openAds() { document.getElementById('adsModal').classList.add('open'); 
 
 function renderAdsBlock() {
   const a = _ads, b = a.blended, s = a.shopify;
-  document.getElementById('adsKpi').textContent = a.meta_error ? '—' : inr(b.spend_today);
+  document.getElementById('adsKpi').innerHTML = a.meta_error ? '—' : `${inr(b.spend_today)}<div class="note" style="font-size:.72rem;font-family:var(--fb);margin-top:4px;color:var(--ink2)">${(a.accounts || []).map(ac => `<span style="white-space:nowrap">${esc(ac.label)} <b>${inr(ac.today?.spend || 0)}</b>${ac.error ? ' ⚠' : ''}</span>`).join(' &nbsp;·&nbsp; ')}</div>`;
   const st = (l, v) => `<span class="st"><i>${l}</i><b>${v}</b></span>`;
   document.getElementById('adsRow').innerHTML = (a.meta_error ? `<span class="err" style="grid-column:1/-1">${esc(a.meta_error)}</span>` : st('ROAS', x(b.roas_today)) + st('CPM', b.cpm_today == null ? '—' : inr(b.cpm_today)) + st('Orders', s.today.orders))
     + st('Revenue', inr(s.today.revenue)) + st('Yesterday', inr(b.spend_yesterday)) + st('Y. ROAS', x(b.roas_yesterday))
@@ -775,7 +775,7 @@ function gApply(r, label) {
   document.getElementById('gFrom').value = r.since; document.getElementById('gTo').value = r.until; document.getElementById('gDay').value = r.since === r.until ? r.since : '';
   document.getElementById('gLabel').textContent = r.since === r.until ? r.since : `${r.since} → ${r.until}`;
   const short = r.since === r.until ? (r.since === istToday() ? 'today' : r.since === addD(istToday(), -1) ? 'yesterday' : r.since) : `${r.since} → ${r.until}`;
-  document.getElementById('adsKl').textContent = `spend ${short} · both accounts`; document.getElementById('shopKl').textContent = `revenue ${short}`; document.getElementById('amzKl').textContent = `orders ${short}`;
+  document.getElementById('adsKl').textContent = `spend ${short} · all accounts`; document.getElementById('shopKl').textContent = `revenue ${short}`; document.getElementById('amzKl').textContent = `orders ${short}`;
   // popups follow the page filter
   _range = { since: r.since, until: r.until }; document.getElementById('adsPreset').value = label; document.getElementById('adsFrom').value = r.since; document.getElementById('adsTo').value = r.until; document.getElementById('adsDay').value = r.since === r.until ? r.since : '';
   _shopRange = { since: r.since, until: r.until }; document.getElementById('shopPreset').value = label; document.getElementById('shopFrom').value = r.since; document.getElementById('shopTo').value = r.until; document.getElementById('shopDay').value = r.since === r.until ? r.since : '';
