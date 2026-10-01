@@ -385,7 +385,8 @@ async function setCreativeType(key, type, el) {
 function todayIst() { return new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10); }
 async function runAi() { try { await api({ action: 'ai_run', force: true }); } catch (e) { alert(e.message); return; } _ai = { ...(_ai || {}), running: { started: new Date().toISOString() } }; renderAi(); }
 // ---- Planner: designs × creatives, and what it takes to reach a revenue target. Arithmetic only, assumptions stated. ----
-let _plan7 = null, _planTarget = 120000, _planLoading = false;
+let _plan7 = null, _planTarget = 120000, _planLoading = false, _lot = null;
+async function loadLot(force) { _lot = { loading: true }; try { _lot = await api({ action: 'lot', force: !!force }); } catch (e) { _lot = { error: e.message }; } renderPlan(); }
 async function loadPlan7() {
   if (_plan7 || _planLoading) return; _planLoading = true;
   try { const t = istToday(); _plan7 = await api({ action: 'shop', since: addD(t, -6), until: t }); } catch (e) { _plan7 = { error: e.message }; }
@@ -423,9 +424,10 @@ function renderPlan() {
     return ['ok', `${b.running} running.`, 0];
   };
   const adCls = k => ({ build: 'picking', variations: 'needs', 'too many': 'dropping', ok: 'steady' }[k] || 'quiet');
-  const lot = rows.map(b => { const [k, why, n] = advise(b); return { b, k, why, n }; }).filter(x => x.n > 0);
   let h = '';
-  if (lot.length) h += `<div class="vd healthy" style="margin-bottom:10px"><b>🎬 Next creative lot: ${lot.reduce((s, x) => s + x.n, 0)} cuts across ${lot.length} designs</b><ul style="margin:6px 0 0 18px;padding:0;line-height:1.6">${lot.map(x => `<li><b>${esc(x.b.title)}</b> · ${x.n} ${x.k === 'build' ? 'new creatives' : 'variations'} <span class="note">· ${x.b.qty7} pcs/wk · ${esc(x.why)}</span></li>`).join('')}</ul><div class="note" style="margin-top:4px">Based on what sells this week and which running ads are tiring. Re-check after the lot goes live.</div></div>`;
+  if (_lot === null) loadLot();
+  if (_lot && _lot.lot) h += `<div class="vd healthy" style="margin-bottom:10px"><b>🎬 Creative lot: ${_lot.total} cuts across ${_lot.lot.length} designs</b> <span class="note">· planned ${String(_lot.planned_at).slice(0, 10)} on ${esc(_lot.window)} · next plan ${_lot.next_plan} · <a href="#" onclick="event.preventDefault();loadLot(true)">re-plan now</a></span><ul style="margin:6px 0 0 18px;padding:0;line-height:1.6">${_lot.lot.map(x => `<li><b>${esc(x.title)}</b> · ${x.n} ${x.kind === 'new' ? 'new creatives' : 'variations'} <span class="note">· ${x.qty7} pcs/wk · ${esc(x.why)}</span></li>`).join('') || '<li>Nothing to shoot this week: every seller has fresh ads.</li>'}</ul><div class="note" style="margin-top:4px">From the last 7 completed days. Held for a week so the shoot list does not shuffle daily.</div></div>`;
+  else if (_lot && _lot.error) h += `<div class="warn">${esc(_lot.error)}</div>`;
   if (SHOW_DXC) {
   const more = !!_shopMore.plan, show = more ? rows : rows.slice(0, 5);
   h += `<div class="sec">Designs × creatives <small>last 7 days · which design each ad pushes (from what it sold and its name/copy) · reads only for the top sellers</small></div><table><thead><tr><th>Design</th><th class="num">Pcs/wk</th><th class="num">Ads running</th><th class="num">Ad spend/wk</th><th>Read</th></tr></thead><tbody>${show.map((b, i) => { const [k, why] = advise(b); return `<tr class="prow" onclick="togglePr('pl${i}')"><td><span id="pr-arr-pl${i}" class="arr">▸</span> ${esc(b.title)}</td><td class="num"><b>${b.qty7}</b></td><td class="num">${b.running}${b.tired ? ` <span class="note">(${b.tired} tiring)</span>` : ''}</td><td class="num">${inr(b.spend)}</td><td>${k === '—' ? '<span class="note">—</span>' : `<span class="hl ${adCls(k)}">${k}</span> <span class="note">${esc(why)}</span>`}</td></tr><tr id="pr-pl${i}" style="display:none"><td colspan="5" style="background:#fdf8f1"><ul class="note" style="margin:0;padding-left:22px;line-height:1.6">${b.creatives.map(c => `<li>${esc(c.name)} · <span class="hl ${tagCls(c.tag)}">${c.tag}</span> · ROAS ${c.roas} · ${inr(c.spend)}/wk</li>`).join('') || '<li>No ad found for this design</li>'}</ul></td></tr>`; }).join('')}</tbody></table>`;
