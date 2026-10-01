@@ -39,6 +39,14 @@ main{padding:10px 18px 60px;max-width:1300px;margin:0 auto}
 .block .st.wide i{color:var(--ac)}
 .block .st.wide b{white-space:normal;font-size:.85rem}
 .block .open{background:#fff;border-color:var(--ac-bg2);color:var(--ac)}
+.pace{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.pace .read{background:#fdf5ec;border:1px solid #f2d0b0;border-radius:12px;padding:10px 12px;font-size:.86rem;line-height:1.55;margin-bottom:10px}
+.pace .read p{margin:0 0 4px}
+.pace .pt{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.pace .pt .tile .n{font-size:1.35rem}.pace .pt .tile .s b{font-weight:800}
+.up{color:#1a7f37}.dn{color:#b00020}
+.pace .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}
+.pace .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.72rem;color:var(--ink2);margin-top:4px}.pace .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px;border-radius:2px}
 .filterbar{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
 .block .open{position:absolute;right:12px;top:12px;font-size:.7rem;color:var(--muted)}
 .block .t{padding-right:86px}
@@ -126,6 +134,18 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     <button class="btn" onclick="gCustom()">Apply</button>
     <span class="note" id="gLabel" style="margin-left:auto"></span>
   </div>
+  <section id="pace" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">⏱ Pace</h2>
+      <span class="note" id="paceWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="paceDay" onchange="loadPace(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px">
+        <select id="paceCmp" onchange="loadPace(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="prev">vs the day before</option><option value="week">vs same weekday last week</option></select>
+        <button class="btn" onclick="loadPace(true)">↻</button>
+      </span>
+    </div>
+    <div id="paceBody"><div class="skel" style="height:120px"></div></div>
+  </section>
   <div class="grid">
     <div class="block" id="b-ads" onclick="openAds()">
       <button class="btn open" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();this.disabled=true;this.textContent='…';_adsAt=0;loadAds('hard').finally(()=>{this.disabled=false;this.textContent='↻ Refresh'})">↻ Refresh</button>
@@ -799,6 +819,57 @@ async function addNote() {
   const inp = document.getElementById('logNote'), t = inp.value.trim(); if (!t) return;
   try { await api({ action: 'log_write', kind: 'note', note: t }); inp.value = ''; loadLog(); } catch (e) { alert(e.message); }
 }
+// ---- Pace: hour by hour, this day against the one before ----
+let _pace = null, _paceSeq = 0;
+async function loadPace(force) {
+  const body = document.getElementById('paceBody'), seq = ++_paceSeq;
+  const dayEl = document.getElementById('paceDay'); if (!dayEl.value) dayEl.value = istToday();
+  if (force) document.getElementById('pace').classList.add('loading'); else body.innerHTML = '<div class="skel" style="height:120px"></div>';
+  try { const d = await api({ action: 'pace', day: dayEl.value, compare: document.getElementById('paceCmp').value }); if (seq !== _paceSeq) return; _pace = d; renderPace(); }
+  catch (e) { if (seq !== _paceSeq) return; body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
+  document.getElementById('pace').classList.remove('loading');
+}
+function paceChart(series, keys, colors, fmt, { cumulative = false, hourNow = 23, bars = false } = {}) {
+  const W = 640, H = 200, L = 60, R = 12, T = 14, B = 30, n = series.length;
+  const vals = keys.map(k => { const a = series.map(r => +r[k] || 0); if (!cumulative) return a; let s = 0; return a.map(v => (s += v)); });
+  const max = Math.max(...vals.flat(), 0.0001);
+  const x = i => L + (i / (n - 1)) * (W - L - R), y = v => T + (1 - v / max) * (H - T - B);
+  const yT = [0, .25, .5, .75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="#eee3d3"/><text x="${L - 6}" y="${y(max * f) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${fmt(max * f)}</text>`).join('');
+  const xT = series.map((r, i) => i % 3 === 0 ? `<text x="${x(i)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${r.h}:00</text>` : '').join('');
+  const nowLine = hourNow < 23 ? `<line x1="${x(hourNow)}" x2="${x(hourNow)}" y1="${T}" y2="${H - B}" stroke="#d4541f" stroke-dasharray="3 3" opacity=".6"/><text x="${x(hourNow) + 4}" y="${T + 10}" font-size="10" fill="#d4541f">now</text>` : '';
+  const flip = `<line x1="${x(12) + (x(13) - x(12)) / 2}" x2="${x(12) + (x(13) - x(12)) / 2}" y1="${T}" y2="${H - B}" stroke="#1a3f9c" stroke-dasharray="2 4" opacity=".5"/><text x="${x(12) + (x(13) - x(12)) / 2 + 4}" y="${H - B - 4}" font-size="9.5" fill="#1a3f9c">PDT flip</text>`;
+  let body = '';
+  if (bars) {
+    const bw = (x(1) - x(0)) / (keys.length + 1);
+    body = vals.map((a, ki) => a.map((v, i) => (cumulative || i <= hourNow || ki > 0) ? `<rect x="${x(i) - (keys.length * bw) / 2 + ki * bw}" y="${y(v)}" width="${bw - 1}" height="${H - B - y(v)}" fill="${colors[ki]}" opacity="${ki === 0 ? .95 : .45}"><title>${series[i].h}:00 · ${fmt(v)}</title></rect>` : '').join('')).join('');
+  } else {
+    body = vals.map((a, ki) => { const upto = ki === 0 ? Math.min(hourNow, n - 1) : n - 1; const pts = a.slice(0, upto + 1).map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' '); return `<polyline points="${pts}" fill="none" stroke="${colors[ki]}" stroke-width="${ki === 0 ? 2.4 : 1.6}" ${ki === 0 ? '' : 'stroke-dasharray="5 4" opacity=".7"'}/>${ki === 0 ? `<circle cx="${x(upto)}" cy="${y(a[upto])}" r="3.5" fill="${colors[ki]}"/>` : ''}`; }).join('');
+    body += series.map((r, i) => `<rect x="${x(i) - (x(1) - x(0)) / 2}" y="${T}" width="${x(1) - x(0)}" height="${H - T - B}" fill="transparent" onmousemove="chartTip(event, '${r.h}:00', '${keys.map((k, ki) => `${ki === 0 ? 'this' : 'ref'} ${fmt(vals[ki][i])}`).join(' · ')}')" onmouseleave="chartTip()"/>`).join('');
+  }
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yT}${xT}${flip}${nowLine}${body}</svg>`;
+}
+function renderPace() {
+  const d = _pace, el = document.getElementById('paceBody'); if (!d) return;
+  const so = d.so_far, p = d.projection, f = v => '₹' + Math.round(v).toLocaleString('en-IN');
+  const dlt = (a, b, money) => { const pc = b ? Math.round(((a - b) / b) * 100) : null; return pc == null ? '<span class="note">—</span>' : `<b class="${pc >= 0 ? 'up' : 'dn'}">${pc > 0 ? '+' : ''}${pc}%</b> <span class="note">vs ${money ? f(b) : b}</span>`; };
+  document.getElementById('paceWhen').textContent = `${d.day}${d.is_today ? ' · live, by ' + d.at : ''} · against ${d.ref} (${d.ref_label})`;
+  let h = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}${d.errors && d.errors.length ? `<p class="note">⚠ ${d.errors.map(esc).join(' · ')}</p>` : ''}</div>`;
+  const tile = (n, l, sub) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${sub}</div></div>`;
+  const lbl = d.is_today ? `so far` : 'day';
+  h += `<div class="pt">${tile(f(so.rev), `Revenue ${lbl}`, dlt(so.rev, so.rev_prev, true))}${tile(so.orders, `Orders ${lbl}`, dlt(so.orders, so.orders_prev))}${tile(f(so.spend), `Meta spend ${lbl}`, dlt(so.spend, so.spend_prev, true))}${tile(so.clicks.toLocaleString('en-IN'), `Link clicks ${lbl}`, dlt(so.clicks, so.clicks_prev))}${tile(so.roas, `ROAS ${lbl}`, `<span class="note">vs ${so.roas_prev}</span>`)}${p ? tile(p.rev != null ? f(p.rev) : '—', 'Projected day', `<span class="note">${p.orders != null ? p.orders + ' orders · ' : ''}${d.ref_label} ${f(d.totals.rev_prev)}</span>`) : tile(f(d.totals.rev), 'Day total', `<span class="note">${d.totals.orders} orders · ${d.ref_label} ${f(d.totals.rev_prev)}</span>`)}</div>`;
+  const hn = d.is_today ? d.hour : 23;
+  const lg = (a, b) => `<div class="legend"><span><i style="background:${a[1]}"></i>${a[0]}</span><span><i style="background:${b[1]};opacity:.7"></i>${b[0]}</span></div>`;
+  h += `<div class="charts">
+    <div class="tile"><div class="l">Revenue, cumulative</div>${paceChart(d.series, ['rev', 'rev_prev'], ['#1a7f37', '#1a7f37'], f, { cumulative: true, hourNow: hn })}${lg([d.day, '#1a7f37'], [d.ref_label, '#1a7f37'])}</div>
+    <div class="tile"><div class="l">Meta spend, cumulative</div>${paceChart(d.series, ['spend', 'spend_prev'], ['#d4541f', '#d4541f'], f, { cumulative: true, hourNow: hn })}${lg([d.day, '#d4541f'], [d.ref_label, '#d4541f'])}</div>
+    <div class="tile"><div class="l">Link clicks by hour <span class="note">(traffic Meta sends)</span></div>${paceChart(d.series, ['clicks', 'clicks_prev'], ['#1a3f9c', '#9fb0d8'], v => String(Math.round(v)), { bars: true, hourNow: hn })}${lg([d.day, '#1a3f9c'], [d.ref_label, '#9fb0d8'])}</div>
+    <div class="tile"><div class="l">Orders by hour</div>${paceChart(d.series, ['orders', 'orders_prev'], ['#1a7f37', '#a9d6b3'], v => String(Math.round(v)), { bars: true, hourNow: hn })}${lg([d.day, '#1a7f37'], [d.ref_label, '#a9d6b3'])}</div>
+    <div class="tile"><div class="l">Spend by hour</div>${paceChart(d.series, ['spend', 'spend_prev'], ['#d4541f', '#f0b899'], f, { bars: true, hourNow: hn })}${lg([d.day, '#d4541f'], [d.ref_label, '#f0b899'])}</div>
+    <div class="tile"><div class="l">Revenue by hour</div>${paceChart(d.series, ['rev', 'rev_prev'], ['#6f5b46', '#cdbfae'], f, { bars: true, hourNow: hn })}${lg([d.day, '#6f5b46'], [d.ref_label, '#cdbfae'])}</div>
+  </div>`;
+  if (d.accounts && d.accounts.length) h += `<div class="note" style="margin-top:8px">Accounts today: ${d.accounts.map(a => `${esc(a.label)} ${f(a.spend)} · ${a.clicks} clicks${a.error ? ' ⚠' : ''}`).join(' &nbsp;|&nbsp; ')}</div>`;
+  el.innerHTML = h;
+}
 async function loadCrawl() {
   try {
     const c = await api({ action: 'crawl_status' }), el = document.getElementById('crawlLine');
@@ -809,14 +880,16 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
+  loadPace(true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks(); loadCrawl();
+loadAds(); loadBlocks(); loadCrawl(); loadPace();
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
+setInterval(() => { if (!document.hidden && document.getElementById('paceDay').value === istToday()) loadPace(true); }, 5 * 60e3);
 setInterval(() => {
   if (document.hidden) return;
   loadBlocks();
