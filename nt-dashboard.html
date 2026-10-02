@@ -664,9 +664,23 @@ async function spHide(h, on = true) {
   const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
 }
 async function spPublish() {
-  const b = document.getElementById('spPub'); b.disabled = true; b.textContent = 'Writing to Shopify…';
-  try { const r = await api({ action: 'sheet_publish' }); const bad = (r.themes || []).filter(t => !t.ok); if (bad.length) alert('Could not write to theme ' + bad.map(t => t.theme + ': ' + t.error).join('\n')); else { document.getElementById('spWhen').textContent = `on site: just now · ${r.products} designs · ${Math.round(r.bytes / 1024)} KB`; alert('Written to: ' + (r.themes || []).map(t => t.name || t.theme).join(', ')); } }
-  catch (e) { alert(e.message); }
+  const b = document.getElementById('spPub'); b.disabled = true; b.textContent = 'Building…';
+  try {
+    const { started } = await api({ action: 'sheet_publish' });
+    for (let i = 0; i < 90; i++) {
+      await new Promise(r => setTimeout(r, 4000));
+      const st = await api({ action: 'sheet_status' }).catch(() => ({}));
+      b.textContent = `Writing… ${Math.round((i + 1) * 4 / 6) / 10} min`;
+      if (st.started === started && st.done) {
+        const r = st.result || {};
+        if (r.error) { alert('Publish failed: ' + r.error); break; }
+        const bad = (r.themes || []).filter(t => !t.ok);
+        document.getElementById('spWhen').textContent = `on site: just now · ${r.products} designs · ${Math.round(r.bytes / 1024)} KB`;
+        alert((bad.length ? 'Some themes failed:\n' + bad.map(t => (t.name || t.theme) + ': ' + t.error).join('\n') + '\n\n' : '') + 'Written to: ' + (r.themes || []).filter(t => t.ok).map(t => t.name || t.theme).join(', '));
+        break;
+      }
+    }
+  } catch (e) { alert(e.message); }
   finally { b.disabled = false; b.textContent = '⬆ Update website'; }
 }
 // ---------- AOV & baskets ----------
