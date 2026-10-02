@@ -184,6 +184,17 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     </div>
     <div id="paceBody"><div class="skel" style="height:120px"></div></div>
   </section>
+  <section id="who" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">👥 Who buys</h2>
+      <span class="note" id="whoWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="whoDays" onchange="loadWho(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="7">last 7 days</option><option value="15">last 15 days</option><option value="30" selected>last 30 days</option><option value="60">last 60 days</option></select>
+        <button class="btn" onclick="loadWho(true, true)">↻</button>
+      </span>
+    </div>
+    <div id="whoBody"><div class="skel" style="height:120px"></div></div>
+  </section>
   <section id="basket" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <h2 style="margin:0;font-size:1.05rem">🧺 AOV &amp; baskets</h2>
@@ -683,6 +694,58 @@ async function spPublish() {
   } catch (e) { alert(e.message); }
   finally { b.disabled = false; b.textContent = '⬆ Update website'; }
 }
+// ---------- Who buys: age × gender from Meta, designs by age ----------
+let _who = null, _whoAge = '';
+async function loadWho(reset, force) {
+  const body = document.getElementById('whoBody');
+  if (reset) body.innerHTML = '<div class="skel" style="height:120px"></div>';
+  const days = +document.getElementById('whoDays').value, until = istToday(), since = addDaysStr(until, -(days - 1));
+  try { _who = await api({ action: 'age', since, until, force: !!force }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  renderWho();
+}
+function addDaysStr(d, n) { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
+function heat(v, max, good) { const f = max ? Math.min(1, v / max) : 0; return good ? `background:rgba(46,139,87,${(0.08 + f * 0.5).toFixed(2)})` : `background:rgba(212,84,31,${(0.08 + f * 0.5).toFixed(2)})`; }
+function renderWho() {
+  const d = _who, body = document.getElementById('whoBody'); if (!d) return;
+  document.getElementById('whoWhen').textContent = `${d.since} → ${d.until} · ${inr(d.total.spend)} spend · ${d.total.purchases} Meta purchases`;
+  const maxRoas = Math.max(...d.grid.flatMap(g => g.cells.map(c => c.roas)), 1);
+  const tile = (n, l, s) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const best = d.grid.filter(g => g.spend > 0).sort((a, b) => b.purchases - a.purchases)[0];
+  const bestRoas = d.grid.filter(g => g.spend >= d.total.spend * 0.08).sort((a, b) => b.roas - a.roas)[0];
+  const f = d.genders.find(g => g.gender === 'female') || {};
+  const ageSel = `<div class="pills" style="margin:8px 0">${[['', 'All ages'], ...d.ages.map(a => [a, a])].map(([v, l]) => `<span class="pill${v === _whoAge ? ' on' : ''}" onclick="_whoAge='${v}';renderWho()">${l}</span>`).join('')}</div>`;
+  const adsFor = _whoAge ? (d.top_ads_by_age.find(x => x.age === _whoAge) || {}).ads || [] : d.ads.slice(0, 12);
+  const adCard = a => `<div class="sp-card" style="width:150px"><img src="${esc(a.thumb || '')}" alt="" onerror="this.style.visibility='hidden'"><div class="nm" title="${esc(a.name)}">${esc(a.name)}</div><div class="why" style="color:${a.roas >= 2 ? '#2e8b57' : a.roas < 1 ? '#c0392b' : 'var(--ink2)'}">ROAS ${a.roas} · ${a.purchases} sales · ${inr(a.spend)}</div>${_whoAge ? '' : `<div class="note" style="font-size:.66rem">${a.best ? `works best for <b>${a.best}</b> (${a.best_roas})` : 'no clear age edge'}${a.worst ? ` · weak for ${a.worst} (${a.worst_roas})` : ''}${a.female_share != null ? ` · ${a.female_share}% women` : ''}</div><div style="display:flex;gap:2px;height:6px;margin-top:4px" title="${d.ages.map((x, i) => x + ' ' + a.mix[i] + '%').join(' · ')}">${a.mix.map((m, i) => `<i style="flex:${Math.max(m, 1)};background:${['#f5c99a', '#e8915b', '#d4541f', '#b8431a', '#7c4b1e', '#3a2b1d'][i]};border-radius:2px"></i>`).join('')}</div>`}</div>`;
+  body.innerHTML = `
+    ${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}
+    <div class="read">${d.read.map(r => `<p>${esc(r)}</p>`).join('') || '<p>Not enough spend in this window to read anything.</p>'}</div>
+    <div class="pt">
+      ${tile(best ? best.age : '—', 'biggest buyer group', best ? `${best.purchase_share}% of purchases · ROAS ${best.roas}` : '')}
+      ${tile(bestRoas ? bestRoas.age : '—', 'best ROAS group', bestRoas ? `ROAS ${bestRoas.roas} on ${bestRoas.spend_share}% of spend` : '')}
+      ${tile((f.purchase_share || 0) + '%', 'purchases by women', `ROAS ${f.roas || 0} · ${f.spend_share || 0}% of spend`)}
+      ${tile(d.total.roas, 'blended ROAS', `${d.total.purchases} purchases · CPA ${d.total.cpa ? inr(d.total.cpa) : '—'}`)}
+    </div>
+    <div class="charts">
+      <div>
+        <div class="note" style="margin-bottom:4px"><b>Age × gender</b> · ROAS in each cell, darker is better · share of spend → share of purchases</div>
+        <table class="dt" style="table-layout:auto"><thead><tr><th>Age</th><th class="num">Women</th><th class="num">Men</th><th class="num">Spend</th><th class="num">Purchases</th><th class="num">ROAS</th><th class="num">CPA</th></tr></thead><tbody>
+          ${d.grid.map(g => `<tr><td><b>${g.age}</b></td>${g.cells.map(c => `<td class="num" style="${c.spend ? heat(c.roas, maxRoas, c.roas >= 1.5) : ''}" title="${c.gender}: ${inr(c.spend)} spend · ${c.purchases} purchases · ${c.spend_share}% of spend → ${c.purchase_share}% of purchases">${c.spend ? `<b>${c.roas}</b><div class="note" style="font-size:.64rem">${c.purchases} · ${inr(c.spend)}</div>` : '<span class="note">—</span>'}</td>`).join('')}<td class="num">${inr(g.spend)}<div class="note" style="font-size:.64rem">${g.spend_share}%</div></td><td class="num"><b>${g.purchases}</b><div class="note" style="font-size:.64rem">${g.purchase_share}%</div></td><td class="num" style="color:${g.roas >= 2 ? '#2e8b57' : g.roas < 1 ? '#c0392b' : 'inherit'}"><b>${g.roas}</b></td><td class="num">${g.cpa ? inr(g.cpa) : '—'}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+      <div>
+        <div class="note" style="margin-bottom:4px"><b>Designs by age</b> · estimated: each ad's Shopify items spread by that ad's Meta age mix · % of the design's units</div>
+        <table class="dt" style="table-layout:auto"><thead><tr><th>Design</th>${d.ages.map(a => `<th class="num">${a}</th>`).join('')}<th class="num">Units</th></tr></thead><tbody>
+          ${d.matrix.map(r => `<tr><td>${esc(r.title)}<div class="note" style="font-size:.64rem">peaks ${r.peak}</div></td>${r.by_age.map(v => `<td class="num" style="${v ? heat(v, 60, true) : ''}">${v ? v + '%' : ''}</td>`).join('')}<td class="num"><b>${r.units}</b></td></tr>`).join('') || '<tr><td colspan="8" class="note">No Shopify items matched to ads in this window.</td></tr>'}
+        </tbody></table>
+        <div class="note" style="margin-top:8px"><b>What each group buys</b></div>
+        ${d.items.filter(i => i.units).map(i => `<div class="note" style="margin-top:4px"><b>${i.age}</b> · ${i.units} units${i.custom_share ? ` · ${i.custom_share}% custom` : ''} · ${i.top.slice(0, 4).map(t => `${esc(t.title)} ${t.share}%`).join(' · ')}</div>`).join('')}
+      </div>
+    </div>
+    <div class="note" style="margin-top:12px"><b>Which ad works for whom</b> · pick an age to see the ads that pay best for it</div>
+    ${ageSel}
+    <div class="sp-cards">${adsFor.map(adCard).join('') || '<div class="note">Nothing with enough spend here.</div>'}</div>
+    <div class="note" style="margin-top:6px">${esc(d.note)} Meta reports age as the viewer declared it. Groups under ₹150 spend are not judged.</div>`;
+}
 // ---------- AOV & baskets ----------
 let _bk = null;
 function aovChart(series, baseline) {
@@ -1098,13 +1161,13 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
-  loadPace(true); loadBasket(true);
+  loadPace(true); loadBasket(true); loadWho(true, true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadBasket();
+loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadBasket(); loadWho(true);
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
 setInterval(() => { if (!document.hidden && document.getElementById('paceDay').value === istToday()) loadPace(true); }, 5 * 60e3);
