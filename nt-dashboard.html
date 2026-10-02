@@ -665,7 +665,7 @@ async function spHide(h, on = true) {
 }
 async function spPublish() {
   const b = document.getElementById('spPub'); b.disabled = true; b.textContent = 'Writing to Shopify…';
-  try { const r = await api({ action: 'sheet_publish' }); const bad = (r.themes || []).filter(t => !t.ok); if (bad.length) alert('Could not write to theme ' + bad.map(t => t.theme + ': ' + t.error).join('\n')); else { document.getElementById('spWhen').textContent = `on site: just now · ${r.products} designs · ${Math.round(r.bytes / 1024)} KB`; } }
+  try { const r = await api({ action: 'sheet_publish' }); const bad = (r.themes || []).filter(t => !t.ok); if (bad.length) alert('Could not write to theme ' + bad.map(t => t.theme + ': ' + t.error).join('\n')); else { document.getElementById('spWhen').textContent = `on site: just now · ${r.products} designs · ${Math.round(r.bytes / 1024)} KB`; alert('Written to: ' + (r.themes || []).map(t => t.name || t.theme).join(', ')); } }
   catch (e) { alert(e.message); }
   finally { b.disabled = false; b.textContent = '⬆ Update website'; }
 }
