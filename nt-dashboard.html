@@ -79,6 +79,12 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .cc .thumb:hover .hov{opacity:1}
 .cc .hr2{display:flex;justify-content:space-between;align-items:baseline;gap:6px;border-bottom:1px solid rgba(255,255,255,.12);padding:2px 0}
 .cc .hr2 span{color:#e9ddca}.cc .hr2 b{color:#fff;font-size:.74rem}.cc .hr2 i{font-style:normal;color:#c9b89f;font-size:.6rem;margin-left:auto}
+.sp-wrap{display:grid;grid-template-columns:230px 1fr;gap:12px;min-height:60vh}@media(max-width:700px){.sp-wrap{grid-template-columns:1fr}}
+.sp-list{border-right:1px solid var(--line);padding-right:8px;max-height:70vh;overflow:auto}.sp-li{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:8px;cursor:pointer;font-size:.8rem}.sp-li:hover{background:#fdf5ec}.sp-li.on{background:var(--ink);color:#fff}.sp-li img{width:28px;height:28px;border-radius:6px;object-fit:cover;background:#eee}.sp-li .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp-li small{opacity:.7}
+.sp-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.sp-head img{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#eee}.sp-head select{font:inherit;padding:4px 6px;border:1.5px solid var(--line);border-radius:8px}.sp-head label{font-size:.74rem;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.sp-row{margin-bottom:14px}.sp-row .rh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}.sp-row .rh b{font-size:.9rem}.sp-row .rh .note{font-size:.72rem}
+.sp-cards{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}.sp-card{flex:none;width:132px;border:1px solid var(--line);border-radius:10px;padding:6px;background:#fff;position:relative;font-size:.74rem}.sp-card.pin{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}.sp-card img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;background:#eee;display:block}.sp-card .nm{font-weight:700;line-height:1.2;margin-top:4px;height:2.4em;overflow:hidden}.sp-card .why{color:#2e8b57;font-weight:700;font-size:.66rem;height:1.2em;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.sp-card .ac{display:flex;gap:4px;margin-top:5px}.sp-card .ac button{flex:1;border:1px solid var(--line);background:#fff;border-radius:6px;font:inherit;font-size:.68rem;font-weight:700;padding:3px;cursor:pointer}.sp-card .ac button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sp-sug{opacity:.75}.sp-sug .sp-card{background:#fdf8f1}
 .todo{background:#fdf5ec;border:1px solid #f2d0b0;border-radius:12px;padding:10px 12px;margin:0 0 10px}.todo .tl{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
 .todo .ti{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:6px 8px;cursor:pointer}.todo .ti.scale{border-left-color:#2e8b57}.todo .ti.pause{border-left-color:#c0392b}.todo .ti.vary{border-left-color:#b8860b}.todo .ti.vary .tk{color:#b8860b}
 .todo .ti img,.todo .ti .ph{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;background:#eee}.todo .tk{font-size:.74rem;font-weight:800;line-height:1.2}.todo .ti.scale .tk{color:#2e8b57}.todo .ti.pause .tk{color:#c0392b}.todo .tn{font-size:.7rem;font-weight:700;line-height:1.2;margin:2px 0}
@@ -131,7 +137,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 </style>
 </head>
 <body>
-<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><span onclick="openLog()" title="" style="display:inline-block;width:14px;height:14px;margin-left:6px;cursor:default;opacity:.18;font-size:.7rem;line-height:14px;text-align:center;user-select:none">·</span><span class="note" id="crawlLine" style="margin-left:auto"></span><button class="btn" id="refreshAll" onclick="refreshAll()">↻ Refresh all</button></header>
+<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h1>NukkadTales · Dashboard</h1><span class="sub" id="asof">today, IST</span><span onclick="openLog()" title="" style="display:inline-block;width:14px;height:14px;margin-left:6px;cursor:default;opacity:.18;font-size:.7rem;line-height:14px;text-align:center;user-select:none">·</span><span class="note" id="crawlLine" style="margin-left:auto"></span><button class="btn" onclick="openSheetPicks()">🧺 Sheet picks</button><button class="btn" id="refreshAll" onclick="refreshAll()">↻ Refresh all</button></header>
 <main>
   <div class="hd filterbar" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">
     <select id="gPreset" onchange="gPreset(this.value)" style="font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px">
@@ -206,6 +212,13 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <button class="btn" onclick="loadShop(true)">↻ Refresh</button>
     </div>
     <div id="shopBody"><div class="skel" style="height:80px"></div></div>
+  </div>
+</div>
+<div class="modal" id="spModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:46">
+  <div class="panel" style="width:min(1100px,100%)">
+    <div class="hd"><h2>🧺 Sheet picks</h2><span class="note" id="spWhen"></span><button class="btn" id="spPub" onclick="spPublish()" style="margin-left:auto">⬆ Update website</button><button class="x" onclick="document.getElementById('spModal').classList.remove('open')">✕</button></div>
+    <div class="note" style="margin-bottom:8px">What the site shows after an Add to cart. Suggestions come from sales; pin what you want kept, remove what you do not, and press Update website. Untouched cards keep following the data.</div>
+    <div class="sp-wrap"><div class="sp-list"><input id="spSearch" placeholder="Find a design…" oninput="spRenderList()" style="width:100%;font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px"><div id="spList"></div></div><div class="sp-body" id="spBody"><div class="skel" style="height:120px"></div></div></div>
   </div>
 </div>
 <div class="modal" id="logModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:45">
@@ -606,6 +619,55 @@ function lineChart(series, key, color, fmt) {
   const dots = vals.map((v, i) => `<rect x="${x(i) - colW / 2}" y="${T}" width="${colW}" height="${H - T - B}" fill="transparent" onmousemove="chartTip(event, '${series[i].date}', '${fmt(v).replace(/'/g, '')}')" onmouseleave="chartTip()" ontouchstart="chartTip(event, '${series[i].date}', '${fmt(v).replace(/'/g, '')}')"/><circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="${color}" pointer-events="none"/>`).join('');
   const last = vals[n - 1], peak = Math.max(...vals), avg = vals.reduce((a, b) => a + b, 0) / (n || 1);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yTicks}${xTicks}<line x1="${L}" x2="${W - R}" y1="${y(avg)}" y2="${y(avg)}" stroke="${color}" stroke-dasharray="4 4" opacity=".45"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>${labels}${dots}</svg><div class="note" style="display:flex;justify-content:space-between;margin-top:4px"><span>latest <b style="color:${color}">${fmt(last)}</b></span><span>avg ${fmt(avg)}</span><span>peak ${fmt(peak)}</span></div>`;
+}
+// ---------- Sheet picks ----------
+let _sp = null, _spCur = null, _spDirty = {};
+async function openSheetPicks() {
+  document.getElementById('spModal').classList.add('open');
+  if (_sp) { spRenderList(); spRender(); return; }
+  document.getElementById('spBody').innerHTML = '<div class="skel" style="height:120px"></div>';
+  try { _sp = await api({ action: 'sheet_suggest' }); } catch (e) { document.getElementById('spBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  const pub = _sp.published;
+  document.getElementById('spWhen').textContent = pub ? `on site: ${new Date(pub.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${pub.products} designs` : 'not on the site yet';
+  _spCur = _sp.products[0] && _sp.products[0].handle; spRenderList(); spRender();
+}
+function spRenderList() {
+  const q = (document.getElementById('spSearch').value || '').toLowerCase();
+  document.getElementById('spList').innerHTML = _sp.products.filter(p => !q || p.title.toLowerCase().includes(q)).map(p => `<div class="sp-li${p.handle === _spCur ? ' on' : ''}${p.never ? '' : ''}" onclick="_spCur='${p.handle}';spRenderList();spRender()">${p.image ? `<img src="${esc(p.image)}" alt="">` : '<span style="width:28px;height:28px;border-radius:6px;background:#eee"></span>'}<span class="n">${esc(p.title)}${p.never ? ' <small>· hidden</small>' : ''}</span><small>${p.sold90}</small></div>`).join('');
+}
+const SP_ROWS = { pairs: ['Pairs well', 'who bought this also took'], home: ['For your home', 'best of the other rooms'], gift: ['For gifting', 'custom first, then most gifted'], self: ['One for you', 'same mood, then best sellers'] };
+function spRender() {
+  const p = _sp.products.find(x => x.handle === _spCur); if (!p) return;
+  const byH = {}; _sp.products.forEach(x => byH[x.handle] = x);
+  const sel = (k, opts, v) => `<label>${k}<select onchange="spTag('${p.handle}','${k}',this.value)">${opts.map(o => `<option value="${o}"${String(v) === String(o) ? ' selected' : ''}>${o}</option>`).join('')}</select></label>`;
+  const card = (h, why, pinned, k, isSug) => { const q = byH[h]; if (!q) return ''; return `<div class="sp-card${pinned ? ' pin' : ''}">${q.image ? `<img src="${esc(q.image)}" alt="">` : '<div style="aspect-ratio:1;background:#eee;border-radius:8px"></div>'}<div class="nm">${esc(q.title)}</div><div class="why">${esc(why || '')}</div><div class="ac"><button class="${pinned ? 'on' : ''}" onclick="spPin('${p.handle}','${k}','${h}',${pinned ? 'false' : 'true'})">${pinned ? '📌 pinned' : isSug ? '+ use' : '📌 pin'}</button><button onclick="spHide('${h}')" title="never show this design anywhere">✕</button></div></div>`; };
+  document.getElementById('spBody').innerHTML = `
+    <div class="sp-head">${p.image ? `<img src="${esc(p.image)}" alt="">` : ''}<div><b style="font-size:1rem">${esc(p.title)}</b><div class="note">₹${p.price} · ${p.sold90} sold in 90 days${p.pair_top ? ` · top pair ${esc(byH[p.pair_top.handle]?.title || p.pair_top.handle)} ×${p.pair_top.n}` : ''}</div></div>
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">${sel('room', _sp.rooms, p.tags.room)}${sel('theme', _sp.themes, p.tags.theme)}${sel('gift', ['yes', 'no'], p.tags.gift ? 'yes' : 'no')}<label>&nbsp;<button class="btn" onclick="spHide('${p.handle}', ${p.never ? 'false' : 'true'})">${p.never ? 'Show again' : 'Never show'}</button></label></span></div>
+    <div class="note" style="margin-bottom:10px">Tabs the customer sees after adding this: <b>${p.tags.gift ? 'Pairs well · One for you · For your home · Another gift' : 'Pairs well · For your home · For gifting · One for you'}</b>. Proposed tags were read from the title; change them above if wrong.</div>
+    ${Object.entries(SP_ROWS).map(([k, [l, sub]]) => `<div class="sp-row"><div class="rh"><b>${l}</b><span class="note">${sub} · first 4 go to the site</span></div><div class="sp-cards">${p.rows[k].show.map(x => card(x.handle, x.why, x.pinned, k, false)).join('') || '<div class="note">nothing yet</div>'}</div>${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).length ? `<div class="note" style="margin:6px 0 4px">more suggestions</div><div class="sp-cards sp-sug">${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).slice(0, 8).map(x => card(x.handle, x.why, false, k, true)).join('')}</div>` : ''}</div>`).join('')}`;
+}
+async function spPin(handle, k, h, on) {
+  const p = _sp.products.find(x => x.handle === handle); if (!p) return;
+  const pinned = p.rows[k].pinned.filter(x => x !== h); if (on) pinned.push(h);
+  const picks = {}; for (const kk in p.rows) picks[kk] = kk === k ? pinned : p.rows[kk].pinned;
+  try { await api({ action: 'sheet_save', handle, picks }); } catch (e) { alert(e.message); return; }
+  _sp = null; await openSheetPicks(); _spCur = handle; spRenderList(); spRender();
+}
+async function spTag(handle, k, v) {
+  try { await api({ action: 'sheet_save', handle, tags: { [k]: k === 'gift' ? v === 'yes' : v } }); } catch (e) { alert(e.message); return; }
+  _sp = null; await openSheetPicks(); _spCur = handle; spRenderList(); spRender();
+}
+async function spHide(h, on = true) {
+  const never = (_sp.never || []).filter(x => x !== h); if (on) never.push(h);
+  try { await api({ action: 'sheet_save', never }); } catch (e) { alert(e.message); return; }
+  const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
+}
+async function spPublish() {
+  const b = document.getElementById('spPub'); b.disabled = true; b.textContent = 'Writing to Shopify…';
+  try { const r = await api({ action: 'sheet_publish' }); const bad = (r.themes || []).filter(t => !t.ok); if (bad.length) alert('Could not write to theme ' + bad.map(t => t.theme + ': ' + t.error).join('\n')); else { document.getElementById('spWhen').textContent = `on site: just now · ${r.products} designs · ${Math.round(r.bytes / 1024)} KB`; } }
+  catch (e) { alert(e.message); }
+  finally { b.disabled = false; b.textContent = '⬆ Update website'; }
 }
 // ---------- AOV & baskets ----------
 let _bk = null;
