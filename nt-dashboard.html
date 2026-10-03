@@ -165,7 +165,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <div class="row" id="shopRow"></div>
     </div>
     <div class="block" id="b-amz" onclick="openShop('amazon')">
-      <button class="btn open" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();refreshShopBlock(this)">↻ Refresh</button>
+      <button class="btn open" style="padding:2px 9px;font-size:.72rem;cursor:pointer" onclick="event.stopPropagation();refreshShopBlock(this, true)">↻ Refresh</button>
       <div class="t"><span class="ic">📦</span>Amazon</div>
       <div class="kpi" id="amzKpi"><span class="skel" style="display:block;width:60%"></span></div>
       <div class="kl" id="amzKl">orders today</div>
@@ -1137,8 +1137,10 @@ async function loadBlocks() {
   catch (e) { document.getElementById('amzKpi').textContent = '—'; document.getElementById('amzRow').textContent = e.message; }
   document.getElementById('b-amz').classList.remove('loading');
 }
-async function refreshShopBlock(b) {
-  b.disabled = true; b.textContent = '…'; _shop = {};
+async function refreshShopBlock(b, amazon) {
+  b.disabled = true; b.textContent = amazon ? 'Asking Amazon…' : '…'; _shop = {};
+  // Amazon orders only reach our table through the daily 8am sync; the card's refresh pulls the last 2 days now
+  if (amazon) { try { await fetch(API.replace('nt-dashboard', 'nt-inventory'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync_amazon_orders', days_back: 2 }) }); } catch {} }
   try { await loadBlocks(); if (document.getElementById('shopModal').classList.contains('open')) await loadShop(true); } catch {}
   b.disabled = false; b.textContent = '↻ Refresh';
 }
