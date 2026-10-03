@@ -189,7 +189,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <h2 style="margin:0;font-size:1.05rem">👥 Who buys</h2>
       <span class="note" id="whoWhen"></span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <select id="whoDays" onchange="loadWho(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="7">last 7 days</option><option value="15">last 15 days</option><option value="30" selected>last 30 days</option><option value="60">last 60 days</option></select>
+        <select id="whoDays" onchange="loadWho(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="7">last 7 days</option><option value="15">last 15 days</option><option value="30" selected>last 30 days</option><option value="60">last 60 days</option><option value="90">last 90 days</option></select>
         <button class="btn" onclick="loadWho(true, true)">↻</button>
       </span>
     </div>
@@ -733,12 +733,13 @@ function renderWho() {
         </tbody></table>
       </div>
       <div>
-        <div class="note" style="margin-bottom:4px"><b>Designs by age</b> · estimated: each ad's Shopify items spread by that ad's Meta age mix · % of the design's units</div>
-        <table class="dt" style="table-layout:auto"><thead><tr><th>Design</th>${d.ages.map(a => `<th class="num">${a}</th>`).join('')}<th class="num">Units</th></tr></thead><tbody>
-          ${d.matrix.map(r => `<tr><td>${esc(r.title)}<div class="note" style="font-size:.64rem">peaks ${r.peak}</div></td>${r.by_age.map(v => `<td class="num" style="${v ? heat(v, 60, true) : ''}">${v ? v + '%' : ''}</td>`).join('')}<td class="num"><b>${r.units}</b></td></tr>`).join('') || '<tr><td colspan="8" class="note">No Shopify items matched to ads in this window.</td></tr>'}
+        <div class="note" style="margin-bottom:4px"><b>Designs by age</b> · Meta purchases of the ads named after each design · a share shows only from ${d.min_design} purchases, cells under 2 stay as counts</div>
+        <table class="dt" style="table-layout:auto"><thead><tr><th>Design</th>${d.ages.map(a => `<th class="num">${a}</th>`).join('')}<th class="num">Buys</th><th class="num">ROAS</th></tr></thead><tbody>
+          ${d.matrix.map(r => `<tr${r.enough ? '' : ' style="opacity:.55"'}><td>${esc(r.title)}<div class="note" style="font-size:.64rem">${r.ads} ad${r.ads === 1 ? '' : 's'}${r.enough ? ` · peaks ${r.peak}` : ' · too few to read'}${r.female_share != null && r.enough ? ` · ${r.female_share}% women` : ''}</div></td>${r.by_age.map((c, i) => `<td class="num" style="${c.pct ? heat(c.pct, 60, true) : ''}" title="${d.ages[i]}: ${c.n} purchases${r.roas_by_age[i] != null ? ' · ROAS ' + r.roas_by_age[i] : ''}">${c.pct ? `<b>${c.pct}%</b><div class="note" style="font-size:.62rem">${c.n}</div>` : c.n ? `<span class="note">${c.n}</span>` : ''}</td>`).join('')}<td class="num"><b>${r.purchases}</b>${r.shop_units ? `<div class="note" style="font-size:.62rem">${r.shop_units} shop</div>` : ''}</td><td class="num" style="color:${r.roas >= 2 ? '#2e8b57' : r.roas < 1 ? '#c0392b' : 'inherit'}">${r.roas}</td></tr>`).join('') || '<tr><td colspan="9" class="note">No ad in this window could be tied to a design.</td></tr>'}
         </tbody></table>
-        <div class="note" style="margin-top:8px"><b>What each group buys</b></div>
-        ${d.items.filter(i => i.units).map(i => `<div class="note" style="margin-top:4px"><b>${i.age}</b> · ${i.units} units${i.custom_share ? ` · ${i.custom_share}% custom` : ''} · ${i.top.slice(0, 4).map(t => `${esc(t.title)} ${t.share}%`).join(' · ')}</div>`).join('')}
+        ${d.mapping && d.mapping.ads_unmapped ? `<div class="note" style="margin-top:4px">${d.mapping.ads_mapped} ads tied to a design by name · ${d.mapping.ads_unmapped} not (${d.mapping.unmapped_purchases} purchases, ${inr(d.mapping.unmapped_spend)} spend). Name an ad after its design and it counts.</div>` : ''}
+        <div class="note" style="margin-top:8px"><b>What each group buys</b> · Meta purchases by age across the named ads</div>
+        ${d.items.filter(i => i.units).map(i => `<div class="note" style="margin-top:4px"><b>${i.age}</b> · ${i.units} buys${i.custom_share ? ` · ${i.custom_share}% custom` : ''} · ${i.top.slice(0, 4).map(t => `${esc(t.title)} <b>${t.qty}</b>`).join(' · ')}</div>`).join('')}
       </div>
     </div>
     <div class="note" style="margin-top:12px"><b>Which ad works for whom</b> · pick an age to see the ads that pay best for it</div>
