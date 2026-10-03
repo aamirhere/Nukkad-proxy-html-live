@@ -757,6 +757,7 @@ async function loadWho(reset, force) {
   const days = +document.getElementById('whoDays').value, until = istToday(), since = addDaysStr(until, -(days - 1));
   try { _who = await api({ action: 'age', since, until, force: !!force }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   renderWho();
+  if (_who && _who.filling) { clearTimeout(window._whoT); window._whoT = setTimeout(() => loadWho(false, true), 90e3); }
 }
 function addDaysStr(d, n) { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
 function heat(v, max, good) { const f = max ? Math.min(1, v / max) : 0; return good ? `background:rgba(46,139,87,${(0.08 + f * 0.5).toFixed(2)})` : `background:rgba(212,84,31,${(0.08 + f * 0.5).toFixed(2)})`; }
@@ -773,7 +774,8 @@ function renderWho() {
   const adCard = a => `<div class="sp-card" style="width:150px"><img src="${esc(a.thumb || '')}" alt="" onerror="this.style.visibility='hidden'"><div class="nm" title="${esc(a.name)}">${esc(a.name)}</div><div class="why" style="color:${a.roas >= 2 ? '#2e8b57' : a.roas < 1 ? '#c0392b' : 'var(--ink2)'}">ROAS ${a.roas} · ${a.purchases} sales · ${inr(a.spend)}</div>${_whoAge ? '' : `<div class="note" style="font-size:.66rem">${a.best ? `works best for <b>${a.best}</b> (${a.best_roas})` : 'no clear age edge'}${a.worst ? ` · weak for ${a.worst} (${a.worst_roas})` : ''}${a.female_share != null ? ` · ${a.female_share}% women` : ''}</div><div style="display:flex;gap:2px;height:6px;margin-top:4px" title="${d.ages.map((x, i) => x + ' ' + a.mix[i] + '%').join(' · ')}">${a.mix.map((m, i) => `<i style="flex:${Math.max(m, 1)};background:${['#f5c99a', '#e8915b', '#d4541f', '#b8431a', '#7c4b1e', '#3a2b1d'][i]};border-radius:2px"></i>`).join('')}</div>`}</div>`;
   body.innerHTML = `
     ${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}
-    <div class="note" style="margin-bottom:6px">From Meta: ${(d.accounts || []).map(a => `<b>${esc(a.account)}</b> ${a.error ? `<span style="color:#c0392b">failed: ${esc(a.error)}</span>` : `${inr(a.spend)} · ${a.purchases} purchases · ${a.rows} rows`}`).join(' · ')}${d.dropped && d.dropped.spend ? ` · <span style="color:var(--muted)">unknown age/gender ${inr(d.dropped.spend)} · ${d.dropped.purchases} purchases, not in the grid</span>` : ''}</div>
+    ${d.filling ? `<div class="warn">${d.filling.missing} day${d.filling.missing === 1 ? '' : 's'} of this window are still being read from Meta in the background (back to ${d.filling.oldest}). Numbers grow as passes land; this refreshes itself.</div>` : ''}
+    <div class="note" style="margin-bottom:6px">From the hourly snapshot: ${(d.accounts || []).map(a => `<b>${esc(a.account)}</b> ${inr(a.spend)} · ${a.purchases} purchases · ${a.days} days`).join(' · ')}${d.dropped && d.dropped.spend ? ` · <span style="color:var(--muted)">unknown age/gender ${inr(d.dropped.spend)} · ${d.dropped.purchases} purchases, not in the grid</span>` : ''}</div>
     <div class="read">${d.read.map(r => `<p>${esc(r)}</p>`).join('') || '<p>Not enough spend in this window to read anything.</p>'}</div>
     <div class="pt">
       ${tile(best ? best.age : '—', 'biggest buyer group', best ? `${best.purchase_share}% of purchases · ROAS ${best.roas}` : '')}
@@ -796,6 +798,9 @@ function renderWho() {
         ${d.mapping && d.mapping.ads_unmapped ? `<div class="note" style="margin-top:4px">${d.mapping.ads_mapped} ads tied to a design by name · ${d.mapping.ads_unmapped} not (${d.mapping.unmapped_purchases} purchases, ${inr(d.mapping.unmapped_spend)} spend). Name an ad after its design and it counts.</div>` : ''}
         <div class="note" style="margin-top:8px"><b>What each group buys</b> · Meta purchases by age across the named ads</div>
         ${d.items.filter(i => i.units).map(i => `<div class="note" style="margin-top:4px"><b>${i.age}</b> · ${i.units} buys${i.custom_share ? ` · ${i.custom_share}% custom` : ''} · ${i.top.slice(0, 4).map(t => `${esc(t.title)} <b>${t.qty}</b>`).join(' · ')}</div>`).join('')}
+        <div class="note" style="margin-top:10px"><b>Women buy · Men buy</b> · Meta purchases by gender on the named ads</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">${(d.by_gender || []).map(g => `<div><div class="note" style="font-weight:800;color:var(--ink)">${g.gender === 'female' ? '♀ Women' : '♂ Men'}</div>${g.top.slice(0, 8).map(t => `<div class="note">${esc(t.title)} <b>${t.n}</b></div>`).join('') || '<div class="note">—</div>'}</div>`).join('')}</div>
+        ${(d.gender_skew || []).length ? `<div class="note" style="margin-top:8px"><b>Women share per design</b></div>${d.gender_skew.slice(0, 12).map(x => `<div style="display:grid;grid-template-columns:1fr 120px 40px;gap:8px;align-items:center;font-size:.76rem;margin-top:3px"><span>${esc(x.title)} <span class="note">${x.n}</span></span><span style="height:8px;border-radius:4px;background:#9ecbe6;overflow:hidden"><i style="display:block;height:100%;width:${x.female_share}%;background:#d77fa1"></i></span><b style="color:${x.female_share >= 60 ? '#b23a6b' : x.female_share <= 40 ? '#1a3f9c' : 'inherit'}">${x.female_share}%</b></div>`).join('')}<div class="note" style="margin-top:2px">pink = women, blue = men</div>` : ''}
       </div>
     </div>
     <div class="note" style="margin-top:12px"><b>Which ad works for whom</b> · pick an age to see the ads that pay best for it</div>
