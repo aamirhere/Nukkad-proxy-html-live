@@ -232,6 +232,18 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     <div class="sp-wrap"><div class="sp-list"><input id="spSearch" placeholder="Find a design…" oninput="spRenderList()" style="width:100%;font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px"><div id="spList"></div></div><div class="sp-body" id="spBody"><div class="skel" style="height:120px"></div></div></div>
   </div>
 </div>
+<div class="modal" id="bmModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:47">
+  <div class="panel" style="width:min(900px,100%)">
+    <div class="hd"><h2>⚖ Budget mode</h2><span class="note" id="bmWhen"></span><button class="x" onclick="document.getElementById('bmModal').classList.remove('open')">✕</button></div>
+    <div class="hd" style="gap:8px;flex-wrap:wrap">
+      <span class="pill" id="bmDown" onclick="bmDir='down';bmPlan()">Scale down</span><span class="pill" id="bmUp" onclick="bmDir='up';bmPlan()">Scale up</span>
+      <span class="note">to</span><input id="bmTarget" type="number" step="500" placeholder="₹ per day" style="width:120px;font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="bmPlan()">
+      <button class="btn" onclick="bmPlan()">Suggest</button>
+      <span style="margin-left:auto;display:flex;gap:6px"><button class="btn" id="bmUndo" onclick="bmUndo()">↶ Undo last</button><button class="btn" id="bmApply" onclick="bmApply()" style="background:var(--ink);color:#fff">Apply ticked</button></span>
+    </div>
+    <div id="bmBody"><div class="note">Pick a direction. Leave the target empty for a 30% move.</div></div>
+  </div>
+</div>
 <div class="modal" id="logModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:45">
   <div class="panel">
     <div class="hd"><h2>Journal</h2><span class="note" id="logWhen"></span><button class="x" onclick="document.getElementById('logModal').classList.remove('open')">✕</button></div>
@@ -257,6 +269,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <input type="date" id="adsTo" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px">
       <button class="btn" onclick="adsCustom()">Apply</button>
       <button class="btn" onclick="loadAds('hard')">↻ Refresh</button>
+      <button class="btn" onclick="openBudget()" style="margin-left:auto">⚖ Budget mode</button>
     </div>
     <div id="adsBody"><div class="skel" style="height:80px"></div></div>
   </div>
@@ -694,6 +707,47 @@ async function spPublish() {
     }
   } catch (e) { alert(e.message); }
   finally { b.disabled = false; b.textContent = '⬆ Update website'; }
+}
+// ---------- Budget mode ----------
+let bmDir = 'down', _bm = null;
+async function openBudget() {
+  document.getElementById('bmModal').classList.add('open');
+  try { const last = await api({ action: 'budget_last' }); document.getElementById('bmWhen').textContent = last && last.changes && last.changes.length ? `last change ${new Date(last.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${last.changes.length} ad sets, undo available` : 'no change applied yet'; } catch {}
+  bmPlan();
+}
+async function bmPlan() {
+  document.getElementById('bmDown').classList.toggle('on', bmDir === 'down'); document.getElementById('bmUp').classList.toggle('on', bmDir === 'up');
+  const body = document.getElementById('bmBody'); body.innerHTML = '<div class="skel" style="height:100px"></div>';
+  const target = +document.getElementById('bmTarget').value || undefined;
+  try { _bm = await api({ action: 'budget_plan', direction: bmDir, target }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  const d = _bm, save = d.changes.reduce((a, c) => a + c.saves, 0);
+  const tile = (n, l, s) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const line = (c, i) => `<label class="bm-line" style="display:grid;grid-template-columns:22px 1fr auto auto;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="checkbox" data-i="${i}" checked><div style="min-width:0"><b>${esc(c.name)}</b> <span class="note">${esc(c.account)} · ${c.kind === 'campaign' ? 'campaign budget' : 'ad set'}</span><div class="note">${esc(c.why)} · ${c.purchases7} sales · today ${inr(c.today)}</div></div><div style="text-align:right;font-size:.8rem">${inr(c.budget)} → <b style="color:${c.action === 'pause' ? '#c0392b' : c.saves < 0 ? '#2e8b57' : '#b05000'}">${c.action === 'pause' ? 'pause' : inr(c.new_budget)}</b></div><div style="text-align:right;font-weight:800;color:${c.saves >= 0 ? '#2e8b57' : '#b05000'}">${c.saves >= 0 ? '−' : '+'}${inr(Math.abs(c.saves))}</div></label>`;
+  body.innerHTML = `
+    ${d.errors && d.errors.length ? `<div class="warn">${d.errors.map(esc).join('<br>')}</div>` : ''}
+    <div class="pt" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">
+      ${tile(inr(d.total), 'daily budgets now', `${d.lines.length} budget holders`)}${tile(inr(d.spent7), 'actual spend / day', 'last 7 days')}${tile(inr(d.today), 'spent today', 'so far')}${tile(inr(d.goal), bmDir === 'down' ? 'target' : 'target', bmDir === 'down' ? `saves ${inr(save)} a day` : d.short ? `${inr(d.short)} short of it with the winners alone` : `adds ${inr(-save)} a day`)}
+    </div>
+    ${d.changes.length ? `<div class="note" style="margin-bottom:6px"><b>${bmDir === 'down' ? 'Close or trim these' : 'Raise these'}</b> · untick anything you want left alone · nothing changes until you press Apply</div>${d.changes.map(line).join('')}` : `<div class="note">${bmDir === 'down' ? 'Nothing to close: already at or under the target.' : 'No ad set qualifies for a raise (needs ROAS 2.5+ on ₹1,500+ this week). Add creatives instead.'}</div>`}
+    <details style="margin-top:10px"><summary class="note" style="cursor:pointer">All budget holders</summary><table class="dt" style="table-layout:auto;margin-top:6px"><thead><tr><th>Name</th><th>Account</th><th class="num">Budget</th><th class="num">7d spend</th><th class="num">ROAS 7d</th><th class="num">Sales</th><th class="num">Today</th></tr></thead><tbody>${d.lines.map(l => `<tr><td>${esc(l.name)}<div class="note">${l.kind === 'campaign' ? 'campaign budget' : ''}</div></td><td>${esc(l.account)}</td><td class="num">${inr(l.budget)}</td><td class="num">${inr(l.spend7)}</td><td class="num" style="color:${l.roas7 >= 2.5 ? '#2e8b57' : l.roas7 < 1.5 ? '#c0392b' : 'inherit'}"><b>${l.roas7}</b></td><td class="num">${l.purchases7}</td><td class="num">${inr(l.today)}</td></tr>`).join('')}</tbody></table></details>`;
+}
+async function bmApply() {
+  if (!_bm) return;
+  const picked = [...document.querySelectorAll('#bmBody input[type=checkbox]:checked')].map(x => _bm.changes[+x.getAttribute('data-i')]);
+  if (!picked.length) { alert('Nothing ticked.'); return; }
+  const summary = picked.map(c => `${c.action === 'pause' ? 'Pause' : 'Set ' + inr(c.new_budget)} · ${c.name} (${c.account})`).join('\n');
+  if (!confirm(`This writes to Meta now:\n\n${summary}\n\nUndo restores the previous state. Continue?`)) return;
+  const b = document.getElementById('bmApply'); b.disabled = true; b.textContent = 'Applying…';
+  try { const r = await api({ action: 'budget_apply', changes: picked.map(c => ({ id: c.id, kind: c.kind, name: c.name, account: c.account, action: c.action, status: c.status, budget: c.budget, new_budget: c.new_budget })) }); alert(`${r.applied.length} applied${r.failed.length ? `\n\nFailed:\n${r.failed.map(f => f.name + ': ' + f.error).join('\n')}` : ''}`); openBudget(); _adsAt = 0; loadAds('hard'); }
+  catch (e) { alert(e.message); }
+  finally { b.disabled = false; b.textContent = 'Apply ticked'; }
+}
+async function bmUndo() {
+  if (!confirm('Restore the ad sets changed by the last Apply to their previous budgets and status?')) return;
+  const b = document.getElementById('bmUndo'); b.disabled = true; b.textContent = 'Restoring…';
+  try { const r = await api({ action: 'budget_undo' }); alert(r.note || `${r.restored.length} restored${r.failed.length ? `\n\nFailed:\n${r.failed.map(f => f.name + ': ' + f.error).join('\n')}` : ''}`); openBudget(); _adsAt = 0; loadAds('hard'); }
+  catch (e) { alert(e.message); }
+  finally { b.disabled = false; b.textContent = '↶ Undo last'; }
 }
 // ---------- Who buys: age × gender from Meta, designs by age ----------
 let _who = null, _whoAge = '';
