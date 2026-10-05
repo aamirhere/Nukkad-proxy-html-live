@@ -184,6 +184,20 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     </div>
     <div id="paceBody"><div class="skel" style="height:120px"></div></div>
   </section>
+  <section id="ledger" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">📒 Ledger</h2>
+      <span class="note" id="lgWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span class="pills" style="margin:0" id="lgGroup"><span class="pill on" data-g="day" onclick="lgSet('day')">Days</span><span class="pill" data-g="week" onclick="lgSet('week')">Weeks</span><span class="pill" data-g="month" onclick="lgSet('month')">Months</span><span class="pill" data-g="fy" onclick="lgSet('fy')">Financial years</span></span>
+        <select id="lgDays" onchange="loadLedger(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="7" selected>last 7 days</option><option value="14">last 14 days</option><option value="30">last 30 days</option><option value="60">last 60 days</option><option value="90">last 90 days</option></select>
+        <select id="lgWeeks" onchange="loadLedger(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px;display:none"><option value="8">last 8 weeks</option><option value="12" selected>last 12 weeks</option><option value="26">last 26 weeks</option><option value="52">last 52 weeks</option></select>
+        <button class="btn" onclick="lgCsv()">⬇ CSV</button>
+        <button class="btn" onclick="loadLedger(true)">↻</button>
+      </span>
+    </div>
+    <div id="lgBody"><div class="skel" style="height:120px"></div></div>
+  </section>
   <section id="who" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <h2 style="margin:0;font-size:1.05rem">👥 Who buys</h2>
@@ -749,6 +763,55 @@ async function bmUndo() {
   catch (e) { alert(e.message); }
   finally { b.disabled = false; b.textContent = '↶ Undo last'; }
 }
+// ---------- Ledger ----------
+let _lg = null, _lgGroup = 'day';
+function lgSet(g) { _lgGroup = g; document.querySelectorAll('#lgGroup .pill').forEach(p => p.classList.toggle('on', p.dataset.g === g)); document.getElementById('lgDays').style.display = g === 'day' ? '' : 'none'; document.getElementById('lgWeeks').style.display = g === 'week' ? '' : 'none'; loadLedger(true); }
+async function loadLedger(reset) {
+  const body = document.getElementById('lgBody');
+  if (reset) body.innerHTML = '<div class="skel" style="height:120px"></div>';
+  try { _lg = await api({ action: 'ledger', group: _lgGroup, days: +document.getElementById('lgDays').value, weeks: +document.getElementById('lgWeeks').value }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  renderLedger();
+}
+function renderLedger() {
+  const d = _lg, body = document.getElementById('lgBody'); if (!d) return;
+  const S = d.summary, g = d.group;
+  const label = { day: `last ${d.rows.length} days`, week: `last ${d.rows.length} weeks`, month: 'last full month', fy: 'last full year' }[g];
+  document.getElementById('lgWhen').textContent = `${d.rows[0]?.key || ''} → ${d.today}`;
+  const sgn = v => v == null ? '' : `<span style="color:${v >= 0 ? '#2e8b57' : '#c0392b'}">${v >= 0 ? '▲' : '▼'} ${Math.abs(v)}${typeof v === 'number' && Math.abs(v) < 20 && String(v).includes('.') ? '' : '%'}</span>`;
+  const sgnAbs = v => v == null ? '' : `<span style="color:${v >= 0 ? '#2e8b57' : '#c0392b'}">${v >= 0 ? '▲' : '▼'} ${Math.abs(v)}</span>`;
+  const tile = (n, l, s, col) => `<div class="tile"><div class="n" style="${col ? 'color:' + col : ''}">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const roasCol = v => v == null ? 'var(--muted)' : v >= 2.5 ? '#2e8b57' : v < 1.5 ? '#c0392b' : 'var(--ink)';
+  const maxS = Math.max(...d.rows.map(r => r.spend), 1), maxR = Math.max(...d.rows.map(r => r.revenue), 1);
+  const bar = (v, max, col) => `<div style="display:flex;align-items:center;gap:6px"><span style="flex:none;min-width:62px;text-align:right">${inr(v)}</span><i style="display:block;height:8px;border-radius:4px;background:${col};width:${Math.max(2, v / max * 70)}px;opacity:.8"></i></div>`;
+  const row = r => `<tr style="${r.open ? 'background:#fdf5ec' : ''}">
+    <td><b>${esc(r.label)}</b>${r.open ? ' <span class="note">so far</span>' : ''}${g !== 'day' ? `<div class="note" style="font-size:.64rem">${r.first.slice(5)} → ${r.last.slice(5)} · ${r.days}d</div>` : ''}</td>
+    <td class="num" title="${Object.entries(r.acct).map(([k, v]) => k + ' ' + inr(v)).join(' · ')}">${bar(r.spend, maxS, '#d4541f')}<div class="note" style="font-size:.62rem">${Object.entries(r.acct).map(([k, v]) => `${esc(k)} ${inr(v)}`).join(' · ')}</div></td>
+    <td class="num">${bar(r.revenue, maxR, '#2e8b57')}<div class="note" style="font-size:.62rem">shop ${inr(r.shop_rev)} · amz ${inr(r.amz_rev)}</div></td>
+    <td class="num"><b>${r.shop_orders}</b><div class="note" style="font-size:.62rem">+${r.amz_orders} amz${r.shop_cancel ? ` · ${r.shop_cancel} cancel` : ''}</div></td>
+    <td class="num" style="color:${roasCol(r.roas)}"><b>${r.roas ?? '—'}</b><div class="note" style="font-size:.62rem">meta ${r.meta_roas ?? '—'}</div></td>
+    <td class="num" style="color:${roasCol(r.blended)}"><b>${r.blended ?? '—'}</b></td>
+    <td class="num">${r.mer != null ? r.mer + '%' : '—'}</td>
+    <td class="num">${r.aov ? inr(r.aov) : '—'}<div class="note" style="font-size:.62rem">cpa ${r.cpa ? inr(r.cpa) : '—'}</div></td>
+    <td class="num">${r.cod_share != null ? r.cod_share + '%' : '—'}</td>
+  </tr>${r.pace ? `<tr><td colspan="9" style="background:#fdf5ec;padding:4px 10px 8px"><div class="note">Day ${r.pace.elapsed} of ${r.pace.total}: spend <b>${inr(r.spend)}</b> vs <b>${inr(r.pace.prev_spend_at_point)}</b> at this point last ${g === 'week' ? 'week' : g === 'month' ? 'month' : 'year'} ${sgn(r.pace.spend_vs)} · revenue <b>${inr(r.revenue)}</b> vs <b>${inr(r.pace.prev_revenue_at_point)}</b> ${sgn(r.pace.revenue_vs)} · on this run rate the ${g === 'fy' ? 'year' : g} closes at <b>${inr(r.pace.projected_spend)}</b> spend and <b>${inr(r.pace.projected_revenue)}</b> revenue (last: ${inr(r.pace.prev_total_spend)} / ${inr(r.pace.prev_total_revenue)})</div></td></tr>` : ''}`;
+  body.innerHTML = `
+    <div class="pt">
+      ${tile(inr(S.spend), `spend · ${label}`, `${sgn(S.vs.spend)} vs before (${inr(S.prev.spend)})`)}
+      ${tile(inr(S.revenue), 'revenue · shop + amazon', `${sgn(S.vs.revenue)} vs before (${inr(S.prev.revenue)})`, '#2e8b57')}
+      ${tile(S.roas ?? '—', 'ROAS · shop ÷ spend', `${sgnAbs(S.vs.roas)} vs ${S.prev.roas ?? '—'}`, roasCol(S.roas))}
+      ${tile(S.blended ?? '—', 'blended · with amazon', `${sgnAbs(S.vs.blended)} vs ${S.prev.blended ?? '—'}`, roasCol(S.blended))}
+      ${tile(S.mer != null ? S.mer + '%' : '—', 'MER · spend ÷ revenue', 'lower is better')}
+      ${tile(S.shop_orders, 'shopify orders', `${sgn(S.vs.orders)} · AOV ${S.aov ? inr(S.aov) : '—'} ${sgn(S.vs.aov)}`)}
+    </div>
+    <div style="overflow-x:auto"><table class="dt" style="table-layout:auto;min-width:860px"><thead><tr><th>${{ day: 'Day', week: 'Week', month: 'Month', fy: 'Financial year' }[g]}</th><th class="num">Spend</th><th class="num">Revenue</th><th class="num">Orders</th><th class="num">ROAS</th><th class="num">Blended</th><th class="num">MER</th><th class="num">AOV</th><th class="num">COD</th></tr></thead><tbody>${d.rows.slice().reverse().map(row).join('')}</tbody></table></div>
+    <div class="note" style="margin-top:6px">${esc(d.note)} Open period rows are shaded; their pacing line compares the same number of elapsed days in the previous period.</div>`;
+}
+function lgCsv() {
+  if (!_lg) return;
+  const cols = ['key', 'first', 'last', 'days', 'spend', 'shop_rev', 'amz_rev', 'revenue', 'shop_orders', 'amz_orders', 'shop_units', 'meta_purchases', 'meta_value', 'roas', 'blended', 'meta_roas', 'mer', 'aov', 'cpa', 'cod_share'];
+  const lines = [cols.join(','), ..._lg.rows.map(r => cols.map(c => r[c] ?? '').join(','))];
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `ledger-${_lg.group}-${_lg.today}.csv`; a.click();
+}
 // ---------- Who buys: age × gender from Meta, designs by age ----------
 let _who = null, _whoAge = '';
 async function loadWho(reset, force) {
@@ -1225,13 +1288,13 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
-  loadPace(true); loadBasket(true); loadWho(true, true);
+  loadPace(true); loadLedger(true); loadBasket(true); loadWho(true, true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadBasket(); loadWho(true);
+loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadLedger(true); loadBasket(); loadWho(true);
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
 setInterval(() => { if (!document.hidden && document.getElementById('paceDay').value === istToday()) loadPace(true); }, 5 * 60e3);
