@@ -79,6 +79,9 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .cc .thumb:hover .hov{opacity:1}
 .cc .hr2{display:flex;justify-content:space-between;align-items:baseline;gap:6px;border-bottom:1px solid rgba(255,255,255,.12);padding:2px 0}
 .cc .hr2 span{color:#e9ddca}.cc .hr2 b{color:#fff;font-size:.74rem}.cc .hr2 i{font-style:normal;color:#c9b89f;font-size:.6rem;margin-left:auto}
+.lgc{font-variant-numeric:tabular-nums;vertical-align:top;white-space:nowrap;padding-top:8px!important;padding-bottom:8px!important}.lgd{border-left:2px solid var(--line)}
+.lgv{display:flex;flex-direction:column;align-items:flex-end;gap:3px}.lgv b{font-size:.92rem}.lgv i{display:block;height:6px;border-radius:3px;opacity:.8;max-width:110px;min-width:2px}
+.lgs{font-size:.66rem;color:var(--muted);margin-top:3px;white-space:nowrap}
 .sp-wrap{display:grid;grid-template-columns:230px 1fr;gap:12px;min-height:60vh}@media(max-width:700px){.sp-wrap{grid-template-columns:1fr}}
 .sp-list{border-right:1px solid var(--line);padding-right:8px;max-height:70vh;overflow:auto}.sp-li{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:8px;cursor:pointer;font-size:.8rem}.sp-li:hover{background:#fdf5ec}.sp-li.on{background:var(--ink);color:#fff}.sp-li img{width:28px;height:28px;border-radius:6px;object-fit:cover;background:#eee}.sp-li .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp-li small{opacity:.7}
 .sp-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.sp-head img{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#eee}.sp-head select{font:inherit;padding:4px 6px;border:1.5px solid var(--line);border-radius:8px}.sp-head label{font-size:.74rem;color:var(--muted);display:flex;flex-direction:column;gap:2px}
@@ -782,16 +785,17 @@ function renderLedger() {
   const tile = (n, l, s, col) => `<div class="tile"><div class="n" style="${col ? 'color:' + col : ''}">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
   const roasCol = v => v == null ? 'var(--muted)' : v >= 2.5 ? '#2e8b57' : v < 1.5 ? '#c0392b' : 'var(--ink)';
   const maxS = Math.max(...d.rows.map(r => r.spend), 1), maxR = Math.max(...d.rows.map(r => r.shop_rev), 1), maxA = Math.max(...d.rows.map(r => r.amz_rev), 1);
-  const bar = (v, max, col) => `<div style="display:flex;align-items:center;gap:6px"><span style="flex:none;min-width:62px;text-align:right">${inr(v)}</span><i style="display:block;height:8px;border-radius:4px;background:${col};width:${Math.max(2, v / max * 70)}px;opacity:.8"></i></div>`;
+  const bar = (v, max, col) => `<div class="lgv"><b>${inr(v)}</b><i style="background:${col};width:${Math.max(2, v / max * 100)}%"></i></div>`;
+  const k = n => Math.round(n).toLocaleString('en-IN');
   const row = r => `<tr style="${r.open ? 'background:#fdf5ec' : ''}">
     <td><b>${esc(r.label)}</b>${r.open ? ' <span class="note">so far</span>' : ''}${g !== 'day' ? `<div class="note" style="font-size:.64rem">${r.first.slice(5)} → ${r.last.slice(5)} · ${r.days}d</div>` : ''}</td>
-    <td class="num" title="${Object.entries(r.acct).map(([k, v]) => k + ' ' + inr(v)).join(' · ')}">${bar(r.spend, maxS, '#d4541f')}<div class="note" style="font-size:.62rem">${Object.entries(r.acct).map(([k, v]) => `${esc(k)} ${inr(v)}`).join(' · ')}</div></td>
-    <td class="num">${bar(r.shop_rev, maxR, '#2e8b57')}<div class="note" style="font-size:.62rem"><b>${r.shop_orders}</b> orders${r.shop_cancel ? ` · ${r.shop_cancel} cancel` : ''}</div></td>
-    <td class="num" style="color:${roasCol(r.roas)}"><b>${r.roas ?? '—'}</b><div class="note" style="font-size:.62rem">meta ${r.meta_roas ?? '—'}</div></td>
-    <td class="num">${r.mer != null ? r.mer + '%' : '—'}</td>
-    <td class="num">${r.aov ? inr(r.aov) : '—'}<div class="note" style="font-size:.62rem">cpa ${r.cpa ? inr(r.cpa) : '—'} · cod ${r.cod_share != null ? r.cod_share + '%' : '—'}</div></td>
-    <td class="num" style="border-left:2px solid var(--line)">${bar(r.amz_rev, maxA, '#c89a5e')}<div class="note" style="font-size:.62rem"><b>${r.amz_orders}</b> orders · ${r.amz_units} units</div></td>
-    <td class="num" style="border-left:2px solid var(--line);color:var(--ink2)">${inr(r.revenue)}<div class="note" style="font-size:.62rem">blended <b style="color:${roasCol(r.blended)}">${r.blended ?? '—'}</b></div></td>
+    <td class="num lgc">${bar(r.spend, maxS, '#d4541f')}<div class="lgs">${Object.entries(r.acct).filter(([, v]) => v).sort((a, b) => b[1] - a[1]).map(([kk, v]) => `${esc(kk)} ${k(v)}`).join(' · ') || '—'}</div></td>
+    <td class="num lgc">${bar(r.shop_rev, maxR, '#2e8b57')}<div class="lgs">${r.shop_orders} orders${r.shop_cancel ? ` · ${r.shop_cancel} cancelled` : ''}</div></td>
+    <td class="num lgc" style="color:${roasCol(r.roas)}"><b style="font-size:.95rem">${r.roas ?? '—'}</b><div class="lgs">Meta says ${r.meta_roas ?? '—'}</div></td>
+    <td class="num lgc"><b>${r.mer != null ? r.mer + '%' : '—'}</b></td>
+    <td class="num lgc"><b>${r.aov ? inr(r.aov) : '—'}</b><div class="lgs">CPA ${r.cpa ? k(r.cpa) : '—'} · COD ${r.cod_share != null ? r.cod_share + '%' : '—'}</div></td>
+    <td class="num lgc lgd">${bar(r.amz_rev, maxA, '#c89a5e')}<div class="lgs">${r.amz_orders} orders · ${r.amz_units} units</div></td>
+    <td class="num lgc lgd" style="color:var(--ink2)"><b>${inr(r.revenue)}</b><div class="lgs">blended <b style="color:${roasCol(r.blended)}">${r.blended ?? '—'}</b></div></td>
   </tr>${r.pace ? `<tr><td colspan="8" style="background:#fdf5ec;padding:4px 10px 8px"><div class="note">Day ${r.pace.elapsed} of ${r.pace.total}: spend <b>${inr(r.spend)}</b> vs <b>${inr(r.pace.prev_spend_at_point)}</b> at this point last ${g === 'week' ? 'week' : g === 'month' ? 'month' : 'year'} ${sgn(r.pace.spend_vs)} · revenue <b>${inr(r.revenue)}</b> vs <b>${inr(r.pace.prev_revenue_at_point)}</b> ${sgn(r.pace.revenue_vs)} · on this run rate the ${g === 'fy' ? 'year' : g} closes at <b>${inr(r.pace.projected_spend)}</b> spend and <b>${inr(r.pace.projected_revenue)}</b> revenue (last: ${inr(r.pace.prev_total_spend)} / ${inr(r.pace.prev_total_revenue)})</div></td></tr>` : ''}`;
   body.innerHTML = `
     <div class="note" style="margin-bottom:4px"><b>Website</b> · Meta spend against Shopify</div>
@@ -808,7 +812,7 @@ function renderLedger() {
       ${tile(S.amz_orders, 'amazon orders', `${S.amz_units} units`)}
       ${tile(inr(S.revenue), 'combined revenue', `blended ROAS <b style="color:${roasCol(S.blended)}">${S.blended ?? '—'}</b> ${sgnAbs(S.vs.blended)}`)}
     </div>
-    <div style="overflow-x:auto"><table class="dt" style="table-layout:auto;min-width:860px"><thead><tr><th>${{ day: 'Day', week: 'Week', month: 'Month', fy: 'Financial year' }[g]}</th><th class="num">Spend</th><th class="num">Shopify revenue</th><th class="num">ROAS</th><th class="num">MER</th><th class="num">AOV</th><th class="num" style="border-left:2px solid var(--line)">Amazon revenue</th><th class="num" style="border-left:2px solid var(--line)">Combined</th></tr></thead><tbody>${d.rows.slice().reverse().map(row).join('')}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="dt" style="table-layout:auto;min-width:860px"><thead><tr><th>${{ day: 'Day', week: 'Week', month: 'Month', fy: 'Financial year' }[g]}</th><th class="num">Spend</th><th class="num">Shopify revenue</th><th class="num">ROAS</th><th class="num">MER</th><th class="num">AOV</th><th class="num lgd">Amazon revenue</th><th class="num lgd">Combined</th></tr></thead><tbody>${d.rows.slice().reverse().map(row).join('')}</tbody></table></div>
     <div class="note" style="margin-top:6px">${esc(d.note)} Open period rows are shaded; their pacing line compares the same number of elapsed days in the previous period.</div>`;
 }
 function lgCsv() {
@@ -1273,7 +1277,7 @@ function renderPace() {
   const dlt = (a, b, money) => { const pc = b ? Math.round(((a - b) / b) * 100) : null; return pc == null ? '<span class="note">—</span>' : `<b class="${pc >= 0 ? 'up' : 'dn'}">${pc > 0 ? '+' : ''}${pc}%</b> <span class="note">vs ${money ? f(b) : b}</span>`; };
   document.getElementById('paceWhen').textContent = `${d.day}${d.is_today ? ' · live, by ' + d.at : ''} · against ${d.ref} (${d.ref_label})`;
   let h = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}${d.errors && d.errors.length ? `<p class="note">⚠ ${d.errors.map(esc).join(' · ')}</p>` : ''}</div>`;
-  const accts = Object.keys(d.per_account || {});
+  const accts = Object.keys(d.per_account || {}).filter(a => d.per_account[a].totals.spend || d.per_account[a].totals.spend_prev);
   if (accts.length) h += `<div class="pills" style="margin:0 0 8px">${[['', 'All accounts'], ...accts.map(a => [a, a])].map(([v, l]) => { const x = v ? d.per_account[v].so_far : d.so_far; const pc = x.spend_prev ? Math.round((x.spend - x.spend_prev) / x.spend_prev * 100) : null; return `<span class="pill${v === _paceAcct ? ' on' : ''}" onclick="_paceAcct='${v}';renderPace()">${l} <b>${f(x.spend)}</b>${pc != null ? ` <span style="font-size:.7rem;opacity:.85">${pc > 0 ? '+' : ''}${pc}%</span>` : ''}</span>`; }).join('')}<span class="note" style="align-self:center">spend ${d.is_today ? 'so far' : 'for the day'} · vs ${d.ref_label} at the same hour</span></div>`;
   const tile = (n, l, sub) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${sub}</div></div>`;
   const lbl = d.is_today ? `so far` : 'day';
