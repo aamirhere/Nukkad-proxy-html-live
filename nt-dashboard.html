@@ -781,29 +781,34 @@ function renderLedger() {
   const sgnAbs = v => v == null ? '' : `<span style="color:${v >= 0 ? '#2e8b57' : '#c0392b'}">${v >= 0 ? '▲' : '▼'} ${Math.abs(v)}</span>`;
   const tile = (n, l, s, col) => `<div class="tile"><div class="n" style="${col ? 'color:' + col : ''}">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
   const roasCol = v => v == null ? 'var(--muted)' : v >= 2.5 ? '#2e8b57' : v < 1.5 ? '#c0392b' : 'var(--ink)';
-  const maxS = Math.max(...d.rows.map(r => r.spend), 1), maxR = Math.max(...d.rows.map(r => r.revenue), 1);
+  const maxS = Math.max(...d.rows.map(r => r.spend), 1), maxR = Math.max(...d.rows.map(r => r.shop_rev), 1), maxA = Math.max(...d.rows.map(r => r.amz_rev), 1);
   const bar = (v, max, col) => `<div style="display:flex;align-items:center;gap:6px"><span style="flex:none;min-width:62px;text-align:right">${inr(v)}</span><i style="display:block;height:8px;border-radius:4px;background:${col};width:${Math.max(2, v / max * 70)}px;opacity:.8"></i></div>`;
   const row = r => `<tr style="${r.open ? 'background:#fdf5ec' : ''}">
     <td><b>${esc(r.label)}</b>${r.open ? ' <span class="note">so far</span>' : ''}${g !== 'day' ? `<div class="note" style="font-size:.64rem">${r.first.slice(5)} → ${r.last.slice(5)} · ${r.days}d</div>` : ''}</td>
     <td class="num" title="${Object.entries(r.acct).map(([k, v]) => k + ' ' + inr(v)).join(' · ')}">${bar(r.spend, maxS, '#d4541f')}<div class="note" style="font-size:.62rem">${Object.entries(r.acct).map(([k, v]) => `${esc(k)} ${inr(v)}`).join(' · ')}</div></td>
-    <td class="num">${bar(r.revenue, maxR, '#2e8b57')}<div class="note" style="font-size:.62rem">shop ${inr(r.shop_rev)} · amz ${inr(r.amz_rev)}</div></td>
-    <td class="num"><b>${r.shop_orders}</b><div class="note" style="font-size:.62rem">+${r.amz_orders} amz${r.shop_cancel ? ` · ${r.shop_cancel} cancel` : ''}</div></td>
+    <td class="num">${bar(r.shop_rev, maxR, '#2e8b57')}<div class="note" style="font-size:.62rem"><b>${r.shop_orders}</b> orders${r.shop_cancel ? ` · ${r.shop_cancel} cancel` : ''}</div></td>
     <td class="num" style="color:${roasCol(r.roas)}"><b>${r.roas ?? '—'}</b><div class="note" style="font-size:.62rem">meta ${r.meta_roas ?? '—'}</div></td>
-    <td class="num" style="color:${roasCol(r.blended)}"><b>${r.blended ?? '—'}</b></td>
     <td class="num">${r.mer != null ? r.mer + '%' : '—'}</td>
-    <td class="num">${r.aov ? inr(r.aov) : '—'}<div class="note" style="font-size:.62rem">cpa ${r.cpa ? inr(r.cpa) : '—'}</div></td>
-    <td class="num">${r.cod_share != null ? r.cod_share + '%' : '—'}</td>
-  </tr>${r.pace ? `<tr><td colspan="9" style="background:#fdf5ec;padding:4px 10px 8px"><div class="note">Day ${r.pace.elapsed} of ${r.pace.total}: spend <b>${inr(r.spend)}</b> vs <b>${inr(r.pace.prev_spend_at_point)}</b> at this point last ${g === 'week' ? 'week' : g === 'month' ? 'month' : 'year'} ${sgn(r.pace.spend_vs)} · revenue <b>${inr(r.revenue)}</b> vs <b>${inr(r.pace.prev_revenue_at_point)}</b> ${sgn(r.pace.revenue_vs)} · on this run rate the ${g === 'fy' ? 'year' : g} closes at <b>${inr(r.pace.projected_spend)}</b> spend and <b>${inr(r.pace.projected_revenue)}</b> revenue (last: ${inr(r.pace.prev_total_spend)} / ${inr(r.pace.prev_total_revenue)})</div></td></tr>` : ''}`;
+    <td class="num">${r.aov ? inr(r.aov) : '—'}<div class="note" style="font-size:.62rem">cpa ${r.cpa ? inr(r.cpa) : '—'} · cod ${r.cod_share != null ? r.cod_share + '%' : '—'}</div></td>
+    <td class="num" style="border-left:2px solid var(--line)">${bar(r.amz_rev, maxA, '#c89a5e')}<div class="note" style="font-size:.62rem"><b>${r.amz_orders}</b> orders · ${r.amz_units} units</div></td>
+    <td class="num" style="border-left:2px solid var(--line);color:var(--ink2)">${inr(r.revenue)}<div class="note" style="font-size:.62rem">blended <b style="color:${roasCol(r.blended)}">${r.blended ?? '—'}</b></div></td>
+  </tr>${r.pace ? `<tr><td colspan="8" style="background:#fdf5ec;padding:4px 10px 8px"><div class="note">Day ${r.pace.elapsed} of ${r.pace.total}: spend <b>${inr(r.spend)}</b> vs <b>${inr(r.pace.prev_spend_at_point)}</b> at this point last ${g === 'week' ? 'week' : g === 'month' ? 'month' : 'year'} ${sgn(r.pace.spend_vs)} · revenue <b>${inr(r.revenue)}</b> vs <b>${inr(r.pace.prev_revenue_at_point)}</b> ${sgn(r.pace.revenue_vs)} · on this run rate the ${g === 'fy' ? 'year' : g} closes at <b>${inr(r.pace.projected_spend)}</b> spend and <b>${inr(r.pace.projected_revenue)}</b> revenue (last: ${inr(r.pace.prev_total_spend)} / ${inr(r.pace.prev_total_revenue)})</div></td></tr>` : ''}`;
   body.innerHTML = `
+    <div class="note" style="margin-bottom:4px"><b>Website</b> · Meta spend against Shopify</div>
     <div class="pt">
       ${tile(inr(S.spend), `spend · ${label}`, `${sgn(S.vs.spend)} vs before (${inr(S.prev.spend)})`)}
-      ${tile(inr(S.revenue), 'revenue · shop + amazon', `${sgn(S.vs.revenue)} vs before (${inr(S.prev.revenue)})`, '#2e8b57')}
+      ${tile(inr(S.shop_rev), 'shopify revenue', `${sgn(S.vs.shop_rev)} vs before (${inr(S.prev.shop_rev)})`, '#2e8b57')}
       ${tile(S.roas ?? '—', 'ROAS · shop ÷ spend', `${sgnAbs(S.vs.roas)} vs ${S.prev.roas ?? '—'}`, roasCol(S.roas))}
-      ${tile(S.blended ?? '—', 'blended · with amazon', `${sgnAbs(S.vs.blended)} vs ${S.prev.blended ?? '—'}`, roasCol(S.blended))}
-      ${tile(S.mer != null ? S.mer + '%' : '—', 'MER · spend ÷ revenue', 'lower is better')}
+      ${tile(S.mer != null ? S.mer + '%' : '—', 'MER · spend ÷ shop revenue', 'lower is better')}
       ${tile(S.shop_orders, 'shopify orders', `${sgn(S.vs.orders)} · AOV ${S.aov ? inr(S.aov) : '—'} ${sgn(S.vs.aov)}`)}
     </div>
-    <div style="overflow-x:auto"><table class="dt" style="table-layout:auto;min-width:860px"><thead><tr><th>${{ day: 'Day', week: 'Week', month: 'Month', fy: 'Financial year' }[g]}</th><th class="num">Spend</th><th class="num">Revenue</th><th class="num">Orders</th><th class="num">ROAS</th><th class="num">Blended</th><th class="num">MER</th><th class="num">AOV</th><th class="num">COD</th></tr></thead><tbody>${d.rows.slice().reverse().map(row).join('')}</tbody></table></div>
+    <div class="note" style="margin:8px 0 4px"><b>Amazon</b> · its own effort, no ad spend behind it</div>
+    <div class="pt" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      ${tile(inr(S.amz_rev), 'amazon revenue', `${sgn(S.vs.amz_rev)} vs before (${inr(S.prev.amz_rev)})`, '#c89a5e')}
+      ${tile(S.amz_orders, 'amazon orders', `${S.amz_units} units`)}
+      ${tile(inr(S.revenue), 'combined revenue', `blended ROAS <b style="color:${roasCol(S.blended)}">${S.blended ?? '—'}</b> ${sgnAbs(S.vs.blended)}`)}
+    </div>
+    <div style="overflow-x:auto"><table class="dt" style="table-layout:auto;min-width:860px"><thead><tr><th>${{ day: 'Day', week: 'Week', month: 'Month', fy: 'Financial year' }[g]}</th><th class="num">Spend</th><th class="num">Shopify revenue</th><th class="num">ROAS</th><th class="num">MER</th><th class="num">AOV</th><th class="num" style="border-left:2px solid var(--line)">Amazon revenue</th><th class="num" style="border-left:2px solid var(--line)">Combined</th></tr></thead><tbody>${d.rows.slice().reverse().map(row).join('')}</tbody></table></div>
     <div class="note" style="margin-top:6px">${esc(d.note)} Open period rows are shaded; their pacing line compares the same number of elapsed days in the previous period.</div>`;
 }
 function lgCsv() {
