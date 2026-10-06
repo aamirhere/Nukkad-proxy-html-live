@@ -1261,23 +1261,32 @@ function paceChart(series, keys, colors, fmt, { cumulative = false, hourNow = 23
   }
   return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yT}${xT}${flip}${nowLine}${body}</svg>`;
 }
+let _paceAcct = '';
 function renderPace() {
   const d = _pace, el = document.getElementById('paceBody'); if (!d) return;
-  const so = d.so_far, p = d.projection, f = v => '₹' + Math.round(v).toLocaleString('en-IN');
+  // Meta-side figures and charts follow the account tab; Shopify ones are the whole store whatever the tab
+  const A = _paceAcct && d.per_account && d.per_account[_paceAcct];
+  const so = A ? { ...d.so_far, spend: A.so_far.spend, spend_prev: A.so_far.spend_prev, clicks: A.so_far.clicks, clicks_prev: A.so_far.clicks_prev, roas: A.so_far.roas, roas_prev: A.so_far.roas_prev } : d.so_far;
+  const p = A ? (d.projection ? { ...d.projection, spend: A.projection ? A.projection.spend : null } : null) : d.projection;
+  const mSeries = A ? d.series.map((r, i) => ({ ...r, spend: A.series[i].spend, spend_prev: A.series[i].spend_prev, clicks: A.series[i].clicks, clicks_prev: A.series[i].clicks_prev })) : d.series;
+  const f = v => '₹' + Math.round(v).toLocaleString('en-IN');
   const dlt = (a, b, money) => { const pc = b ? Math.round(((a - b) / b) * 100) : null; return pc == null ? '<span class="note">—</span>' : `<b class="${pc >= 0 ? 'up' : 'dn'}">${pc > 0 ? '+' : ''}${pc}%</b> <span class="note">vs ${money ? f(b) : b}</span>`; };
   document.getElementById('paceWhen').textContent = `${d.day}${d.is_today ? ' · live, by ' + d.at : ''} · against ${d.ref} (${d.ref_label})`;
   let h = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}${d.errors && d.errors.length ? `<p class="note">⚠ ${d.errors.map(esc).join(' · ')}</p>` : ''}</div>`;
+  const accts = Object.keys(d.per_account || {});
+  if (accts.length) h += `<div class="pills" style="margin:0 0 8px">${[['', 'All accounts'], ...accts.map(a => [a, a])].map(([v, l]) => { const x = v ? d.per_account[v].so_far : d.so_far; const pc = x.spend_prev ? Math.round((x.spend - x.spend_prev) / x.spend_prev * 100) : null; return `<span class="pill${v === _paceAcct ? ' on' : ''}" onclick="_paceAcct='${v}';renderPace()">${l} <b>${f(x.spend)}</b>${pc != null ? ` <span style="font-size:.7rem;opacity:.85">${pc > 0 ? '+' : ''}${pc}%</span>` : ''}</span>`; }).join('')}<span class="note" style="align-self:center">spend ${d.is_today ? 'so far' : 'for the day'} · vs ${d.ref_label} at the same hour</span></div>`;
   const tile = (n, l, sub) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${sub}</div></div>`;
   const lbl = d.is_today ? `so far` : 'day';
-  h += `<div class="pt">${tile(f(so.rev), `Revenue ${lbl}`, dlt(so.rev, so.rev_prev, true))}${tile(so.orders, `Orders ${lbl}`, dlt(so.orders, so.orders_prev))}${tile(f(so.spend), `Meta spend ${lbl}`, dlt(so.spend, so.spend_prev, true))}${tile(so.clicks.toLocaleString('en-IN'), `Link clicks ${lbl}`, dlt(so.clicks, so.clicks_prev))}${tile(so.roas, `ROAS ${lbl}`, `<span class="note">vs ${so.roas_prev}</span>`)}${p ? tile(p.rev != null ? f(p.rev) : '—', 'Projected day', `<span class="note">${p.orders != null ? p.orders + ' orders · ' : ''}${d.ref_label} ${f(d.totals.rev_prev)}</span>`) : tile(f(d.totals.rev), 'Day total', `<span class="note">${d.totals.orders} orders · ${d.ref_label} ${f(d.totals.rev_prev)}</span>`)}</div>`;
+  const tag = A ? ` · ${_paceAcct}` : '';
+  h += `<div class="pt">${tile(f(so.rev), `Revenue ${lbl}`, dlt(so.rev, so.rev_prev, true))}${tile(so.orders, `Orders ${lbl}`, dlt(so.orders, so.orders_prev))}${tile(f(so.spend), `Meta spend ${lbl}${tag}`, dlt(so.spend, so.spend_prev, true))}${tile(so.clicks.toLocaleString('en-IN'), `Link clicks ${lbl}${tag}`, dlt(so.clicks, so.clicks_prev))}${tile(so.roas, A ? `Meta ROAS ${lbl}${tag}` : `ROAS ${lbl}`, `<span class="note">vs ${so.roas_prev}</span>`)}${A ? tile(A.so_far.purchases, `Meta sales ${lbl}${tag}`, dlt(A.so_far.purchases, A.so_far.purchases_prev)) : ''}${p ? tile(p.rev != null ? f(p.rev) : '—', 'Projected day', `<span class="note">${p.orders != null ? p.orders + ' orders · ' : ''}${d.ref_label} ${f(d.totals.rev_prev)}</span>`) : tile(f(d.totals.rev), 'Day total', `<span class="note">${d.totals.orders} orders · ${d.ref_label} ${f(d.totals.rev_prev)}</span>`)}${A && p ? tile(p.spend != null ? f(p.spend) : '—', `Projected spend${tag}`, `<span class="note">${d.ref_label} ${f(A.totals.spend_prev)}</span>`) : ''}</div>`;
   const hn = d.is_today ? d.hour : 23;
   const lg = (a, b) => `<div class="legend"><span><i style="background:${a[1]}"></i>${a[0]}</span><span><i style="background:${b[1]};opacity:.7"></i>${b[0]}</span></div>`;
   h += `<div class="charts">
     <div class="tile"><div class="l">Revenue, cumulative</div>${paceChart(d.series, ['rev', 'rev_prev'], ['#1a7f37', '#1a7f37'], f, { cumulative: true, hourNow: hn })}${lg([d.day, '#1a7f37'], [d.ref_label, '#1a7f37'])}</div>
-    <div class="tile"><div class="l">Meta spend, cumulative</div>${paceChart(d.series, ['spend', 'spend_prev'], ['#d4541f', '#d4541f'], f, { cumulative: true, hourNow: hn })}${lg([d.day, '#d4541f'], [d.ref_label, '#d4541f'])}</div>
-    <div class="tile"><div class="l">Link clicks by hour <span class="note">(traffic Meta sends)</span></div>${paceChart(d.series, ['clicks', 'clicks_prev'], ['#1a3f9c', '#9fb0d8'], v => String(Math.round(v)), { bars: true, hourNow: hn })}${lg([d.day, '#1a3f9c'], [d.ref_label, '#9fb0d8'])}</div>
+    <div class="tile"><div class="l">Meta spend, cumulative${tag}</div>${paceChart(mSeries, ['spend', 'spend_prev'], ['#d4541f', '#d4541f'], f, { cumulative: true, hourNow: hn })}${lg([d.day, '#d4541f'], [d.ref_label, '#d4541f'])}</div>
+    <div class="tile"><div class="l">Link clicks by hour${tag} <span class="note">(traffic Meta sends)</span></div>${paceChart(mSeries, ['clicks', 'clicks_prev'], ['#1a3f9c', '#9fb0d8'], v => String(Math.round(v)), { bars: true, hourNow: hn })}${lg([d.day, '#1a3f9c'], [d.ref_label, '#9fb0d8'])}</div>
     <div class="tile"><div class="l">Orders by hour</div>${paceChart(d.series, ['orders', 'orders_prev'], ['#1a7f37', '#a9d6b3'], v => String(Math.round(v)), { bars: true, hourNow: hn })}${lg([d.day, '#1a7f37'], [d.ref_label, '#a9d6b3'])}</div>
-    <div class="tile"><div class="l">Spend by hour</div>${paceChart(d.series, ['spend', 'spend_prev'], ['#d4541f', '#f0b899'], f, { bars: true, hourNow: hn })}${lg([d.day, '#d4541f'], [d.ref_label, '#f0b899'])}</div>
+    <div class="tile"><div class="l">Spend by hour${tag}</div>${paceChart(mSeries, ['spend', 'spend_prev'], ['#d4541f', '#f0b899'], f, { bars: true, hourNow: hn })}${lg([d.day, '#d4541f'], [d.ref_label, '#f0b899'])}</div>
     <div class="tile"><div class="l">Revenue by hour</div>${paceChart(d.series, ['rev', 'rev_prev'], ['#6f5b46', '#cdbfae'], f, { bars: true, hourNow: hn })}${lg([d.day, '#6f5b46'], [d.ref_label, '#cdbfae'])}</div>
   </div>`;
   if (d.accounts && d.accounts.length) h += `<div class="note" style="margin-top:8px">Accounts today: ${d.accounts.map(a => `${esc(a.label)} ${f(a.spend)} · ${a.clicks} clicks${a.error ? ' ⚠' : ''}`).join(' &nbsp;|&nbsp; ')}</div>`;
