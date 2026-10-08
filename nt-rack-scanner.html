@@ -1153,16 +1153,18 @@ let currentVision = null;
 const SCAN_COLORS = ['Peach','Blue','White','Red','Orange','Green','Yellow','Purple','Gold'];
 let _scanColor = '';
 
+// "All" is the resting state: no colour filter, every open order for the design shows. Picking a colour narrows
+// the match; picking it again, or All, widens back. The same bar drives Finished and Paint scans.
 function initScanColorBar() {
   const container = document.getElementById('scanColorPills');
   if (!container) return;
-  container.innerHTML = SCAN_COLORS.map(c =>
+  container.innerHTML = [`<button class="cpill cpill-active" data-all="1" onclick="setScanColor('')">All</button>`, ...SCAN_COLORS.map(c =>
     `<button class="cpill" onclick="setScanColor('${c}')">${c}</button>`
-  ).join('');
+  )].join('');
 }
 
 function setScanColor(c) {
-  _scanColor = (_scanColor.toLowerCase() === c.toLowerCase()) ? '' : c;
+  _scanColor = (!c || _scanColor.toLowerCase() === c.toLowerCase()) ? '' : c;
   _renderScanColorBar();
   if (currentVision && currentVision.quote) reMatchWithColor(_scanColor);
 }
@@ -1171,7 +1173,7 @@ function _renderScanColorBar() {
   const container = document.getElementById('scanColorPills');
   if (!container) return;
   container.querySelectorAll('.cpill').forEach(btn => {
-    const active = btn.textContent.toLowerCase() === _scanColor.toLowerCase() && _scanColor;
+    const active = btn.dataset.all ? !_scanColor : (btn.textContent.toLowerCase() === _scanColor.toLowerCase() && _scanColor);
     btn.classList.toggle('cpill-active', !!active);
   });
 }
@@ -1972,7 +1974,7 @@ function pickSuggestion(quote, color) {
 }
 function manualMatch() {
   const q = document.getElementById('manualQ').value.trim();
-  const c = document.getElementById('manualC').value || _scanColor;
+  const c = _scanColor;
   if (!q) return;
   handleVisionResult({ quote: q, color: c || '', confidence: 'manual' });
 }
@@ -2029,7 +2031,8 @@ function findMatches(quote, color) {
 
 function handleVisionResult(vision) {
   currentVision = vision;
-  _scanColor = vision.color || _scanColor;
+  // a typed search keeps whatever chip is chosen (All by default); a camera read brings its own colour
+  if (vision.confidence !== 'manual') _scanColor = vision.color || '';
   _renderScanColorBar();
   reMatchWithColor(_scanColor);
 }
