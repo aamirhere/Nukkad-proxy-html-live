@@ -1651,6 +1651,10 @@ async function loadLiveEmergencies() {
 async function loadRackStatus() {
   try {
     rackItems = await apiFetch({ action: 'get_rack_status' }, API, 40000);
+    // Custom quotes wait on the customer's text and artwork, not on the rack: keep them out of the scan and the day lists
+    const customN = rackItems.filter(it => it.is_custom && !it.dispatched && !it.cancelled).length;
+    rackItems = rackItems.filter(it => !it.is_custom);
+    window._customHidden = customN;
     _rebuildPaintFromRack();
     updateSummary();
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
