@@ -187,6 +187,17 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     </div>
     <div id="paceBody"><div class="skel" style="height:120px"></div></div>
   </section>
+  <section id="codw" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">💵 COD watch</h2>
+      <span class="note" id="cwWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="cwDays" onchange="loadCod(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="30">risk over 30 days</option><option value="60" selected>risk over 60 days</option><option value="90">risk over 90 days</option></select>
+        <button class="btn" onclick="loadCod(true)">↻</button>
+      </span>
+    </div>
+    <div id="cwBody"><div class="skel" style="height:120px"></div></div>
+  </section>
   <section id="ledger" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <h2 style="margin:0;font-size:1.05rem">📒 Ledger</h2>
@@ -769,6 +780,53 @@ async function bmUndo() {
   catch (e) { alert(e.message); }
   finally { b.disabled = false; b.textContent = '↶ Undo last'; }
 }
+// ---------- COD watch ----------
+let _cw = null, _cwRisk = 'state';
+async function loadCod(reset) {
+  const body = document.getElementById('cwBody');
+  if (reset) body.innerHTML = '<div class="skel" style="height:120px"></div>';
+  try { _cw = await api({ action: 'cod', days: +document.getElementById('cwDays').value }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  renderCod();
+  if (_cw && _cw.filling) { clearTimeout(window._cwT); window._cwT = setTimeout(() => loadCod(false), 120e3); }
+}
+function codShareChart(series, norm) {
+  const W = 600, H = 190, L = 44, R = 12, T = 14, B = 34, n = series.length;
+  const x = i => L + (i + 0.5) / Math.max(n, 1) * (W - L - R), y = v => T + (1 - v / 100) * (H - T - B);
+  const yT = [0, 25, 50, 75, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#e9ddca"/><text x="${L - 6}" y="${y(v) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${v}%</text>`).join('');
+  const colW = (W - L - R) / Math.max(n, 1), w = Math.min(colW * 0.6, 20);
+  const bars = series.map((d, i) => { const v = d.share || 0; const col = v > norm + 10 ? '#c0392b' : v > norm + 4 ? '#e8915b' : '#9c8a76'; return `<rect x="${x(i) - w / 2}" y="${y(v)}" width="${w}" height="${Math.max(0, y(0) - y(v))}" rx="3" fill="${col}" opacity=".9"/><rect x="${x(i) - colW / 2}" y="${T}" width="${colW}" height="${H - T - B}" fill="transparent" onmousemove="chartTip(event, '${d.day}', 'COD ${v}% · ${d.cod} of ${d.orders} orders · ₹${(d.cod_rev || 0).toLocaleString('en-IN')} on COD')" onmouseleave="chartTip()"/>`; }).join('');
+  const xT = series.map((d, i) => (i % 5 === 0 || i === n - 1) ? `<text x="${x(i)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${d.day.slice(8)}/${d.day.slice(5, 7)}</text>` : '').join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}"><line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#c9b89f"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#c9b89f"/>${yT}${xT}${bars}<line x1="${L}" x2="${W - R}" y1="${y(norm)}" y2="${y(norm)}" stroke="#3a2b1d" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${W - R}" y="${y(norm) - 5}" font-size="10.5" font-weight="700" fill="#3a2b1d" text-anchor="end">norm ${norm}%</text></svg>`;
+}
+function renderCod() {
+  const d = _cw, body = document.getElementById('cwBody'); if (!d) return;
+  document.getElementById('cwWhen').textContent = `${d.today} · ${d.today_orders} orders so far · ${d.today_cod} COD`;
+  const tile = (n, l, s, col) => `<div class="tile"><div class="n" style="${col ? 'color:' + col : ''}">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const shareCol = d.today_share == null ? 'var(--muted)' : d.today_share > d.norm_share + 10 ? '#c0392b' : d.today_share > d.norm_share + 4 ? '#b05000' : '#2e8b57';
+  const segName = { design: 'Design', state: 'State', adset: 'Ad set', band: 'Time of day', customer: 'Customer' };
+  const driverRows = Object.entries(d.drivers).map(([k, list]) => { const top = list.filter(x => x.excess >= 1).slice(0, 3); if (!top.length) return ''; return `<div style="margin-top:6px"><b>${segName[k]}</b> · ${top.map(x => `${esc(x.key)} <b style="color:${x.excess >= 3 ? '#c0392b' : 'var(--ink)'}">+${x.excess}</b> <span class="note">(${x.cod}/${x.orders} COD today, ${x.share}% vs its ${x.norm_share ?? '—'}% norm · ${x.mix >= x.rate ? 'more orders than usual' : 'more COD than usual'})</span>`).join(' · ')}</div>`; }).join('');
+  const riskTabs = ['state', 'design', 'adset'].map(k => `<span class="pill${_cwRisk === k ? ' on' : ''}" onclick="_cwRisk='${k}';renderCod()">${{ state: 'States', design: 'Designs', adset: 'Ad sets' }[k]}</span>`).join('');
+  const R = d.risk[_cwRisk] || [];
+  const riskTable = R.length ? `<table class="dt" style="table-layout:auto"><thead><tr><th>${segName[_cwRisk]}</th><th class="num">Orders</th><th class="num">COD share</th><th class="num">COD returns</th><th class="num">Prepaid returns</th><th class="num">Lost / 100 orders</th>${_cwRisk === 'adset' ? '<th class="num">ROAS</th><th class="num">True ROAS</th>' : ''}<th class="num">Risk</th></tr></thead><tbody>${R.map(x => `<tr><td>${esc(x.label)}</td><td class="num">${x.orders}</td><td class="num" style="color:${x.cod_share >= 50 ? '#c0392b' : x.cod_share >= 40 ? '#b05000' : 'inherit'}"><b>${x.cod_share}%</b></td><td class="num">${x.cod_rto != null ? `<b style="color:${x.cod_rto >= 25 ? '#c0392b' : 'inherit'}">${x.cod_rto}%</b><div class="note" style="font-size:.62rem">${x.cod_matured} matured</div>` : '<span class="note">too few</span>'}</td><td class="num">${x.pre_rto != null ? x.pre_rto + '%' : '<span class="note">—</span>'}</td><td class="num">₹${x.lost_per_100.toLocaleString('en-IN')}</td>${_cwRisk === 'adset' ? `<td class="num">${x.roas ?? '—'}</td><td class="num" style="color:${x.true_roas == null ? 'var(--muted)' : x.true_roas >= 2.5 ? '#2e8b57' : x.true_roas < 1.5 ? '#c0392b' : 'inherit'}"><b>${x.true_roas ?? '—'}</b></td>` : ''}<td class="num"><div style="display:flex;align-items:center;gap:6px;justify-content:flex-end"><i style="display:block;height:8px;width:${Math.min(60, x.risk * 2)}px;border-radius:4px;background:${x.risk >= 20 ? '#c0392b' : x.risk >= 10 ? '#e8915b' : '#9c8a76'}"></i>${x.risk}</div></td></tr>`).join('')}</tbody></table>` : '<div class="note">Not enough matured orders yet in this window.</div>';
+  const actionCard = a => `<div class="ti" style="display:block;border-left-color:${{ state: '#1a3f9c', design: '#b23a6b', adset: '#d4541f', today: '#b05000', always: '#2e8b57' }[a.kind] || 'var(--accent)'}"><div class="tk" style="color:var(--ink)">${esc(a.title)}</div><div class="note" style="margin-top:3px">${esc(a.why)}</div><div style="font-size:.78rem;margin-top:4px"><b>Do:</b> ${esc(a.how)}</div></div>`;
+  body.innerHTML = `
+    ${d.filling ? '<div class="warn">Payment and state are being filled into the order history in the background. Figures firm up over the next few minutes.</div>' : ''}
+    <div class="pt">
+      ${tile(d.today_share != null ? d.today_share + '%' : '—', 'COD share today', `norm ${d.norm_share}% · ${d.today_cod} of ${d.today_orders}`, shareCol)}
+      ${tile(d.excess > 0 ? '+' + d.excess : d.excess, 'COD orders vs norm', d.excess > 0 && d.cod_rto.rate != null ? `~${Math.round(d.excess * d.cod_rto.rate / 100)} will come back · ₹${d.excess_cost.toLocaleString('en-IN')} at risk` : 'within the usual range', d.excess >= 5 ? '#c0392b' : 'var(--ink)')}
+      ${tile(d.cod_rto.rate != null ? d.cod_rto.rate + '%' : '—', 'COD return rate', `prepaid ${d.prepaid_rto.rate != null ? d.prepaid_rto.rate + '%' : '—'} · ${d.cod_rto.n + d.prepaid_rto.n} matured orders`, d.cod_rto.rate >= 25 ? '#c0392b' : 'var(--ink)')}
+      ${tile(inr(d.cash_locked), 'COD cash in the pipe', 'last 21 days of COD orders, paid ~15 days after delivery')}
+    </div>
+    <div class="charts">
+      <div><div class="note" style="margin-bottom:4px"><b>COD share by day</b> · red when 10 points over the norm</div>${codShareChart(d.series, d.norm_share)}</div>
+      <div><div class="note" style="margin-bottom:4px"><b>What drove today</b> · extra COD orders against each segment's own 14-day pattern</div><div class="read" style="font-size:.8rem">${driverRows || '<span class="note">Today is within the usual pattern in every segment.</span>'}</div></div>
+    </div>
+    <div class="note" style="margin:12px 0 4px"><b>Where COD costs you</b> · share, how often it comes back, and what that costs per 100 orders</div>
+    <div class="pills" style="margin:0 0 6px">${riskTabs}</div>
+    <div style="overflow-x:auto">${riskTable}</div>
+    <div class="todo" style="margin-top:12px"><div class="hd" style="margin-bottom:6px"><b>What to do</b> <span class="note">rules read from the tables above; each one names its numbers</span></div><div class="tl">${d.actions.map(actionCard).join('') || '<div class="note">Nothing stands out right now.</div>'}</div></div>
+    <div class="note" style="margin-top:6px">${esc(d.note)}</div>`;
+}
 // ---------- Ledger ----------
 let _lg = null, _lgGroup = 'day';
 function lgSet(g) { _lgGroup = g; document.querySelectorAll('#lgGroup .pill').forEach(p => p.classList.toggle('on', p.dataset.g === g)); document.getElementById('lgDays').style.display = g === 'day' ? '' : 'none'; document.getElementById('lgWeeks').style.display = g === 'week' ? '' : 'none'; loadLedger(true); }
@@ -1313,13 +1371,13 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
-  loadPace(true); loadLedger(true); loadBasket(true); loadWho(true, true);
+  loadPace(true); loadCod(true); loadLedger(true); loadBasket(true); loadWho(true, true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadLedger(true); loadBasket(); loadWho(true);
+loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadCod(true); loadLedger(true); loadBasket(); loadWho(true);
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
 setInterval(() => { if (!document.hidden && document.getElementById('paceDay').value === istToday()) loadPace(true); }, 5 * 60e3);
