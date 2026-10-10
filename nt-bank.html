@@ -54,6 +54,14 @@ select.sel-None{background:#fde8e8;border-color:#e57373;color:var(--red)}select.
 .modal input,.modal select{width:100%;font:inherit;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px}
 .warn{background:#fff3e0;border:1px solid #f2c9b4;border-radius:10px;padding:10px 12px;font-size:.82rem;margin-bottom:10px}
 datalist{display:none}
+#mTable{table-layout:auto;min-width:100%}
+#mTable th:first-child,#mTable td:first-child{position:sticky;left:0;background:#fff;z-index:1;min-width:180px}
+#mTable th:first-child{background:#f8e8d2;z-index:3}
+#mTable tfoot td{background:#f8e8d2;border-top:2px solid var(--line);font-weight:800}
+#mTable tfoot td:first-child{background:#f8e8d2}
+td.mc{cursor:pointer;color:#1a3f9c}td.mc:hover{text-decoration:underline;background:#f3f6ff}
+#mModal .panel{width:min(960px,100%)}
+#mmTable{table-layout:auto}
 @media (max-width:700px){table{font-size:.72rem}th,td{padding:5px 4px}.hm{display:none}}
 </style>
 </head>
@@ -69,6 +77,7 @@ datalist{display:none}
     <button onclick="go('rules')">Rules</button>
     <button onclick="go('ledgers')">Ledgers</button>
     <button onclick="go('summary')">Summary</button>
+    <button onclick="go('monthly')">Monthly</button>
     <button onclick="go('export')">Export</button>
   </nav>
 </header>
@@ -109,6 +118,7 @@ datalist{display:none}
     <input id="tQ" placeholder="Search narration / payee / ref…" onkeydown="if(event.key==='Enter')loadTxns()" style="flex:1;min-width:180px">
     <button class="btn" onclick="loadTxns()">Search</button>
     <span class="note" id="tCount"></span>
+    <label class="note" style="flex-basis:100%" title="A ledger picked on one line becomes the rule for that payee, so every entry of the same payee in every month follows it. Untick to change only the one line."><input type="checkbox" id="tScope" checked onchange="localStorage.setItem('nt_bank_scope', this.checked ? '1' : '0')"> a ledger change applies to <b>every entry of the same payee</b> (untick for this line only)</label>
   </div>
   <div class="tw"><table id="tTable"><thead><tr><th class="w2">Date</th><th class="w5">Narration</th><th class="w2 hm">Ref</th><th class="w2">Debit</th><th class="w2">Credit</th><th class="w3 hm">Payee</th><th class="w4">Final category</th><th class="w1 hm">By</th><th class="w1">Conf.</th></tr></thead><tbody></tbody></table></div>
   <div class="bar" style="margin-top:8px"><button class="btn" id="tMore" onclick="loadTxns(true)" style="display:none">Load more</button></div>
@@ -157,6 +167,18 @@ datalist{display:none}
   <div class="tw"><table id="sMon"><thead><tr><th>Month</th><th>Debit</th><th>Credit</th><th>Txns</th><th>Unknown</th></tr></thead><tbody></tbody></table></div>
 </section>
 
+<section class="view" id="v-monthly">
+  <div class="bar">
+    <select id="mDir" onchange="renderMonthly()"><option value="dr">Payments (debits)</option><option value="cr">Receipts (credits)</option></select>
+    <input id="mQ" placeholder="Filter ledger… e.g. salary" oninput="renderMonthly()" style="flex:1;min-width:160px">
+    <button class="btn" onclick="loadMonthly(true)">↻ Refresh</button>
+    <button class="btn primary" onclick="monthlyExcel()">⬇ Excel · all ledgers by month</button>
+    <span class="note" id="mCount"></span>
+  </div>
+  <div class="note" style="margin-bottom:8px">Every ledger across the months of this statement. Click an amount to see the entries behind it and download that month; the workbook has one sheet per ledger with a subtotal after each month.</div>
+  <div class="tw" style="overflow:auto;max-height:calc(100vh - 200px)"><table id="mTable"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+</section>
+
 <section class="view" id="v-export">
   <div class="card">
     <div class="bar">
@@ -182,6 +204,17 @@ datalist{display:none}
     <label>Applies to</label><select id="rDir"><option value="any">Debits and credits</option><option value="dr">Debits only</option><option value="cr">Credits only</option></select>
     <label>Position (lower runs first)</label><input id="rOrder" type="number">
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.getElementById('ruleModal').classList.remove('open')">Cancel</button><button class="btn primary" onclick="ruleSave()">Save & re-run</button></div>
+  </div>
+</div>
+<div class="modal" id="mModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="panel">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div style="font-family:var(--ff);font-size:1.05rem" id="mmTitle"></div>
+      <span class="note" id="mmTotal"></span>
+      <button class="btn primary" style="margin-left:auto" onclick="monthlyModalExcel()">⬇ Excel</button>
+      <button class="btn" onclick="document.getElementById('mModal').classList.remove('open')">Close</button>
+    </div>
+    <div class="tw" style="margin-top:10px;max-height:65vh;overflow:auto"><table id="mmTable"><thead><tr><th>Date</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody></tbody></table></div>
   </div>
 </div>
 <datalist id="ledgerList"></datalist>
@@ -213,6 +246,7 @@ function go(v) {
   if (v === 'rules') loadRules();
   if (v === 'ledgers') loadLedgers();
   if (v === 'summary') loadSummary();
+  if (v === 'monthly') loadMonthly();
   if (v === 'export') fillMonths();
 }
 
@@ -230,7 +264,7 @@ async function loadAccounts() {
   document.getElementById('acctList').innerHTML = _accounts.map(a => `<div><b>${a.account}</b> · ${a.rows} transactions · ${a.months.length} months (${a.months[0]} to ${a.months[a.months.length - 1]})</div>`).join('');
   fillMonths();
 }
-function setAccount(a) { ACCOUNT = a; localStorage.setItem('nt_bank_account', a); document.getElementById('acctLabel').textContent = `A/c …${a.slice(-4)}`; _payees = []; fillMonths(); }
+function setAccount(a) { ACCOUNT = a; localStorage.setItem('nt_bank_account', a); document.getElementById('acctLabel').textContent = `A/c …${a.slice(-4)}`; _payees = []; _monthly = null; fillMonths(); }
 function months() { return (_accounts.find(a => a.account === ACCOUNT) || {}).months || []; }
 function fillMonths() {
   const opts = months().map(m => `<option value="${m}">${m}</option>`).join('');
@@ -349,7 +383,7 @@ async function loadTxns(more) {
   const body = { action: 'transactions', account: ACCOUNT, month: document.getElementById('tMonth').value, confidence: document.getElementById('tConf').value, category: document.getElementById('tCat').value, q: document.getElementById('tQ').value.trim(), limit: 500, offset: _txnOffset };
   let rows;
   try { rows = (await api(body)).rows; } catch (e) { toast(e.message); return; }
-  const html = rows.map(t => `<tr data-id="${t.id}">
+  const html = rows.map(t => `<tr data-id="${t.id}" data-cp="${esc(t.counterparty)}" data-conf="${esc(t.confidence)}">
     <td style="white-space:nowrap">${fmtDate(t.txn_date)}</td>
     <td class="narr" title="${esc(t.narration)}">${esc(t.narration)}</td>
     <td class="lay hm">${esc(t.ref_no)}</td>
@@ -363,14 +397,35 @@ async function loadTxns(more) {
   document.getElementById('tMore').style.display = rows.length === 500 ? '' : 'none';
   document.getElementById('tCount').textContent = `${_txnOffset} shown`;
 }
+const layerText = l => l === 'payee' ? 'payee rule' : l === 'override' ? 'line override' : 'suggested';
+function rowShow(tr, cat, layer) {
+  const sel = tr.querySelector('select');
+  if (cat && ![...sel.options].some(o => o.value === cat)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(cat)}">${esc(cat)}</option>`);
+  sel.value = cat || '';
+  sel.className = selCls(cat, tr.dataset.conf);
+  const lay = sel.parentElement.querySelector('.lay'); if (lay) lay.textContent = layerText(layer);
+  tr.children[7].textContent = layer;
+}
 async function overrideSet(id, cat, sel) {
   sel.disabled = true;
+  const scope = document.getElementById('tScope').checked ? 'payee' : 'line';
   try {
-    const r = await api({ action: 'override', id, category: cat || null });
-    sel.parentElement.querySelector('.lay').textContent = r.final_layer === 'payee' ? 'payee rule' : r.final_layer === 'override' ? 'line override' : 'suggested';
-    sel.className = cat ? 'sel-set' : sel.className.replace('sel-set', 'sel-Low');
-    sel.closest('tr').children[7].textContent = r.final_layer;
-    toast(cat ? 'Line overridden' : 'Override removed');
+    const r = await api({ action: 'line_set', id, category: cat || null, scope, account: ACCOUNT });
+    const tr = sel.closest('tr');
+    if (r.scope === 'payee') {
+      // every visible entry of the same payee follows the rule; lines with their own override keep it
+      document.querySelectorAll('#tTable tbody tr').forEach(x => {
+        if (x.dataset.cp !== r.counterparty) return;
+        if (x !== tr && x.children[7].textContent === 'override') return;
+        rowShow(x, cat, cat ? 'payee' : (x === tr ? r.final_layer : 'keyword'));
+      });
+      toast(cat ? `${r.counterparty} → ${cat} · ${r.rows} entr${r.rows === 1 ? 'y' : 'ies'} across all months` : `Rule removed for ${r.counterparty} · back to suggested`);
+      _payees = []; _monthly = null;
+    } else {
+      rowShow(tr, cat, r.final_layer);
+      toast(cat ? (r.generic ? 'This line only (payee is unnamed, so no payee rule)' : 'This line only') : 'Override removed');
+      _monthly = null;
+    }
   } catch (e) { toast(e.message); }
   sel.disabled = false;
 }
@@ -459,6 +514,100 @@ async function loadSummary() {
   document.getElementById('tCat').innerHTML = '<option value="">Any category</option>' + s.by_category.map(c => `<option value="${esc(c.category)}">${esc(c.category)} (${c.txns})</option>`).join('');
 }
 
+// ── monthly: ledger × month ─────────────────────────────────────────────────
+let _monthly = null, _mRows = [], _mCat = '', _mMonth = '';
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const monLabel = m => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+const r2 = n => +(+n || 0).toFixed(2);
+const safeName = s => String(s).replace(/[^\w\- ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function sheetName(s, used) {
+  const base = String(s).replace(/[\[\]:*?\/\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 28) || 'Sheet';
+  let n = base, i = 2; while (used.has(n)) n = `${base.slice(0, 25)} ${i++}`;
+  used.add(n); return n;
+}
+async function loadMonthly(force) {
+  if (!ACCOUNT) { document.querySelector('#mTable tbody').innerHTML = '<tr><td class="note">Import a statement first.</td></tr>'; return; }
+  if (!_monthly || force) {
+    document.querySelector('#mTable tbody').innerHTML = '<tr><td class="note">Loading…</td></tr>';
+    try { _monthly = await api({ action: 'grouped', account: ACCOUNT }); } catch (e) { toast(e.message); return; }
+  }
+  renderMonthly();
+}
+function renderMonthly() {
+  if (!_monthly) return;
+  const dir = document.getElementById('mDir').value, k = dir === 'dr' ? 'debit' : 'credit', nk = dir === 'dr' ? 'dr_n' : 'cr_n', q = document.getElementById('mQ').value.trim().toLowerCase();
+  const months = _monthly.months;
+  const rows = _monthly.ledgers.filter(l => l[k] > 0 && (!q || l.category.toLowerCase().includes(q) || (l.tally || '').toLowerCase().includes(q))).sort((a, b) => b[k] - a[k]);
+  const tot = {}; months.forEach(m => tot[m] = 0); let grand = 0, n = 0;
+  document.querySelector('#mTable thead').innerHTML = `<tr><th>Ledger</th>${months.map(m => `<th class="num" style="text-align:right">${monLabel(m)}</th>`).join('')}<th style="text-align:right">Total</th><th style="text-align:right">Entries</th></tr>`;
+  document.querySelector('#mTable tbody').innerHTML = rows.map(l => {
+    const cells = months.map(m => {
+      const c = l.months[m], v = c ? c[k] : 0; tot[m] = r2(tot[m] + v);
+      return v ? `<td class="num mc" onclick="monthlyOpen(${JSON.stringify(l.category).replace(/"/g, '&quot;')},'${m}')" title="${c[nk]} entr${c[nk] === 1 ? 'y' : 'ies'} · click to open">${inr(v)}</td>` : '<td class="num"></td>';
+    }).join('');
+    grand = r2(grand + l[k]); n += l[nk];
+    return `<tr${l.category === UNKNOWN ? ' style="background:#fde8e8"' : ''}><td><b>${esc(l.category)}</b>${l.tally && l.tally !== l.category ? `<div class="lay">Tally: ${esc(l.tally)}</div>` : ''}</td>${cells}<td class="num"><b>${inr(l[k])}</b></td><td class="num">${l[nk]}</td></tr>`;
+  }).join('') || `<tr><td colspan="${months.length + 3}" class="note">Nothing matches.</td></tr>`;
+  document.querySelector('#mTable tfoot').innerHTML = rows.length ? `<tr><td>Total</td>${months.map(m => `<td class="num">${inr(tot[m])}</td>`).join('')}<td class="num">${inr(grand)}</td><td class="num">${n}</td></tr>` : '';
+  document.getElementById('mCount').textContent = `${rows.length} ledgers · ${months.length} months`;
+}
+async function monthlyOpen(cat, month) {
+  _mCat = cat; _mMonth = month; _mRows = [];
+  document.getElementById('mModal').classList.add('open');
+  document.getElementById('mmTitle').textContent = `${cat} · ${monLabel(month)}`;
+  document.getElementById('mmTotal').textContent = '';
+  const tb = document.querySelector('#mmTable tbody');
+  tb.innerHTML = '<tr><td colspan="4" class="note">Loading…</td></tr>';
+  try { _mRows = (await api({ action: 'transactions', account: ACCOUNT, month, category: cat, limit: 2000 })).rows; } catch (e) { toast(e.message); return; }
+  const dr = _mRows.reduce((s, t) => r2(s + (+t.debit || 0)), 0), cr = _mRows.reduce((s, t) => r2(s + (+t.credit || 0)), 0);
+  tb.innerHTML = _mRows.map(t => `<tr><td style="white-space:nowrap">${fmtDate(t.txn_date)}</td><td class="narr">${esc(t.narration)}<div class="lay">${esc(t.counterparty)}${t.ref_no ? ' · ' + esc(t.ref_no) : ''}</div></td><td class="num">${+t.debit ? inr(t.debit) : ''}</td><td class="num">${+t.credit ? inr(t.credit) : ''}</td></tr>`).join('') || '<tr><td colspan="4" class="note">No entries.</td></tr>';
+  tb.insertAdjacentHTML('beforeend', `<tr style="font-weight:800;background:#f8e8d2"><td></td><td>Total · ${_mRows.length} entr${_mRows.length === 1 ? 'y' : 'ies'}</td><td class="num">${dr ? inr(dr) : ''}</td><td class="num">${cr ? inr(cr) : ''}</td></tr>`);
+  document.getElementById('mmTotal').textContent = `${_mRows.length} entries${dr ? ` · paid ₹${inr(dr)}` : ''}${cr ? ` · received ₹${inr(cr)}` : ''}`;
+}
+const entryCols = [{ wch: 12 }, { wch: 64 }, { wch: 30 }, { wch: 18 }, { wch: 14 }, { wch: 14 }];
+function monthlyModalExcel() {
+  if (!_mRows.length) { toast('Nothing to download'); return; }
+  const aoa = [['Date', 'Narration', 'Payee', 'Ref No', 'Debit', 'Credit']];
+  let dr = 0, cr = 0;
+  for (const t of _mRows) { aoa.push([fmtDate(t.txn_date), t.narration, t.counterparty, t.ref_no, +t.debit || null, +t.credit || null]); dr = r2(dr + (+t.debit || 0)); cr = r2(cr + (+t.credit || 0)); }
+  aoa.push([], ['', `${_mCat} · ${monLabel(_mMonth)} total`, '', '', dr || null, cr || null]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = entryCols;
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, sheetName(`${_mCat} ${monLabel(_mMonth)}`, new Set()));
+  download(`${safeName(_mCat)}_${_mMonth}.xlsx`, XLSX.write(wb, { type: 'array', bookType: 'xlsx' }), XLSX_MIME);
+}
+// Whole statement: a payments grid, a receipts grid, then one sheet per ledger with a subtotal after every month
+async function monthlyExcel() {
+  if (!ACCOUNT) { toast('Import a statement first'); return; }
+  toast('Building workbook…');
+  let d; try { d = await api({ action: 'grouped', account: ACCOUNT, rows: true }); } catch (e) { toast(e.message); return; }
+  const wb = XLSX.utils.book_new(), used = new Set(), months = d.months;
+  for (const [k, name] of [['debit', 'Payments by month'], ['credit', 'Receipts by month']]) {
+    const list = d.ledgers.filter(l => l[k] > 0).sort((a, b) => b[k] - a[k]);
+    const aoa = [['Ledger', ...months.map(monLabel), 'Total']];
+    for (const l of list) aoa.push([l.tally || l.category, ...months.map(m => (l.months[m] && l.months[m][k]) || null), l[k]]);
+    aoa.push(['Total', ...months.map(m => r2(list.reduce((s, l) => s + ((l.months[m] && l.months[m][k]) || 0), 0))), r2(list.reduce((s, l) => s + l[k], 0))]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 40 }, ...months.map(() => ({ wch: 13 })), { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, ws, sheetName(name, used));
+  }
+  const byCat = {}; for (const r of d.rows) (byCat[r[6]] ||= []).push(r);
+  for (const l of d.ledgers) {
+    const rows = byCat[l.category] || []; if (!rows.length) continue;
+    const aoa = [['Date', 'Narration', 'Payee', 'Ref No', 'Debit', 'Credit']];
+    let m = '', md = 0, mc = 0;
+    const sub = () => { if (m) aoa.push(['', `${monLabel(m)} total`, '', '', md || null, mc || null], []); };
+    for (const r of rows) {
+      if (r[0].slice(0, 7) !== m) { sub(); m = r[0].slice(0, 7); md = 0; mc = 0; }
+      aoa.push([fmtDate(r[0]), r[1], r[2], r[3], r[4] || null, r[5] || null]); md = r2(md + r[4]); mc = r2(mc + r[5]);
+    }
+    sub();
+    aoa.push(['', `${l.category} · grand total`, '', '', l.debit || null, l.credit || null]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = entryCols;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName(l.tally || l.category, used));
+  }
+  download(`Ledgers_by_month_${ACCOUNT.slice(-4)}.xlsx`, XLSX.write(wb, { type: 'array', bookType: 'xlsx' }), XLSX_MIME);
+  toast(`${d.ledgers.length} ledger sheets + 2 summaries`);
+}
+
 // ── export ──────────────────────────────────────────────────────────────────
 function download(name, content, type) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -481,6 +630,7 @@ async function doExport(format) {
   } catch (e) { st.textContent = ''; toast(e.message); }
 }
 
+document.getElementById('tScope').checked = localStorage.getItem('nt_bank_scope') !== '0';
 loadAccounts();
 </script>
 </body>
