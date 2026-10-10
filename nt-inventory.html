@@ -4439,7 +4439,7 @@ function renderEmgDash() {
           <label class="emg-dash-design${allPrinted ? ' printed' : ''}"${g.amazon_open ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
             <input type="checkbox" ${allPrinted ? 'checked' : ''} onclick="event.stopPropagation()" onchange="emgDesignTick('${d.date}',${gi},this)" title="${allPrinted ? 'Printed — untick to put back to print' : 'Tick when printed'}">
             <span class="emg-dd-qty">${remaining}×</span>
-            ${g.amazon_open ? '<span style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px">Amazon</span>' : ''}<b>${g.title}</b>
+            <b>${g.title}</b>${g.amazon_open ? `<span title="${g.amazon_open} of ${remaining} is an Amazon merchant-fulfilled order (FBA stock is never queued here); the other ${remaining - g.amazon_open} are website orders" style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:6px">${g.amazon_open} Amazon · ${remaining - g.amazon_open} web</span>` : ''}
             ${partSent ? `<span class="emg-badge sent" title="${g.sent} of ${total} dispatched, ${remaining} still to send">◐ ${g.sent} of ${total} sent</span>` : ''}
             ${emgComingBadge(g)}
             <button type="button" class="emg-dd-x" onclick="event.preventDefault();event.stopPropagation();emgRemoveDesign('${d.date}',${gi})" title="Remove from emergency (all or some units)">✕</button>
@@ -4525,7 +4525,7 @@ function emgPrintDates(dates, src) {
       <div class="eps-hd">Emergency${src === 'amazon' ? ' · 🟡 AMAZON ONLY' : ''} · ${fmt(d.date)} · ${total} to print</div>
       <div class="eps-sub">${designs.length} designs · printed ${new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${skipped.length ? ` · not printed, already coming: ${skipped.map(g => `${g.open}× ${g.title}`).join(', ')}` : ''}</div>
       <div class="eps-grid">${designs.map(g => `
-        <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.amazon_open ? '<span style="font-weight:800;color:#c07000">Amazon</span> ' : ''}${g.title}
+        <div class="eps-row"><span class="eps-box"></span><b>${g.open}×</b> ${g.title}${g.amazon_open && src !== 'amazon' ? ` <span style="font-weight:800;color:#c07000">(${g.amazon_open} Amazon · ${g.open - g.amazon_open} web)</span>` : src === 'amazon' ? ' <span style="font-weight:800;color:#c07000">Amazon</span>' : ''}
 </div>`).join('')}
       </div>
     </div>`;
