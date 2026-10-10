@@ -54,6 +54,12 @@ select.sel-None{background:#fde8e8;border-color:#e57373;color:var(--red)}select.
 .modal input,.modal select{width:100%;font:inherit;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px}
 .warn{background:#fff3e0;border:1px solid #f2c9b4;border-radius:10px;padding:10px 12px;font-size:.82rem;margin-bottom:10px}
 datalist{display:none}
+.qwrap{position:relative;flex:1;min-width:200px;display:flex}
+.qwrap input{width:100%;padding-right:30px}
+.qx{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--muted);font-size:.9rem;cursor:pointer;padding:4px 7px;border-radius:50%;display:none}
+.qx:hover{background:#f3ebdf;color:var(--ink)}
+.qwrap.has .qx{display:block}
+.bar select.on,.bar input.on{border-color:var(--accent);background:#fff8f3}
 #mTable{table-layout:auto;min-width:100%}
 #mTable th:first-child,#mTable td:first-child{position:sticky;left:0;background:#fff;z-index:1;min-width:180px}
 #mTable th:first-child{background:#f8e8d2;z-index:3}
@@ -115,8 +121,12 @@ td.mc{cursor:pointer;color:#1a3f9c}td.mc:hover{text-decoration:underline;backgro
     <select id="tMonth" onchange="loadTxns()"><option value="">All months</option></select>
     <select id="tConf" onchange="loadTxns()"><option value="">Any confidence</option><option>None</option><option>Low</option><option>Medium</option><option>High</option></select>
     <select id="tCat" onchange="loadTxns()"><option value="">Any category</option></select>
-    <input id="tQ" placeholder="Search narration / payee / ref…" onkeydown="if(event.key==='Enter')loadTxns()" style="flex:1;min-width:180px">
+    <select id="tDir" onchange="loadTxns()"><option value="">Debits + credits</option><option value="dr">Debits only</option><option value="cr">Credits only</option></select>
+    <select id="tLayer" onchange="loadTxns()"><option value="">Tagged by anyone</option><option value="suggested">Suggested only</option><option value="payee">Payee rule</option><option value="override">Line override</option></select>
+    <label class="note">≥ ₹ <input id="tMin" type="number" placeholder="any" style="width:90px" onkeydown="if(event.key==='Enter')loadTxns()" onchange="loadTxns()"></label>
+    <span class="qwrap"><input id="tQ" placeholder="Search narration / payee / ref…" onkeydown="if(event.key==='Enter')loadTxns();if(event.key==='Escape'){this.value='';loadTxns()}" oninput="txnQx()"><button type="button" class="qx" id="tQx" onclick="document.getElementById('tQ').value='';loadTxns()" title="Clear search">✕</button></span>
     <button class="btn" onclick="loadTxns()">Search</button>
+    <button class="btn danger" id="tReset" onclick="txnReset()" style="display:none">✕ Reset filters</button>
     <span class="note" id="tCount"></span>
     <label class="note" style="flex-basis:100%" title="A ledger picked on one line becomes the rule for that payee, so every entry of the same payee in every month follows it. Untick to change only the one line."><input type="checkbox" id="tScope" checked onchange="localStorage.setItem('nt_bank_scope', this.checked ? '1' : '0')"> a ledger change applies to <b>every entry of the same payee</b> (untick for this line only)</label>
   </div>
@@ -380,7 +390,9 @@ async function loadTxns(more) {
   const tb = document.querySelector('#tTable tbody');
   if (!more) { _txnOffset = 0; tb.innerHTML = '<tr><td colspan="9" class="note">Loading…</td></tr>'; }
   if (!_ledgers.length) await loadLedgerOptions();
-  const body = { action: 'transactions', account: ACCOUNT, month: document.getElementById('tMonth').value, confidence: document.getElementById('tConf').value, category: document.getElementById('tCat').value, q: document.getElementById('tQ').value.trim(), limit: 500, offset: _txnOffset };
+  const v = id => document.getElementById(id).value.trim();
+  const body = { action: 'transactions', account: ACCOUNT, month: v('tMonth'), confidence: v('tConf'), category: v('tCat'), dir: v('tDir'), layer: v('tLayer'), min: +v('tMin') || 0, q: v('tQ'), limit: 500, offset: _txnOffset };
+  txnFilterState();
   let rows;
   try { rows = (await api(body)).rows; } catch (e) { toast(e.message); return; }
   const html = rows.map(t => `<tr data-id="${t.id}" data-cp="${esc(t.counterparty)}" data-conf="${esc(t.confidence)}">
@@ -395,8 +407,19 @@ async function loadTxns(more) {
   if (more) tb.insertAdjacentHTML('beforeend', html); else tb.innerHTML = html || '<tr><td colspan="9" class="note">No transactions match.</td></tr>';
   _txnOffset += rows.length;
   document.getElementById('tMore').style.display = rows.length === 500 ? '' : 'none';
-  document.getElementById('tCount').textContent = `${_txnOffset} shown`;
+  document.getElementById('tCount').textContent = `${_txnOffset} shown${txnFilterState() ? ' · filtered' : ''}`;
 }
+const TXN_FILTERS = ['tMonth', 'tConf', 'tCat', 'tDir', 'tLayer', 'tMin', 'tQ'];
+// highlights the controls that are narrowing the list and shows the reset button when any are
+function txnFilterState() {
+  let n = 0;
+  for (const id of TXN_FILTERS) { const el = document.getElementById(id); const on = !!el.value.trim(); el.classList.toggle('on', on); if (on) n++; }
+  txnQx();
+  document.getElementById('tReset').style.display = n ? '' : 'none';
+  return n;
+}
+function txnQx() { document.querySelector('.qwrap').classList.toggle('has', !!document.getElementById('tQ').value); }
+function txnReset() { for (const id of TXN_FILTERS) document.getElementById(id).value = ''; loadTxns(); }
 const layerText = l => l === 'payee' ? 'payee rule' : l === 'override' ? 'line override' : 'suggested';
 function rowShow(tr, cat, layer) {
   const sel = tr.querySelector('select');
