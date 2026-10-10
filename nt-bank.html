@@ -216,6 +216,17 @@ td.mc{cursor:pointer;color:#1a3f9c}td.mc:hover{text-decoration:underline;backgro
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="document.getElementById('ruleModal').classList.remove('open')">Cancel</button><button class="btn primary" onclick="ruleSave()">Save & re-run</button></div>
   </div>
 </div>
+<div class="modal" id="scopeModal" onclick="if(event.target===this)scopePick(null)">
+  <div class="panel" style="width:min(460px,100%)">
+    <div style="font-family:var(--ff);font-size:1.05rem" id="scTitle"></div>
+    <div class="note" style="margin:8px 0 14px" id="scBody"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn primary" onclick="scopePick('line')" id="scLine"></button>
+      <button class="btn" onclick="scopePick('payee')" id="scAll"></button>
+      <button class="btn" onclick="scopePick(null)" style="border:none;color:var(--muted)">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="mModal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="panel">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -343,10 +354,10 @@ async function loadPayees(force) {
   renderPayees();
 }
 // The dropdown shows the category in force: the suggestion when nothing was set, or the rule/override; picking another name changes it, the first option puts the suggestion back
-function ledgerOptions(current, suggested) {
+function ledgerOptions(current, suggested, tag = 'suggested') {
   const names = _ledgers.length ? _ledgers.map(l => l.name) : workingCategories();
   const opts = names.filter(n => n !== suggested).map(n => `<option value="${esc(n)}"${n === current ? ' selected' : ''}>${esc(n)}</option>`).join('');
-  return `<option value=""${current ? '' : ' selected'}>${esc(suggested || UNKNOWN)} · suggested</option>${current && !names.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : ''}${opts}`;
+  return `<option value=""${current ? '' : ' selected'}>${esc(suggested || UNKNOWN)} · ${tag}</option>${current && !names.includes(current) ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : ''}${opts}`;
 }
 function selCls(current, conf) { return current ? 'sel-set' : `sel-${conf || 'None'}`; }
 function workingCategories() {
@@ -395,13 +406,13 @@ async function loadTxns(more) {
   txnFilterState();
   let rows;
   try { rows = (await api(body)).rows; } catch (e) { toast(e.message); return; }
-  const html = rows.map(t => `<tr data-id="${t.id}" data-cp="${esc(t.counterparty)}" data-conf="${esc(t.confidence)}">
+  const html = rows.map(t => `<tr data-id="${t.id}" data-cp="${esc(t.counterparty)}" data-conf="${esc(t.confidence)}" data-layer="${t.final_layer}" data-rule="${t.final_layer === 'payee' ? esc(t.final_category) : ''}" data-date="${t.txn_date}" data-amt="${+t.debit || +t.credit || 0}">
     <td style="white-space:nowrap">${fmtDate(t.txn_date)}</td>
     <td class="narr" title="${esc(t.narration)}">${esc(t.narration)}</td>
     <td class="lay hm">${esc(t.ref_no)}</td>
     <td class="num">${+t.debit ? inr(t.debit) : ''}</td><td class="num">${+t.credit ? inr(t.credit) : ''}</td>
     <td class="hm">${esc(t.counterparty)}</td>
-    <td><select class="${selCls(t.override_category, t.confidence)}" onchange="overrideSet('${t.id}', this.value, this)">${ledgerOptions(t.override_category || '', t.final_layer === 'payee' ? t.final_category : t.suggested_category)}</select><div class="lay">${t.final_layer === 'payee' ? 'payee rule' : t.final_layer === 'override' ? 'line override' : 'suggested'}</div></td>
+    <td><select class="${selCls(t.override_category, t.confidence)}" data-cur="${esc(t.override_category || '')}" onchange="overrideSet('${t.id}', this.value, this)">${ledgerOptions(t.override_category || '', t.final_layer === 'payee' ? t.final_category : t.suggested_category, t.final_layer === 'payee' ? 'payee rule' : 'suggested')}</select><div class="lay">${layerText(t.final_layer)}</div></td>
     <td class="lay hm">${t.final_layer}</td>
     <td><span class="pill c-${t.confidence}">${t.confidence}</span></td></tr>`).join('');
   if (more) tb.insertAdjacentHTML('beforeend', html); else tb.innerHTML = html || '<tr><td colspan="9" class="note">No transactions match.</td></tr>';
@@ -420,36 +431,56 @@ function txnFilterState() {
 }
 function txnQx() { document.querySelector('.qwrap').classList.toggle('has', !!document.getElementById('tQ').value); }
 function txnReset() { for (const id of TXN_FILTERS) document.getElementById(id).value = ''; loadTxns(); }
-const layerText = l => l === 'payee' ? 'payee rule' : l === 'override' ? 'line override' : 'suggested';
-function rowShow(tr, cat, layer) {
+const layerText = (l, rule) => l === 'payee' ? 'payee rule' : l === 'override' ? (rule ? `exception · rule says ${rule}` : 'line override') : 'suggested';
+function rowShow(tr, cat, layer, rule) {
   const sel = tr.querySelector('select');
   if (cat && ![...sel.options].some(o => o.value === cat)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(cat)}">${esc(cat)}</option>`);
   sel.value = cat || '';
+  sel.dataset.cur = cat || '';
   sel.className = selCls(cat, tr.dataset.conf);
-  const lay = sel.parentElement.querySelector('.lay'); if (lay) lay.textContent = layerText(layer);
+  tr.dataset.layer = layer; if (rule !== undefined) tr.dataset.rule = rule || '';
+  const lay = sel.parentElement.querySelector('.lay'); if (lay) lay.textContent = layerText(layer, tr.dataset.rule);
   tr.children[7].textContent = layer;
 }
+// A payee that already has a rule: changing one of its lines asks whether this is a one-off or the rule itself
+let _scopeResolve = null;
+function scopeAsk(tr, cat) {
+  const amt = +tr.dataset.amt, when = fmtDate(tr.dataset.date);
+  document.getElementById('scTitle').textContent = `${tr.dataset.cp}`;
+  document.getElementById('scBody').innerHTML = `Every entry of this payee is tagged <b>${esc(tr.dataset.rule)}</b> by your rule. You picked <b>${esc(cat)}</b> for ₹${inr(amt)} on ${when}.`;
+  document.getElementById('scLine').textContent = `Only this entry → ${cat} (rest stay ${tr.dataset.rule})`;
+  document.getElementById('scAll').textContent = `Every entry of this payee → ${cat}`;
+  document.getElementById('scopeModal').classList.add('open');
+  return new Promise(res => { _scopeResolve = res; });
+}
+function scopePick(v) { document.getElementById('scopeModal').classList.remove('open'); if (_scopeResolve) { _scopeResolve(v); _scopeResolve = null; } }
 async function overrideSet(id, cat, sel) {
+  const tr = sel.closest('tr');
+  let scope = document.getElementById('tScope').checked ? 'payee' : 'line';
+  if (scope === 'payee' && tr.dataset.layer === 'override') scope = 'line'; // an exception stays an exception
+  if (scope === 'payee' && tr.dataset.rule && cat && cat !== tr.dataset.rule) {
+    scope = await scopeAsk(tr, cat);
+    if (!scope) { sel.value = sel.dataset.cur || ''; return; }
+  }
   sel.disabled = true;
-  const scope = document.getElementById('tScope').checked ? 'payee' : 'line';
   try {
     const r = await api({ action: 'line_set', id, category: cat || null, scope, account: ACCOUNT });
-    const tr = sel.closest('tr');
     if (r.scope === 'payee') {
       // every visible entry of the same payee follows the rule; lines with their own override keep it
       document.querySelectorAll('#tTable tbody tr').forEach(x => {
         if (x.dataset.cp !== r.counterparty) return;
-        if (x !== tr && x.children[7].textContent === 'override') return;
-        rowShow(x, cat, cat ? 'payee' : (x === tr ? r.final_layer : 'keyword'));
+        if (x !== tr && x.dataset.layer === 'override') { x.dataset.rule = cat || ''; const lay = x.querySelector('select').parentElement.querySelector('.lay'); if (lay) lay.textContent = layerText('override', cat); return; }
+        rowShow(x, cat, cat ? 'payee' : (x === tr ? r.final_layer : 'keyword'), cat || '');
       });
       toast(cat ? `${r.counterparty} → ${cat} · ${r.rows} entr${r.rows === 1 ? 'y' : 'ies'} across all months` : `Rule removed for ${r.counterparty} · back to suggested`);
       _payees = []; _monthly = null;
     } else {
+      if (r.final_layer === 'payee') { tr.dataset.rule = r.final_category; sel.options[0].textContent = `${r.final_category} · payee rule`; }
       rowShow(tr, cat, r.final_layer);
-      toast(cat ? (r.generic ? 'This line only (payee is unnamed, so no payee rule)' : 'This line only') : 'Override removed');
+      toast(cat ? (tr.dataset.rule ? `Only this entry → ${cat} · ${r.counterparty} stays ${tr.dataset.rule}` : r.generic ? 'This line only (payee is unnamed, so no payee rule)' : 'This line only') : (tr.dataset.rule ? `Back to the rule · ${tr.dataset.rule}` : 'Override removed'));
       _monthly = null;
     }
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(e.message); sel.value = sel.dataset.cur || ''; }
   sel.disabled = false;
 }
 
