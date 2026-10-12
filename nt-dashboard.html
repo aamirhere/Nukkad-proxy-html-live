@@ -186,6 +186,14 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       </span>
     </div>
     <div id="paceBody"><div class="skel" style="height:120px"></div></div>
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin:16px 0 8px;border-top:1px solid var(--line);padding-top:12px">
+      <h2 style="margin:0;font-size:1rem">🌙 Night watch <span class="note" style="font-weight:400">· Meta spend 12 am – 8 am IST, and what it brings back</span></h2>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="nightDays" onchange="loadNight(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="7" selected>last 7 nights</option><option value="14">last 14 nights</option><option value="30">last 30 nights</option></select>
+        <button class="btn" onclick="loadNight(true)">↻</button>
+      </span>
+    </div>
+    <div id="nightBody"><div class="skel" style="height:90px"></div></div>
   </section>
   <section id="ledger" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -1361,6 +1369,44 @@ function renderPace() {
   if (d.accounts && d.accounts.length) h += `<div class="note" style="margin-top:8px">Accounts today: ${d.accounts.map(a => `${esc(a.label)} ${f(a.spend)} · ${a.clicks} clicks${a.error ? ' ⚠' : ''}`).join(' &nbsp;|&nbsp; ')}</div>`;
   el.innerHTML = h;
 }
+// ---- Night watch: 12 am – 8 am IST, night by night ----
+let _night = null, _nightSeq = 0;
+async function loadNight(force) {
+  const body = document.getElementById('nightBody'), seq = ++_nightSeq;
+  if (!force || !_night) body.innerHTML = '<div class="skel" style="height:90px"></div>';
+  try { const d = await api({ action: 'night', days: +document.getElementById('nightDays').value || 7 }); if (seq !== _nightSeq) return; _night = d; renderNight(); }
+  catch (e) { if (seq !== _nightSeq) return; body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
+}
+function renderNight() {
+  const d = _night, el = document.getElementById('nightBody'); if (!d) return;
+  const S = d.summary, f = v => '₹' + Math.round(v || 0).toLocaleString('en-IN');
+  const tile = (n, l, s, col) => `<div class="tile"><div class="n" style="${col ? 'color:' + col : ''}">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  const roasCol = v => v == null ? 'var(--muted)' : v >= 2.5 ? '#2e8b57' : v < 1.5 ? '#c0392b' : 'var(--ink)';
+  const gap = (a, b) => a == null || b == null ? '' : a >= b * 0.95 ? '<span style="color:#2e8b57">on par with the day</span>' : a < b * 0.7 ? '<span style="color:#c0392b">well below the day</span>' : '<span style="color:#b05000">a little below the day</span>';
+  let h = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}</div>`;
+  h += `<div class="pt">
+    ${tile(f(S.spend), `night spend · ${S.nights} nights`, `${f(S.per_night)} a night · daytime ${f(S.spend_rest)}`)}
+    ${tile(S.share_spend != null ? S.share_spend + '%' : '—', 'share of spend at night', `orders ${S.share_orders ?? '—'}% · revenue ${S.share_revenue ?? '—'}% · clicks ${S.share_clicks ?? '—'}%`, S.share_spend != null && S.share_orders != null && S.share_spend - S.share_orders >= 6 ? '#c0392b' : undefined)}
+    ${tile(S.roas ?? '—', 'night ROAS · shop ÷ spend', `daytime ${S.roas_rest ?? '—'} · ${gap(S.roas, S.roas_rest)}`, roasCol(S.roas))}
+    ${tile(S.cpo != null ? f(S.cpo) : '—', 'cost per order at night', `daytime ${S.cpo_rest != null ? f(S.cpo_rest) : '—'} · ${S.orders} night orders`)}
+    ${tile(S.cpc != null ? '₹' + S.cpc : '—', 'cost per click at night', `daytime ₹${S.cpc_rest ?? '—'} · Meta says ${S.purchases} sales, ROAS ${S.meta_roas ?? '—'}`)}
+  </div>`;
+  if (S.accounts.length) h += `<div class="pills" style="margin:0 0 10px">${S.accounts.map(a => `<span class="pill" style="cursor:default">${esc(a.label)} <b>${f(a.night)}</b> <span style="font-size:.72rem;opacity:.85">${a.share ?? '—'}% of its spend at night · ${f(a.per_night)}/night · ${a.purchases_night} night sales</span></span>`).join('')}</div>`;
+  // the eight night hours, averaged across the window, with last night beside
+  const last = d.rows.find(r => !r.error && r.complete);
+  const mx = Math.max(...d.hours_avg.spend, ...(last ? last.hours.spend : [0]), 1);
+  h += `<div class="tile" style="margin-bottom:10px"><div class="l">Hour by hour · average night spend <span style="color:#d4541f">■</span> and last complete night (${last ? last.day : '—'}) <span style="color:#f0b899">■</span> · orders on the line below</div>
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:8px;align-items:end">${d.hours_avg.spend.map((v, i) => { const lv = last ? last.hours.spend[i] : 0; return `<div style="text-align:center"><div style="display:flex;align-items:flex-end;justify-content:center;gap:2px;height:70px"><i style="display:block;width:38%;height:${Math.max(2, v / mx * 100)}%;background:#d4541f;border-radius:3px 3px 0 0" title="avg ${f(v)}"></i><i style="display:block;width:38%;height:${Math.max(2, lv / mx * 100)}%;background:#f0b899;border-radius:3px 3px 0 0" title="last night ${f(lv)}"></i></div><div style="font-size:.74rem;font-weight:700;margin-top:3px">${f(v)}</div><div class="note" style="font-size:.66rem">${String(i).padStart(2, '0')}:00 · ${d.hours_avg.orders[i]} ord · ${d.hours_avg.clicks[i]} clk</div></div>`; }).join('')}</div></div>`;
+  const accts = S.accounts.map(a => a.label);
+  h += `<div style="overflow:auto"><table style="table-layout:auto;min-width:760px"><thead><tr><th>Night of</th><th class="num">Night spend</th><th class="num">% of day</th>${accts.map(a => `<th class="num">${esc(a)}</th>`).join('')}<th class="num">Clicks</th><th class="num">Orders</th><th class="num">Revenue</th><th class="num">ROAS night</th><th class="num">ROAS day</th></tr></thead><tbody>${d.rows.map(r => r.error ? `<tr><td>${r.day}</td><td colspan="${8 + accts.length}" class="note">⚠ ${esc(r.error)}</td></tr>` : `<tr style="${r.complete ? '' : 'opacity:.6'}">
+    <td><b>${r.day.slice(5)}</b>${r.complete ? '' : ' <span class="note">in progress</span>'}</td>
+    <td class="num"><b>${f(r.spend)}</b></td>
+    <td class="num" style="color:${r.share != null && r.share >= (S.share_spend || 0) + 8 ? '#c0392b' : 'inherit'}">${r.share ?? '—'}%</td>
+    ${accts.map(a => `<td class="num">${r.per[a] ? f(r.per[a].night) : '—'}</td>`).join('')}
+    <td class="num">${r.clicks}</td><td class="num">${r.orders} <span class="note">/ ${r.orders + r.orders_rest}</span></td><td class="num">${f(r.revenue)}</td>
+    <td class="num" style="color:${roasCol(r.roas)}"><b>${r.roas ?? '—'}</b></td><td class="num">${r.roas_rest ?? '—'}</td></tr>`).join('')}</tbody></table></div>`;
+  el.innerHTML = h;
+}
 async function loadCrawl() {
   try {
     const c = await api({ action: 'crawl_status' }), el = document.getElementById('crawlLine');
@@ -1371,13 +1417,13 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
-  loadPace(true); loadCod(true); loadLedger(true); loadBasket(true); loadWho(true, true);
+  loadPace(true); loadNight(true); loadCod(true); loadLedger(true); loadBasket(true); loadWho(true, true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadCod(true); loadLedger(true); loadBasket(); loadWho(true);
+loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadNight(); loadCod(true); loadLedger(true); loadBasket(); loadWho(true);
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
 setInterval(() => { if (!document.hidden && document.getElementById('paceDay').value === istToday()) loadPace(true); }, 5 * 60e3);
