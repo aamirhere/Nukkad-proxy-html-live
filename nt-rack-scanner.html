@@ -2623,24 +2623,38 @@ function updateSlipSelBar() {
   if (lbl) lbl.textContent = n + ' order' + (n !== 1 ? 's' : '') + ' selected';
 }
 
+// Slips come back in batches; the server returns whatever it could fetch inside its time budget and the rest is asked for again
+async function fetchSlipsFor(orderNames, onProgress) {
+  const BATCH = 20;
+  let queue = orderNames.slice(), slips = [], failed = [], rounds = 0;
+  while (queue.length) {
+    const chunk = queue.splice(0, BATCH);
+    let d;
+    try { d = await apiFetch({ action: 'get_batch_slips', order_names: chunk }, API, 35000); }
+    catch (e) {
+      // one retry per chunk with a smaller bite, so a slow Shopify minute does not kill the whole print
+      if (++rounds > orderNames.length / 5 + 4) throw e;
+      queue = chunk.slice(0, 8).concat(chunk.slice(8), queue); await new Promise(r => setTimeout(r, 1200)); continue;
+    }
+    for (const s of d.slips || []) (s.error ? failed : slips).push(s);
+    if (Array.isArray(d.remaining) && d.remaining.length) queue = d.remaining.concat(queue);
+    if (onProgress) onProgress(slips.length + failed.length);
+  }
+  return { slips, failed };
+}
 async function printListSlips() {
   const orderNames = [..._slipSel];
   if (!orderNames.length) return;
   const btn = document.getElementById('listSlipPrintBtn');
   if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length}…`; }
-  let slips = [];
-  const BATCH = 20;
+  let slips = [], failed = [];
   try {
-    for (let i = 0; i < orderNames.length; i += BATCH) {
-      const chunk = orderNames.slice(i, i + BATCH);
-      if (btn) btn.textContent = `Fetching ${Math.min(i + BATCH, orderNames.length)}/${orderNames.length}…`;
-      const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: chunk }, API, 35000);
-      slips = slips.concat((fetched || []).filter(s => !s.error));
-    }
+    ({ slips, failed } = await fetchSlipsFor(orderNames, done => { if (btn) btn.textContent = `Fetching ${done}/${orderNames.length}…`; }));
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
     return alert('Failed to fetch slips: ' + e.message);
   }
+  if (failed.length) alert(`${failed.length} slip${failed.length === 1 ? '' : 's'} could not be fetched and will be left out:\n${failed.map(f => `${f.order_name}: ${f.error}`).join('\n')}`);
   if (!slips.length) {
     if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
     return alert('No printable slips found.');
@@ -4864,21 +4878,14 @@ async function printAllQueued() {
   if (!orderNames.length) return alert('No visible orders to print.');
   const btn = document.querySelector('[onclick="printAllQueued()"]');
   if (btn) { btn.disabled = true; btn.textContent = `Fetching 0/${orderNames.length} slips…`; }
-  let slips = [];
-  const BATCH = 20;
+  let slips = [], failed = [];
   try {
-    for (let i = 0; i < orderNames.length; i += BATCH) {
-      const chunk = orderNames.slice(i, i + BATCH);
-      if (btn) btn.textContent = `Fetching ${Math.min(i + BATCH, orderNames.length)}/${orderNames.length} slips…`;
-      const { slips: fetched } = await apiFetch({ action: 'get_batch_slips', order_names: chunk }, API, 35000);
-      const errors = (fetched || []).filter(s => s.error);
-      if (errors.length) console.warn('[PrintAll] failed slips:', errors.map(e => `${e.order_name}: ${e.error}`));
-      slips = slips.concat((fetched || []).filter(s => !s.error));
-    }
+    ({ slips, failed } = await fetchSlipsFor(orderNames, done => { if (btn) btn.textContent = `Fetching ${done}/${orderNames.length} slips…`; }));
   } catch(e) {
     if (btn) { btn.disabled = false; _pqBtnLabel(); }
     return alert('Failed to fetch slips: ' + e.message);
   }
+  if (failed.length) { console.warn('[PrintAll] failed slips:', failed); alert(`${failed.length} slip${failed.length === 1 ? '' : 's'} could not be fetched and will be left out:\n${failed.map(f => `${f.order_name}: ${f.error}`).join('\n')}`); }
   if (!slips.length) {
     if (btn) { btn.disabled = false; _pqBtnLabel(); }
     return alert('No printable slips found.');
