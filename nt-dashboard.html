@@ -342,9 +342,13 @@ function adsCustom() {
 function toastMsg(m) { document.getElementById('adsWhen').textContent = m; }
 document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
 
-async function api(body) {
-  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const d = await r.json().catch(() => ({ error: 'Bad response' }));
+// A gateway timeout comes back with no CORS headers, which the browser reports as "Failed to fetch"; one quiet retry covers a slow minute
+async function api(body, _try = 0) {
+  let r;
+  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+  catch (e) { if (_try < 1) { await new Promise(res => setTimeout(res, 2500)); return api(body, _try + 1); } throw new Error('No answer from the server (it took longer than 30 s). Try again in a minute.'); }
+  if ((r.status === 502 || r.status === 504) && _try < 1) { await new Promise(res => setTimeout(res, 2500)); return api(body, _try + 1); }
+  const d = await r.json().catch(() => ({ error: r.ok ? 'Bad response' : `Server ${r.status}` }));
   if (d.error) throw new Error(d.error);
   return d;
 }
@@ -356,7 +360,12 @@ async function loadAds(force) {
   if (_ads) document.getElementById('adsWhen').textContent = 'Updating…'; else body.innerHTML = '<div class="skel" style="height:80px"></div>';
   const seq = ++_loadSeq, prevCre = _ads && _ads.creatives;
   try { _ads = await api({ action: 'ads', ..._range, skip_creatives: true, force: !!force }); _adsAt = Date.now(); }
-  catch (e) { document.getElementById('adsKpi').innerHTML = `<span style="font-size:.9rem;color:var(--red)">${esc(e.message)}</span>`; document.getElementById('adsBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; document.getElementById('b-ads').classList.remove('loading'); document.querySelector('#adsModal .panel').classList.remove('loading'); return; }
+  catch (e) {
+    document.getElementById('b-ads').classList.remove('loading'); document.querySelector('#adsModal .panel').classList.remove('loading');
+    // keep the last good numbers on screen and say they are old, rather than wiping the block
+    if (_ads && seq === _loadSeq) { renderAdsBlock(); renderAdsModal(); document.getElementById('adsWhen').textContent = `Could not refresh (${e.message}) · showing ${new Date(_adsAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`; document.getElementById('adsKl').textContent = 'spend · last good read, refresh failed'; return; }
+    document.getElementById('adsKpi').innerHTML = `<span style="font-size:.9rem;color:var(--red)">${esc(e.message)}</span>`; document.getElementById('adsBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return;
+  }
   if (seq !== _loadSeq) return;
   _ads.creatives = null;
   renderAdsBlock(); renderAdsModal();
