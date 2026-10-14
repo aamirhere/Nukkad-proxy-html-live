@@ -345,7 +345,7 @@ document.getElementById('asof').textContent = new Date().toLocaleString('en-IN',
 // A gateway timeout comes back with no CORS headers, which the browser reports as "Failed to fetch"; one quiet retry covers a slow minute
 async function api(body, _try = 0) {
   let r;
-  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+  try { r = await fetch(`${API}?a=${encodeURIComponent(body.action || '')}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
   catch (e) { if (_try < 1) { await new Promise(res => setTimeout(res, 2500)); return api(body, _try + 1); } throw new Error('No answer from the server (it took longer than 30 s). Try again in a minute.'); }
   if ((r.status === 502 || r.status === 504) && _try < 1) { await new Promise(res => setTimeout(res, 2500)); return api(body, _try + 1); }
   const d = await r.json().catch(() => ({ error: r.ok ? 'Bad response' : `Server ${r.status}` }));
@@ -1380,10 +1380,14 @@ function renderPace() {
 }
 // ---- Night watch: 12 am – 8 am IST, night by night ----
 let _night = null, _nightSeq = 0;
-async function loadNight(force) {
+async function loadNight(force, _poll = 0) {
   const body = document.getElementById('nightBody'), seq = ++_nightSeq;
   if (!force || !_night) body.innerHTML = '<div class="skel" style="height:90px"></div>';
-  try { const d = await api({ action: 'night', days: +document.getElementById('nightDays').value || 7 }); if (seq !== _nightSeq) return; _night = d; renderNight(); }
+  try {
+    const d = await api({ action: 'night', days: +document.getElementById('nightDays').value || 7 }); if (seq !== _nightSeq) return; _night = d; renderNight();
+    // nights not yet read are being filled in the background; ask again a few times
+    if (d.pending && _poll < 8) setTimeout(() => { if (seq === _nightSeq) loadNight(true, _poll + 1); }, 12000);
+  }
   catch (e) { if (seq !== _nightSeq) return; body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
 }
 function renderNight() {
@@ -1392,7 +1396,7 @@ function renderNight() {
   const tile = (n, l, s, col) => `<div class="tile"><div class="n" style="${col ? 'color:' + col : ''}">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
   const roasCol = v => v == null ? 'var(--muted)' : v >= 2.5 ? '#2e8b57' : v < 1.5 ? '#c0392b' : 'var(--ink)';
   const gap = (a, b) => a == null || b == null ? '' : a >= b * 0.95 ? '<span style="color:#2e8b57">on par with the day</span>' : a < b * 0.7 ? '<span style="color:#c0392b">well below the day</span>' : '<span style="color:#b05000">a little below the day</span>';
-  let h = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}</div>`;
+  let h = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}${d.pending ? `<p class="note">⏳ ${d.pending} night${d.pending === 1 ? '' : 's'} still being read from Meta in the background; this fills in on its own.</p>` : ''}</div>`;
   h += `<div class="pt">
     ${tile(f(S.spend), `night spend · ${S.nights} nights`, `${f(S.per_night)} a night · daytime ${f(S.spend_rest)}`)}
     ${tile(S.share_spend != null ? S.share_spend + '%' : '—', 'share of spend at night', `orders ${S.share_orders ?? '—'}% · revenue ${S.share_revenue ?? '—'}% · clicks ${S.share_clicks ?? '—'}%`, S.share_spend != null && S.share_orders != null && S.share_spend - S.share_orders >= 6 ? '#c0392b' : undefined)}
@@ -1432,7 +1436,10 @@ async function refreshAll() {
   b.disabled = false; b.textContent = '↻ Refresh all';
 }
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
-loadAds(); loadBlocks(); loadCrawl(); loadPace(); loadNight(); loadCod(true); loadLedger(true); loadBasket(); loadWho(true);
+// The top blocks first; the heavier sections a moment later so eight calls do not hit Shopify and Meta at once
+loadAds(); loadBlocks(); loadCrawl(); loadPace();
+setTimeout(() => { loadLedger(true); loadCod(true); }, 2500);
+setTimeout(() => { loadNight(); loadBasket(); loadWho(true); }, 6000);
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
 setInterval(() => { if (!document.hidden && document.getElementById('paceDay').value === istToday()) loadPace(true); }, 5 * 60e3);
