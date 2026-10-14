@@ -4848,6 +4848,7 @@ function renderDispatchTypePills() {
 }
 
 let _amazonOnlyDesigns = []; // [{handle, title, amazon_only:true}]
+let _amazonHandles = new Set(); // every confirmed Amazon SKU handle, so an archived website design still sold on Amazon stays pickable
 async function loadAmazonOnlyDesigns() {
   if (_amazonOnlyDesigns.length) return;
   try {
@@ -4856,14 +4857,17 @@ async function loadAmazonOnlyDesigns() {
     const seen = new Set();
     for (const r of (res.rows || [])) {
       const h = r.handle;
-      if (!r.confirmed || !h || h === 'amazon' || h === '__skip__' || web.has(h) || seen.has(h)) continue;
+      if (!r.confirmed || r.removed || !h || h === 'amazon' || h === '__skip__') continue;
+      _amazonHandles.add(h);
+      if (web.has(h) || seen.has(h)) continue;
       seen.add(h);
       _amazonOnlyDesigns.push({ handle: h, title: h.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), amazon_only: true });
     }
   } catch {}
 }
-// Draft and archived designs stay out of every picker so a wrong pick cannot land on them; one still holding stock stays visible until it is out
-function isHiddenProduct(p) { return !!(p.status && p.status !== 'active' && !p.manual && !((p.stock || 0) > 0)); }
+// Draft and archived designs stay out of every picker so a wrong pick cannot land on them; one still holding stock,
+// or still sold on Amazon, stays visible
+function isHiddenProduct(p) { return !!(p.status && p.status !== 'active' && !p.manual && !((p.stock || 0) > 0) && !_amazonHandles.has(p.handle)); }
 function dispatchDesignSource() {
   const base = allProducts.length ? allProducts.filter(p => !isHiddenProduct(p))
     : _designIndex.length ? _designIndex
