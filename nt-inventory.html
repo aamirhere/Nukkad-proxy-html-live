@@ -4432,17 +4432,17 @@ function renderEmgDash() {
           const total = remaining + g.sent;
           const partSent = g.sent > 0 && remaining > 0;
           if (remaining === 0) return `
-          <label class="emg-dash-design sent" title="All ${g.sent} dispatched">
+          <label class="emg-dash-design sent" title="${sentViaText(g)}">
             <input type="checkbox" checked disabled onclick="event.stopPropagation()">
             <span class="emg-dd-qty">${g.sent}×</span><b>${g.title}</b>
-            <span class="emg-badge sent">✓ sent</span>
+            <span class="emg-badge sent">✓ ${sentViaShort(g)}</span>
           </label>`;
           return `
           <label class="emg-dash-design${allPrinted ? ' printed' : ''}"${g.amazon_open ? ' style="background:#fff3cc;border-left:3px solid #ff9900;padding:3px 6px;border-radius:6px"' : ''}>
             <input type="checkbox" ${allPrinted ? 'checked' : ''} onclick="event.stopPropagation()" onchange="emgDesignTick('${d.date}',${gi},this)" title="${allPrinted ? 'Printed — untick to put back to print' : 'Tick when printed'}">
             <span class="emg-dd-qty">${remaining}×</span>
             <b>${g.title}</b>${g.late ? `<span class="emg-badge" title="Flagged ${fmtWhen(g.late_since)}, after this date's list was last printed: it is not on any printed sheet yet" style="background:#fde8e8;color:#b03020">✦ ${g.late} new since print</span>` : ''}${g.amazon_open ? `<span title="${g.amazon_open} of ${remaining} is an Amazon merchant-fulfilled order (FBA stock is never queued here); the other ${remaining - g.amazon_open} are website orders" style="color:#fff;background:#ff9900;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px;margin-left:6px">${g.amazon_open} Amazon · ${remaining - g.amazon_open} web</span>` : ''}
-            ${partSent ? `<span class="emg-badge sent" title="${g.sent} of ${total} dispatched, ${remaining} still to send">◐ ${g.sent} of ${total} sent</span>` : ''}
+            ${partSent ? `<span class="emg-badge sent" title="${sentViaText(g)} · ${remaining} still to send">◐ ${g.sent} of ${total} ${sentViaShort(g)}</span>` : ''}
             ${emgComingBadge(g)}
             <button type="button" class="emg-dd-x" onclick="event.preventDefault();event.stopPropagation();emgRemoveDesign('${d.date}',${gi})" title="Remove from emergency (all or some units)">✕</button>
 
@@ -4511,6 +4511,15 @@ function emgDatesData(dates) {
 // cut lot); applying that list covers the emergency, so printing again would double it.
 function emgComingQty(g) { const c = g.coming; return c ? (c.dispatch || 0) + (c.lot || 0) : 0; }
 function emgCovered(g) { return g.open > 0 && emgComingQty(g) >= g.open + (g.printed || 0); }
+// How a sent unit was closed. Only a dispatch list means production made and sent the piece; the rest closed it another way.
+const SENT_VIA = { dispatch: 'on a dispatch list', cover: 'covered from stock an earlier list put on the rack', rack: 'found on rack', stock: 'stock received', manual: 'marked sent by hand', orders: 'ticked on Orders', amazon: 'shipped on Amazon', unknown: 'closed before this was tracked' };
+function sentViaText(g) { const v = g.sent_via || {}; const parts = Object.entries(v).map(([k, n]) => `${n} ${SENT_VIA[k] || k}`); return parts.length ? parts.join(' · ') : `All ${g.sent} sent`; }
+function sentViaShort(g) {
+  const v = g.sent_via || {}, keys = Object.keys(v);
+  if (!keys.length) return 'sent';
+  if (keys.length === 1 && keys[0] === 'dispatch') return 'sent';
+  return keys.map(k => `${v[k]} ${({ dispatch: 'dispatch', cover: 'from stock', rack: 'rack', stock: 'stock', manual: 'by hand', orders: 'orders page', amazon: 'Amazon', unknown: 'untracked' })[k] || k}`).join(' · ');
+}
 function fmtWhen(iso) { if (!iso) return ''; const t = new Date(iso); return isNaN(t) ? '' : t.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
 function emgComingBadge(g) {
   const c = g.coming; if (!c || !(c.dispatch || c.lot)) return '';
