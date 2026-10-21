@@ -728,15 +728,20 @@ function spRenderColls() {
     <span class="note">opens</span><input type="text" value="${esc(c.url)}" placeholder="/collections/${esc(c.handle)}" style="flex:1;min-width:220px;font:inherit;font-size:.78rem;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="spCollUrl('${c.handle}', this.value)">
     ${i > 0 ? `<button class="btn" style="padding:2px 8px" title="higher wins when a design is in two" onclick="spCollMove('${c.handle}', -1)">↑</button>` : ''}</div>`;
   document.getElementById('spColls').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 "Similar to this" collections</b><span class="note">tick a collection and put the link it should open · every design in it gets that collection on its product page · ticked ones stay on top, higher wins when a design is in two · press Update website when done</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 "Similar to this" collections</b><span class="note">tick a collection and put the link it should open · every design in it gets that collection on its product page · ticked ones stay on top, higher wins when a design is in two</span><button class="btn" id="spCollSaveBtn" style="margin-left:auto;${_spCollDirty ? 'background:var(--ink);color:#fff' : ''}" onclick="spCollCommit()"${_spCollDirty ? '' : ' disabled'}>${_spCollDirty ? 'Save collections' : 'Saved'}</button></div>
     <input id="spCollQ" placeholder="Find a collection…" value="${esc(_spCollQ)}" oninput="_spCollQ=this.value;spRenderColls();document.getElementById('spCollQ').focus();document.getElementById('spCollQ').setSelectionRange(99,99)" style="width:100%;font:inherit;padding:6px 10px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px">
     <div style="display:grid;gap:4px;max-height:360px;overflow:auto;padding-right:4px">${hl.map((h, i) => byH[h] ? row(byH[h], i) : '').join('')}${rest.map(c => row(c, -1)).join('')}${!all.length ? `<span class="note">${_sp.collections_loading ? 'reading your collections from Shopify… reopen Sheet picks in a minute' : 'no collections found'}</span>` : ''}</div>`;
 }
-// Ticks, links and order apply on the spot; the background build catches up on its own
-async function spCollSave(hl, urls) {
-  try { await api({ action: 'sheet_save', collections: hl, ...(urls ? { collection_urls: urls } : {}) }); } catch (e) { alert(e.message); return false; }
-  _sp.highlight = hl; if (urls) for (const h in urls) { const c = (_sp.collections || []).find(x => x.handle === h); if (c) c.url = urls[h] || c.auto_url || '/collections/' + h; }
-  spRenderColls(); return true;
+// Ticks, links and order change on the screen only; one Save sends them all together
+let _spCollDirty = false, _spCollUrls = {};
+function spCollSave(hl, urls) {
+  _sp.highlight = hl; if (urls) for (const h in urls) { _spCollUrls[h] = urls[h]; const c = (_sp.collections || []).find(x => x.handle === h); if (c) c.url = urls[h] || c.auto_url || '/collections/' + h; }
+  _spCollDirty = true; spRenderColls(); return true;
+}
+async function spCollCommit() {
+  const b = document.getElementById('spCollSaveBtn'); if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  try { await api({ action: 'sheet_save', collections: _sp.highlight || [], collection_urls: _spCollUrls }); } catch (e) { alert(e.message); if (b) { b.disabled = false; b.textContent = 'Save collections'; } return; }
+  _spCollDirty = false; _spCollUrls = {}; spRenderColls(); spRender();
 }
 async function spCollUrl(h, url) { await spCollSave(_sp.highlight || [], { [h]: url }); }
 async function spCollMove(h, d) {
