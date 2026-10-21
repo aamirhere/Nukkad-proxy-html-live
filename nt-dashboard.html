@@ -720,29 +720,14 @@ async function openSheetPicks(after) {
 // Collections that stand for "similar to this": a design in one of them gets that collection as its One for you row and a See all link on its page
 function spRenderColls() {
   const hl = _sp.highlight || [], all = _sp.collections || [], byH = {}; all.forEach(c => byH[c.handle] = c);
-  const row = (c, i) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#fff"><b style="min-width:28px;color:var(--muted)">${i + 1}.</b><b>${esc(c.title)}</b><small class="note">${c.count} designs</small><span class="note">opens</span><input value="${esc(c.url)}" style="flex:1;min-width:220px;font:inherit;font-size:.78rem;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="spCollUrl('${c.handle}', this.value)"><button class="btn" style="padding:2px 8px" title="move up: higher wins when a design is in two" onclick="spCollMove('${c.handle}', -1)"${i ? '' : ' disabled'}>↑</button><button class="btn" style="padding:2px 8px" title="remove" onclick="spCollToggle('${c.handle}')">✕</button></div>`;
+  const rest = all.filter(c => !hl.includes(c.handle));
+  const row = (c, i) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:${i >= 0 ? '#fff' : 'transparent'}">
+    <label style="display:flex;gap:6px;align-items:center;min-width:260px;cursor:pointer"><input type="checkbox"${i >= 0 ? ' checked' : ''} onchange="spCollToggle('${c.handle}', this.closest('div').querySelector('input[type=text]').value)">${i >= 0 ? `<b style="color:var(--muted)">${i + 1}.</b>` : ''}<b>${esc(c.title)}</b><small class="note">${c.count}</small></label>
+    <span class="note">opens</span><input type="text" value="${esc(c.url)}" placeholder="/collections/${esc(c.handle)}" style="flex:1;min-width:220px;font:inherit;font-size:.78rem;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="spCollUrl('${c.handle}', this.value)">
+    ${i > 0 ? `<button class="btn" style="padding:2px 8px" title="higher wins when a design is in two" onclick="spCollMove('${c.handle}', -1)">↑</button>` : ''}</div>`;
   document.getElementById('spColls').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 "Similar to this" collections</b><span class="note">separate from the design list below · pick a collection, give it a link, done · every design in it gets that collection on its product page</span><button class="btn" style="margin-left:auto" onclick="spCollAddStart()">＋ Add a collection</button></div>
-    <div id="spCollAdd" style="display:none;margin-bottom:8px;padding:8px 10px;border:1.5px dashed var(--accent);border-radius:10px;background:#fff">
-      <div class="row"><label>1 · Which collection<select id="spCollPick" onchange="spCollPicked()" style="min-width:240px"><option value="">choose…</option>${all.filter(c => !hl.includes(c.handle)).map(c => `<option value="${c.handle}">${esc(c.title)} (${c.count})</option>`).join('')}</select></label>
-      <label style="flex:1;min-width:280px">2 · Where "Similar to this" opens<input id="spCollUrlNew" placeholder="/collections/…" style="width:100%" oninput="document.getElementById('spCollAddBtn').disabled=!document.getElementById('spCollPick').value"></label>
-      <label>&nbsp;<span style="display:flex;gap:6px"><button class="btn" id="spCollAddBtn" onclick="spCollAddDone()" disabled style="background:var(--ink);color:#fff">3 · Add</button><button class="btn" onclick="document.getElementById('spCollAdd').style.display='none'">Cancel</button></span></label></div>
-      <div class="note" style="margin-top:4px">The link is pre-filled from the Shop by Room pages when the collection is on one (#room/story); paste your own if it should open somewhere else.</div>
-    </div>
-    <div style="display:grid;gap:6px">${hl.map((h, i) => byH[h] ? row(byH[h], i) : '').join('') || `<span class="note">${_sp.collections_loading ? 'reading your collections from Shopify… reopen Sheet picks in a minute' : 'none yet · press Add a collection'}</span>`}</div>
-    ${hl.length ? '<div class="note" style="margin-top:6px">Order matters: a design in two of these takes the higher one. Press Update website when done.</div>' : ''}`;
-}
-function spCollAddStart() { const b = document.getElementById('spCollAdd'); b.style.display = ''; document.getElementById('spCollPick').focus(); }
-function spCollPicked() {
-  const h = document.getElementById('spCollPick').value, c = (_sp.collections || []).find(x => x.handle === h);
-  document.getElementById('spCollUrlNew').value = c ? (c.auto_url || c.url || '/collections/' + h) : '';
-  document.getElementById('spCollAddBtn').disabled = !h;
-}
-async function spCollAddDone() {
-  const h = document.getElementById('spCollPick').value, url = document.getElementById('spCollUrlNew').value.trim(); if (!h) return;
-  const hl = (_sp.highlight || []).filter(x => x !== h); hl.push(h);
-  let _r; try { _r = await api({ action: 'sheet_save', collections: hl, collection_urls: { [h]: url } }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 "Similar to this" collections</b><span class="note">tick a collection and put the link it should open · every design in it gets that collection on its product page · ticked ones sit on top, higher wins when a design is in two · press Update website when done</span></div>
+    <div style="display:grid;gap:4px;max-height:360px;overflow:auto;padding-right:4px">${hl.map((h, i) => byH[h] ? row(byH[h], i) : '').join('')}${rest.map(c => row(c, -1)).join('')}${!all.length ? `<span class="note">${_sp.collections_loading ? 'reading your collections from Shopify… reopen Sheet picks in a minute' : 'no collections found'}</span>` : ''}</div>`;
 }
 async function spCollUrl(h, url) {
   let _r; try { _r = await api({ action: 'sheet_save', collection_urls: { [h]: url } }); } catch (e) { alert(e.message); return; }
@@ -754,9 +739,9 @@ async function spCollMove(h, d) {
   let _r; try { _r = await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
   const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
 }
-async function spCollToggle(h) {
+async function spCollToggle(h, url) {
   const hl = (_sp.highlight || []).filter(x => x !== h); if (!(_sp.highlight || []).includes(h)) hl.push(h);
-  let _r; try { _r = await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
+  let _r; try { _r = await api({ action: 'sheet_save', collections: hl, ...(url ? { collection_urls: { [h]: url } } : {}) }); } catch (e) { alert(e.message); return; }
   const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
 }
 // The offer the storefront strip shows. Saved to Supabase here, written into the theme by Update website.
