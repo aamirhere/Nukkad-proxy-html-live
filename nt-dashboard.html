@@ -866,8 +866,9 @@ async function spPublish() {
         const r = st.result || {};
         if (r.error) { alert('Publish failed: ' + r.error); break; }
         const bad = (r.themes || []).filter(t => !t.ok);
-        document.getElementById('spWhen').textContent = `on site: just now · ${r.products} designs · ${Math.round(r.bytes / 1024)} KB`;
-        alert((bad.length ? 'Some themes failed:\n' + bad.map(t => (t.name || t.theme) + ': ' + t.error).join('\n') + '\n\n' : '') + 'Written to: ' + (r.themes || []).filter(t => t.ok).map(t => t.name || t.theme).join(', '));
+        const okNames = (r.themes || []).filter(t => t.ok).map(t => (t.name || t.theme).replace(/\s*\(unpublished\)/, '').replace(/\s*\(main\)/, ' · live'));
+        document.getElementById('spWhen').innerHTML = `on site: just now · ${r.products} designs · ${Math.round(r.bytes / 1024)} KB · <span style="color:#2e8b57">written to ${okNames.length} theme${okNames.length === 1 ? '' : 's'}</span> <small title="${esc(okNames.join(', '))}">${esc(okNames.join(', ')).slice(0, 90)}${okNames.join(', ').length > 90 ? '…' : ''}</small>`;
+        if (bad.length) alert('Some themes failed:\n' + bad.map(t => (t.name || t.theme) + ': ' + t.error).join('\n'));
         break;
       }
     }
