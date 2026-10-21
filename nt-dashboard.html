@@ -751,8 +751,18 @@ function spRender() {
   document.getElementById('spBody').innerHTML = `
     <div class="sp-head">${p.image ? `<img src="${esc(p.image)}" alt="">` : ''}<div><b style="font-size:1rem">${esc(p.title)}</b><div class="note">₹${p.price} · ${p.sold90} sold in 90 days${p.pair_top ? ` · top pair ${esc(byH[p.pair_top.handle]?.title || p.pair_top.handle)} ×${p.pair_top.n}` : ''}</div></div>
       <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">${sel('room', _sp.rooms, p.tags.room)}${sel('theme', _sp.themes, p.tags.theme)}${sel('gift', ['yes', 'no'], p.tags.gift ? 'yes' : 'no')}<label>&nbsp;<button class="btn" onclick="spHide('${p.handle}', ${p.never ? 'false' : 'true'})">${p.never ? 'Show again' : 'Never show'}</button></label></span></div>
-    <div class="note" style="margin-bottom:10px">Tabs the customer sees after adding this: <b>${p.tags.gift ? 'Pairs well · One for you · For your home · Another gift' : 'Pairs well · For your home · For gifting · One for you'}</b>. Proposed tags were read from the title; change them above if wrong.</div>
+    <div class="note" style="margin-bottom:10px">Proposed tags were read from the title; change them above if wrong. The product page row below is stitched from Pairs well, then One for you, then For your home, topped up from the top seller; ₹599 designs only.</div>
+    <div class="sp-row" style="background:#fdf5ec;border-radius:10px;padding:8px 10px"><div class="rh"><b>On the product page under Add to cart</b><span class="note">what a customer sees on ${esc(p.title)} · pin in a list below to change it</span></div><div class="sp-cards">${spPageRow(p).map((h, i) => { const q = byH[h]; return `<div class="sp-card">${q.image ? `<img src="${esc(q.image)}" alt="">` : '<div style="aspect-ratio:1;background:#eee;border-radius:8px"></div>'}<div class="nm">${i + 1}. ${esc(q.title)}</div><div class="why">₹${q.price} · ${esc(q.tags.room)} · ${esc(q.tags.theme)}</div></div>`; }).join('') || '<div class="note">nothing yet</div>'}</div></div>
     ${Object.entries(SP_ROWS).map(([k, [l, sub]]) => `<div class="sp-row"><div class="rh"><b>${l}</b><span class="note">${sub} · first 4 go to the site</span></div><div class="sp-cards">${p.rows[k].show.map(x => card(x.handle, x.why, x.pinned, k, false)).join('') || '<div class="note">nothing yet</div>'}</div>${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).length ? `<div class="note" style="margin:6px 0 4px">more suggestions</div><div class="sp-cards sp-sug">${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).slice(0, 8).map(x => card(x.handle, x.why, false, k, true)).join('')}</div>` : ''}</div>`).join('')}`;
+}
+// Same stitching as the storefront row: pairs → self → home of this design, then the top seller's, ₹599 only, six cards
+function spPageRow(p) {
+  const custom = _sp.custom_handle, byH = {}; _sp.products.forEach(x => byH[x.handle] = x);
+  const generic = _sp.products.find(x => x.handle !== custom && x.sold90 >= 3) || _sp.products[0];
+  const seen = new Set([p.handle]), out = [];
+  const lists = [p.rows.pairs, p.rows.self, p.rows.home].concat(generic && generic !== p ? [generic.rows.pairs, generic.rows.self, generic.rows.home] : []);
+  for (const l of lists) for (const x of (l ? l.show : [])) { const q = byH[x.handle]; if (!q || seen.has(x.handle) || x.handle === custom || q.price > 599) continue; seen.add(x.handle); out.push(x.handle); if (out.length >= 6) return out; }
+  return out;
 }
 async function spPin(handle, k, h, on) {
   const p = _sp.products.find(x => x.handle === handle); if (!p) return;
