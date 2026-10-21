@@ -82,6 +82,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .lgc{font-variant-numeric:tabular-nums;vertical-align:top;white-space:nowrap;padding-top:8px!important;padding-bottom:8px!important}.lgd{border-left:2px solid var(--line)}
 .lgv{display:flex;flex-direction:column;align-items:flex-end;gap:3px}.lgv b{font-size:.92rem}.lgv i{display:block;height:6px;border-radius:3px;opacity:.8;max-width:110px;min-width:2px}
 .lgs{font-size:.66rem;color:var(--muted);margin-top:3px;white-space:nowrap}
+.sp-offer{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;background:#fdf8f1}.sp-offer .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.sp-offer label{font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:2px}.sp-offer input,.sp-offer select{font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px;background:#fff}.sp-offer .prev{margin-top:8px;background:var(--ink);color:#fff;border-radius:12px;padding:8px 12px;font-size:.8rem;max-width:420px}.sp-offer .prev small{display:block;opacity:.8;font-size:.7rem}.sp-offer .prev b{color:#f5c99a}
 .sp-wrap{display:grid;grid-template-columns:230px 1fr;gap:12px;min-height:60vh}@media(max-width:700px){.sp-wrap{grid-template-columns:1fr}}
 .sp-list{border-right:1px solid var(--line);padding-right:8px;max-height:70vh;overflow:auto}.sp-li{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:8px;cursor:pointer;font-size:.8rem}.sp-li:hover{background:#fdf5ec}.sp-li.on{background:var(--ink);color:#fff}.sp-li img{width:28px;height:28px;border-radius:6px;object-fit:cover;background:#eee}.sp-li .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp-li small{opacity:.7}
 .sp-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.sp-head img{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#eee}.sp-head select{font:inherit;padding:4px 6px;border:1.5px solid var(--line);border-radius:8px}.sp-head label{font-size:.74rem;color:var(--muted);display:flex;flex-direction:column;gap:2px}
@@ -265,6 +266,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
   <div class="panel" style="width:min(1100px,100%)">
     <div class="hd"><h2>🧺 Sheet picks</h2><span class="note" id="spWhen"></span><button class="btn" id="spPub" onclick="spPublish()" style="margin-left:auto">⬆ Update website</button><button class="x" onclick="document.getElementById('spModal').classList.remove('open')">✕</button></div>
     <div class="note" style="margin-bottom:8px">What the site shows after an Add to cart. Suggestions come from sales; pin what you want kept, remove what you do not, and press Update website. Untouched cards keep following the data.</div>
+    <div class="sp-offer" id="spOffer"></div>
     <div class="sp-wrap"><div class="sp-list"><input id="spSearch" placeholder="Find a design…" oninput="spRenderList()" style="width:100%;font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px"><div id="spList"></div></div><div class="sp-body" id="spBody"><div class="skel" style="height:120px"></div></div></div>
   </div>
 </div>
@@ -702,7 +704,39 @@ async function openSheetPicks() {
   try { _sp = await api({ action: 'sheet_suggest' }); } catch (e) { document.getElementById('spBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   const pub = _sp.published;
   document.getElementById('spWhen').textContent = pub ? `on site: ${new Date(pub.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${pub.products} designs` : 'not on the site yet';
-  _spCur = _sp.products[0] && _sp.products[0].handle; spRenderList(); spRender();
+  _spCur = _sp.products[0] && _sp.products[0].handle; spRenderOffer(); spRenderList(); spRender();
+}
+// The offer the storefront strip shows. Saved to Supabase here, written into the theme by Update website.
+function spRenderOffer() {
+  const o = _sp.offer || {}; const tiers = o.tiers && o.tiers.length ? o.tiers : [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }];
+  const inp = (id, label, v, type = 'text', extra = '') => `<label>${label}<input id="spo_${id}" type="${type}" value="${esc(String(v ?? ''))}" ${extra} oninput="spOfferPreview()"></label>`;
+  document.getElementById('spOffer').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b>🎁 Offer on the site</b><span class="note">what the bottom strip and its drawer say · the money off itself is the automatic discount in Shopify and must match</span><button class="btn" style="margin-left:auto" onclick="spSaveOffer()">Save offer</button></div>
+    <div class="row">${inp('title', 'Title', o.title || 'Special Diwali offers', 'text', 'style="width:200px"')}
+      <label>Kind<select id="spo_type" onchange="spOfferPreview()"><option value="free_nth"${o.type !== 'tiers' ? ' selected' : ''}>Every Nth quote free</option><option value="tiers"${o.type === 'tiers' ? ' selected' : ''}>Step discounts</option></select></label>
+      ${inp('every', 'Every N', o.every || 3, 'number', 'min="2" style="width:70px"')}${inp('price', 'Quote price ₹', o.price || 599, 'number', 'style="width:90px"')}
+      ${inp('note', 'Small line (right of the bar)', o.note ?? 'Prepaid only · till 2 Nov', 'text', 'style="width:200px"')}${inp('ends', 'Ends on', o.ends || '', 'date')}</div>
+    <div class="row" id="spoTiers" style="margin-top:8px">${tiers.slice(0, 3).map((t, i) => `<label>Step ${i + 1}: at N pieces<input id="spo_t${i}_at" type="number" min="2" value="${t.at || ''}" style="width:70px" oninput="spOfferPreview()"></label><label>&nbsp;<select id="spo_t${i}_k" onchange="spOfferPreview()"><option value="off"${t.pct ? '' : ' selected'}>₹ off</option><option value="pct"${t.pct ? ' selected' : ''}>% off</option></select></label><label>value<input id="spo_t${i}_v" type="number" value="${t.pct || t.off || ''}" style="width:70px" oninput="spOfferPreview()"></label>`).join('')}</div>
+    <div class="prev" id="spoPrev"></div>`;
+  spOfferPreview();
+}
+function spReadOffer() {
+  const g = id => document.getElementById('spo_' + id).value;
+  const tiers = [0, 1, 2].map(i => ({ at: +g(`t${i}_at`), [g(`t${i}_k`)]: +g(`t${i}_v`) })).filter(t => t.at && (t.off || t.pct));
+  return { title: g('title'), type: g('type'), every: +g('every') || 3, price: +g('price') || 599, note: g('note'), ends: g('ends'), tiers };
+}
+function spOfferPreview() {
+  const o = spReadOffer(), free = o.type === 'free_nth'; document.getElementById('spoTiers').style.display = free ? 'none' : 'flex';
+  const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
+  const ord = n => n + (n === 2 ? 'nd' : n === 3 ? 'rd' : 'th');
+  const lines = free
+    ? [`<small>🎁 ${esc(o.title)}</small>Every ${ord(o.every)} quote <b>FREE</b> · add ${o.every} quotes, pay for ${o.every - 1}`, `<small>1 quote · ${inr(o.price)}</small>add ${o.every - 1} more and 1 of them is <b>FREE</b> — ${o.every} for ${inr(o.price * (o.every - 1))}`, `<small>${o.every - 1} quotes · ${inr(o.price * (o.every - 1))}</small>add 1 more — it’s <b>FREE</b>`, `<small>${o.every} quotes · ${inr(o.price * (o.every - 1))} (was ${inr(o.price * o.every)})</small>🎉 1 quote <b>FREE</b> · you pay ${inr(o.price * (o.every - 1))} · you saved ${inr(o.price)}`]
+    : [`<small>🎁 ${esc(o.title)}</small>${o.tiers.map(t => (t.pct ? t.pct + '% off' : '₹' + t.off + ' off') + ' at ' + t.at).join(' · ')}`];
+  document.getElementById('spoPrev').innerHTML = lines.map(l => `<div style="padding:3px 0">${l}</div>`).join('') + (o.note ? `<small style="margin-top:4px">${esc(o.note)}</small>` : '');
+}
+async function spSaveOffer() {
+  try { await api({ action: 'sheet_save', offer: spReadOffer() }); } catch (e) { alert(e.message); return; }
+  _sp.offer = spReadOffer(); alert('Offer saved. Press Update website to put it on the site.');
 }
 function spRenderList() {
   const q = (document.getElementById('spSearch').value || '').toLowerCase();
