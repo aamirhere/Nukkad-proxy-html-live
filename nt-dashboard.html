@@ -754,7 +754,7 @@ function spRenderOffer() {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b>🎁 Offer on the site</b><span class="note">what the bottom strip and its drawer say · the money off itself is the automatic discount in Shopify and must match</span><button class="btn" style="margin-left:auto" onclick="spSaveOffer()">Save offer</button></div>
     <div class="row">${inp('title', 'Title', o.title || 'Special Diwali offers', 'text', 'style="width:200px"')}
       <label>Kind<select id="spo_type" onchange="spOfferPreview()"><option value="free_nth"${o.type !== 'tiers' ? ' selected' : ''}>Every Nth quote free</option><option value="tiers"${o.type === 'tiers' ? ' selected' : ''}>Step discounts</option></select></label>
-      ${inp('every', 'Every N', o.every || 3, 'number', 'min="2" style="width:70px"')}${inp('price', 'Quote price ₹', o.price || 599, 'number', 'style="width:90px"')}${inp('max_price', 'Counts items up to ₹', o.max_price || 999, 'number', 'style="width:100px" title="stock quotes and their colours; custom pieces above this stay out of the offer"')}
+      ${inp('every', 'Every N', o.every || 3, 'number', 'min="2" style="width:70px"')}${inp('price', 'Quote price ₹', o.price || 599, 'number', 'style="width:90px"')}<label>Shopify discount is set on<select id="spo_collection" onchange="spOfferPreview()" style="min-width:200px" title="the collection your Buy 2 get 1 discount uses; the strip then counts exactly those designs"><option value=""${!o.collection ? ' selected' : ''}>by price (below) — not recommended</option>${(_sp.collections || []).map(c => `<option value="${c.handle}"${o.collection === c.handle ? ' selected' : ''}>${esc(c.title)} (${c.count})</option>`).join('')}</select></label>${inp('max_price', 'else counts items up to ₹', o.max_price || 999, 'number', 'style="width:100px" title="used only when no collection is chosen"')}
       ${inp('note', 'Small line (right of the bar)', o.note ?? 'Prepaid only · till 2 Nov', 'text', 'style="width:200px"')}${inp('ends', 'Ends on', o.ends || '', 'date')}</div>
     <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Texts on the site (what each line says · edit if you like · blank = default)</summary>
       <div class="note" style="margin:6px 0">Words in braces fill themselves: {n} pieces in cart · {pay} what they pay · {k} how many free · {more} pieces to the next free · {next_n} / {next_pay} the next set and its price · {every} {every_1} {nth} the offer numbers · {note} the small line · {coll} the collection name. FREE goes bold on its own.</div>
@@ -771,7 +771,7 @@ function spReadOffer() {
   const g = id => document.getElementById('spo_' + id).value;
   const tiers = [0, 1, 2].map(i => ({ at: +g(`t${i}_at`), [g(`t${i}_k`)]: +g(`t${i}_v`) })).filter(t => t.at && (t.off || t.pct));
   const text = {}; for (const k in SPO_TEXT_DEFAULT) { const el = document.getElementById('spo_tx_' + k); text[k] = el ? el.value : ''; }
-  return { title: g('title'), type: g('type'), every: +g('every') || 3, price: +g('price') || 599, max_price: +g('max_price') || 999, note: g('note'), ends: g('ends'), tiers, text };
+  return { title: g('title'), type: g('type'), every: +g('every') || 3, price: +g('price') || 599, max_price: +g('max_price') || 999, collection: g('collection'), note: g('note'), ends: g('ends'), tiers, text };
 }
 function spOfferPreview() {
   const o = spReadOffer(), free = o.type === 'free_nth'; document.getElementById('spoTiers').style.display = free ? 'none' : 'flex';
