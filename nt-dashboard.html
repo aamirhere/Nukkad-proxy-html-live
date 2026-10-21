@@ -698,11 +698,21 @@ function thumbUrl(r) { const id = (r.ads && r.ads[0] && r.ads[0].ad_id) || ''; r
 function thumbRetry(img) { const id = img.getAttribute('data-ad'); if (id && !img.dataset.retried) { img.dataset.retried = '1'; img.src = `${API}?action=thumb&ad_id=${id}&t=${Date.now()}`; } else img.style.visibility = 'hidden'; }
 // ---------- Sheet picks ----------
 let _sp = null, _spCur = null, _spDirty = {};
-async function openSheetPicks() {
+// The picks are built in the background; the page shows the last build and waits for a newer one after a save
+async function spLoad(after) {
+  for (let i = 0; i < 40; i++) {
+    const r = await api({ action: 'sheet_suggest' });
+    if (!r.pending && (!after || (r.computed_at || '') >= after)) return r;
+    document.getElementById('spBody').innerHTML = `<div class="skel" style="height:120px"></div><div class="note" style="margin-top:8px">${after ? 'Applying your change' : 'Building the picks'}… ${i * 3} s</div>`;
+    await new Promise(res => setTimeout(res, 3000));
+  }
+  throw new Error('Still building. Close and reopen Sheet picks in a minute.');
+}
+async function openSheetPicks(after) {
   document.getElementById('spModal').classList.add('open');
-  if (_sp) { spRenderList(); spRender(); return; }
+  if (_sp && !after) { spRenderList(); spRender(); return; }
   document.getElementById('spBody').innerHTML = '<div class="skel" style="height:120px"></div>';
-  try { _sp = await api({ action: 'sheet_suggest' }); } catch (e) { document.getElementById('spBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  try { _sp = await spLoad(after); } catch (e) { document.getElementById('spBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   const pub = _sp.published;
   document.getElementById('spWhen').textContent = pub ? `on site: ${new Date(pub.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${pub.products} designs` : 'not on the site yet';
   _spCur = _sp.products[0] && _sp.products[0].handle; spRenderOffer(); spRenderColls(); spRenderList(); spRender();
@@ -731,23 +741,23 @@ function spCollPicked() {
 async function spCollAddDone() {
   const h = document.getElementById('spCollPick').value, url = document.getElementById('spCollUrlNew').value.trim(); if (!h) return;
   const hl = (_sp.highlight || []).filter(x => x !== h); hl.push(h);
-  try { await api({ action: 'sheet_save', collections: hl, collection_urls: { [h]: url } }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
+  let _r; try { _r = await api({ action: 'sheet_save', collections: hl, collection_urls: { [h]: url } }); } catch (e) { alert(e.message); return; }
+  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
 }
 async function spCollUrl(h, url) {
-  try { await api({ action: 'sheet_save', collection_urls: { [h]: url } }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
+  let _r; try { _r = await api({ action: 'sheet_save', collection_urls: { [h]: url } }); } catch (e) { alert(e.message); return; }
+  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
 }
 async function spCollMove(h, d) {
   const hl = (_sp.highlight || []).slice(), i = hl.indexOf(h), j = i + d; if (i < 0 || j < 0 || j >= hl.length) return;
   hl.splice(i, 1); hl.splice(j, 0, h);
-  try { await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
+  let _r; try { _r = await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
+  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
 }
 async function spCollToggle(h) {
   const hl = (_sp.highlight || []).filter(x => x !== h); if (!(_sp.highlight || []).includes(h)) hl.push(h);
-  try { await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
+  let _r; try { _r = await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
+  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
 }
 // The offer the storefront strip shows. Saved to Supabase here, written into the theme by Update website.
 function spRenderOffer() {
@@ -788,7 +798,7 @@ function spOfferPreview() {
   document.getElementById('spoPrev').innerHTML = lines.map(l => `<div style="padding:3px 0">${l}</div>`).join('');
 }
 async function spSaveOffer() {
-  try { await api({ action: 'sheet_save', offer: spReadOffer() }); } catch (e) { alert(e.message); return; }
+  let _r; try { _r = await api({ action: 'sheet_save', offer: spReadOffer() }); } catch (e) { alert(e.message); return; }
   _sp.offer = spReadOffer(); alert('Offer saved. Press Update website to put it on the site.');
 }
 function spRenderList() {
@@ -821,17 +831,17 @@ async function spPin(handle, k, h, on) {
   const p = _sp.products.find(x => x.handle === handle); if (!p) return;
   const pinned = p.rows[k].pinned.filter(x => x !== h); if (on) pinned.push(h);
   const picks = {}; for (const kk in p.rows) picks[kk] = kk === k ? pinned : p.rows[kk].pinned;
-  try { await api({ action: 'sheet_save', handle, picks }); } catch (e) { alert(e.message); return; }
-  _sp = null; await openSheetPicks(); _spCur = handle; spRenderList(); spRender();
+  let _r; try { _r = await api({ action: 'sheet_save', handle, picks }); } catch (e) { alert(e.message); return; }
+  _sp = null; await openSheetPicks(_r && _r.started); _spCur = handle; spRenderList(); spRender();
 }
 async function spTag(handle, k, v) {
-  try { await api({ action: 'sheet_save', handle, tags: { [k]: k === 'gift' ? v === 'yes' : v } }); } catch (e) { alert(e.message); return; }
-  _sp = null; await openSheetPicks(); _spCur = handle; spRenderList(); spRender();
+  let _r; try { _r = await api({ action: 'sheet_save', handle, tags: { [k]: k === 'gift' ? v === 'yes' : v } }); } catch (e) { alert(e.message); return; }
+  _sp = null; await openSheetPicks(_r && _r.started); _spCur = handle; spRenderList(); spRender();
 }
 async function spHide(h, on = true) {
   const never = (_sp.never || []).filter(x => x !== h); if (on) never.push(h);
-  try { await api({ action: 'sheet_save', never }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
+  let _r; try { _r = await api({ action: 'sheet_save', never }); } catch (e) { alert(e.message); return; }
+  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
 }
 async function spPublish() {
   const b = document.getElementById('spPub'); b.disabled = true; b.textContent = 'Building…';
