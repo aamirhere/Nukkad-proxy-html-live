@@ -843,7 +843,7 @@ async function spPublish() {
       await new Promise(r => setTimeout(r, 4000));
       const st = await api({ action: 'sheet_status' }).catch(() => ({}));
       b.textContent = `Writing… ${Math.round((i + 1) * 4 / 6) / 10} min`;
-      if (st.started === started && st.done) {
+      if (st.done && (st.started === started || st.done >= started)) {
         const r = st.result || {};
         if (r.error) { alert('Publish failed: ' + r.error); break; }
         const bad = (r.themes || []).filter(t => !t.ok);
