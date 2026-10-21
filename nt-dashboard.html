@@ -267,6 +267,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     <div class="hd"><h2>🧺 Sheet picks</h2><span class="note" id="spWhen"></span><button class="btn" id="spPub" onclick="spPublish()" style="margin-left:auto">⬆ Update website</button><button class="x" onclick="document.getElementById('spModal').classList.remove('open')">✕</button></div>
     <div class="note" style="margin-bottom:8px">What the site shows after an Add to cart. Suggestions come from sales; pin what you want kept, remove what you do not, and press Update website. Untouched cards keep following the data.</div>
     <div class="sp-offer" id="spOffer"></div>
+    <div class="sp-offer" id="spColls"></div>
     <div class="sp-wrap"><div class="sp-list"><input id="spSearch" placeholder="Find a design…" oninput="spRenderList()" style="width:100%;font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px"><div id="spList"></div></div><div class="sp-body" id="spBody"><div class="skel" style="height:120px"></div></div></div>
   </div>
 </div>
@@ -704,7 +705,21 @@ async function openSheetPicks() {
   try { _sp = await api({ action: 'sheet_suggest' }); } catch (e) { document.getElementById('spBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   const pub = _sp.published;
   document.getElementById('spWhen').textContent = pub ? `on site: ${new Date(pub.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${pub.products} designs` : 'not on the site yet';
-  _spCur = _sp.products[0] && _sp.products[0].handle; spRenderOffer(); spRenderList(); spRender();
+  _spCur = _sp.products[0] && _sp.products[0].handle; spRenderOffer(); spRenderColls(); spRenderList(); spRender();
+}
+// Collections that stand for "similar to this": a design in one of them gets that collection as its One for you row and a See all link on its page
+function spRenderColls() {
+  const hl = _sp.highlight || [], all = _sp.collections || [], byH = {}; all.forEach(c => byH[c.handle] = c);
+  const chip = (c, on) => `<span class="pill${on ? ' on' : ''}" style="${on ? 'background:var(--ink);color:#fff;' : ''}cursor:pointer" onclick="spCollToggle('${c.handle}')" title="${esc(c.handle)}">${esc(c.title)} <small style="opacity:.7">${c.count}</small>${on ? ' ✕' : ''}</span>`;
+  document.getElementById('spColls').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 Collections for "similar to this"</b><span class="note">tick a collection and every design in it leads with that collection on its product page, with a See all link. First tick wins when a design is in two.</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${hl.map(h => byH[h] ? chip(byH[h], true) : '').join('') || '<span class="note">none yet</span>'}</div>
+    <details><summary class="note" style="cursor:pointer">all collections (${all.length})</summary><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${all.filter(c => !hl.includes(c.handle)).map(c => chip(c, false)).join('')}</div></details>`;
+}
+async function spCollToggle(h) {
+  const hl = (_sp.highlight || []).filter(x => x !== h); if (!(_sp.highlight || []).includes(h)) hl.push(h);
+  try { await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
+  const keep = _spCur; _sp = null; await openSheetPicks(); _spCur = keep; spRenderList(); spRender();
 }
 // The offer the storefront strip shows. Saved to Supabase here, written into the theme by Update website.
 function spRenderOffer() {
@@ -751,7 +766,7 @@ function spRender() {
   document.getElementById('spBody').innerHTML = `
     <div class="sp-head">${p.image ? `<img src="${esc(p.image)}" alt="">` : ''}<div><b style="font-size:1rem">${esc(p.title)}</b><div class="note">₹${p.price} · ${p.sold90} sold in 90 days${p.pair_top ? ` · top pair ${esc(byH[p.pair_top.handle]?.title || p.pair_top.handle)} ×${p.pair_top.n}` : ''}</div></div>
       <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">${sel('room', _sp.rooms, p.tags.room)}${sel('theme', _sp.themes, p.tags.theme)}${sel('gift', ['yes', 'no'], p.tags.gift ? 'yes' : 'no')}<label>&nbsp;<button class="btn" onclick="spHide('${p.handle}', ${p.never ? 'false' : 'true'})">${p.never ? 'Show again' : 'Never show'}</button></label></span></div>
-    <div class="note" style="margin-bottom:10px">Proposed tags were read from the title; change them above if wrong. The product page row below is stitched from Pairs well, then One for you, then For your home, topped up from the top seller; ₹599 designs only.</div>
+    <div class="note" style="margin-bottom:10px">Proposed tags were read from the title; change them above if wrong. ${p.coll ? `<b>Similar to this = the ${esc(p.coll.title)} collection</b>, so the page row leads with it and ends with a See all link.` : 'The page row leads with Pairs well, then One for you, then For your home;'} topped up from the top seller; ₹599 designs only.</div>
     <div class="sp-row" style="background:#fdf5ec;border-radius:10px;padding:8px 10px"><div class="rh"><b>On the product page under Add to cart</b><span class="note">what a customer sees on ${esc(p.title)} · pin in a list below to change it</span></div><div class="sp-cards">${spPageRow(p).map((h, i) => { const q = byH[h]; return `<div class="sp-card">${q.image ? `<img src="${esc(q.image)}" alt="">` : '<div style="aspect-ratio:1;background:#eee;border-radius:8px"></div>'}<div class="nm">${i + 1}. ${esc(q.title)}</div><div class="why">₹${q.price} · ${esc(q.tags.room)} · ${esc(q.tags.theme)}</div></div>`; }).join('') || '<div class="note">nothing yet</div>'}</div></div>
     ${Object.entries(SP_ROWS).map(([k, [l, sub]]) => `<div class="sp-row"><div class="rh"><b>${l}</b><span class="note">${sub} · first 4 go to the site</span></div><div class="sp-cards">${p.rows[k].show.map(x => card(x.handle, x.why, x.pinned, k, false)).join('') || '<div class="note">nothing yet</div>'}</div>${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).length ? `<div class="note" style="margin:6px 0 4px">more suggestions</div><div class="sp-cards sp-sug">${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).slice(0, 8).map(x => card(x.handle, x.why, false, k, true)).join('')}</div>` : ''}</div>`).join('')}`;
 }
@@ -760,7 +775,7 @@ function spPageRow(p) {
   const custom = _sp.custom_handle, byH = {}; _sp.products.forEach(x => byH[x.handle] = x);
   const generic = _sp.products.find(x => x.handle !== custom && x.sold90 >= 3) || _sp.products[0];
   const seen = new Set([p.handle]), out = [];
-  const lists = [p.rows.pairs, p.rows.self, p.rows.home].concat(generic && generic !== p ? [generic.rows.pairs, generic.rows.self, generic.rows.home] : []);
+  const lists = (p.coll ? [p.rows.self, p.rows.pairs, p.rows.home] : [p.rows.pairs, p.rows.self, p.rows.home]).concat(generic && generic !== p ? [generic.rows.pairs, generic.rows.self, generic.rows.home] : []);
   for (const l of lists) for (const x of (l ? l.show : [])) { const q = byH[x.handle]; if (!q || seen.has(x.handle) || x.handle === custom || q.price > 599) continue; seen.add(x.handle); out.push(x.handle); if (out.length >= 6) return out; }
   return out;
 }
