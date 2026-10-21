@@ -718,99 +718,34 @@ async function openSheetPicks(after) {
   _spCur = _sp.products[0] && _sp.products[0].handle; spRenderOffer(); spRenderColls(); spRenderList(); spRender();
 }
 // Collections that stand for "similar to this": a design in one of them gets that collection as its One for you row and a See all link on its page
+let _spCollQ = '';
 function spRenderColls() {
   const hl = _sp.highlight || [], all = _sp.collections || [], byH = {}; all.forEach(c => byH[c.handle] = c);
-  const rest = all.filter(c => !hl.includes(c.handle));
+  const q = _spCollQ.toLowerCase(), hit = c => !q || c.title.toLowerCase().includes(q) || c.handle.includes(q);
+  const rest = all.filter(c => !hl.includes(c.handle) && hit(c));
   const row = (c, i) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:${i >= 0 ? '#fff' : 'transparent'}">
-    <label style="display:flex;gap:6px;align-items:center;min-width:260px;cursor:pointer"><input type="checkbox"${i >= 0 ? ' checked' : ''} onchange="spCollToggle('${c.handle}', this.closest('div').querySelector('input[type=text]').value)">${i >= 0 ? `<b style="color:var(--muted)">${i + 1}.</b>` : ''}<b>${esc(c.title)}</b><small class="note">${c.count}</small></label>
+    <label style="display:flex;flex-direction:row;gap:6px;align-items:center;min-width:260px;cursor:pointer;font-size:.85rem;color:var(--ink)"><input type="checkbox"${i >= 0 ? ' checked' : ''} onchange="spCollToggle('${c.handle}', this.closest('div').querySelector('input[type=text]').value)">${i >= 0 ? `<b style="color:var(--muted)">${i + 1}.</b>` : ''}<b>${esc(c.title)}</b><small class="note">${c.count}</small></label>
     <span class="note">opens</span><input type="text" value="${esc(c.url)}" placeholder="/collections/${esc(c.handle)}" style="flex:1;min-width:220px;font:inherit;font-size:.78rem;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="spCollUrl('${c.handle}', this.value)">
     ${i > 0 ? `<button class="btn" style="padding:2px 8px" title="higher wins when a design is in two" onclick="spCollMove('${c.handle}', -1)">↑</button>` : ''}</div>`;
   document.getElementById('spColls').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 "Similar to this" collections</b><span class="note">tick a collection and put the link it should open · every design in it gets that collection on its product page · ticked ones sit on top, higher wins when a design is in two · press Update website when done</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 "Similar to this" collections</b><span class="note">tick a collection and put the link it should open · every design in it gets that collection on its product page · ticked ones stay on top, higher wins when a design is in two · press Update website when done</span></div>
+    <input id="spCollQ" placeholder="Find a collection…" value="${esc(_spCollQ)}" oninput="_spCollQ=this.value;spRenderColls();document.getElementById('spCollQ').focus();document.getElementById('spCollQ').setSelectionRange(99,99)" style="width:100%;font:inherit;padding:6px 10px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px">
     <div style="display:grid;gap:4px;max-height:360px;overflow:auto;padding-right:4px">${hl.map((h, i) => byH[h] ? row(byH[h], i) : '').join('')}${rest.map(c => row(c, -1)).join('')}${!all.length ? `<span class="note">${_sp.collections_loading ? 'reading your collections from Shopify… reopen Sheet picks in a minute' : 'no collections found'}</span>` : ''}</div>`;
 }
-async function spCollUrl(h, url) {
-  let _r; try { _r = await api({ action: 'sheet_save', collection_urls: { [h]: url } }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
+// Ticks, links and order apply on the spot; the background build catches up on its own
+async function spCollSave(hl, urls) {
+  try { await api({ action: 'sheet_save', collections: hl, ...(urls ? { collection_urls: urls } : {}) }); } catch (e) { alert(e.message); return false; }
+  _sp.highlight = hl; if (urls) for (const h in urls) { const c = (_sp.collections || []).find(x => x.handle === h); if (c) c.url = urls[h] || c.auto_url || '/collections/' + h; }
+  spRenderColls(); return true;
 }
+async function spCollUrl(h, url) { await spCollSave(_sp.highlight || [], { [h]: url }); }
 async function spCollMove(h, d) {
   const hl = (_sp.highlight || []).slice(), i = hl.indexOf(h), j = i + d; if (i < 0 || j < 0 || j >= hl.length) return;
-  hl.splice(i, 1); hl.splice(j, 0, h);
-  let _r; try { _r = await api({ action: 'sheet_save', collections: hl }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
+  hl.splice(i, 1); hl.splice(j, 0, h); await spCollSave(hl);
 }
 async function spCollToggle(h, url) {
   const hl = (_sp.highlight || []).filter(x => x !== h); if (!(_sp.highlight || []).includes(h)) hl.push(h);
-  let _r; try { _r = await api({ action: 'sheet_save', collections: hl, ...(url ? { collection_urls: { [h]: url } } : {}) }); } catch (e) { alert(e.message); return; }
-  const keep = _spCur; _sp = null; await openSheetPicks(_r && _r.started); _spCur = keep; spRenderList(); spRender();
-}
-// The offer the storefront strip shows. Saved to Supabase here, written into the theme by Update website.
-function spRenderOffer() {
-  const o = _sp.offer || {}; const tiers = o.tiers && o.tiers.length ? o.tiers : [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }];
-  const inp = (id, label, v, type = 'text', extra = '') => `<label>${label}<input id="spo_${id}" type="${type}" value="${esc(String(v ?? ''))}" ${extra} oninput="spOfferPreview()"></label>`;
-  document.getElementById('spOffer').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b>🎁 Offer on the site</b><span class="note">what the bottom strip and its drawer say · the money off itself is the automatic discount in Shopify and must match</span><button class="btn" style="margin-left:auto" onclick="spSaveOffer()">Save offer</button></div>
-    <div class="row">${inp('title', 'Title', o.title || 'Special Diwali offers', 'text', 'style="width:200px"')}
-      <label>Kind<select id="spo_type" onchange="spOfferPreview()"><option value="free_nth"${o.type !== 'tiers' ? ' selected' : ''}>Every Nth quote free</option><option value="tiers"${o.type === 'tiers' ? ' selected' : ''}>Step discounts</option></select></label>
-      ${inp('every', 'Every N', o.every || 3, 'number', 'min="2" style="width:70px"')}${inp('price', 'Quote price ₹', o.price || 599, 'number', 'style="width:90px"')}${inp('max_price', 'Counts items up to ₹', o.max_price || 999, 'number', 'style="width:100px" title="stock quotes and their colours; custom pieces above this stay out of the offer"')}
-      ${inp('note', 'Small line (right of the bar)', o.note ?? 'Prepaid only · till 2 Nov', 'text', 'style="width:200px"')}${inp('ends', 'Ends on', o.ends || '', 'date')}</div>
-    <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Texts on the site (what each line says · edit if you like · blank = default)</summary>
-      <div class="note" style="margin:6px 0">Words in braces fill themselves: {n} pieces in cart · {pay} what they pay · {k} how many free · {more} pieces to the next free · {next_n} / {next_pay} the next set and its price · {every} {every_1} {nth} the offer numbers · {note} the small line · {coll} the collection name. FREE goes bold on its own.</div>
-      <div class="row" id="spoText">${Object.entries(SPO_TEXT_LABELS).map(([k, l]) => `<label style="min-width:260px;flex:1">${l}<input id="spo_tx_${k}" value="${esc((o.text || {})[k] || SPO_TEXT_DEFAULT[k])}" oninput="spOfferPreview()"></label>`).join('')}</div>
-    </details>
-    <div class="row" id="spoTiers" style="margin-top:8px">${tiers.slice(0, 3).map((t, i) => `<label>Step ${i + 1}: at N pieces<input id="spo_t${i}_at" type="number" min="2" value="${t.at || ''}" style="width:70px" oninput="spOfferPreview()"></label><label>&nbsp;<select id="spo_t${i}_k" onchange="spOfferPreview()"><option value="off"${t.pct ? '' : ' selected'}>₹ off</option><option value="pct"${t.pct ? ' selected' : ''}>% off</option></select></label><label>value<input id="spo_t${i}_v" type="number" value="${t.pct || t.off || ''}" style="width:70px" oninput="spOfferPreview()"></label>`).join('')}</div>
-    <div class="prev" id="spoPrev"></div>`;
-  spOfferPreview();
-}
-// The same lines the storefront script carries as defaults; the site shows whatever is saved here
-const SPO_TEXT_DEFAULT = { empty_line: 'Every {nth} quote FREE', empty_side: 'Add {every}, pay for {every_1}', first: 'Buy {every_1}, get 1 FREE', mid: 'Add {more} more — 1 is FREE', hot: 'Add 1 more — it’s FREE', done: '{k} FREE ✓ · you pay {pay}', side_next: '{next_n} for {next_pay}', side_done: 'Next free at {next_n}', summary: '{n} in cart · {pay} · {note}', ladder_title: 'Every {nth} quote free', rule1: 'Add any {every} quotes, the cheapest one is FREE', rule2: 'Works again at {every2} and {every3} — every {nth} quote is free', rule3: 'Applied at checkout, no code needed', also_empty: 'People also buy with this', also_coll: 'More from {coll}', also_first: 'Make it a set — the {nth} is free', also_hot: 'Pick your free one', also_done: 'Start your next free set', sim_tag: 'similar' };
-const SPO_TEXT_LABELS = { empty_line: 'Strip · empty cart · main line', empty_side: 'Strip · empty cart · right of the bar', first: 'Strip · 1 in cart', mid: 'Strip · 2 or more to go (4, 7…)', hot: 'Strip · 1 to go (2, 5, 8)', done: 'Strip · set complete (3, 6, 9)', side_next: 'Strip · right of the bar · next set', side_done: 'Strip · right of the bar · set complete', summary: 'Strip · small top line', ladder_title: 'Product page · ladder title', rule1: 'Drawer · rule 1', rule2: 'Drawer · rule 2', rule3: 'Drawer · rule 3', also_empty: 'Product page row · empty cart', also_coll: 'Product page row · empty cart, in a collection', also_first: 'Product page row · 1 in cart', also_hot: 'Product page row · 1 to go', also_done: 'Product page row · set complete', sim_tag: 'Product page row · small tag on each photo (opens that design’s collection)' };
-function spReadOffer() {
-  const g = id => document.getElementById('spo_' + id).value;
-  const tiers = [0, 1, 2].map(i => ({ at: +g(`t${i}_at`), [g(`t${i}_k`)]: +g(`t${i}_v`) })).filter(t => t.at && (t.off || t.pct));
-  const text = {}; for (const k in SPO_TEXT_DEFAULT) { const el = document.getElementById('spo_tx_' + k); text[k] = el ? el.value : ''; }
-  return { title: g('title'), type: g('type'), every: +g('every') || 3, price: +g('price') || 599, max_price: +g('max_price') || 999, note: g('note'), ends: g('ends'), tiers, text };
-}
-function spOfferPreview() {
-  const o = spReadOffer(), free = o.type === 'free_nth'; document.getElementById('spoTiers').style.display = free ? 'none' : 'flex';
-  const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
-  const ord = n => n + (n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'), E = o.every, P = o.price, note = (o.note || '').split(' · ')[0];
-  const tx = (k, v) => esc((o.text[k] || SPO_TEXT_DEFAULT[k]).replace(/\{(\w+)\}/g, (m, x) => v[x] != null ? v[x] : m).replace(/\s*·\s*·/g, ' ·').replace(/^\s*·\s*|\s*·\s*$/g, '')).replace(/FREE/g, '<b>FREE</b>');
-  const V = n => { const k = Math.floor(n / E), r = n % E, more = r ? E - r : E, pay = P * (n - k), nn = n + more; return { n, pay: inr(pay), k, more, next_n: nn, next_pay: inr(P * (nn - Math.floor(nn / E))), every: E, every_1: E - 1, every2: E * 2, every3: E * 3, nth: ord(E), note, coll: 'Chai' }; };
-  const lines = free
-    ? [`<small>🎁 ${esc(o.title)} · ${tx('empty_side', V(0))}</small>${tx('empty_line', V(0))}`, `<small>${tx('summary', V(1))} · ${tx('side_next', V(1))}</small>${tx('first', V(1))}`, `<small>${tx('summary', V(E - 1))} · ${tx('side_next', V(E - 1))}</small>${tx('hot', V(E - 1))}`, `<small>${tx('summary', V(E))} · ${tx('side_done', V(E))}</small>${tx('done', V(E))}`, `<small>${tx('summary', V(E + 1))} · ${tx('side_next', V(E + 1))}</small>${tx('mid', V(E + 1))}`]
-    : [`<small>🎁 ${esc(o.title)}</small>${o.tiers.map(t => (t.pct ? t.pct + '% off' : '₹' + t.off + ' off') + ' at ' + t.at).join(' · ')}`];
-  document.getElementById('spoPrev').innerHTML = lines.map(l => `<div style="padding:3px 0">${l}</div>`).join('');
-}
-async function spSaveOffer() {
-  let _r; try { _r = await api({ action: 'sheet_save', offer: spReadOffer() }); } catch (e) { alert(e.message); return; }
-  _sp.offer = spReadOffer(); alert('Offer saved. Press Update website to put it on the site.');
-}
-function spRenderList() {
-  const q = (document.getElementById('spSearch').value || '').toLowerCase();
-  document.getElementById('spList').innerHTML = _sp.products.filter(p => !q || p.title.toLowerCase().includes(q)).map(p => `<div class="sp-li${p.handle === _spCur ? ' on' : ''}${p.never ? '' : ''}" onclick="_spCur='${p.handle}';spRenderList();spRender()">${p.image ? `<img src="${esc(p.image)}" alt="">` : '<span style="width:28px;height:28px;border-radius:6px;background:#eee"></span>'}<span class="n">${esc(p.title)}${p.never ? ' <small>· hidden</small>' : ''}</span><small>${p.sold90}</small></div>`).join('');
-}
-const SP_ROWS = { pairs: ['Pairs well', 'who bought this also took'], home: ['For your home', 'best of the other rooms'], gift: ['For gifting', 'custom first, then most gifted'], self: ['One for you', 'same mood, then best sellers'] };
-function spRender() {
-  const p = _sp.products.find(x => x.handle === _spCur); if (!p) return;
-  const byH = {}; _sp.products.forEach(x => byH[x.handle] = x);
-  const sel = (k, opts, v) => `<label>${k}<select onchange="spTag('${p.handle}','${k}',this.value)">${opts.map(o => `<option value="${o}"${String(v) === String(o) ? ' selected' : ''}>${o}</option>`).join('')}</select></label>`;
-  const card = (h, why, pinned, k, isSug) => { const q = byH[h]; if (!q) return ''; return `<div class="sp-card${pinned ? ' pin' : ''}">${q.image ? `<img src="${esc(q.image)}" alt="">` : '<div style="aspect-ratio:1;background:#eee;border-radius:8px"></div>'}<div class="nm">${esc(q.title)}</div><div class="why">${esc(why || '')}</div><div class="ac"><button class="${pinned ? 'on' : ''}" onclick="spPin('${p.handle}','${k}','${h}',${pinned ? 'false' : 'true'})">${pinned ? '📌 pinned' : isSug ? '+ use' : '📌 pin'}</button><button onclick="spHide('${h}')" title="never show this design anywhere">✕</button></div></div>`; };
-  document.getElementById('spBody').innerHTML = `
-    <div class="sp-head">${p.image ? `<img src="${esc(p.image)}" alt="">` : ''}<div><b style="font-size:1rem">${esc(p.title)}</b><div class="note">₹${p.price} · ${p.sold90} sold in 90 days${p.pair_top ? ` · top pair ${esc(byH[p.pair_top.handle]?.title || p.pair_top.handle)} ×${p.pair_top.n}` : ''}</div></div>
-      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">${sel('room', _sp.rooms, p.tags.room)}${sel('theme', _sp.themes, p.tags.theme)}${sel('gift', ['yes', 'no'], p.tags.gift ? 'yes' : 'no')}<label>&nbsp;<button class="btn" onclick="spHide('${p.handle}', ${p.never ? 'false' : 'true'})">${p.never ? 'Show again' : 'Never show'}</button></label></span></div>
-    <div class="note" style="margin-bottom:10px">Proposed tags were read from the title; change them above if wrong. ${p.coll ? `<b>Similar to this → ${esc(p.coll.title)}</b> (from the ticked collections above; opens <a href="https://nukkadtales.com${esc(p.coll.url)}" target="_blank">${esc(p.coll.url)}</a>).` : 'Not in any ticked collection: the page row leads with Pairs well, then One for you, then For your home;'} ₹599 designs only.</div>
-    <div class="sp-row" style="background:#fdf5ec;border-radius:10px;padding:8px 10px"><div class="rh"><b>On the product page under Add to cart</b><span class="note">what a customer sees on ${esc(p.title)} · pin in a list below to change it</span></div><div class="sp-cards">${spPageRow(p).map((h, i) => { const q = byH[h]; return `<div class="sp-card">${q.image ? `<img src="${esc(q.image)}" alt="">` : '<div style="aspect-ratio:1;background:#eee;border-radius:8px"></div>'}<div class="nm">${i + 1}. ${esc(q.title)}</div><div class="why">₹${q.price} · ${esc(q.tags.room)} · ${esc(q.tags.theme)}</div></div>`; }).join('') || '<div class="note">nothing yet</div>'}</div></div>
-    ${Object.entries(SP_ROWS).map(([k, [l, sub]]) => `<div class="sp-row"><div class="rh"><b>${l}</b><span class="note">${sub} · first 4 go to the site</span></div><div class="sp-cards">${p.rows[k].show.map(x => card(x.handle, x.why, x.pinned, k, false)).join('') || '<div class="note">nothing yet</div>'}</div>${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).length ? `<div class="note" style="margin:6px 0 4px">more suggestions</div><div class="sp-cards sp-sug">${p.rows[k].auto.filter(x => !p.rows[k].show.some(y => y.handle === x.handle)).slice(0, 8).map(x => card(x.handle, x.why, false, k, true)).join('')}</div>` : ''}</div>`).join('')}`;
-}
-// Same stitching as the storefront row: pairs → self → home of this design, then the top seller's, ₹599 only, six cards
-function spPageRow(p) {
-  const custom = _sp.custom_handle, byH = {}; _sp.products.forEach(x => byH[x.handle] = x);
-  const generic = _sp.products.find(x => x.handle !== custom && x.sold90 >= 3) || _sp.products[0];
-  const seen = new Set([p.handle]), out = [];
-  const lists = (p.coll ? [p.rows.self, p.rows.pairs, p.rows.home] : [p.rows.pairs, p.rows.self, p.rows.home]).concat(generic && generic !== p ? [generic.rows.pairs, generic.rows.self, generic.rows.home] : []);
-  for (const l of lists) for (const x of (l ? l.show : [])) { const q = byH[x.handle]; if (!q || seen.has(x.handle) || x.handle === custom || q.price > 599) continue; seen.add(x.handle); out.push(x.handle); if (out.length >= 6) return out; }
-  return out;
+  await spCollSave(hl, url ? { [h]: url } : null);
 }
 async function spPin(handle, k, h, on) {
   const p = _sp.products.find(x => x.handle === handle); if (!p) return;
