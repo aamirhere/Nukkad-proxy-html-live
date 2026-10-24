@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NukkadTales · Team tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca;--ff:Fraunces,Georgia,serif;--fb:Nunito,'Helvetica Neue',sans-serif;
+  --ok:#1a7f37;--ok-bg:#eef8f0;--warn:#a8690f;--warn-bg:#fff4dd;--lag:#c62828;--lag-bg:#fdecec;--none:#9c8a76;--none-bg:#f3ede4}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--fb);color:var(--ink);font-size:14px;min-height:100vh;background:
+  radial-gradient(ellipse 120% 60% at 80% 0%,rgba(240,175,110,.22) 0%,transparent 65%),
+  radial-gradient(ellipse 80% 50% at 10% 100%,rgba(212,84,31,.1) 0%,transparent 60%),
+  linear-gradient(168deg,#fdf5ec 0%,#f8e8d2 42%,#f2d0b0 100%);border-top:3px solid var(--accent)}
+header{padding:14px 16px 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:1100px;margin:0 auto}
+header h1{font-family:var(--ff);font-size:1.3rem;margin:0}
+header h1 a{color:inherit;text-decoration:none}
+header .sub{color:var(--ink2);font-size:.8rem}
+.nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.pill{font:inherit;font-weight:700;font-size:.8rem;padding:6px 11px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer;text-decoration:none}
+.pill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+main{padding:8px 16px 70px;max-width:1100px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:12px}
+.card h2{font-family:var(--ff);font-size:1.1rem;margin:0 0 8px}
+.card h2 small{font-family:var(--fb);font-weight:600;color:var(--muted);font-size:.75rem;margin-left:8px}
+.note{color:var(--muted);font-size:.78rem}
+.btn{font:inherit;font-weight:700;font-size:.82rem;padding:7px 12px;border-radius:9px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+.btn.p{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.s{padding:4px 9px;font-size:.75rem}
+.btn:disabled{opacity:.5;cursor:default}
+input,select,textarea{font:inherit;color:var(--ink);padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;background:#fff;max-width:100%}
+textarea{width:100%;min-height:70px;resize:vertical}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid3{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.skel{background:linear-gradient(90deg,#f3ede4,#faf5ee,#f3ede4);background-size:200% 100%;animation:sh 1.2s infinite;border-radius:10px;height:90px;margin-top:12px}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* states */
+.st{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.st.ok{background:var(--ok-bg);color:var(--ok)}.st.warn{background:var(--warn-bg);color:var(--warn)}.st.lag{background:var(--lag-bg);color:var(--lag)}.st.none,.st.info{background:var(--none-bg);color:var(--none)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--none)}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.lag{background:var(--lag)}
+/* home */
+.person{cursor:pointer;transition:transform .12s,box-shadow .12s;display:flex;flex-direction:column;gap:8px;min-height:160px}
+.person:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(58,43,29,.1)}
+.person .t{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1rem}
+.person .t .ic{background:#fff4ec;border-radius:10px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;font-size:1.2rem}
+.person .who{color:var(--muted);font-weight:600;font-size:.78rem}
+.person .hl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.person .hl div{background:#fdf8f2;border:1px solid var(--line);border-radius:9px;padding:6px 8px;min-width:0}
+.person .hl i{display:block;font-style:normal;font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.person .hl b{font-size:.92rem;font-variant-numeric:tabular-nums}
+.person .hl small{color:var(--muted);font-size:.68rem}
+.person ul{margin:0;padding:0 0 0 2px;list-style:none;font-size:.8rem}
+.person ul li{padding:3px 0;display:flex;gap:6px;align-items:flex-start}
+/* hero */
+.hero{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.hero .ic{font-size:2rem;background:#fff4ec;border-radius:14px;width:56px;height:56px;display:inline-flex;align-items:center;justify-content:center}
+.hero h2{margin:0;font-size:1.3rem}
+.hero .r{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.focus{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.focus .d{border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;cursor:pointer;background:#fdf8f2}
+.focus .d.on{border-color:var(--ink);background:#fff}
+.focus .d b{display:block;font-size:.9rem}.focus .d i{font-style:normal;font-size:.7rem;color:var(--muted)}
+.focus .d .cnt{display:flex;gap:6px;margin-top:6px;font-size:.72rem;font-weight:800;flex-wrap:wrap}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:10px}
+.week .w{text-align:center;border-radius:9px;padding:6px 2px;font-size:.72rem;color:var(--ink2);cursor:pointer;border:1.5px solid transparent;background:#fdf8f2}
+.week .w b{display:block;font-size:.85rem;color:var(--ink)}
+.week .w.ok{background:var(--ok-bg)}.week .w.warn{background:var(--warn-bg)}.week .w.lag{background:var(--lag-bg)}.week .w.fut{opacity:.4;cursor:default}
+.week .w.on{border-color:var(--ink)}
+/* alerts */
+.alerts{border-left:4px solid var(--lag)}
+.alerts.calm{border-left-color:var(--ok)}
+.alerts ul{margin:0;padding:0;list-style:none}
+.alerts li{padding:6px 0;border-top:1px dashed var(--line);display:flex;gap:8px;align-items:flex-start;font-size:.88rem}
+.alerts li:first-child{border-top:none}
+.alerts li .st{flex-shrink:0;margin-top:1px}
+/* agenda */
+.ag{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.item{border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:#fff;display:flex;flex-direction:column;gap:8px}
+.item.info{background:#fdf8f2}
+.item .lb{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.88rem}
+.item .lb .st{margin-left:auto}
+.item .big{font-family:var(--ff);font-size:1.6rem;line-height:1;color:var(--ink)}
+.item .big small{font-family:var(--fb);font-size:.78rem;color:var(--muted);margin-left:6px}
+.bar{height:7px;border-radius:5px;background:#f0e8dc;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:5px}
+.bar i.warn{background:var(--warn)}.bar i.lag{background:var(--lag)}.bar i.none{background:var(--none)}
+.item .days{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.item .days div{background:#fdf8f2;border-radius:8px;padding:5px 7px;font-size:.74rem;color:var(--ink2);display:flex;flex-direction:column;gap:2px}
+.item .days b{font-size:.82rem;color:var(--ink);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:5px}
+.item .wk{font-size:.76rem;color:var(--ink2);display:flex;justify-content:space-between;gap:8px;align-items:center}
+.spark{display:flex;gap:3px;align-items:flex-end;height:26px}
+.spark i{flex:1;background:var(--none);border-radius:2px 2px 0 0;min-height:2px;opacity:.9}
+.spark i.ok{background:var(--ok)}.spark i.warn{background:var(--warn)}.spark i.lag{background:var(--lag)}
+.item .man{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.item .man input[type=number]{width:120px}
+.item .man input.nt{flex:1;min-width:120px}
+.item .help{font-size:.72rem;color:var(--muted)}
+/* charts */
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.ch{border:1px solid var(--line);border-radius:12px;padding:10px 12px;position:relative}
+.ch .ct{display:flex;align-items:baseline;gap:8px;font-weight:800;font-size:.86rem}
+.ch .tr{margin-left:auto;font-size:.76rem;font-weight:700}
+.ch .tr.up{color:var(--ok)}.ch .tr.dn{color:var(--lag)}.ch .tr.fl{color:var(--muted)}
+.ch svg{width:100%;height:150px;display:block;margin-top:4px}
+.ch .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:.72rem;padding:4px 7px;border-radius:7px;white-space:nowrap;display:none;z-index:2}
+.reasons li{font-size:.84rem;padding:5px 0;border-top:1px dashed var(--line);display:flex;gap:8px;align-items:flex-start}
+.reasons li b{white-space:nowrap;color:var(--ink2);font-size:.76rem;margin-top:2px}
+.reasons li .x{margin-left:auto;border:none;background:none;color:var(--muted);cursor:pointer}
+ul.plain{list-style:none;margin:0;padding:0}
+/* retention */
+.ret{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.ret .r1{border:1px solid var(--line);border-radius:12px;padding:12px}
+.ret .r1 .lb{font-weight:800;display:flex;gap:8px;align-items:center}
+.ret .r1 .lb .st{margin-left:auto}
+.ret .big{font-family:var(--ff);font-size:1.3rem;margin:6px 0 2px}
+.ret .hist{font-size:.78rem;color:var(--ink2);margin-top:6px}
+.ret .hist div{padding:3px 0;border-top:1px dashed var(--line);display:flex;gap:6px}
+/* hub */
+.hubd{margin-top:10px}
+.hubd .dh{display:flex;align-items:baseline;gap:8px;font-weight:800;font-size:.9rem;margin:10px 0 6px}
+.hubd .dh .st{margin-left:0}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.th{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fdf8f2;text-decoration:none;color:inherit;display:block;position:relative}
+.th .im{aspect-ratio:1;background:#f3ede4;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:1.6rem;color:var(--muted)}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th .nm{font-size:.7rem;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.th .by{font-size:.62rem;color:var(--muted);padding:0 7px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.th .live{position:absolute;top:6px;left:6px;background:var(--ok);color:#fff;font-size:.6rem;font-weight:800;padding:2px 6px;border-radius:999px}
+.th .vid{position:absolute;top:6px;right:6px;background:rgba(58,43,29,.8);color:#fff;font-size:.6rem;font-weight:800;padding:2px 6px;border-radius:999px}
+/* tasks */
+.task{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;display:flex;flex-direction:column;gap:7px}
+.task.done{opacity:.7;background:#fdf8f2}
+.task .tt{display:flex;gap:8px;align-items:center;font-weight:800;flex-wrap:wrap}
+.task .tt .due{font-size:.74rem;color:var(--muted);font-weight:600}
+.task .tt .due.over{color:var(--lag);font-weight:800}
+.task .dt{font-size:.84rem;color:var(--ink2);white-space:pre-wrap}
+.task .pr{display:flex;align-items:center;gap:8px}
+.task .pr input[type=range]{flex:1}
+.task .pr b{width:42px;text-align:right;font-variant-numeric:tabular-nums}
+.task .log{font-size:.76rem;color:var(--ink2)}
+.task .log div{padding:3px 0;border-top:1px dashed var(--line)}
+.rep{padding:8px 0;border-top:1px dashed var(--line);font-size:.86rem;white-space:pre-wrap}
+.rep b{display:block;font-size:.74rem;color:var(--muted);margin-bottom:2px}
+/* modal: centered popup */
+.modal{position:fixed;inset:0;background:rgba(58,43,29,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:40}
+.modal.open{display:flex}
+.panel{background:#fff;border-radius:16px;width:min(900px,100%);max-height:92vh;overflow:auto;padding:18px 20px 24px}
+.panel h2{font-family:var(--ff);margin:0 0 10px;font-size:1.2rem;display:flex;align-items:center}
+.panel h2 .x{margin-left:auto;border:none;background:#f5efe6;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer}
+table.cfg{width:100%;border-collapse:collapse;font-size:.82rem}
+table.cfg th{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:4px 6px}
+table.cfg td{padding:4px 6px;border-top:1px dashed var(--line);vertical-align:middle}
+table.cfg input[type=text]{width:100%}
+table.cfg input[type=number]{width:95px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 14px;border-radius:10px;font-size:.84rem;display:none;z-index:50;max-width:90vw}
+.toast.on{display:block}
+@media (max-width:600px){header h1{font-size:1.1rem}.item .big{font-size:1.4rem}.person .hl{grid-template-columns:repeat(3,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="#home" id="homeLink">NukkadTales · Team</a></h1>
+  <span class="sub" id="asof"></span>
+  <nav class="nav" id="nav"></nav>
+</header>
+<main id="app"><div class="skel"></div><div class="skel"></div></main>
+
+<div class="modal" id="cfgModal"><div class="panel">
+  <h2>Agenda &amp; targets <button class="x" onclick="closeCfg()">✕</button></h2>
+  <div id="cfgBody"></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-team';
+const Q = new URLSearchParams(location.search);
+const SOLO = ['marketing', 'creative', 'ops'].includes(Q.get('solo')) ? Q.get('solo') : null;
+const OWNER = !SOLO;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
+const istToday = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+const addD = (iso, n) => new Date(new Date(iso + 'T00:00:00Z').getTime() + n * 86400e3).toISOString().slice(0, 10);
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const fmtDay = (iso, long) => { const d = new Date(iso + 'T00:00:00Z'); const s = d.getUTCDate() + ' ' + d.toLocaleString('en-IN', { month: 'short', timeZone: 'UTC' }); return long ? DOW[d.getUTCDay()] + ' ' + s : s; };
+const relDay = iso => { const t = istToday(); return iso === t ? 'Today' : iso === addD(t, -1) ? 'Yesterday' : fmtDay(iso, true); };
+const fmtVal = (v, unit) => v == null ? '—' : unit === 'inr' ? inr(v) : unit === 'x' ? (+v).toFixed(2) + '×' : unit === 'pct' ? Math.round(v) + '%' : unit === 'days' ? v + 'd' : String(Math.round(v * 100) / 100);
+const STATE = { ok: '✓ On track', warn: '⚠ A little behind', lag: '✗ Behind', none: '· Not filled', info: '· Info' };
+const stPill = s => `<span class="st ${s}">${STATE[s] || s}</span>`;
+let NAME = ''; try { NAME = localStorage.getItem('nt_team_name') || ''; } catch {}
+let V = null, HOME = null, WHO = SOLO || (location.hash.replace('#', '') || 'home'), SEL = istToday(), CFG = null;
+
+function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2600); }
+async function api(body, _try = 0) {
+  let r;
+  try { r = await fetch(`${API}?a=${encodeURIComponent(body.action || '')}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, by: body.by || NAME || undefined }) }); }
+  catch (e) { if (_try < 1) { await new Promise(res => setTimeout(res, 2000)); return api(body, _try + 1); } throw new Error('No answer from the server. Try again in a minute.'); }
+  if ((r.status === 502 || r.status === 504) && _try < 1) { await new Promise(res => setTimeout(res, 2000)); return api(body, _try + 1); }
+  const d = await r.json().catch(() => ({ error: r.ok ? 'Bad response' : `Server ${r.status}` }));
+  if (d.error) throw new Error(d.error);
+  return d;
+}
+document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
+
+// ---------- routing ----------
+function go(who) { if (SOLO) return; location.hash = who; }
+window.addEventListener('hashchange', () => { if (SOLO) return; WHO = location.hash.replace('#', '') || 'home'; SEL = istToday(); render(); });
+function renderNav() {
+  const n = document.getElementById('nav');
+  if (SOLO) { n.innerHTML = `<span class="note">You: </span><input id="nm" value="${esc(NAME)}" placeholder="your name" style="width:120px;padding:5px 8px;font-size:.8rem" onchange="setName(this.value)">`; document.getElementById('homeLink').removeAttribute('href'); return; }
+  const P = (HOME && HOME.people) || [{ who: 'marketing', label: 'Marketing', icon: '📣' }, { who: 'creative', label: 'Creative', icon: '🎨' }, { who: 'ops', label: 'Operations', icon: '📦' }];
+  n.innerHTML = `<a class="pill ${WHO === 'home' ? 'on' : ''}" href="#home">Home</a>` + P.map(p => `<a class="pill ${WHO === p.who ? 'on' : ''}" href="#${p.who}">${p.icon} ${esc(p.label)}</a>`).join('') + `<button class="pill" onclick="openCfg()" title="Agenda & targets">⚙</button>`;
+}
+function setName(v) { NAME = v.trim(); try { localStorage.setItem('nt_team_name', NAME); } catch {} }
+
+async function render() {
+  renderNav();
+  const app = document.getElementById('app');
+  if (WHO === 'home') { app.innerHTML = '<div class="skel"></div><div class="skel"></div>'; try { HOME = await api({ action: 'home' }); } catch (e) { app.innerHTML = `<div class="card"><b style="color:var(--lag)">${esc(e.message)}</b></div>`; return; } renderNav(); renderHome(); return; }
+  if (!V || V.who !== WHO) app.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  try { V = await api({ action: 'view', who: WHO }); } catch (e) { app.innerHTML = `<div class="card"><b style="color:var(--lag)">${esc(e.message)}</b> <button class="btn s" onclick="render()">Retry</button></div>`; return; }
+  if (!V.calendar.some(c => c.day === SEL)) SEL = V.today;
+  renderPerson();
+}
+async function reload() { try { V = await api({ action: 'view', who: WHO }); renderPerson(); } catch (e) { toast(e.message); } }
+
+// ---------- home ----------
+function renderHome() {
+  const P = HOME.people;
+  document.getElementById('app').innerHTML = `
+  <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div><h2 style="margin:0">Who is on track today?</h2><div class="note">Each card opens that person's page. Share a page with the person using its link: they see only their own agenda.</div></div></div>
+  <div class="grid3">${P.map(p => {
+    const t = p.today, tot = t.total || 1;
+    const stt = t.lag ? 'lag' : t.warn ? 'warn' : t.ok ? 'ok' : 'none';
+    return `<div class="card person" onclick="go('${p.who}')">
+      <div class="t"><span class="ic">${p.icon}</span><div>${esc(p.label)}<div class="who">${esc(p.person || p.blurb || '')}</div></div><span class="st ${stt}" style="margin-left:auto">${t.lag ? `✗ ${t.lag} behind` : t.warn ? `⚠ ${t.warn} slipping` : t.ok ? '✓ on track' : '· no data'}</span></div>
+      <div class="hl">${p.headline.map(h => `<div><i>${esc(h.label)}</i><b>${esc(h.text)}</b><small> / ${esc(h.target)}</small></div>`).join('')}</div>
+      <div class="row" style="font-size:.76rem;color:var(--ink2)"><span><span class="dot ok"></span> ${t.ok} ok</span><span><span class="dot warn"></span> ${t.warn} slipping</span><span><span class="dot lag"></span> ${t.lag} behind</span>${t.none ? `<span><span class="dot"></span> ${t.none} not filled</span>` : ''}${p.open_tasks ? `<span style="margin-left:auto">📋 ${p.open_tasks} open task${p.open_tasks > 1 ? 's' : ''}</span>` : ''}</div>
+      ${p.warnings.length ? `<ul>${p.warnings.map(w => `<li>${stPill(w.level)}<span>${esc(w.text)}</span></li>`).join('')}${p.warning_count > 3 ? `<li class="note">+${p.warning_count - 3} more</li>` : ''}</ul>` : `<div class="note">Nothing needs a look right now.</div>`}
+      <div class="row" style="margin-top:auto"><button class="btn s" onclick="event.stopPropagation();share('${p.who}')">🔗 Copy share link</button><span class="note" style="margin-left:auto">open →</span></div>
+    </div>`; }).join('')}</div>`;
+}
+function share(who) { const u = location.origin + location.pathname + '?solo=' + who; navigator.clipboard?.writeText(u).then(() => toast('Link copied: ' + u)).catch(() => prompt('Share this link', u)); }
+
+// ---------- person page ----------
+function renderPerson() {
+  const p = V.person, today = V.today;
+  const sel = V.calendar.find(c => c.day === SEL) || V.calendar[V.calendar.length - 1];
+  const focus = [addD(today, -2), addD(today, -1), today].map(d => V.calendar.find(c => c.day === d)).filter(Boolean);
+  const dow = (new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7, monday = addD(today, -dow);
+  const week = Array.from({ length: 7 }, (_, i) => { const d = addD(monday, i); return { day: d, c: V.calendar.find(c => c.day === d), fut: d > today }; });
+  const cnt = c => `<div class="cnt">${c.ok ? `<span style="color:var(--ok)">✓ ${c.ok}</span>` : ''}${c.warn ? `<span style="color:var(--warn)">⚠ ${c.warn}</span>` : ''}${c.lag ? `<span style="color:var(--lag)">✗ ${c.lag}</span>` : ''}${c.none ? `<span style="color:var(--muted)">· ${c.none}</span>` : ''}${!c.ok && !c.warn && !c.lag && !c.none ? '<span class="note">no data</span>' : ''}</div>`;
+  const W = V.warnings;
+  let h = `
+  <div class="card"><div class="hero"><span class="ic">${p.icon}</span><div><h2>${esc(p.label)}${p.person ? ` <small style="font-family:var(--fb);font-weight:600;color:var(--muted);font-size:.85rem">· ${esc(p.person)}</small>` : ''}</h2><div class="note">${esc(p.blurb || '')} · ${fmtDay(today, true)}</div></div>
+    <div class="r">${OWNER ? `<button class="btn s" onclick="share('${V.who}')">🔗 Share link</button><button class="btn s" onclick="openCfg()">⚙ Targets</button>` : ''}<button class="btn s" onclick="reload()">↻</button></div></div>
+    <div class="focus">${focus.map(c => `<div class="d ${c.day === SEL ? 'on' : ''}" onclick="selDay('${c.day}')"><i>${fmtDay(c.day, true)}</i><b>${relDay(c.day)}</b>${cnt(c)}</div>`).join('')}</div>
+    <div class="week">${week.map(w => `<div class="w ${w.c ? w.c.state : ''} ${w.fut ? 'fut' : ''} ${w.day === SEL ? 'on' : ''}" ${w.fut ? '' : `onclick="selDay('${w.day}')"`}>${DOW[(new Date(w.day + 'T00:00:00Z')).getUTCDay()]}<b>${new Date(w.day + 'T00:00:00Z').getUTCDate()}</b>${w.c && !w.fut ? `<span class="dot ${w.c.state}"></span>` : ''}</div>`).join('')}</div>
+    <div class="note" style="margin-top:6px">This week, Monday to Sunday. Tap a day to see its numbers below.</div>
+  </div>
+  <div class="card alerts ${W.length ? '' : 'calm'}"><h2>${W.length ? `Needs a look <small>${W.length} item${W.length > 1 ? 's' : ''}</small>` : 'All clear'}</h2>
+    ${W.length ? `<ul>${W.map(w => `<li>${stPill(w.level)}<span>${esc(w.text)}</span></li>`).join('')}</ul>` : '<div class="note">Nothing is lagging today. Keep going.</div>'}
+  </div>
+  <div class="card"><h2>Agenda <small>${relDay(SEL)}${SEL === today ? ' · live' : ''}</small></h2>
+    <div class="ag">${V.agenda.map(renderItem).join('')}</div>
+  </div>`;
+  if (V.who === 'marketing') h += renderCharts(['meta_spend', 'shop_revenue', 'roas', 'amz_spend', 'amazon_revenue']) + renderRetention();
+  if (V.who === 'creative') h += renderCharts(['creatives_made', 'ads_live']);
+  if (V.creatives) h += renderHub();
+  h += renderTasks();
+  if (V.who === 'ops') h += renderReports();
+  h += `<div class="card"><h2>Notes <small>anything worth remembering</small></h2>${renderNotes()}</div>`;
+  document.getElementById('app').innerHTML = h;
+  drawCharts();
+}
+function selDay(d) { SEL = d; renderPerson(); }
+
+function renderItem(it) {
+  const row = it.rows.find(r => r.day === SEL) || it.today;
+  const today = V.today, isToday = SEL === today;
+  const last7 = it.rows.slice(-7);
+  const max = Math.max(it.target || 0, ...last7.map(r => +r.value || 0)) || 1;
+  const spark = `<div class="spark" title="last 7 days">${last7.map(r => `<i class="${r.state}" style="height:${Math.max(6, Math.round((it.every ? (r.value == null ? 100 : Math.min(100, r.value / (it.every * 2) * 100)) : (+r.value || 0) / max * 100)))}%" title="${fmtDay(r.day)}: ${esc(r.text)}"></i>`).join('')}</div>`;
+  const three = [addD(today, -2), addD(today, -1), today].map(d => it.rows.find(r => r.day === d)).filter(Boolean);
+  const days = `<div class="days">${three.map(r => `<div><span>${relDay(r.day).replace('Yesterday', 'Yest.')}</span><b><span class="dot ${r.state}"></span>${esc(r.text)}</b></div>`).join('')}</div>`;
+  if (it.every) {
+    const k = it.source.slice(6);
+    return `<div class="item"><div class="lb">${esc(it.label)}${stPill(row.state)}</div>
+      <div class="big">${row.value == null ? 'Never sent' : row.value === 0 ? 'Sent ' + relDay(row.day).toLowerCase() : row.value + ' day' + (row.value > 1 ? 's' : '') + ' since'}<small>every ${it.every} days</small></div>
+      <div class="note">${row.last ? 'Last sent ' + fmtDay(row.last, true) : 'No send logged yet'}</div>
+      ${days}${spark}
+      <div class="man"><input class="nt" id="ev_${it.id}" placeholder="what went out (offer, audience)"><button class="btn s p" onclick="logEvent('${k}','ev_${it.id}')">Log send ${isToday ? 'today' : relDay(SEL).toLowerCase()}</button></div>
+      ${it.help ? `<div class="help">${esc(it.help)}</div>` : ''}</div>`;
+  }
+  const pct = row.pct == null ? null : Math.min(100, row.pct);
+  const frac = Math.min(1, Math.max(0.08, (new Date(Date.now() + 5.5 * 3600e3).getUTCHours() + new Date().getUTCMinutes() / 60) / 24));
+  const paceNote = isToday && it.target && it.source !== 'roas' && !it.info ? `<div class="note">By this hour ≈ ${fmtVal(it.target * frac, it.unit)} expected · full day ${fmtVal(it.target, it.unit)}</div>` : '';
+  const wk = it.week && it.week.value != null ? `<div class="wk"><span>This week: <b>${fmtVal(it.week.value, it.unit)}</b>${it.week.target ? ` of ${fmtVal(it.week.target, it.unit)}` : ''}</span>${it.week.pct != null ? `<span class="st ${it.week.pct >= 90 ? 'ok' : it.week.pct >= 60 ? 'warn' : 'lag'}">${it.week.pct}%</span>` : ''}</div>` : '';
+  const manual = it.source === 'manual' ? `<div class="man"><input type="number" id="in_${it.id}" value="${row.value == null ? '' : row.value}" placeholder="${it.unit === 'inr' ? '₹' : ''}amount"><input class="nt" id="nt_${it.id}" value="${esc(row.note || '')}" placeholder="note (optional)"><button class="btn s p" onclick="saveEntry('${it.id}')">Save ${relDay(SEL).toLowerCase()}</button></div>` : (row.note ? `<div class="note">📝 ${esc(row.note)}</div>` : '');
+  return `<div class="item ${it.info ? 'info' : ''}"><div class="lb">${esc(it.label)}${it.info ? '' : stPill(row.state)}</div>
+    <div class="big">${esc(row.text)}${it.target && !it.info ? `<small>of ${fmtVal(it.target, it.unit)}</small>` : ''}</div>
+    ${it.target && !it.info ? `<div class="bar"><i class="${row.state}" style="width:${pct == null ? 0 : pct}%"></i></div>` : ''}
+    ${paceNote}${days}${spark}${wk}${manual}
+    ${it.help ? `<div class="help">${esc(it.help)}</div>` : ''}</div>`;
+}
+async function saveEntry(id) {
+  const v = document.getElementById('in_' + id).value, n = document.getElementById('nt_' + id).value;
+  try { await api({ action: 'entry', day: SEL, item_id: id, value: v, note: n }); toast('Saved'); await reload(); } catch (e) { toast(e.message); }
+}
+async function logEvent(kind, inputId, text) {
+  const t = text != null ? text : (document.getElementById(inputId) || {}).value || '';
+  try { await api({ action: 'event', who: V.who, kind, day: SEL, text: t }); toast('Logged'); await reload(); } catch (e) { toast(e.message); }
+}
+async function delEvent(id) { if (!confirm('Remove this entry?')) return; try { await api({ action: 'event_delete', id }); await reload(); } catch (e) { toast(e.message); } }
+
+// ---------- charts: one measure per chart, dashed target, hover tooltip ----------
+const CH = { meta_spend: { label: 'Meta spend', unit: 'inr', item: 'meta_spend' }, shop_revenue: { label: 'Website revenue', unit: 'inr', item: 'shop_revenue' }, roas: { label: 'ROAS', unit: 'x', item: 'roas' }, amz_spend: { label: 'Amazon ad spend', unit: 'inr', item: 'amz_spend' }, amazon_revenue: { label: 'Amazon revenue', unit: 'inr', item: 'amz_revenue' }, creatives_made: { label: 'Creatives uploaded', unit: 'n', item: 'cre_made' }, ads_live: { label: 'New ads live', unit: 'n', item: 'ads_live' } };
+let _charts = [];
+function renderCharts(keys) {
+  _charts = keys;
+  const yest = addD(V.today, -1);
+  const reasons = V.reasons || [];
+  return `<div class="card"><h2>Last 30 days <small>up, flat or down · last 7 days vs the 7 before</small></h2>
+    <div class="charts">${keys.map(k => { const c = CH[k], t = V.trend[k] || {}; const cls = t.change == null ? 'fl' : t.change > 3 ? 'up' : t.change < -3 ? 'dn' : 'fl'; const arrow = cls === 'up' ? '▲' : cls === 'dn' ? '▼' : '▬';
+      return `<div class="ch" id="ch_${k}"><div class="ct">${esc(c.label)}<span class="note">7-day avg ${fmtVal(t.last7, c.unit)}</span><span class="tr ${cls}">${arrow} ${t.change == null ? 'no read yet' : (t.change > 0 ? '+' : '') + t.change + '%'}</span></div><svg></svg><div class="tip"></div></div>`; }).join('')}</div>
+    <div style="margin-top:12px"><b style="font-size:.9rem">Why did it move?</b> <span class="note">A line per day: what was tried, what broke, why it dipped.</span>
+      <div class="row" style="margin-top:6px"><input type="date" id="rsDay" value="${yest}" max="${V.today}"><select id="rsKey">${keys.map(k => `<option value="${k}">${esc(CH[k].label)}</option>`).join('')}<option value="">general</option></select><input id="rsText" placeholder="e.g. ROAS dipped: two top ads fatigued, paused 3 in IST" style="flex:1;min-width:200px"><button class="btn s p" onclick="addReason()">Add</button></div>
+      <ul class="plain reasons" style="margin-top:6px">${reasons.length ? reasons.slice(0, 20).map(r => `<li><b>${fmtDay(r.day)}${r.meta && r.meta.key && CH[r.meta.key] ? ' · ' + esc(CH[r.meta.key].label) : ''}</b><span>${esc(r.text)}</span>${r.by_name ? `<span class="note">— ${esc(r.by_name)}</span>` : ''}<button class="x" onclick="delEvent(${r.id})" title="remove">✕</button></li>`).join('') : '<li class="note" style="border:none">No reasons written yet.</li>'}</ul>
+    </div></div>`;
+}
+async function addReason() {
+  const d = document.getElementById('rsDay').value, k = document.getElementById('rsKey').value, t = document.getElementById('rsText').value.trim();
+  if (!t) { toast('Write the reason first'); return; }
+  try { await api({ action: 'event', who: V.who, kind: 'reason', day: d, text: t, meta: k ? { key: k } : null }); toast('Added'); await reload(); } catch (e) { toast(e.message); }
+}
+function drawCharts() {
+  for (const k of _charts) {
+    const box = document.getElementById('ch_' + k); if (!box) continue;
+    const c = CH[k], item = V.agenda.find(a => a.source === k) || V.agenda.find(a => a.id === c.item), target = item && item.target && !item.info ? item.target : null;
+    const S = V.series.map(s => ({ day: s.day, v: s[k] })), vals = S.map(s => s.v).filter(v => v != null);
+    const svg = box.querySelector('svg'), tip = box.querySelector('.tip');
+    const W = 320, H = 150, L = 40, R = 8, T = 10, B = 22;
+    const max = Math.max(1, ...vals, target || 0) * 1.08, min = 0;
+    const x = i => L + (W - L - R) * (S.length > 1 ? i / (S.length - 1) : 0), y = v => T + (H - T - B) * (1 - (v - min) / (max - min));
+    const fmtAx = v => c.unit === 'inr' ? (v >= 1000 ? '₹' + Math.round(v / 1000) + 'k' : '₹' + Math.round(v)) : c.unit === 'x' ? (+v).toFixed(1) : String(Math.round(v));
+    const ticks = [0, 0.5, 1].map(f => min + (max - min) * f);
+    let d = '', started = false; const pts = [];
+    S.forEach((s, i) => { if (s.v == null) { started = false; return; } d += (started ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(s.v).toFixed(1); started = true; pts.push({ i, x: x(i), y: y(s.v), v: s.v, day: s.day }); });
+    const labels = S.map((s, i) => (i === 0 || i === S.length - 1 || i % 7 === 0) && i !== S.length - 2 ? `<text x="${x(i)}" y="${H - 6}" font-size="9" fill="#9c8a76" text-anchor="${i === 0 ? 'start' : i === S.length - 1 ? 'end' : 'middle'}">${fmtDay(s.day)}</text>` : '').join('');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = ticks.map(t => `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="#eee5d8" stroke-width="1"/><text x="${L - 4}" y="${y(t) + 3}" font-size="9" fill="#9c8a76" text-anchor="end">${fmtAx(t)}</text>`).join('')
+      + (target ? `<line x1="${L}" x2="${W - R}" y1="${y(target)}" y2="${y(target)}" stroke="#9c8a76" stroke-width="1.5" stroke-dasharray="4 4"/><text x="${W - R}" y="${y(target) - 3}" font-size="9" fill="#6f5b46" text-anchor="end">target ${fmtAx(target)}</text>` : '')
+      + `<path d="${d}" fill="none" stroke="#d4541f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+      + (pts.length ? [pts[pts.length - 1]] : []).map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#d4541f" stroke="#fff" stroke-width="2"/>`).join('')
+      + `<line id="cur" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#3a2b1d" stroke-width="1" opacity="0" /><circle id="curp" r="5" fill="#fff" stroke="#d4541f" stroke-width="2" opacity="0"/>` + labels;
+    const cur = svg.querySelector('#cur'), curp = svg.querySelector('#curp');
+    const move = ev => { const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) / r.width * W; let best = null; for (const p of pts) if (!best || Math.abs(p.x - px) < Math.abs(best.x - px)) best = p; if (!best) return; cur.setAttribute('x1', best.x); cur.setAttribute('x2', best.x); cur.setAttribute('opacity', '.4'); curp.setAttribute('cx', best.x); curp.setAttribute('cy', best.y); curp.setAttribute('opacity', '1'); tip.style.display = 'block'; tip.textContent = `${fmtDay(best.day, true)} · ${fmtVal(best.v, c.unit)}${target ? ` · target ${fmtVal(target, c.unit)}` : ''}`; const bx = box.getBoundingClientRect(); tip.style.left = Math.min(bx.width - tip.offsetWidth - 6, Math.max(6, ev.clientX - bx.left - tip.offsetWidth / 2)) + 'px'; tip.style.top = (ev.clientY - bx.top - 34) + 'px'; };
+    const leave = () => { cur.setAttribute('opacity', '0'); curp.setAttribute('opacity', '0'); tip.style.display = 'none'; };
+    svg.onmousemove = move; svg.onmouseleave = leave; svg.ontouchstart = svg.ontouchmove = ev => { move(ev.touches[0]); };
+  }
+}
+
+// ---------- retention ----------
+function renderRetention() {
+  const R = V.retention, items = { whatsapp: V.agenda.find(a => a.source === 'event:whatsapp'), email: V.agenda.find(a => a.source === 'event:email') };
+  const block = (k, label, icon) => { const it = items[k], t = it && it.today, hist = R[k] || [];
+    return `<div class="r1"><div class="lb">${icon} ${esc(label)}${t ? stPill(t.state) : ''}</div>
+      <div class="big">${!t || t.value == null ? 'Never logged' : t.value === 0 ? 'Sent today' : t.value + ' day' + (t.value > 1 ? 's' : '') + ' ago'}</div>
+      <div class="note">${t && t.last ? 'Last on ' + fmtDay(t.last, true) : ''}${it ? ` · agenda: every ${it.every} days` : ''}</div>
+      <div class="man" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><input id="rt_${k}" placeholder="what went out" style="flex:1;min-width:140px"><button class="btn s p" onclick="logEvent('${k}','rt_${k}')">Sent today</button></div>
+      <div class="hist">${hist.length ? hist.slice(0, 6).map(e => `<div><b>${fmtDay(e.day)}</b><span>${esc(e.text || '—')}</span>${e.by_name ? `<span class="note">— ${esc(e.by_name)}</span>` : ''}<button class="x" style="margin-left:auto;border:none;background:none;color:var(--muted);cursor:pointer" onclick="delEvent(${e.id})">✕</button></div>`).join('') : '<div>No sends logged yet.</div>'}</div></div>`; };
+  return `<div class="card"><h2>Retention <small>past buyers hear from us on a rhythm</small></h2><div class="ret">${block('whatsapp', 'WhatsApp', '💬')}${block('email', 'Email', '✉️')}</div></div>`;
+}
+
+// ---------- creative hub ----------
+function renderHub() {
+  const C = V.creatives, target = (V.agenda.find(a => a.source === 'creatives_made') || {}).target;
+  const byDay = {}; for (const f of C.list) (byDay[f.day || 'unknown'] ||= []).push(f);
+  const days = Object.keys(byDay).sort().reverse();
+  const synced = C.synced_at ? new Date(C.synced_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'never';
+  let h = `<div class="card"><h2>Creative hub <small>what was uploaded, day by day</small></h2>
+    <div class="row">${C.folder ? `<a class="btn s" href="${esc(C.folder_link || ('https://drive.google.com/drive/folders/' + C.folder))}" target="_blank" rel="noopener">📁 Open Drive folder</a><button class="btn s" onclick="syncHub()">↻ Sync now</button><span class="note">synced ${synced}${C.sync_error ? ` · <span style="color:var(--lag)">${esc(C.sync_error)}</span>` : ''}</span>` : `<span class="note">No Drive folder set yet.${OWNER ? ' Set it under ⚙ Targets (paste a folder link or create one).' : ''}</span>`}</div>`;
+  if (C.folder && !C.list.length) h += `<div class="note" style="margin-top:8px">Nothing synced yet. Upload images or videos to the folder (sub-folders are fine), then press Sync now.</div>`;
+  h += `<div class="hubd">${days.map(d => { const L = byDay[d]; const st = target ? (L.length >= target ? 'ok' : L.length >= target * 0.6 ? 'warn' : 'lag') : 'info';
+    return `<div class="dh">${d === 'unknown' ? 'Undated' : relDay(d)} <span class="note">${d === 'unknown' ? '' : fmtDay(d)}</span><span class="st ${st}">${L.length} file${L.length > 1 ? 's' : ''}${target ? ` / ${target}` : ''}</span>${L.some(f => f.live_ad) ? `<span class="note">${L.filter(f => f.live_ad).length} live</span>` : ''}</div>
+      <div class="thumbs">${L.map(f => `<a class="th" href="${esc(f.link)}" target="_blank" rel="noopener" title="${esc(f.name)}${f.live_ad ? '\nLive as: ' + esc(f.live_ad) : ''}"><div class="im"><img loading="lazy" src="${API}?action=thumb&id=${encodeURIComponent(f.drive_id)}" alt="" data-alt="https://drive.google.com/thumbnail?id=${encodeURIComponent(f.drive_id)}&sz=w400" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt='';}else{this.parentNode.textContent='${/video/.test(f.mime || '') ? '🎬' : '🖼'}'}"></div>${f.live_ad ? '<span class="live">LIVE</span>' : ''}${/video/.test(f.mime || '') ? '<span class="vid">video</span>' : ''}<div class="nm">${esc(f.name)}</div><div class="by">${esc(f.by_name || '')}</div></a>`).join('')}</div>`; }).join('')}</div></div>`;
+  return h;
+}
+async function syncHub() { toast('Syncing with Drive…'); try { const r = await api({ action: 'creatives_sync', force: true }); toast(r.skipped ? 'Skipped: ' + r.skipped : `Synced ${r.files} files`); await reload(); } catch (e) { toast(e.message); } }
+
+// ---------- tasks ----------
+function renderTasks() {
+  const T = V.tasks, today = V.today;
+  const card = t => { const over = t.status !== 'done' && t.due && t.due < today; const log = (t.updates || []).slice(-3).reverse();
+    return `<div class="task ${t.status === 'done' ? 'done' : ''}"><div class="tt">${t.status === 'done' ? '✅' : '📋'} ${esc(t.title)}${t.due ? `<span class="due ${over ? 'over' : ''}">${over ? 'overdue · ' : 'due '}${fmtDay(t.due, true)}</span>` : ''}${OWNER ? `<button class="btn s" style="margin-left:auto" onclick="editTask(${t.id})">✎</button><button class="btn s" onclick="delTask(${t.id})">✕</button>` : ''}</div>
+      ${t.detail ? `<div class="dt">${esc(t.detail)}</div>` : ''}
+      ${t.status === 'done' ? `<div class="note">Done ${t.done_at ? new Date(t.done_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }) : ''}${t.notes ? ' · ' + esc(t.notes) : ''}</div>` : `
+      <div class="pr"><span class="note">done</span><input type="range" min="0" max="100" step="5" value="${t.progress || 0}" oninput="this.parentNode.querySelector('b').textContent=this.value+'%'" id="pg_${t.id}"><b>${t.progress || 0}%</b></div>
+      <div class="row"><input id="tn_${t.id}" placeholder="today's update: what got done, what is stuck" style="flex:1;min-width:160px"><button class="btn s p" onclick="updTask(${t.id})">Save update</button><button class="btn s" onclick="updTask(${t.id},'done')">Mark done</button></div>`}
+      ${log.length ? `<div class="log">${log.map(u => `<div><b>${new Date(u.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</b> · ${u.progress}%${u.status === 'done' ? ' · done' : ''}${u.note ? ' · ' + esc(u.note) : ''}${u.by ? ` — ${esc(u.by)}` : ''}</div>`).join('')}</div>` : ''}</div>`; };
+  return `<div class="card"><h2>Tasks <small>${T.open.length} open</small>${OWNER ? `<button class="btn s" style="float:right" onclick="editTask()">+ Add task</button>` : ''}</h2>
+    ${T.open.length ? T.open.map(card).join('') : '<div class="note">No open tasks.</div>'}
+    ${T.done.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer">Done recently (${T.done.length})</summary>${T.done.map(card).join('')}</details>` : ''}</div>`;
+}
+async function updTask(id, status) {
+  const pg = document.getElementById('pg_' + id), tn = document.getElementById('tn_' + id);
+  try { await api({ action: 'task_update', id, progress: status === 'done' ? 100 : pg && pg.value, note: tn && tn.value, status }); toast(status === 'done' ? 'Marked done' : 'Update saved'); await reload(); } catch (e) { toast(e.message); }
+}
+function editTask(id) {
+  const t = id ? [...V.tasks.open, ...V.tasks.done].find(x => x.id === id) : null;
+  const title = prompt('Task', t ? t.title : ''); if (title == null || !title.trim()) return;
+  const detail = prompt('Details (optional)', t ? t.detail || '' : '') ?? '';
+  const due = prompt('Due date YYYY-MM-DD (optional)', t ? t.due || '' : addD(V.today, 1)) ?? '';
+  api({ action: 'task_save', id, who: V.who, title: title.trim(), detail, due: due.trim() }).then(() => { toast('Task saved'); reload(); }).catch(e => toast(e.message));
+}
+async function delTask(id) { if (!confirm('Delete this task?')) return; try { await api({ action: 'task_delete', id }); await reload(); } catch (e) { toast(e.message); } }
+
+// ---------- daily report (ops) ----------
+function renderReports() {
+  const R = V.reports, todayDone = R.some(r => r.day === V.today);
+  return `<div class="card"><h2>Daily report <small>${todayDone ? '✓ filed today' : 'not filed today'}</small></h2>
+    <textarea id="repText" placeholder="What got done ${relDay(SEL).toLowerCase()}: orders packed, dispatched, pending, problems, what is needed tomorrow"></textarea>
+    <div class="row" style="margin-top:6px"><button class="btn p" onclick="logEvent('report',null,document.getElementById('repText').value.trim()||'Report filed')">File report for ${relDay(SEL).toLowerCase()}</button></div>
+    <div style="margin-top:8px">${R.length ? R.map(r => `<div class="rep"><b>${fmtDay(r.day, true)}${r.by_name ? ' · ' + esc(r.by_name) : ''} <button class="x" style="border:none;background:none;color:var(--muted);cursor:pointer;float:right" onclick="delEvent(${r.id})">✕</button></b>${esc(r.text)}</div>`).join('') : '<div class="note">No reports yet.</div>'}</div></div>`;
+}
+function renderNotes() {
+  const N = V.notes || [];
+  return `<div class="row"><input id="noteText" placeholder="a note for this page" style="flex:1;min-width:160px"><button class="btn s p" onclick="logEvent('note','noteText')">Add</button></div>
+    <ul class="plain reasons" style="margin-top:6px">${N.length ? N.map(n => `<li><b>${fmtDay(n.day)}</b><span>${esc(n.text)}</span>${n.by_name ? `<span class="note">— ${esc(n.by_name)}</span>` : ''}<button class="x" onclick="delEvent(${n.id})">✕</button></li>`).join('') : '<li class="note" style="border:none">No notes.</li>'}</ul>`;
+}
+
+// ---------- settings (owner) ----------
+const UNITS = { inr: '₹', n: 'count', x: '× ratio', pct: '%', days: 'days' };
+const SOURCES = { manual: 'Typed in daily', meta_spend: 'Meta spend (auto)', shop_revenue: 'Website revenue (auto)', roas: 'ROAS (auto)', ads_live: 'New ads live (auto)', ads_running: 'Ads running (auto)', amazon_revenue: 'Amazon revenue (auto)', creatives_made: 'Hub uploads (auto)', tasks_done: 'Tasks closed (auto)', 'event:whatsapp': 'WhatsApp sends (logged)', 'event:email': 'Email sends (logged)', 'event:report': 'Daily report (logged)' };
+async function openCfg() {
+  if (!OWNER) return;
+  document.getElementById('cfgModal').classList.add('open');
+  document.getElementById('cfgBody').innerHTML = '<div class="skel"></div>';
+  try { CFG = (V && V.config) || await api({ action: 'config' }); } catch (e) { document.getElementById('cfgBody').innerHTML = esc(e.message); return; }
+  CFG = JSON.parse(JSON.stringify(CFG)); renderCfg();
+}
+function closeCfg() { document.getElementById('cfgModal').classList.remove('open'); }
+function renderCfg() {
+  const who = ['marketing', 'creative', 'ops'];
+  document.getElementById('cfgBody').innerHTML = `
+    <div class="note" style="margin-bottom:10px">Targets are per day. “Every N days” items are rhythms (retention). Tick <b>info</b> for numbers that should show but never warn. Untick <b>on</b> to hide an item without deleting it.</div>
+    <div class="grid3" style="margin-bottom:12px">${who.map(w => `<div class="row" style="border:1px solid var(--line);border-radius:10px;padding:8px"><span style="font-size:1.2rem">${CFG.people[w].icon}</span><div style="flex:1"><div class="note">${esc(CFG.people[w].label)} · person's name</div><input type="text" style="width:100%" value="${esc(CFG.people[w].person || '')}" placeholder="name" onchange="CFG.people['${w}'].person=this.value"></div></div>`).join('')}</div>
+    ${who.map(w => `<h3 style="margin:14px 0 4px;font-size:.95rem">${CFG.people[w].icon} ${esc(CFG.people[w].label)}</h3>
+    <table class="cfg"><tr><th>on</th><th>Label</th><th>Source</th><th>Target / every</th><th>Unit</th><th>info</th><th></th></tr>
+    ${CFG.agenda.map((a, i) => a.who !== w ? '' : `<tr><td><input type="checkbox" ${a.off ? '' : 'checked'} onchange="CFG.agenda[${i}].off=!this.checked"></td><td><input type="text" value="${esc(a.label)}" onchange="CFG.agenda[${i}].label=this.value"></td><td class="note">${esc(SOURCES[a.source] || a.source)}</td><td><input type="number" step="any" value="${a.every != null && a.source.startsWith('event:') && a.every ? a.every : (a.target ?? '')}" onchange="${a.every ? `CFG.agenda[${i}].every=+this.value` : `CFG.agenda[${i}].target=this.value===''?null:+this.value`}">${a.every ? ' <span class="note">days</span>' : ''}</td><td><select onchange="CFG.agenda[${i}].unit=this.value">${Object.entries(UNITS).map(([k, v]) => `<option value="${k}" ${a.unit === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td><td><input type="checkbox" ${a.info ? 'checked' : ''} onchange="CFG.agenda[${i}].info=this.checked"></td><td>${a.source === 'manual' ? `<button class="btn s" onclick="CFG.agenda.splice(${i},1);renderCfg()">✕</button>` : ''}</td></tr>`).join('')}
+    </table>
+    <div class="row" style="margin-top:6px"><button class="btn s" onclick="addManual('${w}')">+ Add a typed-in number for ${esc(CFG.people[w].label)}</button></div>`).join('')}
+    <h3 style="margin:16px 0 4px;font-size:.95rem">Creative hub folder</h3>
+    <div class="note">A Google Drive folder the creative person uploads to. Files appear here by upload date. Sub-folders inside it are read too.</div>
+    <div class="row" style="margin-top:6px"><input type="text" style="flex:1;min-width:220px" value="${esc(CFG.creatives_folder_link || CFG.creatives_folder || '')}" placeholder="paste the folder link" onchange="CFG.creatives_folder=this.value;CFG.creatives_folder_link=this.value"><button class="btn s" onclick="createFolder()">Create one for me</button></div>
+    <div class="row" style="margin-top:16px"><button class="btn p" onclick="saveCfg()">Save</button><button class="btn" onclick="closeCfg()">Cancel</button><span class="note" id="cfgMsg"></span></div>`;
+}
+function addManual(w) { const label = prompt('What is the number called? (e.g. Amazon ad spend)'); if (!label) return; const target = +prompt('Daily target (number)', '0') || null; CFG.agenda.push({ id: 'm_' + Date.now().toString(36), who: w, label, source: 'manual', target, unit: 'inr', info: false }); renderCfg(); }
+async function saveCfg() {
+  document.getElementById('cfgMsg').textContent = 'Saving…';
+  try { await api({ action: 'config_save', config: CFG }); document.getElementById('cfgMsg').textContent = 'Saved'; closeCfg(); V = null; render(); } catch (e) { document.getElementById('cfgMsg').textContent = e.message; }
+}
+async function createFolder() {
+  document.getElementById('cfgMsg').textContent = 'Creating folder…';
+  try { const r = await api({ action: 'folder_create' }); CFG.creatives_folder = r.id; CFG.creatives_folder_link = r.link; renderCfg(); document.getElementById('cfgMsg').textContent = 'Folder created and saved. Share it with the creative person from Drive.'; window.open(r.link, '_blank'); } catch (e) { document.getElementById('cfgMsg').textContent = e.message; }
+}
+document.getElementById('cfgModal').addEventListener('click', e => { if (e.target.id === 'cfgModal') closeCfg(); });
+
+render();
+</script>
+</body>
+</html>
