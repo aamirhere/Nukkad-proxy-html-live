@@ -7116,11 +7116,11 @@ async function rcShipwayFill(range, kind, n) {
   const need = rcMonthsBetween(range.from, range.to).filter(m => m <= today.slice(0, 7)).filter(m => { const h = have[m]; if (!h || !h.indexed_at) return true; if (h.complete) return false; return Date.now() - new Date(h.indexed_at) > 86400e3; });
   if (!need.length) return true;
   for (const m of need) {
-    let page = 1;
-    while (page && page <= 120) {
-      rcStatus(kind, `${n} AWBs are not on the rack · reading Shipway bookings for ${rcMonthName(m)}, page ${page}…`);
-      let r; try { r = await api({ action: 'courier_shipway_month', month: m, page }); } catch (e) { rcStatus(kind, 'Shipway read failed: ' + e.message, true); return true; }
-      page = r.next;
+    let cur = { win: 0, page: 1 }, steps = 0;
+    while (cur && steps++ < 150) {
+      rcStatus(kind, `${n} AWBs are not on the rack · reading Shipway bookings for ${rcMonthName(m)}, week ${cur.win + 1} page ${cur.page}…`);
+      let r; try { r = await api({ action: 'courier_shipway_month', month: m, ...cur }); } catch (e) { rcStatus(kind, 'Shipway read failed: ' + e.message, true); return true; }
+      cur = r.next;
     }
   }
   RCS.months = null;
@@ -7142,11 +7142,11 @@ async function rcRenderMonths() {
 async function rcIndexMonth(m) {
   if (!/^\d{4}-\d{2}$/.test(m || '')) return;
   const msg = document.getElementById('rcMonthMsg');
-  let page = 1, stored = 0;
-  while (page && page <= 120) {
-    if (msg) msg.textContent = `Reading ${rcMonthName(m)} from Shipway, page ${page}…`;
-    let r; try { r = await api({ action: 'courier_shipway_month', month: m, page }); } catch (e) { if (msg) msg.textContent = 'Failed: ' + e.message; return; }
-    stored += r.stored || 0; page = r.next;
+  let cur = { win: 0, page: 1 }, stored = 0, steps = 0;
+  while (cur && steps++ < 150) {
+    if (msg) msg.textContent = `Reading ${rcMonthName(m)} from Shipway, week ${cur.win + 1} page ${cur.page}…`;
+    let r; try { r = await api({ action: 'courier_shipway_month', month: m, ...cur }); } catch (e) { if (msg) msg.textContent = 'Failed: ' + e.message; return; }
+    stored += r.stored || 0; cur = r.next;
   }
   if (msg) msg.textContent = `${rcMonthName(m)}: ${stored} bookings read`;
   RCS.months = null; rcRenderMonths();
