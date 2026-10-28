@@ -7084,15 +7084,39 @@ async function rcHandleFile(kind, file) {
     else await rcRunAudit(file);
   } catch (e) { console.error(e); rcStatus(kind, 'Failed: ' + e.message, true); }
 }
-async function rcLookup(awbs, refs, kind) {
+const rcAddD = (iso, n) => new Date(new Date(iso + 'T00:00:00Z').getTime() + n * 86400e3).toISOString().slice(0, 10);
+const rcRangeOf = (dates, back = 30) => { const d = dates.filter(Boolean).sort(); return d.length ? { from: rcAddD(d[0], -back), to: d[d.length - 1] } : null; };
+async function rcLookup(awbs, refs, kind, range) {
   const out = { by_awb: {}, by_ref: {} };
   const A = [...new Set(awbs)], R = [...new Set(refs || [])];
-  const batches = []; const N = 300;
-  for (let i = 0; i < Math.max(A.length, R.length, 1); i += N) batches.push({ awbs: A.slice(i, i + N), refs: R.slice(i, i + N) });
-  let done = 0;
-  const one = async (b, tries = 0) => { try { const r = await api({ action: 'courier_lookup', ...b }); Object.assign(out.by_awb, r.by_awb || {}); Object.assign(out.by_ref, r.by_ref || {}); } catch (e) { if (tries < 1) return one(b, tries + 1); throw e; } done++; if (kind) rcStatus(kind, `Matching AWBs to our orders… ${Math.min(A.length, done * N)} of ${A.length}`); };
-  for (let i = 0; i < batches.length; i += 3) await Promise.all(batches.slice(i, i + 3).map(b => one(b)));
+  const N = 300;
+  const run = async (list, refsList, label) => {
+    const batches = []; for (let i = 0; i < Math.max(list.length, refsList.length, 1); i += N) batches.push({ awbs: list.slice(i, i + N), refs: refsList.slice(i, i + N) });
+    let done = 0;
+    const one = async (b, tries = 0) => { try { const r = await api({ action: 'courier_lookup', ...b }); Object.assign(out.by_awb, r.by_awb || {}); Object.assign(out.by_ref, r.by_ref || {}); } catch (e) { if (tries < 1) return one(b, tries + 1); throw e; } done++; if (kind) rcStatus(kind, `${label}… ${Math.min(list.length, done * N)} of ${list.length}`); };
+    for (let i = 0; i < batches.length; i += 3) await Promise.all(batches.slice(i, i + 3).map(b => one(b)));
+  };
+  await run(A, R, 'Matching AWBs to our orders');
+  // custom orders and older bookings are not on the rack: read Shipway's bookings for the period, then match again
+  if (range && kind) {
+    const missing = A.filter(a => !out.by_awb[a]);
+    if (missing.length && await rcShipwayFill(range, kind, missing.length)) await run(missing, [], 'Matching the rest against Shipway');
+  }
   return out;
+}
+async function rcShipwayFill(range, kind, n) {
+  try {
+    const idx = await api({ action: 'courier_shipway_indexed' });
+    const fresh = (idx.ranges || []).some(r => r.from <= range.from && r.to >= range.to && Date.now() - new Date(r.at) < 7 * 86400e3);
+    if (fresh) return true;
+  } catch {}
+  let page = 1, stored = 0;
+  while (page && page <= 120) {
+    rcStatus(kind, `${n} AWBs are not on the rack · reading Shipway bookings ${rcDay(range.from)} → ${rcDay(range.to)}, page ${page}…`);
+    let r; try { r = await api({ action: 'courier_shipway_page', date_from: range.from, date_to: range.to, page }); } catch (e) { rcStatus(kind, 'Shipway read failed: ' + e.message, true); return stored > 0; }
+    stored += r.stored || 0; page = r.next;
+  }
+  return true;
 }
 
 // ---------- invoice ----------
@@ -7102,7 +7126,7 @@ async function rcRunInvoice(file) {
   rcStatus('invoice', `${parsed.lines.length} lines read · checking rates…`);
   const res = RC.checkInvoice(parsed, RCS.cfg);
   rcStatus('invoice', `${parsed.lines.length} lines checked · matching AWBs to our orders…`);
-  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb), [], 'invoice')); } catch (e) { res.summary.lookup_error = e.message; }
+  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb), [], 'invoice', rcRangeOf(res.lines.map(l => l.date)))); } catch (e) { res.summary.lookup_error = e.message; }
   RCS.inv = { ...res, file: file.name, parsed };
   RCS.filter.invoice = null;
   rcRenderInvoice();
@@ -7132,7 +7156,7 @@ function rcRenderInvoice() {
     <div class="rc-chips">${(S.by_issue || []).map(b => `<span class="rc-chip ${f === b.issue ? 'on' : ''}" onclick="RCS.filter.invoice = RCS.filter.invoice === '${b.issue}' ? null : '${b.issue}'; rcRenderInvoice()"><span class="rc-pill ${rcIssueCls(b.issue)}">${b.n}</span> ${rcEsc(b.label)}${b.extra ? `<i>${rcInr(b.extra)}</i>` : ''}</span>`).join('')}</div>
     <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadInvoice()">⬇ Dispute sheet (Excel)</button><button class="btn btn-ghost" onclick="rcDownloadInvoice(true)">⬇ All lines with check</button>${R.file ? `<span class="rc-note" style="margin:auto 0">${rcEsc(R.file)}</span>` : ''}</div>
     <div class="rc-wrap"><table class="rc-tbl"><tr><th>S.no</th><th>Ship date</th><th>AWB</th><th>Destination</th><th>Wt</th><th>Billed</th><th>Correct</th><th>Extra</th><th>Issue</th><th>Order</th></tr>
-      ${lines.slice(0, 500).map(l => `<tr class="${l.issue}"><td>${l.sno}</td><td>${rcDay(l.date)}</td><td>${l.ret ? '(R) ' : ''}${l.awb}</td><td>${rcEsc(l.dest)}${l.tier ? ` <span class="rc-pill">T${l.tier}</span>` : ''}</td><td class="n">${l.wt}</td><td class="n">${rcInr2(l.amount)}</td><td class="n">${rcInr2(l.expected)}</td><td class="n">${l.diff == null ? '—' : (l.diff > 0 ? '+' : '') + l.diff.toFixed(2)}</td><td class="w"><span class="rc-pill ${rcIssueCls(l.issue)}">${rcEsc(labels[l.issue] || l.issue)}</span>${l.note ? `<div class="rc-note" style="margin:2px 0 0">${rcEsc(l.note)}</div>` : ''}</td><td>${l.order ? `${rcEsc(l.order)} <span class="rc-pill">${l.payment || ''}${l.units ? ' · ' + l.units + ' pc' : ''}</span>` : (l.ours === false ? '<span class="rc-pill amb">not ours?</span>' : '')}</td></tr>`).join('')}
+      ${lines.slice(0, 500).map(l => `<tr class="${l.issue}"><td>${l.sno}</td><td>${rcDay(l.date)}</td><td>${l.ret ? '(R) ' : ''}${l.awb}</td><td>${rcEsc(l.dest)}${l.tier ? ` <span class="rc-pill">T${l.tier}</span>` : ''}</td><td class="n">${l.wt}</td><td class="n">${rcInr2(l.amount)}</td><td class="n">${rcInr2(l.expected)}</td><td class="n">${l.diff == null ? '—' : (l.diff > 0 ? '+' : '') + l.diff.toFixed(2)}</td><td class="w"><span class="rc-pill ${rcIssueCls(l.issue)}">${rcEsc(labels[l.issue] || l.issue)}</span>${l.note ? `<div class="rc-note" style="margin:2px 0 0">${rcEsc(l.note)}</div>` : ''}</td><td>${l.order ? `${rcEsc(l.order)} <span class="rc-pill">${l.payment || ''}${l.units ? ' · ' + l.units + ' pc' : ''}</span>${l.custom ? ' <span class="rc-pill amb">custom</span>' : ''}` : (l.ours === false ? '<span class="rc-pill amb">not ours?</span>' : '')}</td></tr>`).join('')}
       ${!lines.length ? '<tr><td colspan="10" class="rc-note">Nothing flagged.</td></tr>' : ''}${lines.length > 500 ? `<tr><td colspan="10" class="rc-note">Showing 500 of ${lines.length}; the download has all of them.</td></tr>` : ''}</table></div>`;
 }
 async function rcDownloadInvoice(all) {
@@ -7153,7 +7177,8 @@ async function rcRunCod(file) {
   if (!rows.length) throw new Error('The sheet is empty');
   rcStatus('cod', `${rows.length} rows read · matching AWBs to our orders…`);
   const awbs = []; for (const r of rows) for (const v of Object.values(r)) { const s = String(v || '').replace(/\D/g, ''); if (s.length >= 8 && s.length <= 14 && /^\d{8,14}$/.test(String(v).trim())) { awbs.push(s); break; } }
-  const lookup = await rcLookup(awbs, [], 'cod');
+  const codDates = rows.map(r => { for (const k of Object.keys(r)) if (/date|dt$/i.test(k)) return RC.excelDate(r[k]); return null; });
+  const lookup = await rcLookup(awbs, [], 'cod', rcRangeOf(codDates) || (RCS.inv && RCS.inv.lines ? rcRangeOf(RCS.inv.lines.map(l => l.date)) : null));
   const res = RC.checkCod(rows, lookup, RCS.cfg);
   const inv = document.getElementById('rcCodInv').value.trim();
   RCS.cod = { ...res, file: file.name, invoice_no: inv }; RCS.filter.cod = null;
@@ -7189,7 +7214,8 @@ async function rcRunAudit(file) {
   if (!rows.length) throw new Error('The sheet is empty');
   rcStatus('audit', `${rows.length} rows read · matching AWBs to our orders…`);
   const keys = Object.keys(rows[0]), kA = keys.find(k => /^awb|awbno|tracking/i.test(k)), kR = keys.find(k => /crcrdref|custorderref|reference|order/i.test(k));
-  const lookup = await rcLookup(rows.map(r => String(r[kA] || '').replace(/\D/g, '')).filter(Boolean), kR ? rows.map(r => String(r[kR] || '').trim()).filter(x => /^\d{4,7}$/.test(x)) : [], 'audit');
+  const kD = keys.find(k => /pickupdt|pickup|date/i.test(k));
+  const lookup = await rcLookup(rows.map(r => String(r[kA] || '').replace(/\D/g, '')).filter(Boolean), kR ? rows.map(r => String(r[kR] || '').trim()).filter(x => /^\d{4,7}$/.test(x)) : [], 'audit', kD ? rcRangeOf(rows.map(r => RC.excelDate(r[kD]))) : null);
   const res = RC.checkAudit(rows, lookup, RCS.cfg);
   const dates = res.summary.dates || [], label = dates.length ? `${rcDay(dates[0])} → ${rcDay(dates[dates.length - 1])}` : file.name;
   RCS.audit = { ...res, file: file.name, label, rawRows: rows }; RCS.filter.audit = 'over';

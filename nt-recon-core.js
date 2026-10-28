@@ -121,7 +121,7 @@
   // AWB ownership check (after a lookup): marks lines we never shipped
   function applyLookup(result, lookup) {
     const by = (lookup && lookup.by_awb) || {}; let unknown = 0, cod = 0;
-    for (const l of result.lines) { const o = by[l.awb]; l.ours = !!o; if (o) { l.order = o.order_name; l.units = o.units; l.payment = o.payment; l.source = o.source; if (o.payment === 'cod') cod++; } else unknown++; }
+    for (const l of result.lines) { const o = by[l.awb]; l.ours = !!o; if (o) { l.order = o.order_name; l.units = o.units; l.payment = o.payment; l.source = o.source; l.custom = !!o.custom; if (o.payment === 'cod') cod++; } else unknown++; }
     result.summary.unknown_awb = unknown; result.summary.cod_lines = cod; result.summary.known_awb = result.lines.length - unknown;
     return result;
   }
