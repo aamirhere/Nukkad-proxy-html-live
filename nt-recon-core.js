@@ -118,7 +118,7 @@
     const summary = {
       invoice_no: parsed.invoice_no, invoice_date: parsed.invoice_date, product: parsed.product, cod: !!opts.cod, cod_fee: codFee || undefined, cod_fees: opts.cod ? round2(lines.reduce((s, l) => s + (l.fee || 0), 0)) : undefined, lines: lines.length, returns: lines.filter(l => l.ret).length,
       freight_lines: freightSum, freight_invoice: T.freight ?? null, freight_match: T.freight == null ? null : near(freightSum, T.freight, 1), surcharges: T.surcharges ?? null, gst: T.gst ?? null, grand: T.grand ?? null,
-      surcharge_pct: round2(surchargePct * 1000) / 10, multiplier, flagged: flagged.length, disputed: disputed.length, extra, impact: round2(extra * multiplier),
+      surcharge_pct: Math.round(surchargePct * 1000) / 10, multiplier, flagged: flagged.length, disputed: disputed.length, extra, impact: round2(extra * multiplier),
       by_issue: Object.values(by).sort((a, b) => b.extra - a.extra || b.n - a.n), learned: Object.keys(learned).length, unparsed: (parsed.unparsed || []).length, tiers_used: lines.reduce((m, l) => { if (l.tier) m[l.tier] = (m[l.tier] || 0) + 1; return m; }, {}),
     };
     return { lines, flagged, summary, learned, labels: ISSUES };
