@@ -225,6 +225,81 @@
     return { lines: out, flagged, summary, labels };
   }
 
-  const RC = { parseInvoicePdf, parseInvoiceSheet, checkInvoice, applyLookup, checkAudit, checkCod, ISSUES, normCity, excelDate };
+  // ---------- Bluedart billing detail sheet (one row per AWB with every charge component) ----------
+  const isBluedartDetail = rows => rows.length > 0 && 'CAWBNO' in rows[0] && 'NCHRGWT' in rows[0] && 'NFREIGHT' in rows[0];
+  function parseBluedartDetail(rows) {
+    const n = v => +v || 0;
+    const lines = []; let invoice_no = null, invoice_date = null;
+    rows.forEach((r, i) => {
+      const awb = String(r.CAWBNO || '').replace(/\D/g, ''); if (awb.length < 8) return;
+      if (!invoice_no && r.CINVOICENBR) invoice_no = String(r.CINVOICENBR).trim();
+      if (!invoice_date && r.DINVDATE) invoice_date = excelDate(r.DINVDATE);
+      const surch = n(r.PSS_CHARGE) + n(r.NFSAMT) + n(r.NCAFAMT) + n(r.NIDCCHGS) + n(r.EFSS_CHARGE);
+      const other = ['NNFORMCHGS', 'NADDISRCHG', 'NAWBFEES', 'NDCCHRG', 'NDOCCHRG', 'NDODAMT', 'NDVCHARGE', 'NECCCHGS', 'NELRSKCHGS', 'NHVPCCHGS', 'NMISCCHG1', 'NODACHRG', 'NOWSPCHGS', 'NRISKHCHGS', 'NTDDCHRG', 'NVALCHGS'].reduce((s, k) => s + n(r[k]), 0);
+      const dest = String(r.CDSTAREA || ''); const city = normCity(dest.includes('-') ? dest.slice(dest.indexOf('-') + 1) : dest);
+      lines.push({ sno: i + 1, awb, ref: String(r.CCRCRDREF || '').trim(), date: excelDate(r.DBATCHDT), dest: city, dest_code: dest.split('-')[0], product: String(r.CPRODCODE || ''), cod_product: String(r.CPRODCODE || '') === 'AC', act_wt: n(r.NACTWGT), wt: n(r.NCHRGWT), decl_val: n(r.NDECLVAL), pcs: n(r.NPCS) || 1, freight: n(r.NFREIGHT), surch, surch_pct: n(r.NFREIGHT) ? surch / n(r.NFREIGHT) : 0, cod_fee: n(r.NFODCHRG), ras: n(r.NNEWRAS), topay: n(r.NTOPAYAMT), other, total: n(r.NTOTAMOUNT), gst: n(r.GST), grand: n(r['Gr  Total'] ?? r['Gr Total'] ?? r.GRTOTAL), pin: String(r.DESTPINCODE || ''), ret: n(r.NFODCHRG) < 0 });
+    });
+    const sum = k => round2(lines.reduce((s, l) => s + l[k], 0));
+    return { kind: 'detail', invoice_no, invoice_date, product: 'Etail Air (billing detail)', lines, totals: { freight: sum('freight'), surcharges: sum('surch'), cod_fees: sum('cod_fee'), ras: sum('ras'), topay: sum('topay'), net: sum('total'), gst: sum('gst'), grand: sum('grand') }, unparsed: [] };
+  }
+  const DETAIL_ISSUES = { ok: 'OK', weight: 'Charged above our weight', fee50: '₹50 add-on (reverse-pickup fee) on a forward shipment', zone: 'Freight at a higher zone rate than the city', oda: 'Remote-area add-on ₹5 per slab — check', codfee: 'COD fee differs from ₹30 / % of declared value', prepaid: 'COD fee on an order that was prepaid', norate: 'No rate on file for this city', other: 'Other charge on the line — check', dup: 'AWB billed twice' };
+  const DETAIL_ADDON = new Set(['fee50', 'oda', 'codfee', 'prepaid', 'other']);
+  function checkDetail(parsed, cfg, lookup) {
+    const tiers = cfg.tiers, slab = +cfg.slab_kg || 0.5, piece = +cfg.piece_kg || 0.38, codFee = +cfg.cod_fee || 30, codPct = (+cfg.cod_pct || 0) / 100;
+    const by = (lookup && lookup.by_awb) || {}, byRef = (lookup && lookup.by_ref) || {};
+    const baseTier = per => { for (const t of [1, 2, 3, 4, 5]) if (near(per, tiers[t])) return +t; return null; };
+    const slabUp = kg => Math.ceil(kg / slab - 1e-9) * slab;
+    const learned = {}, seen = {};
+    for (const L of parsed.lines) {
+      const o = by[L.awb] || (L.ref && byRef[L.ref.replace(/^#/, '')]);
+      L.ours = !!o; if (o) { L.order = o.order_name; L.units = o.units; L.payment = o.payment; L.source = o.source; L.custom = !!o.custom; L.value = o.value; }
+      const slabs = Math.max(1, Math.round(L.wt / slab)); const per = round2(L.freight / slabs);
+      const billedTier = baseTier(per);
+      let tier = tierFor(L.dest, cfg) || learned[L.dest] || null;
+      if (!tier && billedTier) { learned[L.dest] = billedTier; tier = billedTier; }
+      const rate = tier ? tiers[tier] : (billedTier ? tiers[billedTier] : per);
+      // our weight: pieces we shipped × piece weight, never below Bluedart's own actual weight, up to the slab
+      const ourKg = Math.max(L.units ? L.units * piece : 0, L.act_wt || 0, piece);
+      const correct_wt = Math.min(L.wt, slabUp(ourKg)); const correctSlabs = Math.max(1, Math.round(correct_wt / slab));
+      const notes = []; let issue = 'ok', extra = 0, impact = 0;
+      const mult = (1 + L.surch_pct) * (1 + (L.total ? L.gst / L.total : 0.18)), gstMult = 1 + (L.total ? L.gst / L.total : 0.18);
+      // 1. weight
+      if (L.wt > correct_wt + 1e-9) { const e = round2((slabs - correctSlabs) * rate); issue = 'weight'; extra += e; impact += e * mult; notes.push(`charged ${L.wt} kg, ours ${correct_wt} kg (${L.units ? L.units + ' pc' : 'their actual ' + L.act_wt + ' kg'})`); }
+      // 2. zone
+      if (tier && billedTier && billedTier !== tier && tiers[billedTier] > tiers[tier]) { const e = round2((tiers[billedTier] - tiers[tier]) * correctSlabs); if (issue === 'ok') issue = 'zone'; extra += e; impact += e * mult; notes.push(`freight at ₹${tiers[billedTier]} (${cfg.tier_names ? cfg.tier_names[billedTier] : 'tier ' + billedTier}) instead of ₹${tiers[tier]}`); }
+      else if (!billedTier) { if (issue === 'ok') issue = 'norate'; notes.push(`freight ₹${per} per slab matches no rate`); }
+      // 3. the ₹50
+      if (L.topay > 0 && !L.ret) { if (issue === 'ok') issue = 'fee50'; extra += L.topay; impact += L.topay * gstMult; notes.push(`₹${L.topay} to-pay add-on`); }
+      // 4. remote-area add-on
+      if (L.ras > 0) { if (issue === 'ok') issue = 'oda'; notes.push(`₹${L.ras} remote-area surcharge`); }
+      // 5. COD fee
+      if (L.cod_product && !L.ret) {
+        const want = round2(Math.max(codFee, codPct * L.decl_val));
+        if (L.payment && L.payment !== 'cod') { if (issue === 'ok') issue = 'prepaid'; extra += L.cod_fee; impact += L.cod_fee * gstMult; notes.push(`COD fee ₹${L.cod_fee} but ${L.order} was prepaid`); }
+        else if (!near(L.cod_fee, want)) { if (issue === 'ok') issue = 'codfee'; const e = round2(L.cod_fee - want); if (e > 0) { extra += e; impact += e * gstMult; } notes.push(`COD fee ₹${L.cod_fee}, expected ₹${want} on declared ₹${L.decl_val}`); }
+      }
+      // 6. anything else on the line
+      if (Math.abs(L.other) > 0.01) { if (issue === 'ok') issue = 'other'; extra += Math.max(0, L.other); impact += Math.max(0, L.other) * gstMult; notes.push(`other charges ₹${round2(L.other)}`); }
+      const key = L.awb + (L.ret ? ':R' : ':F'); if (seen[key]) { issue = 'dup'; extra = L.total; impact = L.total * gstMult; notes.unshift(`also billed as S.no ${seen[key]}`); } else seen[key] = L.sno;
+      Object.assign(L, { slabs, per, tier, base: rate, billed_tier: billedTier, correct_wt, our_kg: round2(ourKg), amount: round2(L.freight + L.cod_fee + L.ras + L.topay + L.other), expected: round2(L.freight + L.cod_fee + L.ras + L.topay + L.other - extra), diff: round2(extra), issue, extra: round2(extra), impact: round2(impact), note: notes.join(' · ') });
+    }
+    const lines = parsed.lines, T = parsed.totals;
+    const byI = {}; for (const l of lines) { const b = (byI[l.issue] ||= { issue: l.issue, label: DETAIL_ISSUES[l.issue], n: 0, extra: 0, impact: 0, gst_only: DETAIL_ADDON.has(l.issue) }); b.n++; if (l.issue !== 'ok' && l.issue !== 'oda' && l.issue !== 'norate') { b.extra = round2(b.extra + l.extra); b.impact = round2(b.impact + l.impact); } }
+    const disputed = lines.filter(l => l.extra > 0 && !['oda', 'norate'].includes(l.issue));
+    const over = lines.filter(l => l.wt > l.correct_wt + 1e-9);
+    const summary = {
+      invoice_no: parsed.invoice_no, invoice_date: parsed.invoice_date, product: parsed.product, detail: true, lines: lines.length, returns: lines.filter(l => l.ret).length, cod_product_lines: lines.filter(l => l.cod_product).length,
+      freight_lines: T.freight, freight_invoice: T.freight, freight_match: true, surcharges: T.surcharges, gst: T.gst, grand: T.grand, net: T.net, cod_fees: T.cod_fees, topay: T.topay, ras: T.ras,
+      surcharge_pct: T.freight ? Math.round(T.surcharges / T.freight * 1000) / 10 : null, multiplier: T.freight ? round2((1 + T.surcharges / T.freight) * (1 + (T.net ? T.gst / T.net : 0.18)) * 100) / 100 : null, gst_mult: 1.18,
+      flagged: lines.filter(l => l.issue !== 'ok').length, disputed: disputed.length, extra: round2(disputed.reduce((s, l) => s + l.extra, 0)), impact: round2(disputed.reduce((s, l) => s + l.impact, 0)),
+      extra_addon: round2(disputed.reduce((s, l) => s + (DETAIL_ADDON.has(l.issue) ? l.extra : 0), 0)), impact_addon: round2(disputed.reduce((s, l) => s + (DETAIL_ADDON.has(l.issue) ? l.impact : 0), 0)),
+      weight_over: over.length, kg_over: round2(over.reduce((s, l) => s + l.wt - l.correct_wt, 0)), weight_extra: round2(over.reduce((s, l) => s + (l.slabs - Math.round(l.correct_wt / slab)) * l.base, 0)),
+      known_awb: lines.filter(l => l.ours).length, unknown_awb: lines.filter(l => !l.ours).length, learned: Object.keys(learned).length, by_issue: Object.values(byI).sort((a, b) => b.impact - a.impact || b.n - a.n),
+    };
+    summary.extra_freight = round2(summary.extra - summary.extra_addon); summary.impact_freight = round2(summary.impact - summary.impact_addon);
+    return { lines, flagged: lines.filter(l => l.issue !== 'ok'), summary, learned, labels: DETAIL_ISSUES };
+  }
+
+  const RC = { isBluedartDetail, parseBluedartDetail, checkDetail, DETAIL_ISSUES, parseInvoicePdf, parseInvoiceSheet, checkInvoice, applyLookup, checkAudit, checkCod, ISSUES, normCity, excelDate };
   if (typeof module !== 'undefined' && module.exports) module.exports = RC; else root.RC = RC;
 })(typeof window !== 'undefined' ? window : globalThis);
