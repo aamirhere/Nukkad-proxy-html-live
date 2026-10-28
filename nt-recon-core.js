@@ -174,7 +174,7 @@
   function checkAudit(rows, lookup, cfg) {
     if (!rows.length) throw new Error('The sheet is empty');
     const keys = Object.keys(rows[0]);
-    const c = { awb: findCol(keys, /^awb|awbno|tracking/i), ref: findCol(keys, /crcrdref|custorderref|reference|order/i), preact: findCol(keys, /preactwt|declared|booked/i), applied: findCol(keys, /^billedwt/i) || findCol(keys, /audchargwt|charg/i), audact: findCol(keys, /audactwt/i), audvol: findCol(keys, /audvolwt/i), ln: findCol(keys, /^ln$|length/i), bd: findCol(keys, /^bd$|breadth|width/i), ht: findCol(keys, /^ht$|height/i), item: findCol(keys, /commodity|description|item/i), date: findCol(keys, /pickupdt|pickup|date/i), flag: findCol(keys, /corflg|reason/i), img: findCol(keys, /cloudurl|image|photo/i) };
+    const c = { awb: findCol(keys, /^awb|awbno|tracking/i), ref: findCol(keys, /crcrdref|custorderref|reference|order/i), preact: findCol(keys, /preactwt|declared|booked/i), applied: findCol(keys, /^billedwt/i) || findCol(keys, /audchargwt|charg/i), audact: findCol(keys, /audactwt/i), audvol: findCol(keys, /audvolwt/i), ln: findCol(keys, /^ln$|length/i), bd: findCol(keys, /^bd$|breadth|width/i), ht: findCol(keys, /^ht$|height/i), item: findCol(keys, /commodity|description|item/i), date: findCol(keys, /pickupdt|pickup|batchdt|batch/i) || keys.find(k => /date|dt$/i.test(k) && !/inv/i.test(k)), flag: findCol(keys, /corflg|reason/i), img: findCol(keys, /cloudurl|image|photo/i) };
     if (!c.awb || !c.applied) throw new Error('Could not find the AWB and charged-weight columns');
     const piece = +cfg.piece_kg || 0.38, slab = +cfg.slab_kg || 0.5, byAwb = (lookup && lookup.by_awb) || {}, byRef = (lookup && lookup.by_ref) || {};
     const slabsOf = kg => Math.ceil(kg / slab - 1e-9) * slab;

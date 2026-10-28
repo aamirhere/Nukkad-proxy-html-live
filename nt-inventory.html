@@ -7032,7 +7032,7 @@ document.addEventListener('click', e => {
 const RCS = { cfg: null, tab: 'invoice', runs: null, months: null, inv: null, cod: null, codinv: null, audit: null, filter: {} };
 const rcLoaded = {};
 function rcScript(src) { if (rcLoaded[src]) return rcLoaded[src]; rcLoaded[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); return rcLoaded[src]; }
-const rcCore = () => rcScript('nt-recon-core.js?v=5');
+const rcCore = () => rcScript('nt-recon-core.js?v=6');
 const rcXlsx = () => rcScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
 async function rcPdf() { await rcScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; return window.pdfjsLib; }
 const rcInr = n => n == null ? '—' : '₹' + Math.round(+n).toLocaleString('en-IN');
@@ -7289,6 +7289,8 @@ async function rcDownloadCod() {
 async function rcRunAudit(file) {
   const rows = await rcReadSheetRows(file);
   if (!rows.length) throw new Error('The sheet is empty');
+  // the billing detail sheet belongs to the Invoice tab: send it there instead of reading it as an audit
+  if (RC.isBluedartDetail(rows)) { rcStatus('audit', 'This is Bluedart\'s billing detail sheet, not an audit file — it has been run on the Invoice tab.'); rcTab('invoice'); return rcRunDetail(file, rows); }
   rcStatus('audit', `${rows.length} rows read · matching AWBs to our orders…`);
   const keys = Object.keys(rows[0]), kA = keys.find(k => /^awb|awbno|tracking/i.test(k)), kR = keys.find(k => /crcrdref|custorderref|reference|order/i.test(k));
   const kD = keys.find(k => /pickupdt|pickup|date/i.test(k));
