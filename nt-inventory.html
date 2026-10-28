@@ -7267,6 +7267,9 @@ async function rcRunAudit(file) {
   const kD = keys.find(k => /pickupdt|pickup|date/i.test(k));
   const lookup = await rcLookup(rows.map(r => String(r[kA] || '').replace(/\D/g, '')).filter(Boolean), kR ? rows.map(r => String(r[kR] || '').trim()).filter(x => /^\d{4,7}$/.test(x)) : [], 'audit', kD ? rcRangeOf(rows.map(r => RC.excelDate(r[kD]))) : null);
   const res = RC.checkAudit(rows, lookup, RCS.cfg);
+  // sanity: a charged-weight column is in slabs; anything else means the wrong column was read
+  const slab = +RCS.cfg.slab_kg || 0.5, inSlabs = res.rows.filter(x => Math.abs(x.applied / slab - Math.round(x.applied / slab)) < 0.01).length;
+  if (res.rows.length && inSlabs / res.rows.length < 0.7) throw new Error(`The column read as charged weight ("${res.columns.applied}") is not in ${slab} kg slabs — this file has a different layout. Columns read: ${Object.entries(res.columns).filter(([, v]) => v).map(([k, v]) => k + ' = ' + v).join(', ')}. Share this file so its layout can be added.`);
   const dates = res.summary.dates || [], label = dates.length ? `${rcDay(dates[0])} → ${rcDay(dates[dates.length - 1])}` : file.name;
   RCS.audit = { ...res, file: file.name, label, rawRows: rows }; RCS.filter.audit = 'over';
   rcRenderAudit();
@@ -7281,6 +7284,7 @@ function rcRenderAudit() {
   out.innerHTML = `
     <div class="rc-hd"><b>Weight audit</b><span>${rcEsc(R.label || '')}</span><span>${S.rows} parcels</span><span>our weight ${RCS.cfg.piece_kg} kg a piece, slabs of ${RCS.cfg.slab_kg} kg</span></div>
     ${rcTiles([[S.rows, 'Parcels audited'], [S.over, 'Charged above our weight', `${S.exact} correct · ${S.under} below`], [S.kg_over + ' kg', 'Weight over', `${S.slabs_over} slabs of ${RCS.cfg.slab_kg} kg`], [rcInr(S.est_freight), 'Freight at stake', `at ₹${RCS.cfg.avg_rate} per slab`], [rcInr(S.est_impact), 'Real impact', `× ${RCS.cfg.multiplier} with surcharges + GST`]])}
+    ${R.columns ? `<div class="rc-note">Columns read: ${Object.entries(R.columns).filter(([, v]) => v).map(([k, v]) => `${k} = <b>${rcEsc(v)}</b>`).join(' · ')}</div>` : ''}
     ${S.basis ? `<div class="rc-note">Correct weight basis: ${Object.entries(S.basis).map(([k, n]) => `${k} ${n}`).join(' · ')}${S.custom_over ? ` · ${S.custom_over} of the over-charged parcels carried a custom piece` : ''}</div>` : ''}
     <div class="rc-chips">${[['over', 'Charged over', S.over], ['under', 'Charged below', S.under], ['all', 'All parcels', S.rows]].map(([k, l, n]) => `<span class="rc-chip ${f === k ? 'on' : ''}" onclick="RCS.filter.audit='${k}';rcRenderAudit()"><span class="rc-pill ${k === 'over' ? 'red' : k === 'under' ? 'grn' : ''}">${n}</span> ${l}</span>`).join('')}</div>
     <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadAudit()" ${R.rawRows ? '' : 'disabled title="Re-upload the file to download it filled in"'}>⬇ Their file with applied / correct / difference filled</button><button class="btn btn-ghost" onclick="rcDownloadAudit(true)">⬇ Over-charged parcels only</button></div>
