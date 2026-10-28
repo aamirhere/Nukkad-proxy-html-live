@@ -81,6 +81,28 @@
     const hit = Object.keys(o).find(k => k.startsWith(city) || city.startsWith(k)) || Object.keys(s).find(k => k.length >= 5 && (k.startsWith(city) || city.startsWith(k)));
     return hit ? +(o[hit] || s[hit]) : null;
   }
+  // Add-ons (the ₹50, the ₹5, COD fees) carry GST but none of the percentage surcharges — the August invoices
+  // show IDC, EFSS, fuel and CAF computed on base freight only. Base-freight errors carry everything.
+  const GST_ONLY = new Set(['fee50', 'oda', 'prepaid']);
+  function retotal(lines, summary) {
+    const by = {};
+    for (const l of lines) {
+      const disp = DISPUTE.has(l.issue);
+      l.impact = disp ? round2(l.extra * (GST_ONLY.has(l.issue) ? summary.gst_mult : summary.multiplier)) : 0;
+      const b = (by[l.issue] ||= { issue: l.issue, label: ISSUES[l.issue], n: 0, extra: 0, impact: 0, gst_only: GST_ONLY.has(l.issue) });
+      b.n++; if (disp) { b.extra = round2(b.extra + l.extra); b.impact = round2(b.impact + l.impact); }
+    }
+    const disputed = lines.filter(l => DISPUTE.has(l.issue));
+    summary.by_issue = Object.values(by).sort((a, b) => b.impact - a.impact || b.n - a.n);
+    summary.flagged = lines.filter(l => l.issue !== 'ok').length; summary.disputed = disputed.length;
+    summary.extra = round2(disputed.reduce((s, l) => s + l.extra, 0));
+    summary.extra_addon = round2(disputed.filter(l => GST_ONLY.has(l.issue)).reduce((s, l) => s + l.extra, 0));
+    summary.extra_freight = round2(summary.extra - summary.extra_addon);
+    summary.impact_addon = round2(disputed.filter(l => GST_ONLY.has(l.issue)).reduce((s, l) => s + l.impact, 0));
+    summary.impact_freight = round2(disputed.filter(l => !GST_ONLY.has(l.issue)).reduce((s, l) => s + l.impact, 0));
+    summary.impact = round2(summary.impact_addon + summary.impact_freight);
+    return summary;
+  }
   function checkInvoice(parsed, cfg, opts = {}) {
     const tiers = cfg.tiers, slab = cfg.slab_kg || 0.5, learned = {}, seen = {}, lines = [];
     // COD invoice: the COD fee rides on every forward line and is handed back on a return (RTO) line
@@ -110,17 +132,15 @@
     const T = parsed.totals || {}; const freightSum = round2(lines.reduce((s, l) => s + l.amount, 0));
     const surchargePct = T.freight ? (T.surcharges || 0) / T.freight : (cfg.multiplier / 1.18 - 1);
     const gstPct = T.net ? (T.gst || 0) / T.net : 0.18;
-    const multiplier = round2((1 + surchargePct) * (1 + gstPct) * 100) / 100;
-    const by = {}; for (const l of lines) { const b = (by[l.issue] ||= { issue: l.issue, label: ISSUES[l.issue], n: 0, extra: 0 }); b.n++; b.extra = round2(b.extra + (DISPUTE.has(l.issue) ? l.extra : 0)); }
-    const flagged = lines.filter(l => l.issue !== 'ok');
-    const disputed = lines.filter(l => DISPUTE.has(l.issue));
-    const extra = round2(disputed.reduce((s, l) => s + l.extra, 0));
+    const multiplier = round2((1 + surchargePct) * (1 + gstPct) * 100) / 100, gst_mult = round2((1 + gstPct) * 100) / 100;
     const summary = {
       invoice_no: parsed.invoice_no, invoice_date: parsed.invoice_date, product: parsed.product, cod: !!opts.cod, cod_fee: codFee || undefined, cod_fees: opts.cod ? round2(lines.reduce((s, l) => s + (l.fee || 0), 0)) : undefined, lines: lines.length, returns: lines.filter(l => l.ret).length,
       freight_lines: freightSum, freight_invoice: T.freight ?? null, freight_match: T.freight == null ? null : near(freightSum, T.freight, 1), surcharges: T.surcharges ?? null, gst: T.gst ?? null, grand: T.grand ?? null,
-      surcharge_pct: Math.round(surchargePct * 1000) / 10, multiplier, flagged: flagged.length, disputed: disputed.length, extra, impact: round2(extra * multiplier),
-      by_issue: Object.values(by).sort((a, b) => b.extra - a.extra || b.n - a.n), learned: Object.keys(learned).length, unparsed: (parsed.unparsed || []).length, tiers_used: lines.reduce((m, l) => { if (l.tier) m[l.tier] = (m[l.tier] || 0) + 1; return m; }, {}),
+      surcharge_pct: Math.round(surchargePct * 1000) / 10, multiplier, gst_mult,
+      learned: Object.keys(learned).length, unparsed: (parsed.unparsed || []).length, tiers_used: lines.reduce((m, l) => { if (l.tier) m[l.tier] = (m[l.tier] || 0) + 1; return m; }, {}),
     };
+    retotal(lines, summary);
+    const flagged = lines.filter(l => l.issue !== 'ok');
     return { lines, flagged, summary, learned, labels: ISSUES };
   }
   // AWB ownership check (after a lookup): marks lines we never shipped
@@ -141,12 +161,8 @@
     }
     result.summary.unknown_awb = unknown; result.summary.cod_lines = cod; result.summary.known_awb = result.lines.length - unknown;
     // re-total after the lookup moved lines between categories
-    const by2 = {}; for (const l of result.lines) { const b = (by2[l.issue] ||= { issue: l.issue, label: ISSUES[l.issue], n: 0, extra: 0 }); b.n++; b.extra = round2(b.extra + (DISPUTE.has(l.issue) ? l.extra : 0)); }
+    retotal(result.lines, result.summary);
     result.flagged = result.lines.filter(l => l.issue !== 'ok');
-    const disputed = result.lines.filter(l => DISPUTE.has(l.issue));
-    result.summary.by_issue = Object.values(by2).sort((a, b) => b.extra - a.extra || b.n - a.n);
-    result.summary.flagged = result.flagged.length; result.summary.disputed = disputed.length;
-    result.summary.extra = round2(disputed.reduce((s, l) => s + l.extra, 0)); result.summary.impact = round2(result.summary.extra * result.summary.multiplier);
     return result;
   }
 
