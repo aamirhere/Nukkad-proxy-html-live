@@ -7084,13 +7084,14 @@ async function rcHandleFile(kind, file) {
     else await rcRunAudit(file);
   } catch (e) { console.error(e); rcStatus(kind, 'Failed: ' + e.message, true); }
 }
-async function rcLookup(awbs, refs) {
+async function rcLookup(awbs, refs, kind) {
   const out = { by_awb: {}, by_ref: {} };
   const A = [...new Set(awbs)], R = [...new Set(refs || [])];
-  for (let i = 0; i < Math.max(A.length, R.length, 1); i += 1200) {
-    const r = await api({ action: 'courier_lookup', awbs: A.slice(i, i + 1200), refs: R.slice(i, i + 1200) });
-    Object.assign(out.by_awb, r.by_awb || {}); Object.assign(out.by_ref, r.by_ref || {});
-  }
+  const batches = []; const N = 300;
+  for (let i = 0; i < Math.max(A.length, R.length, 1); i += N) batches.push({ awbs: A.slice(i, i + N), refs: R.slice(i, i + N) });
+  let done = 0;
+  const one = async (b, tries = 0) => { try { const r = await api({ action: 'courier_lookup', ...b }); Object.assign(out.by_awb, r.by_awb || {}); Object.assign(out.by_ref, r.by_ref || {}); } catch (e) { if (tries < 1) return one(b, tries + 1); throw e; } done++; if (kind) rcStatus(kind, `Matching AWBs to our orders… ${Math.min(A.length, done * N)} of ${A.length}`); };
+  for (let i = 0; i < batches.length; i += 3) await Promise.all(batches.slice(i, i + 3).map(b => one(b)));
   return out;
 }
 
@@ -7101,7 +7102,7 @@ async function rcRunInvoice(file) {
   rcStatus('invoice', `${parsed.lines.length} lines read · checking rates…`);
   const res = RC.checkInvoice(parsed, RCS.cfg);
   rcStatus('invoice', `${parsed.lines.length} lines checked · matching AWBs to our orders…`);
-  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb))); } catch (e) { res.summary.lookup_error = e.message; }
+  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb), [], 'invoice')); } catch (e) { res.summary.lookup_error = e.message; }
   RCS.inv = { ...res, file: file.name, parsed };
   RCS.filter.invoice = null;
   rcRenderInvoice();
@@ -7152,7 +7153,7 @@ async function rcRunCod(file) {
   if (!rows.length) throw new Error('The sheet is empty');
   rcStatus('cod', `${rows.length} rows read · matching AWBs to our orders…`);
   const awbs = []; for (const r of rows) for (const v of Object.values(r)) { const s = String(v || '').replace(/\D/g, ''); if (s.length >= 8 && s.length <= 14 && /^\d{8,14}$/.test(String(v).trim())) { awbs.push(s); break; } }
-  const lookup = await rcLookup(awbs);
+  const lookup = await rcLookup(awbs, [], 'cod');
   const res = RC.checkCod(rows, lookup, RCS.cfg);
   const inv = document.getElementById('rcCodInv').value.trim();
   RCS.cod = { ...res, file: file.name, invoice_no: inv }; RCS.filter.cod = null;
@@ -7188,7 +7189,7 @@ async function rcRunAudit(file) {
   if (!rows.length) throw new Error('The sheet is empty');
   rcStatus('audit', `${rows.length} rows read · matching AWBs to our orders…`);
   const keys = Object.keys(rows[0]), kA = keys.find(k => /^awb|awbno|tracking/i.test(k)), kR = keys.find(k => /crcrdref|custorderref|reference|order/i.test(k));
-  const lookup = await rcLookup(rows.map(r => String(r[kA] || '').replace(/\D/g, '')).filter(Boolean), kR ? rows.map(r => String(r[kR] || '').trim()).filter(x => /^\d{4,7}$/.test(x)) : []);
+  const lookup = await rcLookup(rows.map(r => String(r[kA] || '').replace(/\D/g, '')).filter(Boolean), kR ? rows.map(r => String(r[kR] || '').trim()).filter(x => /^\d{4,7}$/.test(x)) : [], 'audit');
   const res = RC.checkAudit(rows, lookup, RCS.cfg);
   const dates = res.summary.dates || [], label = dates.length ? `${rcDay(dates[0])} → ${rcDay(dates[dates.length - 1])}` : file.name;
   RCS.audit = { ...res, file: file.name, label, rawRows: rows }; RCS.filter.audit = 'over';
