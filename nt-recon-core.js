@@ -137,6 +137,10 @@
       invoice_no: parsed.invoice_no, invoice_date: parsed.invoice_date, product: parsed.product, cod: !!opts.cod, cod_fee: codFee || undefined, cod_fees: opts.cod ? round2(lines.reduce((s, l) => s + (l.fee || 0), 0)) : undefined, lines: lines.length, returns: lines.filter(l => l.ret).length,
       freight_lines: freightSum, freight_invoice: T.freight ?? null, freight_match: T.freight == null ? null : near(freightSum, T.freight, 1), surcharges: T.surcharges ?? null, gst: T.gst ?? null, grand: T.grand ?? null,
       surcharge_pct: Math.round(surchargePct * 1000) / 10, multiplier, gst_mult,
+      // anything in Net Amount that the summary page does not itemise (September carried a 5% PSS this way)
+      unlisted: T.net != null && T.freight != null ? round2(T.net - T.freight - (T.surcharges || 0)) : null,
+      base_freight: round2(lines.reduce((s, l) => s + (l.base != null ? l.base * l.slabs : 0), 0)),
+      rates_of_base: (() => { const b = lines.reduce((s, l) => s + (l.base != null ? l.base * l.slabs : 0), 0); return b ? { idc: round2((T.idc || 0) / b * 100), efss: round2((T.efss || 0) / b * 100), fuel: round2((T.fuel || 0) / b * 100), caf: round2((T.caf || 0) / b * 100) } : null; })(),
       learned: Object.keys(learned).length, unparsed: (parsed.unparsed || []).length, tiers_used: lines.reduce((m, l) => { if (l.tier) m[l.tier] = (m[l.tier] || 0) + 1; return m; }, {}),
     };
     retotal(lines, summary);
