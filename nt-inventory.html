@@ -1944,6 +1944,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <button class="rc-tab" data-tab="cod" onclick="rcTab('cod')">💰 COD charges</button>
     <button class="rc-tab" data-tab="audit" onclick="rcTab('audit')">⚖️ Weight audit</button>
     <button class="rc-tab" data-tab="history" onclick="rcTab('history')">🗂 History</button>
+    <button class="rc-tab" data-tab="months" onclick="rcTab('months')">📅 Shipway months</button>
     <button class="rc-tab" data-tab="settings" onclick="rcTab('settings')">⚙ Rates &amp; settings</button>
   </div>
 
@@ -1977,6 +1978,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 
   <div class="rc-pane" id="rc-history"><div id="rcHistory"><div class="loading-row" style="height:50px;border-radius:10px"></div></div></div>
 
+  <div class="rc-pane" id="rc-months"><div id="rcMonths"></div></div>
   <div class="rc-pane" id="rc-settings"><div id="rcSettings"></div></div>
 </div>
 
@@ -7027,7 +7029,7 @@ document.addEventListener('click', e => {
 });
 
 // ── WEIGHT / INVOICE RECONCILIATION ──────────────────────────────────────────
-const RCS = { cfg: null, tab: 'invoice', runs: null, inv: null, cod: null, audit: null, filter: {} };
+const RCS = { cfg: null, tab: 'invoice', runs: null, months: null, inv: null, cod: null, audit: null, filter: {} };
 const rcLoaded = {};
 function rcScript(src) { if (rcLoaded[src]) return rcLoaded[src]; rcLoaded[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); return rcLoaded[src]; }
 const rcCore = () => rcScript('nt-recon-core.js?v=1');
@@ -7055,6 +7057,7 @@ function rcTab(t) {
   document.querySelectorAll('.rc-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   document.querySelectorAll('.rc-pane').forEach(p => p.classList.toggle('on', p.id === 'rc-' + t));
   if (t === 'history') rcLoadHistory();
+  if (t === 'months') rcRenderMonths();
   if (t === 'settings') rcRenderSettings();
   if (t === 'cod' && RCS.inv && RCS.inv.summary && !document.getElementById('rcCodInv').value) document.getElementById('rcCodInv').value = RCS.inv.summary.invoice_no || '';
 }
@@ -7104,19 +7107,49 @@ async function rcLookup(awbs, refs, kind, range) {
   }
   return out;
 }
+const rcMonthsBetween = (from, to) => { const out = []; let m = from.slice(0, 7); while (m <= to.slice(0, 7)) { out.push(m); const d = new Date(m + '-01T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + 1); m = d.toISOString().slice(0, 7); } return out; };
+const rcMonthName = m => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 async function rcShipwayFill(range, kind, n) {
-  try {
-    const idx = await api({ action: 'courier_shipway_indexed' });
-    const fresh = (idx.ranges || []).some(r => r.from <= range.from && r.to >= range.to && Date.now() - new Date(r.at) < 7 * 86400e3);
-    if (fresh) return true;
-  } catch {}
+  let have = {};
+  try { for (const m of ((await api({ action: 'courier_shipway_months' })).months || [])) have[m.month] = m; } catch {}
+  const today = todayIST();
+  const need = rcMonthsBetween(range.from, range.to).filter(m => m <= today.slice(0, 7)).filter(m => { const h = have[m]; if (!h || !h.indexed_at) return true; if (h.complete) return false; return Date.now() - new Date(h.indexed_at) > 86400e3; });
+  if (!need.length) return true;
+  for (const m of need) {
+    let page = 1;
+    while (page && page <= 120) {
+      rcStatus(kind, `${n} AWBs are not on the rack · reading Shipway bookings for ${rcMonthName(m)}, page ${page}…`);
+      let r; try { r = await api({ action: 'courier_shipway_month', month: m, page }); } catch (e) { rcStatus(kind, 'Shipway read failed: ' + e.message, true); return true; }
+      page = r.next;
+    }
+  }
+  RCS.months = null;
+  return true;
+}
+
+// ---------- Shipway months ----------
+async function rcRenderMonths() {
+  const el = document.getElementById('rcMonths');
+  if (!RCS.months) { el.innerHTML = '<div class="loading-row" style="height:50px;border-radius:10px"></div>'; try { RCS.months = (await api({ action: 'courier_shipway_months' })).months || []; } catch (e) { el.innerHTML = `<div class="cut-empty" style="color:var(--red)">${rcEsc(e.message)}</div>`; return; } }
+  const M = RCS.months, years = [...new Set(M.map(m => m.month.slice(0, 4)))].sort().reverse();
+  const cur = todayIST().slice(0, 7);
+  el.innerHTML = `
+    <div class="rc-note">Every parcel Shipway booked, kept month by month. A month is read from Shipway once; the invoice, COD and audit checks use it to name the order behind any AWB, custom pieces included. Months still running are re-read when older than a day.</div>
+    <div class="rc-row"><span style="font-weight:700">Read a month</span><input type="month" id="rcMonthPick" value="${cur}" max="${cur}"><button class="btn btn-primary" onclick="rcIndexMonth(document.getElementById('rcMonthPick').value)">Read from Shipway</button><span class="rc-note" id="rcMonthMsg" style="margin:0"></span></div>
+    ${years.length ? years.map(y => `<h3 style="margin:14px 0 6px;font-size:.95rem">${y}</h3><div class="rc-wrap"><table class="rc-tbl" style="min-width:560px"><tr><th>Month</th><th>Bookings</th><th>COD</th><th>Custom</th><th>Amazon</th><th>Read on</th><th></th></tr>
+      ${M.filter(m => m.month.startsWith(y)).map(m => `<tr><td><b>${rcMonthName(m.month)}</b></td><td class="n">${m.orders.toLocaleString('en-IN')}</td><td class="n">${m.cod}</td><td class="n">${m.custom}</td><td class="n">${m.amazon}</td><td>${m.indexed_at ? new Date(m.indexed_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + (m.complete ? '' : ' <span class="rc-pill amb">still running</span>') : '<span class="rc-pill amb">partial</span>'}</td><td><button class="btn btn-ghost" style="padding:3px 9px;font-size:.72rem" onclick="rcIndexMonth('${m.month}')">↻ Re-read</button></td></tr>`).join('')}</table></div>`).join('') : '<div class="cut-empty">No months read yet. Pick a month above, or just drop an invoice: the months it needs are read on their own.</div>'}`;
+}
+async function rcIndexMonth(m) {
+  if (!/^\d{4}-\d{2}$/.test(m || '')) return;
+  const msg = document.getElementById('rcMonthMsg');
   let page = 1, stored = 0;
   while (page && page <= 120) {
-    rcStatus(kind, `${n} AWBs are not on the rack · reading Shipway bookings ${rcDay(range.from)} → ${rcDay(range.to)}, page ${page}…`);
-    let r; try { r = await api({ action: 'courier_shipway_page', date_from: range.from, date_to: range.to, page }); } catch (e) { rcStatus(kind, 'Shipway read failed: ' + e.message, true); return stored > 0; }
+    if (msg) msg.textContent = `Reading ${rcMonthName(m)} from Shipway, page ${page}…`;
+    let r; try { r = await api({ action: 'courier_shipway_month', month: m, page }); } catch (e) { if (msg) msg.textContent = 'Failed: ' + e.message; return; }
     stored += r.stored || 0; page = r.next;
   }
-  return true;
+  if (msg) msg.textContent = `${rcMonthName(m)}: ${stored} bookings read`;
+  RCS.months = null; rcRenderMonths();
 }
 
 // ---------- invoice ----------
