@@ -1960,7 +1960,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div class="rc-pane" id="rc-cod">
     <div class="rc-row"><span style="font-weight:700">Invoice number</span><input id="rcCodInv" placeholder="e.g. 2026807R00005642" style="width:200px"><span class="rc-note" style="margin:0">COD charges are saved against this invoice so the two overviews stay together.</span></div>
     <div class="rc-drop" id="rcDropCod" onclick="document.getElementById('rcFileCod').click()">
-      <b>Drop the COD charges sheet here</b><span>Excel or CSV with an AWB column and the charge per shipment · checked against which orders were really COD</span>
+      <b>Drop the Bluedart COD invoice here (PDF)</b><span>or a COD charges sheet (Excel / CSV) · freight + COD fee checked per line, RTO legs hand the fee back, prepaid orders flagged</span>
       <input type="file" id="rcFileCod" accept=".xlsx,.xls,.csv,.pdf" onchange="rcHandleFile('cod', this.files[0]); this.value=''">
     </div>
     <div class="rc-status" id="rcStatusCod"></div>
@@ -7029,7 +7029,7 @@ document.addEventListener('click', e => {
 });
 
 // ── WEIGHT / INVOICE RECONCILIATION ──────────────────────────────────────────
-const RCS = { cfg: null, tab: 'invoice', runs: null, months: null, inv: null, cod: null, audit: null, filter: {} };
+const RCS = { cfg: null, tab: 'invoice', runs: null, months: null, inv: null, cod: null, codinv: null, audit: null, filter: {} };
 const rcLoaded = {};
 function rcScript(src) { if (rcLoaded[src]) return rcLoaded[src]; rcLoaded[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); return rcLoaded[src]; }
 const rcCore = () => rcScript('nt-recon-core.js?v=1');
@@ -7159,7 +7159,7 @@ async function rcRunInvoice(file) {
   rcStatus('invoice', `${parsed.lines.length} lines read · checking rates…`);
   const res = RC.checkInvoice(parsed, RCS.cfg);
   rcStatus('invoice', `${parsed.lines.length} lines checked · matching AWBs to our orders…`);
-  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb), [], 'invoice', rcRangeOf(res.lines.map(l => l.date)))); } catch (e) { res.summary.lookup_error = e.message; }
+  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb), [], 'invoice', rcRangeOf(res.lines.map(l => l.date))), { other_lines: (RCS.codinv && RCS.codinv.lines) || [], other_no: RCS.codinv && RCS.codinv.summary.invoice_no }); } catch (e) { res.summary.lookup_error = e.message; }
   RCS.inv = { ...res, file: file.name, parsed };
   RCS.filter.invoice = null;
   rcRenderInvoice();
@@ -7173,40 +7173,41 @@ async function rcRunInvoice(file) {
   } catch (e) { rcStatus('invoice', 'Checked, but could not save: ' + e.message, true); }
   if (!document.getElementById('rcCodInv').value) document.getElementById('rcCodInv').value = res.summary.invoice_no || '';
 }
-const rcCompactLine = l => ({ sno: l.sno, date: l.date, awb: l.awb, ret: l.ret, dest: l.dest, wt: l.wt, amount: l.amount, tier: l.tier, expected: l.expected, diff: l.diff, issue: l.issue, extra: l.extra, note: l.note, order: l.order, payment: l.payment, units: l.units, ours: l.ours });
+const rcCompactLine = l => ({ sno: l.sno, date: l.date, awb: l.awb, ret: l.ret, dest: l.dest, wt: l.wt, amount: l.amount, tier: l.tier, expected: l.expected, diff: l.diff, issue: l.issue, extra: l.extra, note: l.note, order: l.order, payment: l.payment, units: l.units, ours: l.ours, custom: l.custom, fee: l.fee });
 const rcIssueCls = i => ['fee50', 'zone', 'dup', 'prepaid'].includes(i) ? 'red' : ['oda', 'other', 'norate', 'fee', 'unknown'].includes(i) ? 'amb' : i === 'ok' ? 'grn' : '';
 function rcTiles(items) { return `<div class="dc-row" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">${items.map(([n, l, s]) => `<div class="dc-box"><div class="dc-n" style="font-size:1.25rem">${n}</div><div class="dc-l">${l}</div>${s ? `<div class="dc-s">${s}</div>` : ''}</div>`).join('')}</div>`; }
-function rcRenderInvoice() {
-  const R = RCS.inv, S = R.summary, out = document.getElementById('rcOutInv');
-  const f = RCS.filter.invoice;
+function rcRenderInvoice(key = 'inv') {
+  const R = RCS[key], S = R.summary, out = document.getElementById(key === 'inv' ? 'rcOutInv' : 'rcOutCod'), fk = key === 'inv' ? 'invoice' : 'cod';
+  const f = RCS.filter[fk];
   const lines = (R.lines || R.flagged).filter(l => f ? l.issue === f : l.issue !== 'ok');
   const labels = R.labels || RC.ISSUES;
   out.innerHTML = `
     <div class="rc-hd"><b>Invoice ${rcEsc(S.invoice_no || '—')}</b><span>${rcDay(S.invoice_date)}</span><span>${rcEsc(S.product || '')}</span><span>${S.lines} lines · ${S.returns} returns</span>
       <span>Freight ${rcInr2(S.freight_lines)} ${S.freight_match == null ? '' : S.freight_match ? '<span class="ok">= invoice ✓</span>' : `<span class="bad">≠ invoice ${rcInr2(S.freight_invoice)}</span>`}</span>
       ${S.grand ? `<span>Grand total ${rcInr2(S.grand)}</span>` : ''}${S.unknown_awb != null ? `<span>${S.known_awb} AWBs matched to our orders${S.unknown_awb ? `, ${S.unknown_awb} not found` : ''}</span>` : ''}${S.lookup_error ? `<span class="bad">order match failed: ${rcEsc(S.lookup_error)}</span>` : ''}${S.unparsed ? `<span class="bad">${S.unparsed} rows could not be read</span>` : ''}</div>
-    ${rcTiles([[S.lines, 'Lines billed'], [S.disputed, 'Lines to dispute', `${S.flagged} flagged`], [rcInr(S.extra), 'Extra freight', 'on disputed lines'], [rcInr(S.impact), 'Real impact', `× ${S.multiplier} with surcharges ${S.surcharge_pct}% + GST`], [rcInr(S.surcharges), 'Surcharges on invoice', 'IDC · EFSS · fuel · CAF']])}
-    <div class="rc-chips">${(S.by_issue || []).map(b => `<span class="rc-chip ${f === b.issue ? 'on' : ''}" onclick="RCS.filter.invoice = RCS.filter.invoice === '${b.issue}' ? null : '${b.issue}'; rcRenderInvoice()"><span class="rc-pill ${rcIssueCls(b.issue)}">${b.n}</span> ${rcEsc(b.label)}${b.extra ? `<i>${rcInr(b.extra)}</i>` : ''}</span>`).join('')}</div>
-    <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadInvoice()">⬇ Dispute sheet (Excel)</button><button class="btn btn-ghost" onclick="rcDownloadInvoice(true)">⬇ All lines with check</button>${R.file ? `<span class="rc-note" style="margin:auto 0">${rcEsc(R.file)}</span>` : ''}</div>
+    ${rcTiles([[S.lines, 'Lines billed', S.cod ? `${S.returns} RTO legs` : ''], [S.disputed, 'Lines to dispute', `${S.flagged} flagged`], [rcInr(S.extra), 'Extra charged', 'on disputed lines'], [rcInr(S.impact), 'Real impact', `× ${S.multiplier} with surcharges ${S.surcharge_pct}% + GST`], S.cod ? [rcInr(S.cod_fees), 'COD fees on invoice', `₹${S.cod_fee} a parcel, handed back on RTO`] : [rcInr(S.surcharges), 'Surcharges on invoice', 'IDC · EFSS · fuel · CAF']])}
+    <div class="rc-chips">${(S.by_issue || []).map(b => `<span class="rc-chip ${f === b.issue ? 'on' : ''}" onclick="RCS.filter['${fk}'] = RCS.filter['${fk}'] === '${b.issue}' ? null : '${b.issue}'; rcRenderInvoice('${key}')"><span class="rc-pill ${rcIssueCls(b.issue)}">${b.n}</span> ${rcEsc(b.label)}${b.extra ? `<i>${rcInr(b.extra)}</i>` : ''}</span>`).join('')}</div>
+    <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadInvoice(false, '${key}')">⬇ Dispute sheet (Excel)</button><button class="btn btn-ghost" onclick="rcDownloadInvoice(true, '${key}')">⬇ All lines with check</button>${R.file ? `<span class="rc-note" style="margin:auto 0">${rcEsc(R.file)}</span>` : ''}</div>
     <div class="rc-wrap"><table class="rc-tbl"><tr><th>S.no</th><th>Ship date</th><th>AWB</th><th>Destination</th><th>Wt</th><th>Billed</th><th>Correct</th><th>Extra</th><th>Issue</th><th>Order</th></tr>
       ${lines.slice(0, 500).map(l => `<tr class="${l.issue}"><td>${l.sno}</td><td>${rcDay(l.date)}</td><td>${l.ret ? '(R) ' : ''}${l.awb}</td><td>${rcEsc(l.dest)}${l.tier ? ` <span class="rc-pill">T${l.tier}</span>` : ''}</td><td class="n">${l.wt}</td><td class="n">${rcInr2(l.amount)}</td><td class="n">${rcInr2(l.expected)}</td><td class="n">${l.diff == null ? '—' : (l.diff > 0 ? '+' : '') + l.diff.toFixed(2)}</td><td class="w"><span class="rc-pill ${rcIssueCls(l.issue)}">${rcEsc(labels[l.issue] || l.issue)}</span>${l.note ? `<div class="rc-note" style="margin:2px 0 0">${rcEsc(l.note)}</div>` : ''}</td><td>${l.order ? `${rcEsc(l.order)} <span class="rc-pill">${l.payment || ''}${l.units ? ' · ' + l.units + ' pc' : ''}</span>${l.custom ? ' <span class="rc-pill amb">custom</span>' : ''}` : (l.ours === false ? '<span class="rc-pill amb">not ours?</span>' : '')}</td></tr>`).join('')}
       ${!lines.length ? '<tr><td colspan="10" class="rc-note">Nothing flagged.</td></tr>' : ''}${lines.length > 500 ? `<tr><td colspan="10" class="rc-note">Showing 500 of ${lines.length}; the download has all of them.</td></tr>` : ''}</table></div>`;
 }
-async function rcDownloadInvoice(all) {
-  await rcXlsx(); const R = RCS.inv, S = R.summary, labels = R.labels || RC.ISSUES;
-  const dispute = (R.lines || R.flagged).filter(l => ['fee50', 'zone', 'oda', 'other', 'dup'].includes(l.issue));
+async function rcDownloadInvoice(all, key = 'inv') {
+  await rcXlsx(); const R = RCS[key], S = R.summary, labels = R.labels || RC.ISSUES;
+  const dispute = (R.lines || R.flagged).filter(l => ['fee50', 'zone', 'oda', 'other', 'dup', 'prepaid', 'dup_prepaid'].includes(l.issue));
   const row = l => ({ 'S.no': l.sno, 'Ship date': l.date, 'AWB': (l.ret ? '(R) ' : '') + l.awb, 'Destination': l.dest, 'Charged wt (kg)': l.wt, 'Billed (₹)': l.amount, 'Correct (₹)': l.expected, 'Difference (₹)': l.diff, 'Issue': labels[l.issue] || l.issue, 'Note': l.note || '', 'Our order': l.order || '', 'Payment': l.payment || '' });
   const summary = [['Invoice', S.invoice_no], ['Invoice date', S.invoice_date], ['Product', S.product], ['Lines billed', S.lines], ['Freight on lines', S.freight_lines], ['Freight on invoice', S.freight_invoice], ['Lines to dispute', S.disputed], ['Extra freight (₹)', S.extra], ['Surcharges as % of freight', S.surcharge_pct], ['Multiplier incl. surcharges + GST', S.multiplier], ['Estimated real impact (₹)', S.impact], [], ['Issue', 'Lines', 'Extra freight (₹)'], ...(S.by_issue || []).map(b => [b.label, b.n, b.extra]), [], ['Basis', 'Freight = city rate per 0.5 kg × weight slabs. Rates: ' + Object.entries(RCS.cfg.tiers).map(([t, v]) => `T${t} ₹${v}`).join(', ')]];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dispute.map(row)), 'Lines to dispute');
   if (all && R.lines) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(R.lines.map(row)), 'All lines');
-  XLSX.writeFile(wb, `Bluedart_${S.invoice_no || 'invoice'}_${all ? 'checked' : 'dispute'}.xlsx`);
+  XLSX.writeFile(wb, `Bluedart_${S.cod ? 'COD_' : ''}${S.invoice_no || 'invoice'}_${all ? 'checked' : 'dispute'}.xlsx`);
 }
 
 // ---------- COD ----------
 async function rcRunCod(file) {
-  const rows = /\.pdf$/i.test(file.name) ? (() => { throw new Error('Please upload the COD sheet as Excel or CSV'); })() : await rcReadSheetRows(file);
+  if (/\.pdf$/i.test(file.name)) return rcRunCodInvoice(file);
+  const rows = await rcReadSheetRows(file);
   if (!rows.length) throw new Error('The sheet is empty');
   rcStatus('cod', `${rows.length} rows read · matching AWBs to our orders…`);
   const awbs = []; for (const r of rows) for (const v of Object.values(r)) { const s = String(v || '').replace(/\D/g, ''); if (s.length >= 8 && s.length <= 14 && /^\d{8,14}$/.test(String(v).trim())) { awbs.push(s); break; } }
@@ -7219,6 +7220,22 @@ async function rcRunCod(file) {
   rcStatus('cod', 'Saving…');
   try { const r = await api({ action: 'courier_save', kind: 'cod', invoice_no: inv || null, label: `COD charges · ${res.summary.lines} lines`, file_name: file.name, summary: { ...res.summary, invoice_no: inv }, flagged: res.flagged, settings: { cod_fee: RCS.cfg.cod_fee } }); rcStatus('cod', `Saved${inv ? ' under invoice ' + inv : ' (no invoice number given)'}${r.replaced ? ' (replaced the earlier run)' : ''}`); RCS.runs = null; }
   catch (e) { rcStatus('cod', 'Checked, but could not save: ' + e.message, true); }
+}
+async function rcRunCodInvoice(file) {
+  const parsed = RC.parseInvoicePdf(await rcReadPdfPages(file));
+  if (!parsed.lines.length) throw new Error('No shipment lines found in this PDF');
+  rcStatus('cod', `${parsed.lines.length} lines read · checking rates and COD fees…`);
+  const res = RC.checkInvoice(parsed, RCS.cfg, { cod: true });
+  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb), [], 'cod', rcRangeOf(res.lines.map(l => l.date))), { cod: true, cod_pct: +RCS.cfg.cod_pct || 0, other_lines: (RCS.inv && RCS.inv.lines) || [], other_no: RCS.inv && RCS.inv.summary.invoice_no }); } catch (e) { res.summary.lookup_error = e.message; }
+  RCS.codinv = { ...res, file: file.name, parsed }; RCS.filter.cod = null;
+  document.getElementById('rcCodInv').value = res.summary.invoice_no || '';
+  rcRenderInvoice('codinv');
+  rcStatus('cod', 'Saving…');
+  try {
+    if (Object.keys(res.learned).length) { RCS.cfg.cities = { ...(RCS.cfg.cities || {}), ...res.learned }; await api({ action: 'courier_config_save', config: RCS.cfg }); }
+    const r = await api({ action: 'courier_save', kind: 'cod', invoice_no: res.summary.invoice_no, invoice_date: res.summary.invoice_date, label: `${res.summary.product || 'COD invoice'} · ${res.summary.lines} lines`, file_name: file.name, summary: res.summary, flagged: res.lines.filter(l => l.issue !== 'ok').map(rcCompactLine), settings: { tiers: RCS.cfg.tiers, cod_fee: RCS.cfg.cod_fee, cod_pct: RCS.cfg.cod_pct } });
+    rcStatus('cod', `Saved under invoice ${res.summary.invoice_no || '(no number)'}${r.replaced ? ' (replaced the earlier run)' : ''}`); RCS.runs = null;
+  } catch (e) { rcStatus('cod', 'Checked, but could not save: ' + e.message, true); }
 }
 function rcRenderCod() {
   const R = RCS.cod, S = R.summary, out = document.getElementById('rcOutCod'), f = RCS.filter.cod, labels = R.labels || { ok: 'OK', dup: 'AWB charged twice', prepaid: 'Charged on a prepaid order', unknown: 'AWB not in our shipments', fee: 'Fee differs from agreed rate' };
@@ -7304,7 +7321,7 @@ async function rcOpenRun(id) {
     const r = await api({ action: 'courier_get', id });
     const s = r.summary || {}, flagged = r.flagged || [];
     if (r.kind === 'invoice') { RCS.inv = { summary: s, flagged, lines: null, file: r.file_name, labels: RC.ISSUES }; RCS.filter.invoice = null; rcTab('invoice'); rcRenderInvoice(); rcStatus('invoice', `Opened from history · ${r.file_name || ''} · re-upload the invoice to get the full line list`); }
-    else if (r.kind === 'cod') { RCS.cod = { summary: s, flagged, lines: null, file: r.file_name, invoice_no: r.invoice_no }; RCS.filter.cod = null; rcTab('cod'); document.getElementById('rcCodInv').value = r.invoice_no || ''; rcRenderCod(); rcStatus('cod', `Opened from history · ${r.file_name || ''}`); }
+    else if (r.kind === 'cod') { RCS.filter.cod = null; rcTab('cod'); document.getElementById('rcCodInv').value = r.invoice_no || ''; if (s.cod) { RCS.codinv = { summary: s, flagged, lines: null, file: r.file_name, labels: RC.ISSUES }; rcRenderInvoice('codinv'); } else { RCS.cod = { summary: s, flagged, lines: null, file: r.file_name, invoice_no: r.invoice_no }; rcRenderCod(); } rcStatus('cod', `Opened from history · ${r.file_name || ''}${s.cod ? ' · re-upload the PDF to get the full line list' : ''}`); }
     else { RCS.audit = { summary: s, over: flagged, rows: null, file: r.file_name, label: (r.label || '').replace(/^Weight audit · /, '').replace(/ · \d+ parcels$/, '') }; RCS.filter.audit = 'over'; rcTab('audit'); rcRenderAudit(); rcStatus('audit', `Opened from history · ${r.file_name || ''} · re-upload the file to download it filled in`); }
   } catch (e) { toast(e.message); }
 }
@@ -7317,7 +7334,7 @@ function rcRenderSettings() {
   const cities = Object.entries(c.cities || {}).sort((a, b) => a[0].localeCompare(b[0]));
   el.innerHTML = `
     <div class="rc-note">Our weight rule: a parcel weighs the declared actual weight, never less than pieces × piece weight, rounded up to the slab. Freight = city rate × slabs. Fees are what Bluedart may add on top; anything else is flagged.</div>
-    <div class="rc-set">${F('piece_kg', 'Weight per piece (kg)')}${F('slab_kg', 'Weight slab (kg)')}${F('cod_fee', 'COD fee per shipment (₹)')}${F('reverse_fee', 'Reverse pickup fee (₹), allowed on (R) lines')}${F('rto_fee', 'RTO fee (₹), allowed on (R) lines')}${F('oda_fee', 'Out-of-area add-on per slab (₹), flagged as check')}${F('avg_rate', 'Average rate per slab for the audit estimate (₹)')}${F('multiplier', 'Fallback multiplier for surcharges + GST')}</div>
+    <div class="rc-set">${F('piece_kg', 'Weight per piece (kg)')}${F('slab_kg', 'Weight slab (kg)')}${F('cod_fee', 'COD fee per shipment (₹)')}${F('cod_pct', 'COD fee as % of order value, when higher')}${F('reverse_fee', 'Reverse pickup fee (₹), allowed on (R) lines')}${F('rto_fee', 'RTO fee (₹), allowed on (R) lines')}${F('oda_fee', 'Out-of-area add-on per slab (₹), flagged as check')}${F('avg_rate', 'Average rate per slab for the audit estimate (₹)')}${F('multiplier', 'Fallback multiplier for surcharges + GST')}</div>
     <div class="rc-set">${[1, 2, 3, 4, 5].map(t => `<div><label>Tier ${t} · ${rcEsc(c.tier_names[t])} (₹ per 0.5 kg)</label><input type="number" step="0.01" value="${c.tiers[t]}" onchange="RCS.cfg.tiers[${t}]=+this.value"></div>`).join('')}</div>
     <div class="rc-row"><span style="font-weight:700">City tiers</span><span class="rc-note" style="margin:0">${Object.keys(c.seed_cities || {}).length} cities from the August analysis, plus ${cities.length} added or learned. Add a city to override or when an invoice says "no rate".</span></div>
     <div class="rc-row"><input id="rcCityName" placeholder="CITY as printed on the invoice" style="text-transform:uppercase;width:220px"><select id="rcCityTier">${[1, 2, 3, 4, 5].map(t => `<option value="${t}">Tier ${t} · ₹${c.tiers[t]}</option>`).join('')}</select><button class="btn btn-ghost" onclick="rcCityAdd()">Add</button><input id="rcCityFind" placeholder="look up a city's tier" style="width:200px;margin-left:auto" oninput="rcCityFind(this.value)"><span id="rcCityFound" class="rc-note" style="margin:0"></span></div>

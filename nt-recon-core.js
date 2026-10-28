@@ -10,7 +10,7 @@
   const excelDate = v => { if (typeof v === 'number' && v > 20000 && v < 80000) { const d = new Date(Math.round((v - 25569) * 86400e3)); return d.toISOString().slice(0, 10); } const iso = isoFromDmy(v); if (iso) return iso; const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[0] : null; };
 
   // ---------- invoice PDF (pdf.js text items: {s, x, y} per page, page width) ----------
-  const LINE_RE = /^(\d+)\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+(\(R\))?\s*(\d{8,14})\s+(.*?)\s*([A-Za-z]{2,6})\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})$/;
+  const LINE_RE = /^(\d+)\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+(\(R\))?\s*(\d{8,14})\s+(.*?)\s*([A-Za-z]{2,6})\s+(\d+(?:\.\d+)?)\s+(-?[\d,]+\.\d{2})$/;
   function rowsFromItems(items) {
     const sorted = items.slice().sort((a, b) => b.y - a.y || a.x - b.x);
     const rows = []; let cur = null;
@@ -69,9 +69,9 @@
 
   // ---------- the rate check ----------
   const ISSUES = {
-    ok: 'OK', fee50: 'Reverse-pickup fee (₹50) on a forward shipment', zone: 'Billed at a higher zone rate', oda: 'Add-on of ₹5 per slab — check', norate: 'No rate on file for this city', other: 'Amount does not match any rate — check', dup: 'AWB billed twice', under: 'Billed below rate (no action)',
+    ok: 'OK', fee50: 'Reverse-pickup fee (₹50) on a forward shipment', zone: 'Billed at a higher zone rate', oda: 'Add-on of ₹5 per slab — check', norate: 'No rate on file for this city', other: 'Amount does not match any rate — check', dup: 'AWB billed twice', under: 'Billed below rate (no action)', prepaid: 'COD fee on a prepaid order', dup_prepaid: 'Also billed on the prepaid invoice', codpct: 'COD fee charged as % of order value — verify value',
   };
-  const DISPUTE = new Set(['fee50', 'zone', 'oda', 'other', 'dup']);
+  const DISPUTE = new Set(['fee50', 'zone', 'oda', 'other', 'dup', 'prepaid', 'dup_prepaid']);
   function tierFor(city, cfg) {
     if (!city) return null;
     const o = cfg.cities || {}, s = cfg.seed_cities || {};
@@ -81,15 +81,18 @@
     const hit = Object.keys(o).find(k => k.startsWith(city) || city.startsWith(k)) || Object.keys(s).find(k => k.length >= 5 && (k.startsWith(city) || city.startsWith(k)));
     return hit ? +(o[hit] || s[hit]) : null;
   }
-  function checkInvoice(parsed, cfg) {
+  function checkInvoice(parsed, cfg, opts = {}) {
     const tiers = cfg.tiers, slab = cfg.slab_kg || 0.5, learned = {}, seen = {}, lines = [];
+    // COD invoice: the COD fee rides on every forward line and is handed back on a return (RTO) line
+    const codFee = opts.cod ? (+cfg.cod_fee || 30) : 0, codPct = opts.cod ? (+cfg.cod_pct || 0) / 100 : 0;
+    const feeOf = L => opts.cod ? (L.ret ? -codFee : codFee) : 0;
     const baseTier = per => { for (const t of [1, 2, 3, 4, 5]) if (near(per, tiers[t])) return +t; return null; };
     const allowedR = new Set([0, +cfg.reverse_fee || 0, +cfg.rto_fee || 0, (+cfg.reverse_fee || 0) + (+cfg.rto_fee || 0)]);
     for (const L of parsed.lines) {
-      const slabs = Math.max(1, Math.round(L.wt / slab)); const per = round2(L.amount / slabs);
+      const slabs = Math.max(1, Math.round(L.wt / slab)); const per = round2((L.amount - feeOf(L)) / slabs);
       let tier = tierFor(L.dest, cfg) || learned[L.dest] || null, note = '';
       if (!tier) { const t = baseTier(per) || (near(per - (cfg.oda_fee || 5), tiers[baseTier(per - (cfg.oda_fee || 5))] || -1) ? baseTier(per - (cfg.oda_fee || 5)) : null); if (t) { learned[L.dest] = t; tier = t; note = 'city rate learned from this invoice'; } }
-      const base = tier ? tiers[tier] : null, expected = base != null ? round2(base * slabs) : null;
+      const base = tier ? tiers[tier] : null, expected = base != null ? round2(base * slabs + feeOf(L)) : null;
       const diff = expected != null ? round2(L.amount - expected) : null;
       let issue = 'ok', extra = 0;
       if (expected == null) issue = 'norate';
@@ -98,9 +101,11 @@
       else if (near(diff, 50)) { issue = 'fee50'; extra = diff; }
       else if (near(diff, (cfg.oda_fee || 5) * slabs) || near(diff, cfg.oda_fee || 5)) { issue = 'oda'; extra = diff; }
       else if (diff < 0) issue = 'under';
+      else if (opts.cod && !L.ret && codPct && diff > 0 && diff + codFee <= codPct * 12000) { issue = 'codpct'; note = `COD fee ₹${round2(diff + codFee)} = ${cfg.cod_pct}% of about ₹${Math.round((diff + codFee) / codPct)} order value`; }
       else { const bt = baseTier(per) || baseTier(per - 50); if (bt && bt !== tier) { issue = 'zone'; note = `billed at the ${cfg.tier_names ? cfg.tier_names[bt] : 'tier ' + bt} rate ₹${tiers[bt]}${baseTier(per) ? '' : ' + ₹50'} instead of ₹${base}`; } else issue = 'other'; extra = diff; }
-      if (seen[L.awb]) { issue = 'dup'; extra = L.amount; note = `also billed as S.no ${seen[L.awb]}`; } else seen[L.awb] = L.sno;
-      lines.push({ ...L, slabs, per, tier, base, expected, diff, issue, extra: round2(extra), note });
+      const legKey = L.awb + (L.ret ? ':R' : ':F');
+      if (seen[legKey]) { issue = 'dup'; extra = Math.max(0, L.amount); note = `also billed as S.no ${seen[legKey]}`; } else seen[legKey] = L.sno;
+      lines.push({ ...L, slabs, per, tier, base, expected, diff, issue, extra: round2(extra), note, fee: feeOf(L) || undefined });
     }
     const T = parsed.totals || {}; const freightSum = round2(lines.reduce((s, l) => s + l.amount, 0));
     const surchargePct = T.freight ? (T.surcharges || 0) / T.freight : (cfg.multiplier / 1.18 - 1);
@@ -111,7 +116,7 @@
     const disputed = lines.filter(l => DISPUTE.has(l.issue));
     const extra = round2(disputed.reduce((s, l) => s + l.extra, 0));
     const summary = {
-      invoice_no: parsed.invoice_no, invoice_date: parsed.invoice_date, product: parsed.product, lines: lines.length, returns: lines.filter(l => l.ret).length,
+      invoice_no: parsed.invoice_no, invoice_date: parsed.invoice_date, product: parsed.product, cod: !!opts.cod, cod_fee: codFee || undefined, cod_fees: opts.cod ? round2(lines.reduce((s, l) => s + (l.fee || 0), 0)) : undefined, lines: lines.length, returns: lines.filter(l => l.ret).length,
       freight_lines: freightSum, freight_invoice: T.freight ?? null, freight_match: T.freight == null ? null : near(freightSum, T.freight, 1), surcharges: T.surcharges ?? null, gst: T.gst ?? null, grand: T.grand ?? null,
       surcharge_pct: round2(surchargePct * 1000) / 10, multiplier, flagged: flagged.length, disputed: disputed.length, extra, impact: round2(extra * multiplier),
       by_issue: Object.values(by).sort((a, b) => b.extra - a.extra || b.n - a.n), learned: Object.keys(learned).length, unparsed: (parsed.unparsed || []).length, tiers_used: lines.reduce((m, l) => { if (l.tier) m[l.tier] = (m[l.tier] || 0) + 1; return m; }, {}),
@@ -119,10 +124,29 @@
     return { lines, flagged, summary, learned, labels: ISSUES };
   }
   // AWB ownership check (after a lookup): marks lines we never shipped
-  function applyLookup(result, lookup) {
+  function applyLookup(result, lookup, opts = {}) {
     const by = (lookup && lookup.by_awb) || {}; let unknown = 0, cod = 0;
-    for (const l of result.lines) { const o = by[l.awb]; l.ours = !!o; if (o) { l.order = o.order_name; l.units = o.units; l.payment = o.payment; l.source = o.source; l.custom = !!o.custom; if (o.payment === 'cod') cod++; } else unknown++; }
+    const other = new Set((opts.other_lines || []).map(l => l.awb));
+    for (const l of result.lines) {
+      const o = by[l.awb]; l.ours = !!o;
+      if (o) { l.order = o.order_name; l.units = o.units; l.payment = o.payment; l.source = o.source; l.custom = !!o.custom; if (o.payment === 'cod') cod++; } else unknown++;
+      if (opts.cod && !l.ret && o && o.payment && o.payment !== 'cod' && (l.issue === 'ok' || l.issue === 'codpct')) { l.issue = 'prepaid'; l.extra = round2(l.amount - (l.base || 0) * l.slabs); l.note = `${o.order_name} was ${o.payment}`; }
+      else if (opts.cod && !l.ret && o && o.value > 0 && opts.cod_pct > 0 && l.base != null) {
+        const fee = Math.max(+result.summary.cod_fee || 0, round2(o.value * opts.cod_pct / 100)), exp = round2(l.base * l.slabs + fee), d = round2(l.amount - exp);
+        if (Math.abs(d) <= 0.02) { if (l.issue === 'codpct' || l.issue === 'other') { l.issue = 'ok'; l.extra = 0; l.note = fee > (+result.summary.cod_fee || 0) ? `COD fee ${opts.cod_pct}% of ₹${o.value}` : ''; } }
+        else if (l.issue === 'codpct' || l.issue === 'ok') { l.issue = 'other'; l.extra = Math.max(0, d); l.note = `order value ₹${o.value}: COD fee should be ₹${fee}, line should be ₹${exp}`; }
+        l.expected = exp; l.diff = d;
+      }
+      if (other.has(l.awb) && l.issue !== 'dup') { l.issue = 'dup_prepaid'; l.extra = l.amount; l.note = `AWB also on invoice ${opts.other_no || ''}`.trim(); }
+    }
     result.summary.unknown_awb = unknown; result.summary.cod_lines = cod; result.summary.known_awb = result.lines.length - unknown;
+    // re-total after the lookup moved lines between categories
+    const by2 = {}; for (const l of result.lines) { const b = (by2[l.issue] ||= { issue: l.issue, label: ISSUES[l.issue], n: 0, extra: 0 }); b.n++; b.extra = round2(b.extra + (DISPUTE.has(l.issue) ? l.extra : 0)); }
+    result.flagged = result.lines.filter(l => l.issue !== 'ok');
+    const disputed = result.lines.filter(l => DISPUTE.has(l.issue));
+    result.summary.by_issue = Object.values(by2).sort((a, b) => b.extra - a.extra || b.n - a.n);
+    result.summary.flagged = result.flagged.length; result.summary.disputed = disputed.length;
+    result.summary.extra = round2(disputed.reduce((s, l) => s + l.extra, 0)); result.summary.impact = round2(result.summary.extra * result.summary.multiplier);
     return result;
   }
 
