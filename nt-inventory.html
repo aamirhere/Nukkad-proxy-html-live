@@ -7175,6 +7175,7 @@ async function rcRunDetail(file, rows) {
     if (Object.keys(res.learned).length) { RCS.cfg.cities = { ...(RCS.cfg.cities || {}), ...res.learned }; await api({ action: 'courier_config_save', config: RCS.cfg }); }
     const r = await api({ action: 'courier_save', kind: 'invoice', invoice_no: res.summary.invoice_no, invoice_date: res.summary.invoice_date, label: `Billing detail · ${res.summary.lines} lines`, file_name: file.name, summary: res.summary, flagged: res.lines.filter(l => l.issue !== 'ok').map(rcCompactLine), settings: { tiers: RCS.cfg.tiers, piece_kg: RCS.cfg.piece_kg, cod_fee: RCS.cfg.cod_fee, cod_pct: RCS.cfg.cod_pct } });
     rcStatus('invoice', `Saved under invoice ${res.summary.invoice_no || '(no number)'}${r.replaced ? ' (replaced the earlier run)' : ''}${Object.keys(res.learned).length ? ` · ${Object.keys(res.learned).length} new cities added to the rate list` : ''}`); RCS.runs = null;
+    await rcKeepFile(r.id, file);
   } catch (e) { rcStatus('invoice', 'Checked, but could not save: ' + e.message, true); }
   if (!document.getElementById('rcCodInv').value) document.getElementById('rcCodInv').value = res.summary.invoice_no || '';
 }
@@ -7193,9 +7194,17 @@ async function rcRunInvoiceParsed(file, parsed) {
     const flagged = res.lines.filter(l => l.issue !== 'ok').map(rcCompactLine);
     const r = await api({ action: 'courier_save', kind: 'invoice', invoice_no: res.summary.invoice_no, invoice_date: res.summary.invoice_date, label: `${res.summary.product || 'Invoice'} · ${res.summary.lines} lines`, file_name: file.name, summary: res.summary, flagged, settings: { tiers: RCS.cfg.tiers, reverse_fee: RCS.cfg.reverse_fee, rto_fee: RCS.cfg.rto_fee } });
     rcStatus('invoice', `Saved under invoice ${res.summary.invoice_no || '(no number)'}${r.replaced ? ' (replaced the earlier run)' : ''}${Object.keys(res.learned).length ? ` · ${Object.keys(res.learned).length} new cities added to the rate list` : ''}`);
-    RCS.runs = null;
+    RCS.runs = null; await rcKeepFile(r.id, file);
   } catch (e) { rcStatus('invoice', 'Checked, but could not save: ' + e.message, true); }
   if (!document.getElementById('rcCodInv').value) document.getElementById('rcCodInv').value = res.summary.invoice_no || '';
+}
+// Keep the uploaded file with the saved run, so History can hand it back with the added columns
+async function rcKeepFile(id, file) {
+  if (!id || !file || file.size > 8 * 1024 * 1024) return;
+  try {
+    const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(file); });
+    await api({ action: 'courier_file_put', id, name: file.name, data: b64, content_type: file.type || 'application/octet-stream' });
+  } catch (e) { console.warn('file not kept', e); }
 }
 const rcCompactLine = l => ({ sno: l.sno, date: l.date, awb: l.awb, ret: l.ret, dest: l.dest, wt: l.wt, amount: l.amount, tier: l.tier, expected: l.expected, diff: l.diff, issue: l.issue, extra: l.extra, note: l.note, order: l.order, payment: l.payment, units: l.units, ours: l.ours, custom: l.custom, fee: l.fee, impact: l.impact, act_wt: l.act_wt, correct_wt: l.correct_wt, product: l.product, decl_val: l.decl_val, cod_fee: l.cod_fee, topay: l.topay, total: l.total });
 const rcIssueCls = i => ['fee50', 'zone', 'dup', 'prepaid'].includes(i) ? 'red' : ['oda', 'other', 'norate', 'fee', 'unknown'].includes(i) ? 'amb' : i === 'ok' ? 'grn' : '';
@@ -7239,7 +7248,8 @@ function rcDownloadDetailFile(R, S, labels, all) {
   const rows = R.rawRows.map(r => {
     const o = {}; for (const k of Object.keys(r)) if (!/^__EMPTY|^current weight$|^correct weight$|^difference$/i.test(k)) o[k] = r[k];
     const awb = String(r.CAWBNO || '').replace(/\D/g, ''), l = byAwb[awb + ((+r.NFODCHRG || 0) < 0 ? ':R' : ':F')] || byAwb[awb + ':F'] || byAwb[awb + ':R'];
-    o['current weight'] = l ? l.wt : (+r.NCHRGWT || ''); o['correct weight'] = l ? l.correct_wt : ''; o['difference'] = l && l.correct_wt != null ? +(l.wt - l.correct_wt).toFixed(2) : '';
+    const cw = +r.NCHRGWT || '';
+    o['current weight'] = l ? l.wt : cw; o['correct weight'] = l && l.correct_wt != null ? l.correct_wt : cw; o['difference'] = l && l.correct_wt != null ? +(l.wt - l.correct_wt).toFixed(2) : (cw === '' ? '' : 0);
     return o;
   });
   const ws = XLSX.utils.json_to_sheet(rows), range = XLSX.utils.decode_range(ws['!ref']);
@@ -7334,7 +7344,7 @@ async function rcRunAudit(file) {
   rcRenderAudit();
   rcStatus('audit', 'Saving…');
   const key = `audit-${dates[0] || ''}-${dates[dates.length - 1] || ''}-${rows.length}`;
-  try { await api({ action: 'courier_save', kind: 'audit', invoice_no: key, invoice_date: dates[dates.length - 1] || null, label: `Weight audit · ${label} · ${res.summary.rows} parcels`, file_name: file.name, summary: res.summary, flagged: res.over.map(x => ({ awb: x.awb, ref: x.ref, date: x.date, item: x.item, units: x.units, basis: x.basis, order: x.order, declared: x.declared, audited_actual: x.audited_actual, audited_vol: x.audited_vol, dims: x.dims, applied: x.applied, correct: x.correct, diff: x.diff, flag: x.flag, img: x.img })), settings: { piece_kg: RCS.cfg.piece_kg, slab_kg: RCS.cfg.slab_kg, avg_rate: RCS.cfg.avg_rate } }); rcStatus('audit', `Saved as ${label}`); RCS.runs = null; }
+  try { const saved = await api({ action: 'courier_save', kind: 'audit', invoice_no: key, invoice_date: dates[dates.length - 1] || null, label: `Weight audit · ${label} · ${res.summary.rows} parcels`, file_name: file.name, summary: { ...res.summary, columns: res.columns }, flagged: res.over.map(x => ({ awb: x.awb, ref: x.ref, date: x.date, item: x.item, units: x.units, basis: x.basis, order: x.order, declared: x.declared, audited_actual: x.audited_actual, audited_vol: x.audited_vol, dims: x.dims, applied: x.applied, correct: x.correct, diff: x.diff, flag: x.flag, img: x.img })), settings: { piece_kg: RCS.cfg.piece_kg, slab_kg: RCS.cfg.slab_kg, avg_rate: RCS.cfg.avg_rate } }); rcStatus('audit', `Saved as ${label}`); RCS.runs = null; await rcKeepFile(saved.id, file); }
   catch (e) { rcStatus('audit', 'Checked, but could not save: ' + e.message, true); }
 }
 function rcRenderAudit() {
@@ -7358,7 +7368,8 @@ async function rcDownloadAudit(overOnly) {
     // their file as it came, with the three columns they ask for added at the end and highlighted
     const byAwb = {}; for (const x of R.rows) byAwb[x.awb] = x;
     const kA = R.columns.awb;
-    const rows = R.rawRows.map(r => { const o = {}; for (const k of Object.keys(r)) if (!/^__EMPTY|^applied weight$|^correct weight|^difference$/i.test(k)) o[k] = r[k]; const x = byAwb[String(r[kA] || '').replace(/\D/g, '')]; o['applied weight'] = x ? x.applied : ''; o['correct weight'] = x ? x.correct : ''; o['difference'] = x ? x.diff : ''; return o; });
+    const kW = R.columns.applied;
+    const rows = R.rawRows.map(r => { const o = {}; for (const k of Object.keys(r)) if (!/^__EMPTY|^applied weight$|^correct weight|^difference$/i.test(k)) o[k] = r[k]; const x = byAwb[String(r[kA] || '').replace(/\D/g, '')]; const app = x ? x.applied : (kW && r[kW] !== '' ? +r[kW] : ''); o['applied weight'] = app; o['correct weight'] = x ? x.correct : app; o['difference'] = x ? x.diff : (app === '' ? '' : 0); return o; });
     const ws = XLSX.utils.json_to_sheet(rows), range = XLSX.utils.decode_range(ws['!ref']);
     for (let r = range.s.r; r <= range.e.r; r++) for (let c = range.e.c - 2; c <= range.e.c; c++) { const a = XLSX.utils.encode_cell({ r, c }); if (ws[a]) ws[a].s = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFF00' } }, font: r === 0 ? { bold: true } : undefined }; }
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
@@ -7376,7 +7387,7 @@ async function rcLoadHistory() {
   if (!RCS.runs) { try { RCS.runs = (await api({ action: 'courier_list' })).runs || []; } catch (e) { el.innerHTML = `<div class="cut-empty" style="color:var(--red)">${rcEsc(e.message)}</div>`; return; } }
   const K = { invoice: '🧾', cod: '💰', audit: '⚖️' };
   el.innerHTML = RCS.runs.length ? RCS.runs.map(r => { const s = r.summary || {}; const nums = r.kind === 'invoice' ? `${s.lines} lines · ${s.disputed} to dispute · extra ${rcInr(s.extra)} · impact ${rcInr(s.impact)}` : r.kind === 'cod' ? `${s.lines} lines · ${s.disputed} to dispute · ${rcInr(s.extra)}` : `${s.rows} parcels · ${s.over} over · ${s.kg_over} kg · ${rcInr(s.est_impact)}`;
-    return `<div class="rc-hist" onclick="rcOpenRun(${r.id})">${K[r.kind]} <span class="k">${rcEsc(r.kind === 'audit' ? (r.label || '').replace(/^Weight audit · /, '') : r.invoice_no || '(no number)')}</span><span>${r.kind === 'invoice' ? rcDay(r.invoice_date) : ''}</span><span>${nums}</span><span class="m">${new Date(r.updated_at || r.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} <button class="btn btn-primary" style="padding:3px 9px;font-size:.7rem;margin-left:8px" onclick="event.stopPropagation();rcDownloadRun(${r.id})">⬇ ${r.kind === 'audit' ? 'Over-charged list' : 'Dispute sheet'}</button> <button class="btn btn-ghost" style="padding:2px 8px;font-size:.7rem;margin-left:4px" onclick="event.stopPropagation();rcDeleteRun(${r.id})">✕</button></span></div>`; }).join('')
+    return `<div class="rc-hist" onclick="rcOpenRun(${r.id})">${K[r.kind]} <span class="k">${rcEsc(r.kind === 'audit' ? (r.label || '').replace(/^Weight audit · /, '') : r.invoice_no || '(no number)')}</span><span>${r.kind === 'invoice' ? rcDay(r.invoice_date) : ''}</span><span>${nums}</span><span class="m">${new Date(r.updated_at || r.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} <button class="btn btn-primary" style="padding:3px 9px;font-size:.7rem;margin-left:8px" onclick="event.stopPropagation();rcDownloadRun(${r.id})">⬇ ${r.file_url && (r.kind === 'audit' || (r.summary && r.summary.detail)) ? 'Their file + 3 columns' : r.kind === 'audit' ? 'Over-charged list' : 'Dispute sheet'}</button> <button class="btn btn-ghost" style="padding:2px 8px;font-size:.7rem;margin-left:4px" onclick="event.stopPropagation();rcDeleteRun(${r.id})">✕</button></span></div>`; }).join('')
     : '<div class="cut-empty">No runs saved yet. Upload an invoice, a COD sheet or an audit file.</div>';
   el.insertAdjacentHTML('afterbegin', '<div class="rc-note" style="margin:0 0 8px">Every upload is kept here by invoice number. Click a row to see it again, or download its sheet straight away. The full line list needs the original file; the flagged lines are always kept.</div>');
 }
@@ -7384,6 +7395,12 @@ async function rcDownloadRun(id) {
   try {
     const r = await api({ action: 'courier_get', id }); const s = r.summary || {}, flagged = r.flagged || [];
     await rcCore(); await rcXlsx();
+    // the kept upload lets History return their file with the three columns, exactly like a fresh run
+    if (r.file_url && /\.(xlsx|xls|csv)$/i.test(r.file_url)) {
+      let rows = null; try { const resp = await fetch(r.file_url); if (resp.ok) { const wb = XLSX.read(await resp.arrayBuffer(), { type: 'array' }); let best = null; for (const n of wb.SheetNames) { const rr = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: '' }); if (!best || rr.length > best.length) best = rr; } rows = best; } } catch (e) { console.warn('kept file not readable', e); }
+      if (rows && r.kind === 'invoice' && s.detail) return rcDownloadDetailFile({ lines: flagged, rawRows: rows, file: r.file_name || 'file.xlsx' }, s, RC.DETAIL_ISSUES, false);
+      if (rows && r.kind === 'audit') { const keys = Object.keys(rows[0] || {}); const cols = s.columns || { awb: keys.find(k => /^awb|awbno|tracking/i.test(k)), applied: keys.find(k => /^billedwt/i.test(k)) || keys.find(k => /audchargwt|chrgwt|charg/i.test(k)) }; RCS.audit = { summary: s, over: flagged, rows: flagged, rawRows: rows, columns: cols, file: r.file_name || 'audit.xlsx', label: '' }; return rcDownloadAudit(false); }
+    }
     if (r.kind === 'invoice') { RCS.inv = { summary: s, flagged, lines: null, file: r.file_name, labels: s.detail ? RC.DETAIL_ISSUES : RC.ISSUES }; return rcDownloadInvoice(false, 'inv'); }
     if (r.kind === 'cod') { if (s.cod) { RCS.codinv = { summary: s, flagged, lines: null, file: r.file_name, labels: RC.ISSUES }; return rcDownloadInvoice(false, 'codinv'); } RCS.cod = { summary: s, flagged, lines: null, file: r.file_name, invoice_no: r.invoice_no }; return rcDownloadCod(); }
     RCS.audit = { summary: s, over: flagged, rows: null, file: r.file_name, label: (r.label || '').replace(/^Weight audit · /, '').replace(/ · \d+ parcels$/, '') }; return rcDownloadAudit(true);
