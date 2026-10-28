@@ -7168,7 +7168,7 @@ async function rcRunDetail(file, rows) {
   rcStatus('invoice', `${parsed.lines.length} lines read · matching AWBs to our orders…`);
   const lookup = await rcLookup(parsed.lines.map(l => l.awb), parsed.lines.map(l => l.ref).filter(x => /^\d{4,7}$/.test(x)), 'invoice', rcRangeOf(parsed.lines.map(l => l.date)));
   const res = RC.checkDetail(parsed, RCS.cfg, lookup);
-  RCS.inv = { ...res, file: file.name, parsed, detail: true }; RCS.filter.invoice = null;
+  RCS.inv = { ...res, file: file.name, parsed, detail: true, rawRows: rows }; RCS.filter.invoice = null;
   rcRenderInvoice();
   rcStatus('invoice', 'Saving…');
   try {
@@ -7212,13 +7212,14 @@ function rcRenderInvoice(key = 'inv') {
     ${S.detail ? rcTiles([[S.lines, 'Lines billed', `${S.cod_product_lines} COD · ${S.returns} RTO legs`], [S.weight_over, 'Charged above our weight', `${S.kg_over} kg over · ${rcInr(S.weight_extra)} freight`], [S.topay ? Math.round(S.topay / 50) : 0, '₹50 add-ons', rcInr(S.topay)], [S.disputed, 'Lines to dispute', `${S.flagged} flagged · extra ${rcInr(S.extra)}`], [rcInr(S.impact), 'Credit due', `each line's own surcharges (${S.surcharge_pct}%) + GST · add-ons GST only`]])
     : rcTiles([[S.lines, 'Lines billed', S.cod ? `${S.returns} RTO legs` : ''], [S.disputed, 'Lines to dispute', `${S.flagged} flagged`], [rcInr(S.extra), 'Extra charged', 'on disputed lines'], [rcInr(S.impact), 'Real impact', S.impact_addon != null ? `add-ons ${rcInr(S.impact_addon)} with GST only · freight lines ${rcInr(S.impact_freight)} with surcharges ${S.surcharge_pct}% + GST` : `× ${S.multiplier} with surcharges ${S.surcharge_pct}% + GST`], S.cod ? [rcInr(S.cod_fees), 'COD fees on invoice', `₹${S.cod_fee} a parcel, handed back on RTO`] : [rcInr(S.surcharges), 'Surcharges on invoice', 'IDC · EFSS · fuel · CAF']])}
     <div class="rc-chips">${(S.by_issue || []).map(b => `<span class="rc-chip ${f === b.issue ? 'on' : ''}" onclick="RCS.filter['${fk}'] = RCS.filter['${fk}'] === '${b.issue}' ? null : '${b.issue}'; rcRenderInvoice('${key}')"><span class="rc-pill ${rcIssueCls(b.issue)}">${b.n}</span> ${rcEsc(b.label)}${b.extra ? `<i>${rcInr(b.extra)}${b.impact ? ' → ' + rcInr(b.impact) : ''}</i>` : ''}</span>`).join('')}</div>
-    <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadInvoice(false, '${key}')">⬇ Dispute sheet (Excel)</button><button class="btn btn-ghost" onclick="rcDownloadInvoice(true, '${key}')">⬇ All lines with check</button>${R.file ? `<span class="rc-note" style="margin:auto 0">${rcEsc(R.file)}</span>` : ''}</div>
+    <div class="rc-actions">${S.detail && R.rawRows ? `<button class="btn btn-primary" onclick="rcDownloadInvoice(false, '${key}')">⬇ Their file + 3 weight columns + Issues sheet</button>` : `<button class="btn btn-primary" onclick="rcDownloadInvoice(false, '${key}')">⬇ Dispute sheet (Excel)</button><button class="btn btn-ghost" onclick="rcDownloadInvoice(true, '${key}')">⬇ All lines with check</button>`}${R.file ? `<span class="rc-note" style="margin:auto 0">${rcEsc(R.file)}</span>` : ''}</div>
     <div class="rc-wrap"><table class="rc-tbl"><tr><th>S.no</th><th>Ship date</th><th>AWB</th><th>Destination</th><th>Wt</th><th>Billed</th><th>Correct</th><th>Extra</th><th>Credit</th><th>Issue</th><th>Order</th></tr>
       ${lines.slice(0, 500).map(l => `<tr class="${l.issue}"><td>${l.sno}</td><td>${rcDay(l.date)}</td><td>${l.ret ? '(R) ' : ''}${l.awb}</td><td>${rcEsc(l.dest)}${l.tier ? ` <span class="rc-pill">T${l.tier}</span>` : ''}</td><td class="n">${l.wt}${l.correct_wt != null && l.correct_wt < l.wt ? ` <span class="rc-pill red">→ ${l.correct_wt}</span>` : ''}</td><td class="n">${rcInr2(l.amount)}</td><td class="n">${rcInr2(l.expected)}</td><td class="n">${l.diff == null ? '—' : (l.diff > 0 ? '+' : '') + l.diff.toFixed(2)}</td><td class="n">${l.impact ? rcInr2(l.impact) : ''}</td><td class="w"><span class="rc-pill ${rcIssueCls(l.issue)}">${rcEsc(labels[l.issue] || l.issue)}</span>${l.note ? `<div class="rc-note" style="margin:2px 0 0">${rcEsc(l.note)}</div>` : ''}</td><td>${l.order ? `${rcEsc(l.order)} <span class="rc-pill">${l.payment || ''}${l.units ? ' · ' + l.units + ' pc' : ''}</span>${l.custom ? ' <span class="rc-pill amb">custom</span>' : ''}` : (l.ours === false ? '<span class="rc-pill amb">not ours?</span>' : '')}</td></tr>`).join('')}
       ${!lines.length ? '<tr><td colspan="11" class="rc-note">Nothing flagged.</td></tr>' : ''}${lines.length > 500 ? `<tr><td colspan="11" class="rc-note">Showing 500 of ${lines.length}; the download has all of them.</td></tr>` : ''}</table></div>`;
 }
 async function rcDownloadInvoice(all, key = 'inv') {
   await rcXlsx(); const R = RCS[key], S = R.summary, labels = R.labels || RC.ISSUES;
+  if (S.detail && R.rawRows && R.lines) return rcDownloadDetailFile(R, S, labels, all);
   const dispute = (R.lines || R.flagged).filter(l => S.detail ? (l.extra > 0 && !['oda', 'norate'].includes(l.issue)) : ['fee50', 'zone', 'oda', 'other', 'dup', 'prepaid', 'dup_prepaid'].includes(l.issue));
   const row = l => S.detail
     ? { 'S.no': l.sno, 'Ship date': l.date, 'AWB': (l.ret ? '(R) ' : '') + l.awb, 'Product': l.product, 'Destination': l.dest, 'Actual wt on their scale (kg)': l.act_wt, 'Charged wt (kg)': l.wt, 'Correct wt (kg)': l.correct_wt, 'Difference (kg)': l.correct_wt != null ? +(l.wt - l.correct_wt).toFixed(2) : '', 'Pieces': l.units || '', 'Declared value (₹)': l.decl_val, 'Freight + fees billed (₹)': l.amount, 'Correct (₹)': l.expected, 'Extra (₹)': l.diff, 'Credit incl. surcharges + GST (₹)': l.impact, 'Issue': labels[l.issue] || l.issue, 'Note': l.note || '', 'Our order': l.order || '', 'Payment': l.payment || '' }
@@ -7229,6 +7230,35 @@ async function rcDownloadInvoice(all, key = 'inv') {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dispute.map(row)), 'Lines to dispute');
   if (all && R.lines) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(R.lines.map(row)), 'All lines');
   XLSX.writeFile(wb, `Bluedart_${S.cod ? 'COD_' : ''}${S.invoice_no || 'invoice'}_${all ? 'checked' : 'dispute'}.xlsx`);
+}
+
+// Bluedart's billing detail sheet goes back exactly as it came, with three columns added at the end
+// (current weight, correct weight, difference) in yellow, and the issues on a second sheet
+function rcDownloadDetailFile(R, S, labels, all) {
+  const byAwb = {}; for (const l of R.lines) byAwb[l.awb + (l.ret ? ':R' : ':F')] = l;
+  const rows = R.rawRows.map(r => {
+    const o = {}; for (const k of Object.keys(r)) if (!/^__EMPTY|^current weight$|^correct weight$|^difference$/i.test(k)) o[k] = r[k];
+    const awb = String(r.CAWBNO || '').replace(/\D/g, ''), l = byAwb[awb + ((+r.NFODCHRG || 0) < 0 ? ':R' : ':F')] || byAwb[awb + ':F'] || byAwb[awb + ':R'];
+    o['current weight'] = l ? l.wt : (+r.NCHRGWT || ''); o['correct weight'] = l ? l.correct_wt : ''; o['difference'] = l && l.correct_wt != null ? +(l.wt - l.correct_wt).toFixed(2) : '';
+    return o;
+  });
+  const ws = XLSX.utils.json_to_sheet(rows), range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = range.s.r; r <= range.e.r; r++) for (let c = range.e.c - 2; c <= range.e.c; c++) { const a = XLSX.utils.encode_cell({ r, c }); if (ws[a]) ws[a].s = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFF00' } }, font: r === 0 ? { bold: true } : undefined }; }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  const dispute = R.lines.filter(l => l.extra > 0 && !['oda', 'norate'].includes(l.issue));
+  const issues = [
+    ['Invoice', S.invoice_no], ['Invoice date', S.invoice_date], ['Lines billed', S.lines], ['Freight billed (₹)', S.freight_lines], ['Surcharges (₹)', S.surcharges], ['GST (₹)', S.gst], ['Grand total (₹)', S.grand], [],
+    ['Parcels charged above our weight', S.weight_over], ['Weight over (kg)', S.kg_over], ['Freight on that weight (₹)', S.weight_extra], ['₹50 add-on lines', S.topay ? Math.round(S.topay / 50) : 0], [],
+    ['Lines to dispute', S.disputed], ['Extra charged on them (₹)', S.extra], ['Credit due incl. surcharges and GST (₹)', S.impact], [],
+    ['Issue', 'Lines', 'Extra charged (₹)', 'Credit incl. surcharges + GST (₹)'], ...(S.by_issue || []).filter(b => b.issue !== 'ok').map(b => [b.label, b.n, b.extra, b.impact]), [],
+    ['Rule', `Our weight = pieces × ${RCS.cfg.piece_kg} kg, never below the actual weight on Blue Dart's scale, rounded up to ${RCS.cfg.slab_kg} kg. COD fee ₹${RCS.cfg.cod_fee} or ${RCS.cfg.cod_pct}% of declared value. Surcharges are percentages of base freight; add-ons carry GST only.`], [],
+    ['S.no', 'Ship date', 'AWB', 'Product', 'Destination', 'Actual wt (kg)', 'Charged wt (kg)', 'Correct wt (kg)', 'Freight + fees billed (₹)', 'Correct (₹)', 'Extra (₹)', 'Credit incl. surcharges + GST (₹)', 'Issue', 'Note', 'Our order'],
+    ...dispute.map(l => [l.sno, l.date, (l.ret ? '(R) ' : '') + l.awb, l.product, l.dest, l.act_wt, l.wt, l.correct_wt, l.amount, l.expected, l.diff, l.impact, labels[l.issue] || l.issue, l.note || '', l.order || '']),
+  ];
+  const wi = XLSX.utils.aoa_to_sheet(issues); wi['!cols'] = [{ wch: 40 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 18 }, { wch: 34 }, { wch: 60 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, wi, 'Issues');
+  XLSX.writeFile(wb, R.file.replace(/\.[^.]+$/, '') + '_checked.xlsx', { compression: true });
 }
 
 // ---------- COD ----------
@@ -7332,7 +7362,7 @@ async function rcDownloadAudit(overOnly) {
     const ws = XLSX.utils.json_to_sheet(rows), range = XLSX.utils.decode_range(ws['!ref']);
     for (let r = range.s.r; r <= range.e.r; r++) for (let c = range.e.c - 2; c <= range.e.c; c++) { const a = XLSX.utils.encode_cell({ r, c }); if (ws[a]) ws[a].s = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFF00' } }, font: r === 0 ? { bold: true } : undefined }; }
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-    XLSX.writeFile(wb, R.file.replace(/\.[^.]+$/, '') + '_checked.xlsx'); return;
+    XLSX.writeFile(wb, R.file.replace(/\.[^.]+$/, '') + '_checked.xlsx', { compression: true }); return;
   }
   const over = (R.over || R.flagged || []);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Weight audit', R.label || ''], ['Parcels audited', S.rows], ['Charged above our weight', S.over], ['Weight over (kg)', S.kg_over], ['Slabs over', S.slabs_over], ['Freight at stake (₹)', S.est_freight], ['Estimated real impact (₹)', S.est_impact], ['Rule', `Our weight = declared actual (min. pieces × ${RCS.cfg.piece_kg} kg) rounded up to ${RCS.cfg.slab_kg} kg`]]), 'Summary');
