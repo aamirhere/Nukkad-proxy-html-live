@@ -7113,15 +7113,17 @@ async function rcShipwayFill(range, kind, n) {
   let have = {};
   try { for (const m of ((await api({ action: 'courier_shipway_months' })).months || [])) have[m.month] = m; } catch {}
   const today = todayIST();
-  const need = rcMonthsBetween(range.from, range.to).filter(m => m <= today.slice(0, 7)).filter(m => { const h = have[m]; if (!h || !h.indexed_at) return true; if (h.complete) return false; return Date.now() - new Date(h.indexed_at) > 86400e3; });
+  const need = rcMonthsBetween(range.from, range.to).filter(m => m <= today.slice(0, 7)).filter(m => { const h = have[m]; if (!h || !h.indexed_at) return true; if (h.running) return true; if (h.complete && !h.error) return false; return Date.now() - new Date(h.indexed_at) > 86400e3 || !!h.error || !h.complete; });
   if (!need.length) return true;
-  for (const m of need) {
-    let cur = { win: 0, page: 1 }, steps = 0;
-    while (cur && steps++ < 150) {
-      rcStatus(kind, `${n} AWBs are not on the rack · reading Shipway bookings for ${rcMonthName(m)}, week ${cur.win + 1} page ${cur.page}…`);
-      let r; try { r = await api({ action: 'courier_shipway_month', month: m, ...cur }); } catch (e) { rcStatus(kind, 'Shipway read failed: ' + e.message, true); return true; }
-      cur = r.next;
-    }
+  for (const m of need) { try { await api({ action: 'courier_shipway_kick', month: m }); } catch (e) { rcStatus(kind, 'Shipway read failed: ' + e.message, true); return true; } }
+  // the background function reads the whole month; wait for it, with the count so far on screen
+  const t0 = Date.now(), pending = new Set(need);
+  while (pending.size && Date.now() - t0 < 6 * 60e3) {
+    await new Promise(r => setTimeout(r, 4000));
+    let list = []; try { list = (await api({ action: 'courier_shipway_months' })).months || []; } catch { continue; }
+    for (const m of [...pending]) { const h = list.find(x => x.month === m); if (h && h.indexed_at && !h.running && (Date.now() - new Date(h.indexed_at) < 10 * 60e3)) pending.delete(m); }
+    const sofar = need.map(m => { const h = list.find(x => x.month === m); return `${rcMonthName(m)} ${h ? h.orders.toLocaleString('en-IN') : 0}`; }).join(' · ');
+    rcStatus(kind, `${n} AWBs are not on the rack · reading Shipway bookings in the background: ${sofar}${pending.size ? '…' : ' ✓'}`);
   }
   RCS.months = null;
   return true;
@@ -7137,18 +7139,20 @@ async function rcRenderMonths() {
     <div class="rc-note">Every parcel Shipway booked, kept month by month. A month is read from Shipway once; the invoice, COD and audit checks use it to name the order behind any AWB, custom pieces included. Months still running are re-read when older than a day.</div>
     <div class="rc-row"><span style="font-weight:700">Read a month</span><input type="month" id="rcMonthPick" value="${cur}" max="${cur}"><button class="btn btn-primary" onclick="rcIndexMonth(document.getElementById('rcMonthPick').value)">Read from Shipway</button><span class="rc-note" id="rcMonthMsg" style="margin:0"></span></div>
     ${years.length ? years.map(y => `<h3 style="margin:14px 0 6px;font-size:.95rem">${y}</h3><div class="rc-wrap"><table class="rc-tbl" style="min-width:560px"><tr><th>Month</th><th>Bookings</th><th>COD</th><th>Custom</th><th>Amazon</th><th>Read on</th><th></th></tr>
-      ${M.filter(m => m.month.startsWith(y)).map(m => `<tr><td><b>${rcMonthName(m.month)}</b></td><td class="n">${m.orders.toLocaleString('en-IN')}</td><td class="n">${m.cod}</td><td class="n">${m.custom}</td><td class="n">${m.amazon}</td><td>${m.indexed_at ? new Date(m.indexed_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + (m.complete ? '' : ' <span class="rc-pill amb">still running</span>') : '<span class="rc-pill amb">partial</span>'}</td><td><button class="btn btn-ghost" style="padding:3px 9px;font-size:.72rem" onclick="rcIndexMonth('${m.month}')">↻ Re-read</button></td></tr>`).join('')}</table></div>`).join('') : '<div class="cut-empty">No months read yet. Pick a month above, or just drop an invoice: the months it needs are read on their own.</div>'}`;
+      ${M.filter(m => m.month.startsWith(y)).map(m => `<tr><td><b>${rcMonthName(m.month)}</b></td><td class="n">${m.orders.toLocaleString('en-IN')}</td><td class="n">${m.cod}</td><td class="n">${m.custom}</td><td class="n">${m.amazon}</td><td>${m.running ? '<span class="rc-pill amb">reading now…</span>' : m.indexed_at ? new Date(m.indexed_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + (m.complete ? '' : ' <span class="rc-pill amb">month still running</span>') + (m.error ? ` <span class="rc-pill red" title="${rcEsc(m.error)}">read error</span>` : '') : '<span class="rc-pill amb">partial</span>'}</td><td><button class="btn btn-ghost" style="padding:3px 9px;font-size:.72rem" onclick="rcIndexMonth('${m.month}')">↻ Re-read</button></td></tr>`).join('')}</table></div>`).join('') : '<div class="cut-empty">No months read yet. Pick a month above, or just drop an invoice: the months it needs are read on their own.</div>'}`;
 }
 async function rcIndexMonth(m) {
   if (!/^\d{4}-\d{2}$/.test(m || '')) return;
   const msg = document.getElementById('rcMonthMsg');
-  let cur = { win: 0, page: 1 }, stored = 0, steps = 0;
-  while (cur && steps++ < 150) {
-    if (msg) msg.textContent = `Reading ${rcMonthName(m)} from Shipway, week ${cur.win + 1} page ${cur.page}…`;
-    let r; try { r = await api({ action: 'courier_shipway_month', month: m, ...cur }); } catch (e) { if (msg) msg.textContent = 'Failed: ' + e.message; return; }
-    stored += r.stored || 0; cur = r.next;
+  try { await api({ action: 'courier_shipway_kick', month: m }); } catch (e) { if (msg) msg.textContent = 'Failed: ' + e.message; return; }
+  const t0 = Date.now();
+  while (Date.now() - t0 < 6 * 60e3) {
+    await new Promise(r => setTimeout(r, 4000));
+    let list = []; try { list = (await api({ action: 'courier_shipway_months' })).months || []; } catch { continue; }
+    const h = list.find(x => x.month === m);
+    if (msg) msg.textContent = `Reading ${rcMonthName(m)} in the background… ${h ? h.orders.toLocaleString('en-IN') : 0} bookings so far`;
+    if (h && h.indexed_at && !h.running && Date.now() - new Date(h.indexed_at) < 10 * 60e3) { if (msg) msg.textContent = `${rcMonthName(m)}: ${h.orders.toLocaleString('en-IN')} bookings${h.error ? ' · ' + h.error : ''}`; break; }
   }
-  if (msg) msg.textContent = `${rcMonthName(m)}: ${stored} bookings read`;
   RCS.months = null; rcRenderMonths();
 }
 
