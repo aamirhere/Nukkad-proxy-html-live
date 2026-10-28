@@ -7031,7 +7031,7 @@ const RCS = { cfg: null, tab: 'invoice', runs: null, inv: null, cod: null, audit
 const rcLoaded = {};
 function rcScript(src) { if (rcLoaded[src]) return rcLoaded[src]; rcLoaded[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); return rcLoaded[src]; }
 const rcCore = () => rcScript('nt-recon-core.js?v=1');
-const rcXlsx = () => rcScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+const rcXlsx = () => rcScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
 async function rcPdf() { await rcScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; return window.pdfjsLib; }
 const rcInr = n => n == null ? '—' : '₹' + Math.round(+n).toLocaleString('en-IN');
 const rcInr2 = n => n == null ? '—' : '₹' + (+n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -7216,10 +7216,13 @@ async function rcDownloadAudit(overOnly) {
   await rcXlsx(); const R = RCS.audit, S = R.summary;
   const wb = XLSX.utils.book_new();
   if (R.rawRows && !overOnly) {
+    // their file as it came, with the three columns they ask for added at the end and highlighted
     const byAwb = {}; for (const x of R.rows) byAwb[x.awb] = x;
     const kA = R.columns.awb;
-    const rows = R.rawRows.map(r => { const o = { ...r }; for (const k of Object.keys(o)) if (/^__EMPTY|^applied weight$|^correct weight|^difference$/i.test(k)) delete o[k]; const x = byAwb[String(r[kA] || '').replace(/\D/g, '')]; o['applied weight'] = x ? x.applied : ''; o['correct weight'] = x ? x.correct : ''; o['difference'] = x ? x.diff : ''; o['pieces'] = x ? x.units : ''; o['our order'] = x ? (x.order || '') : ''; return o; });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Sheet1');
+    const rows = R.rawRows.map(r => { const o = {}; for (const k of Object.keys(r)) if (!/^__EMPTY|^applied weight$|^correct weight|^difference$/i.test(k)) o[k] = r[k]; const x = byAwb[String(r[kA] || '').replace(/\D/g, '')]; o['applied weight'] = x ? x.applied : ''; o['correct weight'] = x ? x.correct : ''; o['difference'] = x ? x.diff : ''; return o; });
+    const ws = XLSX.utils.json_to_sheet(rows), range = XLSX.utils.decode_range(ws['!ref']);
+    for (let r = range.s.r; r <= range.e.r; r++) for (let c = range.e.c - 2; c <= range.e.c; c++) { const a = XLSX.utils.encode_cell({ r, c }); if (ws[a]) ws[a].s = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFF00' } }, font: r === 0 ? { bold: true } : undefined }; }
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
     XLSX.writeFile(wb, R.file.replace(/\.[^.]+$/, '') + '_checked.xlsx'); return;
   }
   const over = (R.over || R.flagged || []);
