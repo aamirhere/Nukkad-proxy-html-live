@@ -1176,6 +1176,49 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   .emg-date-tabs { gap: 4px; }
   .emg-tab  { padding: 4px 10px; font-size: .74rem; }
 }
+/* ── weight / invoice reconciliation ── */
+.rc-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.rc-tab { font:inherit; font-size:.8rem; font-weight:700; padding:7px 12px; border-radius:999px; border:1.5px solid var(--line); background:#fff; color:var(--ink2); cursor:pointer; }
+.rc-tab.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+.rc-pane { display:none; } .rc-pane.on { display:block; }
+.rc-drop { border:2px dashed var(--line); border-radius:14px; padding:22px 16px; text-align:center; background:#fff; cursor:pointer; margin-bottom:14px; }
+.rc-drop.over { border-color:var(--accent); background:#fff6ee; }
+.rc-drop b { display:block; font-size:.95rem; margin-bottom:4px; }
+.rc-drop span { font-size:.76rem; color:var(--muted); }
+.rc-drop input { display:none; }
+.rc-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; font-size:.8rem; }
+.rc-row input, .rc-row select { font:inherit; font-size:.8rem; padding:6px 9px; border:1.5px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+.rc-hd { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:12px; font-size:.82rem; display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+.rc-hd b { font-size:.95rem; }
+.rc-hd .ok { color:#1a7f37; font-weight:700; } .rc-hd .bad { color:var(--red); font-weight:700; }
+.rc-status { font-size:.8rem; color:var(--ink2); margin-bottom:10px; min-height:1.2em; }
+.rc-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.rc-chip { font-size:.74rem; font-weight:700; padding:4px 10px; border-radius:999px; border:1.5px solid var(--line); background:#fff; color:var(--ink2); cursor:pointer; }
+.rc-chip.on { border-color:var(--ink); color:var(--ink); background:#fdf5ec; }
+.rc-chip i { font-style:normal; font-weight:600; color:var(--muted); margin-left:4px; }
+.rc-wrap { overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:12px; }
+.rc-tbl { width:100%; border-collapse:collapse; font-size:.76rem; min-width:720px; }
+.rc-tbl th { text-align:left; font-size:.66rem; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); padding:8px 8px; border-bottom:1px solid var(--line); white-space:nowrap; position:sticky; top:0; background:#fff; }
+.rc-tbl td { padding:6px 8px; border-bottom:1px dashed var(--line); vertical-align:top; white-space:nowrap; }
+.rc-tbl td.n { text-align:right; font-variant-numeric:tabular-nums; }
+.rc-tbl td.w { white-space:normal; min-width:160px; }
+.rc-tbl tr.dup td, .rc-tbl tr.fee50 td, .rc-tbl tr.zone td, .rc-tbl tr.prepaid td { background:#fff4f2; }
+.rc-tbl tr.oda td, .rc-tbl tr.other td, .rc-tbl tr.norate td, .rc-tbl tr.fee td, .rc-tbl tr.unknown td { background:#fffaec; }
+.rc-pill { display:inline-block; font-size:.66rem; font-weight:800; padding:2px 7px; border-radius:999px; background:#f3ede4; color:var(--ink2); }
+.rc-pill.red { background:#fdecec; color:var(--red); } .rc-pill.amb { background:#fff4dd; color:#a8690f; } .rc-pill.grn { background:#eef8f0; color:#1a7f37; }
+.rc-note { font-size:.74rem; color:var(--muted); margin:8px 0; }
+.rc-actions { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+.rc-hist { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:8px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:.8rem; cursor:pointer; }
+.rc-hist:hover { border-color:var(--accent); }
+.rc-hist .k { font-weight:800; } .rc-hist .m { color:var(--muted); margin-left:auto; font-size:.72rem; }
+.rc-set { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin-bottom:14px; }
+.rc-set label { display:block; font-size:.7rem; font-weight:700; color:var(--ink2); margin-bottom:3px; }
+.rc-set input { width:100%; font:inherit; font-size:.82rem; padding:7px 9px; border:1.5px solid var(--line); border-radius:8px; box-sizing:border-box; }
+.rc-cities { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 14px; max-height:260px; overflow:auto; font-size:.78rem; }
+.rc-cities div { display:flex; gap:8px; align-items:center; padding:4px 0; border-bottom:1px dashed var(--line); }
+.rc-cities select { font:inherit; font-size:.76rem; padding:3px 6px; border:1px solid var(--line); border-radius:6px; }
+.rc-cities .x { margin-left:auto; border:none; background:none; color:var(--muted); cursor:pointer; }
+@media (max-width:700px) { .rc-tbl { min-width:600px; } }
 </style>
 </head>
 <body>
@@ -1208,6 +1251,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <button onclick="switchView('cod');closeNavMenu()">💰 COD money</button>
       <a class="nav-mobile-only" href="nt-production-prints.html">🖨 Print</a>
       <button onclick="remitFetchNow();closeNavMenu()">💰 Fetch COD remittance</button>
+      <button onclick="switchView('recon');closeNavMenu()">⚖️ Weight / Invoice reconciliation</button>
     </div>
   </div>
 </header>
@@ -1889,6 +1933,53 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div id="dispatchView"><div class="empty-state"><div class="icon">📋</div><p>Loading…</p></div></div>
 </div>
 
+<!-- ── WEIGHT / INVOICE RECONCILIATION ─────────────────────────────────────── -->
+<div class="view" id="view-recon">
+  <div class="page-hd">
+    <h2>Weight / Invoice reconciliation</h2>
+    <p>Bluedart invoice, COD charges and the weight-audit file, checked against our rates and our own weights. Everything is saved by invoice number.</p>
+  </div>
+  <div class="rc-tabs">
+    <button class="rc-tab on" data-tab="invoice" onclick="rcTab('invoice')">🧾 Invoice</button>
+    <button class="rc-tab" data-tab="cod" onclick="rcTab('cod')">💰 COD charges</button>
+    <button class="rc-tab" data-tab="audit" onclick="rcTab('audit')">⚖️ Weight audit</button>
+    <button class="rc-tab" data-tab="history" onclick="rcTab('history')">🗂 History</button>
+    <button class="rc-tab" data-tab="settings" onclick="rcTab('settings')">⚙ Rates &amp; settings</button>
+  </div>
+
+  <div class="rc-pane on" id="rc-invoice">
+    <div class="rc-drop" id="rcDropInv" onclick="document.getElementById('rcFileInv').click()">
+      <b>Drop the Bluedart invoice here (PDF)</b><span>or an Excel export of it · every line is checked against the city rate × 0.5 kg slabs</span>
+      <input type="file" id="rcFileInv" accept=".pdf,.xlsx,.xls,.csv" onchange="rcHandleFile('invoice', this.files[0]); this.value=''">
+    </div>
+    <div class="rc-status" id="rcStatusInv"></div>
+    <div id="rcOutInv"></div>
+  </div>
+
+  <div class="rc-pane" id="rc-cod">
+    <div class="rc-row"><span style="font-weight:700">Invoice number</span><input id="rcCodInv" placeholder="e.g. 2026807R00005642" style="width:200px"><span class="rc-note" style="margin:0">COD charges are saved against this invoice so the two overviews stay together.</span></div>
+    <div class="rc-drop" id="rcDropCod" onclick="document.getElementById('rcFileCod').click()">
+      <b>Drop the COD charges sheet here</b><span>Excel or CSV with an AWB column and the charge per shipment · checked against which orders were really COD</span>
+      <input type="file" id="rcFileCod" accept=".xlsx,.xls,.csv,.pdf" onchange="rcHandleFile('cod', this.files[0]); this.value=''">
+    </div>
+    <div class="rc-status" id="rcStatusCod"></div>
+    <div id="rcOutCod"></div>
+  </div>
+
+  <div class="rc-pane" id="rc-audit">
+    <div class="rc-drop" id="rcDropAudit" onclick="document.getElementById('rcFileAudit').click()">
+      <b>Drop the weight audit file here</b><span>Bluedart's audit sheet · each AWB gets applied weight, correct weight and difference from our own weight</span>
+      <input type="file" id="rcFileAudit" accept=".xlsx,.xls,.csv" onchange="rcHandleFile('audit', this.files[0]); this.value=''">
+    </div>
+    <div class="rc-status" id="rcStatusAudit"></div>
+    <div id="rcOutAudit"></div>
+  </div>
+
+  <div class="rc-pane" id="rc-history"><div id="rcHistory"><div class="loading-row" style="height:50px;border-radius:10px"></div></div></div>
+
+  <div class="rc-pane" id="rc-settings"><div id="rcSettings"></div></div>
+</div>
+
 <div id="toast"></div>
 
 <!-- ── ADD PRODUCT MODAL ────────────────────────────────────────────────────── -->
@@ -1979,6 +2070,7 @@ function switchView(view) {
   }
   if (view === 'fba') loadFba();
   if (view === 'cod' || view === 'returns') loadCod();
+  if (view === 'recon') reconInit();
   if (view === 'dispatch') {
     loadDispatchCounters();
     if (!Object.keys(_printLinks).length) loadPrintData();
@@ -6933,6 +7025,245 @@ document.addEventListener('click', e => {
     return;
   }
 });
+
+// ── WEIGHT / INVOICE RECONCILIATION ──────────────────────────────────────────
+const RCS = { cfg: null, tab: 'invoice', runs: null, inv: null, cod: null, audit: null, filter: {} };
+const rcLoaded = {};
+function rcScript(src) { if (rcLoaded[src]) return rcLoaded[src]; rcLoaded[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); }); return rcLoaded[src]; }
+const rcCore = () => rcScript('nt-recon-core.js?v=1');
+const rcXlsx = () => rcScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+async function rcPdf() { await rcScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; return window.pdfjsLib; }
+const rcInr = n => n == null ? '—' : '₹' + Math.round(+n).toLocaleString('en-IN');
+const rcInr2 = n => n == null ? '—' : '₹' + (+n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const rcEsc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const rcDay = iso => iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit', timeZone: 'UTC' }) : '—';
+const rcStatus = (kind, msg, bad) => { const el = document.getElementById('rcStatus' + { invoice: 'Inv', cod: 'Cod', audit: 'Audit' }[kind]); if (el) { el.textContent = msg || ''; el.style.color = bad ? 'var(--red)' : ''; } };
+
+async function reconInit() {
+  for (const [id, kind] of [['rcDropInv', 'invoice'], ['rcDropCod', 'cod'], ['rcDropAudit', 'audit']]) {
+    const el = document.getElementById(id); if (el.dataset.ready) continue; el.dataset.ready = '1';
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); }); el.addEventListener('dragleave', () => el.classList.remove('over'));
+    el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) rcHandleFile(kind, f); });
+  }
+  rcCore().catch(e => toast(e.message));
+  if (!RCS.cfg) { try { RCS.cfg = await api({ action: 'courier_config' }); } catch (e) { toast('Settings: ' + e.message); } }
+  if (RCS.tab === 'history') rcLoadHistory();
+  if (RCS.tab === 'settings') rcRenderSettings();
+}
+function rcTab(t) {
+  RCS.tab = t;
+  document.querySelectorAll('.rc-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('.rc-pane').forEach(p => p.classList.toggle('on', p.id === 'rc-' + t));
+  if (t === 'history') rcLoadHistory();
+  if (t === 'settings') rcRenderSettings();
+  if (t === 'cod' && RCS.inv && RCS.inv.summary && !document.getElementById('rcCodInv').value) document.getElementById('rcCodInv').value = RCS.inv.summary.invoice_no || '';
+}
+
+// ---------- reading files ----------
+async function rcReadPdfPages(file) {
+  const pdfjs = await rcPdf();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pages = [];
+  for (let p = 1; p <= doc.numPages; p++) { const page = await doc.getPage(p); const vp = page.getViewport({ scale: 1 }); const tc = await page.getTextContent(); pages.push({ width: vp.width, items: tc.items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str, x: i.transform[4], y: i.transform[5] })) }); }
+  return pages;
+}
+async function rcReadSheetRows(file) {
+  await rcXlsx();
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', raw: /\.csv$/i.test(file.name) });
+  let best = null;
+  for (const name of wb.SheetNames) { const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }); if (!best || rows.length > best.rows.length) best = { name, rows }; }
+  return best ? best.rows : [];
+}
+async function rcHandleFile(kind, file) {
+  if (!file) return;
+  try {
+    await rcCore(); if (!RCS.cfg) RCS.cfg = await api({ action: 'courier_config' });
+    rcStatus(kind, `Reading ${file.name}…`);
+    if (kind === 'invoice') await rcRunInvoice(file);
+    else if (kind === 'cod') await rcRunCod(file);
+    else await rcRunAudit(file);
+  } catch (e) { console.error(e); rcStatus(kind, 'Failed: ' + e.message, true); }
+}
+async function rcLookup(awbs, refs) {
+  const out = { by_awb: {}, by_ref: {} };
+  const A = [...new Set(awbs)], R = [...new Set(refs || [])];
+  for (let i = 0; i < Math.max(A.length, R.length, 1); i += 1200) {
+    const r = await api({ action: 'courier_lookup', awbs: A.slice(i, i + 1200), refs: R.slice(i, i + 1200) });
+    Object.assign(out.by_awb, r.by_awb || {}); Object.assign(out.by_ref, r.by_ref || {});
+  }
+  return out;
+}
+
+// ---------- invoice ----------
+async function rcRunInvoice(file) {
+  const parsed = /\.pdf$/i.test(file.name) ? RC.parseInvoicePdf(await rcReadPdfPages(file)) : RC.parseInvoiceSheet(await rcReadSheetRows(file));
+  if (!parsed.lines.length) throw new Error('No shipment lines found in this file');
+  rcStatus('invoice', `${parsed.lines.length} lines read · checking rates…`);
+  const res = RC.checkInvoice(parsed, RCS.cfg);
+  rcStatus('invoice', `${parsed.lines.length} lines checked · matching AWBs to our orders…`);
+  try { RC.applyLookup(res, await rcLookup(res.lines.map(l => l.awb))); } catch (e) { res.summary.lookup_error = e.message; }
+  RCS.inv = { ...res, file: file.name, parsed };
+  RCS.filter.invoice = null;
+  rcRenderInvoice();
+  rcStatus('invoice', 'Saving…');
+  try {
+    if (Object.keys(res.learned).length) { RCS.cfg.cities = { ...(RCS.cfg.cities || {}), ...res.learned }; await api({ action: 'courier_config_save', config: RCS.cfg }); }
+    const flagged = res.lines.filter(l => l.issue !== 'ok').map(rcCompactLine);
+    const r = await api({ action: 'courier_save', kind: 'invoice', invoice_no: res.summary.invoice_no, invoice_date: res.summary.invoice_date, label: `${res.summary.product || 'Invoice'} · ${res.summary.lines} lines`, file_name: file.name, summary: res.summary, flagged, settings: { tiers: RCS.cfg.tiers, reverse_fee: RCS.cfg.reverse_fee, rto_fee: RCS.cfg.rto_fee } });
+    rcStatus('invoice', `Saved under invoice ${res.summary.invoice_no || '(no number)'}${r.replaced ? ' (replaced the earlier run)' : ''}${Object.keys(res.learned).length ? ` · ${Object.keys(res.learned).length} new cities added to the rate list` : ''}`);
+    RCS.runs = null;
+  } catch (e) { rcStatus('invoice', 'Checked, but could not save: ' + e.message, true); }
+  if (!document.getElementById('rcCodInv').value) document.getElementById('rcCodInv').value = res.summary.invoice_no || '';
+}
+const rcCompactLine = l => ({ sno: l.sno, date: l.date, awb: l.awb, ret: l.ret, dest: l.dest, wt: l.wt, amount: l.amount, tier: l.tier, expected: l.expected, diff: l.diff, issue: l.issue, extra: l.extra, note: l.note, order: l.order, payment: l.payment, units: l.units, ours: l.ours });
+const rcIssueCls = i => ['fee50', 'zone', 'dup', 'prepaid'].includes(i) ? 'red' : ['oda', 'other', 'norate', 'fee', 'unknown'].includes(i) ? 'amb' : i === 'ok' ? 'grn' : '';
+function rcTiles(items) { return `<div class="dc-row" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">${items.map(([n, l, s]) => `<div class="dc-box"><div class="dc-n" style="font-size:1.25rem">${n}</div><div class="dc-l">${l}</div>${s ? `<div class="dc-s">${s}</div>` : ''}</div>`).join('')}</div>`; }
+function rcRenderInvoice() {
+  const R = RCS.inv, S = R.summary, out = document.getElementById('rcOutInv');
+  const f = RCS.filter.invoice;
+  const lines = (R.lines || R.flagged).filter(l => f ? l.issue === f : l.issue !== 'ok');
+  const labels = R.labels || RC.ISSUES;
+  out.innerHTML = `
+    <div class="rc-hd"><b>Invoice ${rcEsc(S.invoice_no || '—')}</b><span>${rcDay(S.invoice_date)}</span><span>${rcEsc(S.product || '')}</span><span>${S.lines} lines · ${S.returns} returns</span>
+      <span>Freight ${rcInr2(S.freight_lines)} ${S.freight_match == null ? '' : S.freight_match ? '<span class="ok">= invoice ✓</span>' : `<span class="bad">≠ invoice ${rcInr2(S.freight_invoice)}</span>`}</span>
+      ${S.grand ? `<span>Grand total ${rcInr2(S.grand)}</span>` : ''}${S.unknown_awb != null ? `<span>${S.known_awb} AWBs matched to our orders${S.unknown_awb ? `, ${S.unknown_awb} not found` : ''}</span>` : ''}${S.lookup_error ? `<span class="bad">order match failed: ${rcEsc(S.lookup_error)}</span>` : ''}${S.unparsed ? `<span class="bad">${S.unparsed} rows could not be read</span>` : ''}</div>
+    ${rcTiles([[S.lines, 'Lines billed'], [S.disputed, 'Lines to dispute', `${S.flagged} flagged`], [rcInr(S.extra), 'Extra freight', 'on disputed lines'], [rcInr(S.impact), 'Real impact', `× ${S.multiplier} with surcharges ${S.surcharge_pct}% + GST`], [rcInr(S.surcharges), 'Surcharges on invoice', 'IDC · EFSS · fuel · CAF']])}
+    <div class="rc-chips">${(S.by_issue || []).map(b => `<span class="rc-chip ${f === b.issue ? 'on' : ''}" onclick="RCS.filter.invoice = RCS.filter.invoice === '${b.issue}' ? null : '${b.issue}'; rcRenderInvoice()"><span class="rc-pill ${rcIssueCls(b.issue)}">${b.n}</span> ${rcEsc(b.label)}${b.extra ? `<i>${rcInr(b.extra)}</i>` : ''}</span>`).join('')}</div>
+    <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadInvoice()">⬇ Dispute sheet (Excel)</button><button class="btn btn-ghost" onclick="rcDownloadInvoice(true)">⬇ All lines with check</button>${R.file ? `<span class="rc-note" style="margin:auto 0">${rcEsc(R.file)}</span>` : ''}</div>
+    <div class="rc-wrap"><table class="rc-tbl"><tr><th>S.no</th><th>Ship date</th><th>AWB</th><th>Destination</th><th>Wt</th><th>Billed</th><th>Correct</th><th>Extra</th><th>Issue</th><th>Order</th></tr>
+      ${lines.slice(0, 500).map(l => `<tr class="${l.issue}"><td>${l.sno}</td><td>${rcDay(l.date)}</td><td>${l.ret ? '(R) ' : ''}${l.awb}</td><td>${rcEsc(l.dest)}${l.tier ? ` <span class="rc-pill">T${l.tier}</span>` : ''}</td><td class="n">${l.wt}</td><td class="n">${rcInr2(l.amount)}</td><td class="n">${rcInr2(l.expected)}</td><td class="n">${l.diff == null ? '—' : (l.diff > 0 ? '+' : '') + l.diff.toFixed(2)}</td><td class="w"><span class="rc-pill ${rcIssueCls(l.issue)}">${rcEsc(labels[l.issue] || l.issue)}</span>${l.note ? `<div class="rc-note" style="margin:2px 0 0">${rcEsc(l.note)}</div>` : ''}</td><td>${l.order ? `${rcEsc(l.order)} <span class="rc-pill">${l.payment || ''}${l.units ? ' · ' + l.units + ' pc' : ''}</span>` : (l.ours === false ? '<span class="rc-pill amb">not ours?</span>' : '')}</td></tr>`).join('')}
+      ${!lines.length ? '<tr><td colspan="10" class="rc-note">Nothing flagged.</td></tr>' : ''}${lines.length > 500 ? `<tr><td colspan="10" class="rc-note">Showing 500 of ${lines.length}; the download has all of them.</td></tr>` : ''}</table></div>`;
+}
+async function rcDownloadInvoice(all) {
+  await rcXlsx(); const R = RCS.inv, S = R.summary, labels = R.labels || RC.ISSUES;
+  const dispute = (R.lines || R.flagged).filter(l => ['fee50', 'zone', 'oda', 'other', 'dup'].includes(l.issue));
+  const row = l => ({ 'S.no': l.sno, 'Ship date': l.date, 'AWB': (l.ret ? '(R) ' : '') + l.awb, 'Destination': l.dest, 'Charged wt (kg)': l.wt, 'Billed (₹)': l.amount, 'Correct (₹)': l.expected, 'Difference (₹)': l.diff, 'Issue': labels[l.issue] || l.issue, 'Note': l.note || '', 'Our order': l.order || '', 'Payment': l.payment || '' });
+  const summary = [['Invoice', S.invoice_no], ['Invoice date', S.invoice_date], ['Product', S.product], ['Lines billed', S.lines], ['Freight on lines', S.freight_lines], ['Freight on invoice', S.freight_invoice], ['Lines to dispute', S.disputed], ['Extra freight (₹)', S.extra], ['Surcharges as % of freight', S.surcharge_pct], ['Multiplier incl. surcharges + GST', S.multiplier], ['Estimated real impact (₹)', S.impact], [], ['Issue', 'Lines', 'Extra freight (₹)'], ...(S.by_issue || []).map(b => [b.label, b.n, b.extra]), [], ['Basis', 'Freight = city rate per 0.5 kg × weight slabs. Rates: ' + Object.entries(RCS.cfg.tiers).map(([t, v]) => `T${t} ₹${v}`).join(', ')]];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dispute.map(row)), 'Lines to dispute');
+  if (all && R.lines) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(R.lines.map(row)), 'All lines');
+  XLSX.writeFile(wb, `Bluedart_${S.invoice_no || 'invoice'}_${all ? 'checked' : 'dispute'}.xlsx`);
+}
+
+// ---------- COD ----------
+async function rcRunCod(file) {
+  const rows = /\.pdf$/i.test(file.name) ? (() => { throw new Error('Please upload the COD sheet as Excel or CSV'); })() : await rcReadSheetRows(file);
+  if (!rows.length) throw new Error('The sheet is empty');
+  rcStatus('cod', `${rows.length} rows read · matching AWBs to our orders…`);
+  const awbs = []; for (const r of rows) for (const v of Object.values(r)) { const s = String(v || '').replace(/\D/g, ''); if (s.length >= 8 && s.length <= 14 && /^\d{8,14}$/.test(String(v).trim())) { awbs.push(s); break; } }
+  const lookup = await rcLookup(awbs);
+  const res = RC.checkCod(rows, lookup, RCS.cfg);
+  const inv = document.getElementById('rcCodInv').value.trim();
+  RCS.cod = { ...res, file: file.name, invoice_no: inv }; RCS.filter.cod = null;
+  rcRenderCod();
+  rcStatus('cod', 'Saving…');
+  try { const r = await api({ action: 'courier_save', kind: 'cod', invoice_no: inv || null, label: `COD charges · ${res.summary.lines} lines`, file_name: file.name, summary: { ...res.summary, invoice_no: inv }, flagged: res.flagged, settings: { cod_fee: RCS.cfg.cod_fee } }); rcStatus('cod', `Saved${inv ? ' under invoice ' + inv : ' (no invoice number given)'}${r.replaced ? ' (replaced the earlier run)' : ''}`); RCS.runs = null; }
+  catch (e) { rcStatus('cod', 'Checked, but could not save: ' + e.message, true); }
+}
+function rcRenderCod() {
+  const R = RCS.cod, S = R.summary, out = document.getElementById('rcOutCod'), f = RCS.filter.cod, labels = R.labels || { ok: 'OK', dup: 'AWB charged twice', prepaid: 'Charged on a prepaid order', unknown: 'AWB not in our shipments', fee: 'Fee differs from agreed rate' };
+  const lines = (R.lines || R.flagged).filter(l => f ? l.issue === f : l.issue !== 'ok');
+  out.innerHTML = `
+    <div class="rc-hd"><b>COD charges${S.invoice_no || R.invoice_no ? ' · invoice ' + rcEsc(S.invoice_no || R.invoice_no) : ''}</b><span>${S.lines} lines</span><span>agreed fee ₹${S.fee} per COD shipment</span></div>
+    ${rcTiles([[S.lines, 'COD lines charged'], [rcInr(S.total), 'Total charged'], [S.disputed, 'Lines to dispute', `${S.flagged} flagged`], [rcInr(S.extra), 'To claim back'], [S.unknown || 0, 'AWBs not found', 'not in our shipments']])}
+    <div class="rc-chips">${(S.by_issue || []).map(b => `<span class="rc-chip ${f === b.issue ? 'on' : ''}" onclick="RCS.filter.cod = RCS.filter.cod === '${b.issue}' ? null : '${b.issue}'; rcRenderCod()"><span class="rc-pill ${rcIssueCls(b.issue)}">${b.n}</span> ${rcEsc(b.label)}${b.extra ? `<i>${rcInr(b.extra)}</i>` : ''}</span>`).join('')}</div>
+    <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadCod()">⬇ COD dispute sheet (Excel)</button></div>
+    <div class="rc-wrap"><table class="rc-tbl"><tr><th>Row</th><th>Date</th><th>AWB</th><th>Charged</th><th>Our order</th><th>Payment</th><th>Issue</th></tr>
+      ${lines.slice(0, 500).map(l => `<tr class="${l.issue}"><td>${l.row}</td><td>${rcDay(l.date)}</td><td>${l.awb}</td><td class="n">${rcInr2(l.amount)}</td><td>${rcEsc(l.order || '')}</td><td>${rcEsc(l.payment || '')}</td><td class="w"><span class="rc-pill ${rcIssueCls(l.issue)}">${rcEsc(labels[l.issue] || l.issue)}</span>${l.note ? `<div class="rc-note" style="margin:2px 0 0">${rcEsc(l.note)}</div>` : ''}</td></tr>`).join('')}
+      ${!lines.length ? '<tr><td colspan="7" class="rc-note">Nothing flagged.</td></tr>' : ''}</table></div>`;
+}
+async function rcDownloadCod() {
+  await rcXlsx(); const R = RCS.cod, S = R.summary, labels = R.labels || {};
+  const dispute = (R.lines || R.flagged).filter(l => ['dup', 'prepaid', 'fee'].includes(l.issue));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Invoice', S.invoice_no || R.invoice_no || ''], ['COD lines charged', S.lines], ['Total charged (₹)', S.total], ['Agreed fee per COD shipment (₹)', S.fee], ['Lines to dispute', S.disputed], ['To claim back (₹)', S.extra], [], ['Issue', 'Lines', 'Amount (₹)'], ...(S.by_issue || []).map(b => [b.label, b.n, b.extra])]), 'Summary');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dispute.map(l => ({ 'Row': l.row, 'Date': l.date, 'AWB': l.awb, 'Charged (₹)': l.amount, 'Our order': l.order || '', 'Payment': l.payment || '', 'Issue': labels[l.issue] || l.issue, 'Note': l.note || '' }))), 'Lines to dispute');
+  XLSX.writeFile(wb, `Bluedart_COD_${S.invoice_no || R.invoice_no || 'charges'}_dispute.xlsx`);
+}
+
+// ---------- weight audit ----------
+async function rcRunAudit(file) {
+  const rows = await rcReadSheetRows(file);
+  if (!rows.length) throw new Error('The sheet is empty');
+  rcStatus('audit', `${rows.length} rows read · matching AWBs to our orders…`);
+  const keys = Object.keys(rows[0]), kA = keys.find(k => /^awb|awbno|tracking/i.test(k)), kR = keys.find(k => /crcrdref|custorderref|reference|order/i.test(k));
+  const lookup = await rcLookup(rows.map(r => String(r[kA] || '').replace(/\D/g, '')).filter(Boolean), kR ? rows.map(r => String(r[kR] || '').trim()).filter(x => /^\d{4,7}$/.test(x)) : []);
+  const res = RC.checkAudit(rows, lookup, RCS.cfg);
+  const dates = res.summary.dates || [], label = dates.length ? `${rcDay(dates[0])} → ${rcDay(dates[dates.length - 1])}` : file.name;
+  RCS.audit = { ...res, file: file.name, label, rawRows: rows }; RCS.filter.audit = 'over';
+  rcRenderAudit();
+  rcStatus('audit', 'Saving…');
+  const key = `audit-${dates[0] || ''}-${dates[dates.length - 1] || ''}-${rows.length}`;
+  try { await api({ action: 'courier_save', kind: 'audit', invoice_no: key, invoice_date: dates[dates.length - 1] || null, label: `Weight audit · ${label} · ${res.summary.rows} parcels`, file_name: file.name, summary: res.summary, flagged: res.over.map(x => ({ awb: x.awb, ref: x.ref, date: x.date, item: x.item, units: x.units, basis: x.basis, order: x.order, declared: x.declared, audited_actual: x.audited_actual, audited_vol: x.audited_vol, dims: x.dims, applied: x.applied, correct: x.correct, diff: x.diff, flag: x.flag, img: x.img })), settings: { piece_kg: RCS.cfg.piece_kg, slab_kg: RCS.cfg.slab_kg, avg_rate: RCS.cfg.avg_rate } }); rcStatus('audit', `Saved as ${label}`); RCS.runs = null; }
+  catch (e) { rcStatus('audit', 'Checked, but could not save: ' + e.message, true); }
+}
+function rcRenderAudit() {
+  const R = RCS.audit, S = R.summary, out = document.getElementById('rcOutAudit'), f = RCS.filter.audit || 'over';
+  const rows = R.rows ? R.rows.filter(x => f === 'all' || (f === 'over' ? x.over : x.diff < -0.001)) : (R.over || R.flagged || []);
+  out.innerHTML = `
+    <div class="rc-hd"><b>Weight audit</b><span>${rcEsc(R.label || '')}</span><span>${S.rows} parcels</span><span>our weight ${RCS.cfg.piece_kg} kg a piece, slabs of ${RCS.cfg.slab_kg} kg</span></div>
+    ${rcTiles([[S.rows, 'Parcels audited'], [S.over, 'Charged above our weight', `${S.exact} correct · ${S.under} below`], [S.kg_over + ' kg', 'Weight over', `${S.slabs_over} slabs of ${RCS.cfg.slab_kg} kg`], [rcInr(S.est_freight), 'Freight at stake', `at ₹${RCS.cfg.avg_rate} per slab`], [rcInr(S.est_impact), 'Real impact', `× ${RCS.cfg.multiplier} with surcharges + GST`]])}
+    ${S.basis ? `<div class="rc-note">Correct weight basis: ${Object.entries(S.basis).map(([k, n]) => `${k} ${n}`).join(' · ')}${S.custom_over ? ` · ${S.custom_over} of the over-charged parcels carried a custom piece` : ''}</div>` : ''}
+    <div class="rc-chips">${[['over', 'Charged over', S.over], ['under', 'Charged below', S.under], ['all', 'All parcels', S.rows]].map(([k, l, n]) => `<span class="rc-chip ${f === k ? 'on' : ''}" onclick="RCS.filter.audit='${k}';rcRenderAudit()"><span class="rc-pill ${k === 'over' ? 'red' : k === 'under' ? 'grn' : ''}">${n}</span> ${l}</span>`).join('')}</div>
+    <div class="rc-actions"><button class="btn btn-primary" onclick="rcDownloadAudit()" ${R.rawRows ? '' : 'disabled title="Re-upload the file to download it filled in"'}>⬇ Their file with applied / correct / difference filled</button><button class="btn btn-ghost" onclick="rcDownloadAudit(true)">⬇ Over-charged parcels only</button></div>
+    <div class="rc-wrap"><table class="rc-tbl"><tr><th>Pickup</th><th>AWB</th><th>Order</th><th>Item</th><th>Pieces</th><th>Declared</th><th>Audited</th><th>L × B × H</th><th>Applied</th><th>Correct</th><th>Diff</th><th>Photo</th></tr>
+      ${rows.slice(0, 500).map(x => `<tr class="${x.over ? 'zone' : ''}"><td>${rcDay(x.date)}</td><td>${x.awb}</td><td>${rcEsc(x.order || x.ref || '')}</td><td class="w">${rcEsc(x.item)}</td><td class="n">${x.units}${x.custom ? ' <span class="rc-pill amb">custom</span>' : ''}</td><td class="n">${x.declared ?? '—'}</td><td class="n">${x.audited_actual ?? '—'}${x.audited_vol != null ? ` <span class="rc-pill">vol ${x.audited_vol}</span>` : ''}</td><td>${rcEsc(x.dims)}</td><td class="n">${x.applied}</td><td class="n">${x.correct}</td><td class="n" style="${x.diff > 0 ? 'color:var(--red);font-weight:700' : ''}">${x.diff > 0 ? '+' : ''}${x.diff}</td><td>${x.img ? `<a href="${rcEsc(x.img)}" target="_blank" rel="noopener">📷</a>` : ''}</td></tr>`).join('')}
+      ${!rows.length ? '<tr><td colspan="12" class="rc-note">Nothing here.</td></tr>' : ''}${rows.length > 500 ? `<tr><td colspan="12" class="rc-note">Showing 500 of ${rows.length}; the download has all of them.</td></tr>` : ''}</table></div>`;
+}
+async function rcDownloadAudit(overOnly) {
+  await rcXlsx(); const R = RCS.audit, S = R.summary;
+  const wb = XLSX.utils.book_new();
+  if (R.rawRows && !overOnly) {
+    const byAwb = {}; for (const x of R.rows) byAwb[x.awb] = x;
+    const kA = R.columns.awb;
+    const rows = R.rawRows.map(r => { const o = { ...r }; for (const k of Object.keys(o)) if (/^__EMPTY|^applied weight$|^correct weight|^difference$/i.test(k)) delete o[k]; const x = byAwb[String(r[kA] || '').replace(/\D/g, '')]; o['applied weight'] = x ? x.applied : ''; o['correct weight'] = x ? x.correct : ''; o['difference'] = x ? x.diff : ''; o['pieces'] = x ? x.units : ''; o['our order'] = x ? (x.order || '') : ''; return o; });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Sheet1');
+    XLSX.writeFile(wb, R.file.replace(/\.[^.]+$/, '') + '_checked.xlsx'); return;
+  }
+  const over = (R.over || R.flagged || []);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Weight audit', R.label || ''], ['Parcels audited', S.rows], ['Charged above our weight', S.over], ['Weight over (kg)', S.kg_over], ['Slabs over', S.slabs_over], ['Freight at stake (₹)', S.est_freight], ['Estimated real impact (₹)', S.est_impact], ['Rule', `Our weight = declared actual (min. pieces × ${RCS.cfg.piece_kg} kg) rounded up to ${RCS.cfg.slab_kg} kg`]]), 'Summary');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(over.map(x => ({ 'Pickup': x.date, 'AWB': x.awb, 'Order ref': x.ref, 'Our order': x.order || '', 'Item': x.item, 'Pieces': x.units, 'Declared (kg)': x.declared, 'Audited actual (kg)': x.audited_actual, 'Audited volumetric (kg)': x.audited_vol, 'L × B × H (cm)': x.dims, 'Applied weight': x.applied, 'Correct weight': x.correct, 'Difference': x.diff, 'Their reason': x.flag, 'Photo': x.img }))), 'Over-charged');
+  XLSX.writeFile(wb, `Bluedart_weight_audit_${(R.label || '').replace(/[^\w]+/g, '_')}_over.xlsx`);
+}
+
+// ---------- history ----------
+async function rcLoadHistory() {
+  const el = document.getElementById('rcHistory');
+  if (!RCS.runs) { try { RCS.runs = (await api({ action: 'courier_list' })).runs || []; } catch (e) { el.innerHTML = `<div class="cut-empty" style="color:var(--red)">${rcEsc(e.message)}</div>`; return; } }
+  const K = { invoice: '🧾', cod: '💰', audit: '⚖️' };
+  el.innerHTML = RCS.runs.length ? RCS.runs.map(r => { const s = r.summary || {}; const nums = r.kind === 'invoice' ? `${s.lines} lines · ${s.disputed} to dispute · extra ${rcInr(s.extra)} · impact ${rcInr(s.impact)}` : r.kind === 'cod' ? `${s.lines} lines · ${s.disputed} to dispute · ${rcInr(s.extra)}` : `${s.rows} parcels · ${s.over} over · ${s.kg_over} kg · ${rcInr(s.est_impact)}`;
+    return `<div class="rc-hist" onclick="rcOpenRun(${r.id})">${K[r.kind]} <span class="k">${rcEsc(r.kind === 'audit' ? (r.label || '').replace(/^Weight audit · /, '') : r.invoice_no || '(no number)')}</span><span>${r.kind === 'invoice' ? rcDay(r.invoice_date) : ''}</span><span>${nums}</span><span class="m">${new Date(r.updated_at || r.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} <button class="btn btn-ghost" style="padding:2px 8px;font-size:.7rem;margin-left:6px" onclick="event.stopPropagation();rcDeleteRun(${r.id})">✕</button></span></div>`; }).join('')
+    : '<div class="cut-empty">No runs saved yet. Upload an invoice, a COD sheet or an audit file.</div>';
+}
+async function rcOpenRun(id) {
+  try {
+    const r = await api({ action: 'courier_get', id });
+    const s = r.summary || {}, flagged = r.flagged || [];
+    if (r.kind === 'invoice') { RCS.inv = { summary: s, flagged, lines: null, file: r.file_name, labels: RC.ISSUES }; RCS.filter.invoice = null; rcTab('invoice'); rcRenderInvoice(); rcStatus('invoice', `Opened from history · ${r.file_name || ''} · re-upload the invoice to get the full line list`); }
+    else if (r.kind === 'cod') { RCS.cod = { summary: s, flagged, lines: null, file: r.file_name, invoice_no: r.invoice_no }; RCS.filter.cod = null; rcTab('cod'); document.getElementById('rcCodInv').value = r.invoice_no || ''; rcRenderCod(); rcStatus('cod', `Opened from history · ${r.file_name || ''}`); }
+    else { RCS.audit = { summary: s, over: flagged, rows: null, file: r.file_name, label: (r.label || '').replace(/^Weight audit · /, '').replace(/ · \d+ parcels$/, '') }; RCS.filter.audit = 'over'; rcTab('audit'); rcRenderAudit(); rcStatus('audit', `Opened from history · ${r.file_name || ''} · re-upload the file to download it filled in`); }
+  } catch (e) { toast(e.message); }
+}
+async function rcDeleteRun(id) { if (!confirm('Delete this saved run?')) return; try { await api({ action: 'courier_delete', id }); RCS.runs = null; rcLoadHistory(); } catch (e) { toast(e.message); } }
+
+// ---------- settings ----------
+function rcRenderSettings() {
+  const c = RCS.cfg, el = document.getElementById('rcSettings'); if (!c) { el.innerHTML = '<div class="loading-row" style="height:50px;border-radius:10px"></div>'; return; }
+  const F = (k, label, step = 'any') => `<div><label>${label}</label><input type="number" step="${step}" value="${c[k] ?? ''}" onchange="RCS.cfg['${k}']=+this.value"></div>`;
+  const cities = Object.entries(c.cities || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  el.innerHTML = `
+    <div class="rc-note">Our weight rule: a parcel weighs the declared actual weight, never less than pieces × piece weight, rounded up to the slab. Freight = city rate × slabs. Fees are what Bluedart may add on top; anything else is flagged.</div>
+    <div class="rc-set">${F('piece_kg', 'Weight per piece (kg)')}${F('slab_kg', 'Weight slab (kg)')}${F('cod_fee', 'COD fee per shipment (₹)')}${F('reverse_fee', 'Reverse pickup fee (₹), allowed on (R) lines')}${F('rto_fee', 'RTO fee (₹), allowed on (R) lines')}${F('oda_fee', 'Out-of-area add-on per slab (₹), flagged as check')}${F('avg_rate', 'Average rate per slab for the audit estimate (₹)')}${F('multiplier', 'Fallback multiplier for surcharges + GST')}</div>
+    <div class="rc-set">${[1, 2, 3, 4, 5].map(t => `<div><label>Tier ${t} · ${rcEsc(c.tier_names[t])} (₹ per 0.5 kg)</label><input type="number" step="0.01" value="${c.tiers[t]}" onchange="RCS.cfg.tiers[${t}]=+this.value"></div>`).join('')}</div>
+    <div class="rc-row"><span style="font-weight:700">City tiers</span><span class="rc-note" style="margin:0">${Object.keys(c.seed_cities || {}).length} cities from the August analysis, plus ${cities.length} added or learned. Add a city to override or when an invoice says "no rate".</span></div>
+    <div class="rc-row"><input id="rcCityName" placeholder="CITY as printed on the invoice" style="text-transform:uppercase;width:220px"><select id="rcCityTier">${[1, 2, 3, 4, 5].map(t => `<option value="${t}">Tier ${t} · ₹${c.tiers[t]}</option>`).join('')}</select><button class="btn btn-ghost" onclick="rcCityAdd()">Add</button><input id="rcCityFind" placeholder="look up a city's tier" style="width:200px;margin-left:auto" oninput="rcCityFind(this.value)"><span id="rcCityFound" class="rc-note" style="margin:0"></span></div>
+    <div class="rc-cities">${cities.length ? cities.map(([k, t]) => `<div><span>${rcEsc(k)}</span><select onchange="RCS.cfg.cities['${rcEsc(k)}']=+this.value">${[1, 2, 3, 4, 5].map(x => `<option value="${x}" ${x === +t ? 'selected' : ''}>Tier ${x}</option>`).join('')}</select><button class="x" onclick="delete RCS.cfg.cities['${rcEsc(k)}'];rcRenderSettings()">✕</button></div>`).join('') : '<div class="rc-note" style="border:none">No overrides yet.</div>'}</div>
+    <div class="rc-actions"><button class="btn btn-primary" onclick="rcSaveSettings()">Save settings</button><span class="rc-note" id="rcSetMsg" style="margin:auto 0"></span></div>`;
+}
+function rcCityAdd() { const n = document.getElementById('rcCityName').value.trim().toUpperCase(), t = +document.getElementById('rcCityTier').value; if (!n) return; RCS.cfg.cities = { ...(RCS.cfg.cities || {}), [n]: t }; rcRenderSettings(); }
+function rcCityFind(q) { q = q.trim().toUpperCase(); const el = document.getElementById('rcCityFound'); if (!q) { el.textContent = ''; return; } const all = { ...(RCS.cfg.seed_cities || {}), ...(RCS.cfg.cities || {}) }; const hits = Object.keys(all).filter(k => k.includes(q)).slice(0, 6); el.textContent = hits.length ? hits.map(k => `${k}: T${all[k]}`).join(' · ') : 'not on file'; }
+async function rcSaveSettings() { const m = document.getElementById('rcSetMsg'); m.textContent = 'Saving…'; try { await api({ action: 'courier_config_save', config: RCS.cfg }); RCS.cfg = await api({ action: 'courier_config' }); m.textContent = 'Saved'; rcRenderSettings(); document.getElementById('rcSetMsg').textContent = 'Saved'; } catch (e) { m.textContent = e.message; } }
 
 init();
 </script>
