@@ -908,6 +908,7 @@ input[type=file]{display:none}
     .bk-tbl tr.bk-g label{display:flex;gap:8px;align-items:center;flex-wrap:wrap;cursor:pointer;font-size:.8rem}
     .bk-tbl tr.bk-g b{color:var(--ink)}.bk-tbl tr.bk-g .bk-z{border-radius:999px;padding:1px 8px;font-size:.68rem;font-weight:700;background:#e8f1ff;color:#1d4e89}.bk-tbl tr.bk-g .bk-z.air{background:#ffe9d6;color:#9a4a00}
     .bk-soft{color:#9a6a00;font-size:.72rem}
+    .bk-city{font-size:.8rem;font-weight:700;color:var(--accent);margin-top:2px}
     .bk-tag{display:inline-block;border-radius:999px;padding:1px 7px;font-size:.62rem;font-weight:700;background:#f1e8dc;color:var(--ink2);vertical-align:middle}.bk-tag.ok{background:#e3f4e8;color:#1e7b4f}
     .bk-it{display:flex;gap:4px;align-items:center;font-size:.7rem;color:var(--muted);font-weight:400;margin:2px 0;white-space:nowrap}.bk-it input[type=checkbox]{margin:0}.bk-it input[type=number]{padding:1px 3px;font-size:.7rem}
     .bk-box{display:flex;gap:2px;align-items:center;font-size:.7rem;color:var(--muted);margin:2px 0}.bk-box input{width:44px;padding:2px 3px;font-size:.72rem}.bk-box input[data-f=kg]{width:54px}
@@ -915,10 +916,14 @@ input[type=file]{display:none}
     .bk-rule .ord{display:flex;flex-direction:column;gap:2px}.bk-rule .ord button{border:1px solid var(--line);background:#fff;border-radius:4px;font-size:.6rem;padding:1px 3px;cursor:pointer}
     .bk-sec{font-family:var(--ff);font-size:1rem;margin:14px 0 6px}
   </style>
+  <div class="bk-row" style="margin-bottom:8px">
+    <input type="text" id="bkSearch" placeholder="Search order #, Amazon id, or a date (28 Oct, 28/10/2026)" style="flex:1;min-width:220px;font-family:var(--fb);font-size:.85rem;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px" onkeydown="if(event.key==='Enter')bkSearch()">
+    <button class="bk-btn sec" onclick="bkSearch()">Search</button>
+  </div>
   <div class="bk-tabs">
     <div class="ftab active" data-bk="day" onclick="bkTab('day')">By date</div>
     <div class="ftab" data-bk="ready" onclick="bkTab('ready')">Ready to book</div>
-    <div class="ftab" data-bk="one" onclick="bkTab('one')">One order</div>
+    <div class="ftab" data-bk="one" onclick="bkTab('one')">Search result</div>
     <div class="ftab" data-bk="log" onclick="bkTab('log')">Bookings log</div>
     <div class="ftab" data-bk="settings" onclick="bkTab('settings')">Rules</div>
   </div>
@@ -1625,6 +1630,21 @@ let _bkCfg = null, _bkCarriers = null, _bkRows = [], _bkTab = 'day', _bkBusy = f
 const bkIsMatched = r => { const m = /^(\d+)\/(\d+)$/.exec(r.rack || ''); return !!m && +m[1] >= +m[2] && +m[2] > 0; };
 const bkIsBooked = r => !!(r.awb || (r.result && r.result.ok && !r.result.dry) || /fully booked|already booked/.test(r.why || ''));
 const bkPasses = r => _bkFilter === 'all' || (_bkFilter === 'matched' && bkIsMatched(r) && !bkIsBooked(r)) || (_bkFilter === 'unmatched' && !bkIsMatched(r) && !bkIsBooked(r)) || (_bkFilter === 'booked' && bkIsBooked(r));
+// One box for everything: an order number or Amazon id from any date opens as a search result; a date loads that day
+async function bkSearch() {
+  const v = document.getElementById('bkSearch').value.trim(); if (!v) return;
+  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  let date = null, m;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) date = v;
+  else if ((m = /^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/.exec(v))) { const y = m[3] ? (m[3].length === 2 ? '20' + m[3] : m[3]) : String(new Date().getFullYear()); date = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
+  else if ((m = /^(\d{1,2})\s*([a-z]{3,})\.?\s*(\d{4})?$/i.exec(v)) && months.indexOf(m[2].slice(0, 3).toLowerCase()) >= 0) date = `${m[3] || new Date().getFullYear()}-${String(months.indexOf(m[2].slice(0, 3).toLowerCase()) + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (date) { bkTab('day'); document.getElementById('bkDayInp').value = date; return bkLoadDay(); }
+  const name = /^\d{3}-\d{7}-\d{7}$/.test(v) ? v : '#' + v.replace(/^#/, '');
+  bkTab('one');
+  document.getElementById('bkOneMsg').textContent = 'looking up…';
+  try { const p = await apiFetch({ action: 'booking_preview', order_names: [name] }); _bkOneRows = p.rows; } catch (e) { _bkOneRows = [{ order_name: name, ok: false, why: e.message }]; }
+  bkRenderOne();
+}
 async function bkEnsureCfg() { if (!_bkCfg) [_bkCfg, _bkCarriers] = await Promise.all([apiFetch({ action: 'booking_config' }), apiFetch({ action: 'booking_carriers' }).catch(() => ({ carriers: [], warehouses: [] }))]); return _bkCfg; }
 // All labels of the given bookings as one PDF, in that order, opened for printing; non-PDF labels open as links
 async function bkPrintLabels(ids, btn, date) {
@@ -1675,7 +1695,6 @@ function bkRenderDay() {
       <button class="bk-btn sec" onclick="bkLoadDay()" ${_bkBusy ? 'disabled' : ''}>Load</button>
       <button class="bk-btn" onclick="bkBookSelected('bkDayWeb');bkBookSelected('bkDayAmz')" ${_bkBusy || !n ? 'disabled' : ''}>Book selected</button>
       ${_bkLabelIds.length ? `<button class="bk-btn sec" onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>` : ''}
-      <label class="bk-m" style="display:flex;gap:4px;align-items:center"><input type="checkbox" ${_bkForce ? 'checked' : ''} onchange="_bkForce=this.checked;bkRenderDay()"> allow orders not complete on the rack</label>
       <span id="bkDayMsg" class="bk-m">${_bkDay ? `${n} orders · ${ready} ready` : ''}</span></div>
       ${_bkDay ? (() => { const all = [..._bkDay.website, ..._bkDay.amazon]; const c = { all: all.length, matched: all.filter(r => bkIsMatched(r) && !bkIsBooked(r)).length, unmatched: all.filter(r => !bkIsMatched(r) && !bkIsBooked(r)).length, booked: all.filter(bkIsBooked).length }; return `<div class="bk-row" style="margin-top:6px">${[['all', 'All'], ['matched', '✓ Matched, to book'], ['unmatched', 'Not yet matched'], ['booked', 'Booked']].map(([k, l]) => `<div class="ftab${_bkFilter === k ? ' active' : ''}" onclick="_bkFilter='${k}';bkRenderDay()">${l} ${c[k]}</div>`).join('')}</div>`; })() : ''}
       <div class="bk-m">Groups run surface zone first, Delhi NCR on top, then each state by city tier. Tick a group header to select all of it; the header shows which courier the rules pick for COD and prepaid in that group.</div></div>
@@ -1700,7 +1719,7 @@ function bkGroupTable(rows, wrapId) {
     const head = `<tr class="bk-g"><td colspan="8"><label><input type="checkbox" data-g="${gi}" onchange="bkGroupToggle('${wrapId}', ${gi}, this.checked)"><b>${bkEsc(g.key)}</b><span class="bk-z ${g.zone}">${g.zone}</span><span>${rs.length} order${rs.length === 1 ? '' : 's'} · ${rs.filter(r => r.ok).length} ready</span><span class="bk-m">${bkEsc(hint)}</span><span class="bk-m" style="flex-basis:100%">${bkEsc(cities)}</span></label></td></tr>`;
     return head + g.idx.map(i => bkRowHtml(rows[i], i, gi)).join('');
   }).join('');
-  return `<table class="bk-tbl"><thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Pcs</th><th>Box · weight</th><th>Carrier</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
+  return `<table class="bk-tbl">${BK_HEAD}<tbody>${body}</tbody></table>`;
 }
 function bkGroupToggle(wrapId, gi, on) { document.querySelectorAll(`#${wrapId} tr[data-g="${gi}"] [data-f=sel]`).forEach(c => { if (!c.disabled) c.checked = on; }); }
 // Orders the rack says are complete and that have no AWB yet
@@ -1720,7 +1739,9 @@ function bkCarrierSel(sel, name) {
 }
 function bkRowHtml(r, i, gi) {
   const box = r.box ? `${r.box.l}×${r.box.b}×${r.box.h} · ${r.box.kg} kg` : '';
-  const bookable = (r.ok || (r.soft && _bkForce)) && !(r.result && r.result.ok && !r.result.dry && r.result.part === r.part);
+  // a rack shortfall is a warning, not a block: the row can still be ticked or booked by hand
+  const bookable = (r.ok || r.soft) && !(r.result && r.result.ok && !r.result.dry && r.result.part === r.part);
+  const tierTag = r.tier ? ` <span class="bk-tag${r.tier === 1 ? ' ok' : ''}" title="${bkEsc(r.tier_name || '')}">T${r.tier}${r.tier_name ? ' · ' + bkEsc(r.tier_name) : ''}</span>` : '';
   const st = r.result ? (r.result.ok ? (r.result.dry ? `<span class="bk-ok">dry run ✓</span> <span class="bk-m">would send carrier ${bkEsc(r.result.payload.carrier_id)} · ${bkEsc(r.result.payload.order_weight)} g · ${bkEsc(r.result.payload.box_length)}×${bkEsc(r.result.payload.box_breadth)}×${bkEsc(r.result.payload.box_height)} · ${r.result.payload.payment_type === 'C' ? 'COD' : 'prepaid'}</span>` : `<span class="bk-ok">✓ ${bkEsc(r.result.awb)}</span>${r.result.part > 1 || (r.result.pieces && r.pieces_total && r.result.pieces < r.pieces_total) ? ` <span class="bk-m">part ${r.result.part} · ${r.result.pieces} pc</span>` : ''}${r.result.label_url ? ` <a href="${bkEsc(r.result.label_url)}" target="_blank">label</a>` : ''}${r.ok && r.result.part !== r.part ? '<div class="bk-m">rest still to book</div>' : ''}`) : `<span class="bk-why">${bkEsc(r.result.error)}</span>${r.altQueue && r.altQueue.length ? `<div class="bk-soft">next: ${bkEsc(r.altQueue[0].name)} · ${r.altQueue.length} more rule${r.altQueue.length === 1 ? '' : 's'} match</div><button class="ftab" data-next="1">Use next →</button>` : (r.altQueue ? '<div class="bk-m">no other rule matches</div>' : '')}`) : (r.ok ? `<span class="bk-m">ready${r.rack ? ' · rack ' + bkEsc(r.rack) : ''}${r.triedNote ? ' · ' + bkEsc(r.triedNote) : ''}</span>` : `<span class="${r.soft ? 'bk-soft' : 'bk-why'}">${bkEsc(r.why)}</span>`);
   // every item of the order, lightly, with a tick and a count: untick or lower a count to send only part of the order now
   const items = (r.items || []).map(it => `<label class="bk-it"><input type="checkbox" data-it="${it.i}" ${it.on > 0 ? 'checked' : ''} ${it.q - it.on >= it.q && it.on === 0 && r.booked ? '' : ''}>${it.q > 1 ? `<input type="number" data-itq="${it.i}" value="${it.on || it.q}" min="1" max="${it.q}" style="width:36px">×` : ''} <span>${bkEsc(it.n)}</span></label>`).join('');
@@ -1728,16 +1749,17 @@ function bkRowHtml(r, i, gi) {
   const boxEd = r.box ? `<div class="bk-box"><input type="number" data-f="l" value="${r.box.l}">×<input type="number" data-f="b" value="${r.box.b}">×<input type="number" data-f="h" value="${r.box.h}"> cm</div><div class="bk-box"><input type="number" step="0.01" data-f="kg" value="${r.box.kg}"> kg</div>` : '';
   return `<tr data-i="${i}"${gi != null ? ` data-g="${gi}"` : ''}>
     <td><input type="checkbox" data-f="sel" ${bookable ? (r.ok ? 'checked' : '') : 'disabled'}></td>
-    <td><b>${bkEsc(r.order_name)}</b>${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-m">${bkEsc(r.city)}${r.state ? ', ' + bkEsc(r.state) : ''} ${bkEsc(r.zip)}</div>${partNote}</td>
+    <td><b>${bkEsc(r.order_name)}</b>${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
+    <td>${r.ok || r.soft || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div></td>
     <td><div class="bk-m"><b>${r.pieces || 0}</b>${r.pieces_total && r.pieces_total !== r.pieces ? ` of ${r.pieces_total}` : ''} pc</div>${items}</td>
     <td>${boxEd}</td>
-    <td>${r.ok || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div></td>
-    <td>${st}</td></tr>`;
+    <td>${bookable ? `<button class="bk-btn" style="padding:5px 10px;font-size:.74rem;margin-bottom:4px" data-book="1">Book</button><br>` : ''}${st}</td></tr>`;
 }
+const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
 function bkTable(rows, idBase) {
-  return `<table class="bk-tbl"><thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Pcs</th><th>Box · weight</th><th>Carrier</th><th>Status</th></tr></thead><tbody>${rows.map((r, i) => bkRowHtml(r, i)).join('')}</tbody></table>`;
+  return `<table class="bk-tbl">${BK_HEAD}<tbody>${rows.map((r, i) => bkRowHtml(r, i)).join('')}</tbody></table>`;
 }
 function bkRenderReady() {
   const el = document.getElementById('bkReady');
@@ -1767,6 +1789,7 @@ function bkBindEdits(wrapId, rows) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
   wrap.querySelectorAll('tr[data-i]').forEach(tr => {
     const nx = tr.querySelector('[data-next]'); if (nx) nx.onclick = () => bkUseNext(wrapId, +tr.dataset.i);
+    const bk = tr.querySelector('[data-book]'); if (bk) bk.onclick = () => bkBookSelected(wrapId, [+tr.dataset.i]);
     tr.querySelectorAll('[data-f],[data-it],[data-itq]').forEach(inp => {
       if (inp.dataset.f === 'sel') return;
       inp.addEventListener('change', async () => {
@@ -1786,10 +1809,10 @@ function bkBindEdits(wrapId, rows) {
     });
   });
 }
-async function bkBookSelected(wrapId) {
+async function bkBookSelected(wrapId, only) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
   const rows = bkRowsFor(wrapId);
-  const picks = [...wrap.querySelectorAll('tr[data-i]')].filter(tr => { const c = tr.querySelector('[data-f=sel]'); return c && c.checked && !c.disabled; }).map(tr => +tr.dataset.i);
+  const picks = only || [...wrap.querySelectorAll('tr[data-i]')].filter(tr => { const c = tr.querySelector('[data-f=sel]'); return c && c.checked && !c.disabled; }).map(tr => +tr.dataset.i);
   if (!picks.length) return;
   if (!_bkCfg.dry_run && !confirm(`Book ${picks.length} order${picks.length === 1 ? '' : 's'} on Shipway now?`)) return;
   _bkBusy = true;
@@ -1798,7 +1821,7 @@ async function bkBookSelected(wrapId) {
     if (tr) tr.querySelector('td:last-child').innerHTML = '<span class="bk-m">booking…</span>';
     const ov = r.ov || {};
     const items = (r.items || []).filter(it => it.on > 0).map(it => ({ i: it.i, q: it.on }));
-    try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!(r.soft && _bkForce), ...ov }, API, 28000); }
+    try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!r.soft, ...ov }, API, 28000); }
     catch (e) { r.result = { ok: false, error: e.message }; if (!r.altQueue) r.altQueue = (r.alt || []).slice(); }
     if (r.result && r.result.ok && !r.result.dry && r.result.id) _bkLabelIds.push(r.result.id);
     const tr2 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr2) tr2.outerHTML = bkRowHtml(r, i, tr2.dataset.g);
@@ -1849,16 +1872,9 @@ async function bkScanBook(btn) {
 let _bkOneRows = [];
 function bkRenderOne() {
   const el = document.getElementById('bkOne');
-  el.innerHTML = `<div class="bk-card"><h4>Book a single order (test or manual)</h4><div class="bk-row"><input type="text" id="bkOneInp" placeholder="Order # (e.g. #91066) or Amazon id" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')bkOneLookup()"><button class="bk-btn sec" onclick="bkOneLookup()">Preview</button><button class="bk-btn" onclick="bkBookSelected('bkOneTbl')" ${_bkOneRows.length ? '' : 'disabled'}>Book</button></div><div id="bkOneMsg" class="bk-m"></div></div>
-    <div id="bkOneTbl">${_bkOneRows.length ? bkTable(_bkOneRows) : ''}</div>`;
+  el.innerHTML = `<div class="bk-card"><div class="bk-row"><span class="bk-m">Any order from any date, found through the search box above.</span>${_bkLabelIds.length ? `<button class="bk-btn sec" data-labels onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>` : ''}</div><div id="bkOneMsg" class="bk-m"></div></div>
+    <div id="bkOneTbl">${_bkOneRows.length ? bkTable(_bkOneRows) : '<div class="empty-msg">Type an order number above and press Search.</div>'}</div>`;
   bkBindEdits('bkOneTbl', _bkOneRows);
-}
-async function bkOneLookup() {
-  const v = document.getElementById('bkOneInp').value.trim(); if (!v) return;
-  const name = /^\d{3}-\d{7}-\d{7}$/.test(v) ? v : '#' + v.replace(/^#/, '');
-  document.getElementById('bkOneMsg').textContent = 'looking up…';
-  try { const p = await apiFetch({ action: 'booking_preview', order_names: [name] }); _bkOneRows = p.rows; } catch (e) { _bkOneRows = [{ order_name: name, ok: false, why: e.message }]; }
-  bkRenderOne();
 }
 async function bkRenderLog() {
   const el = document.getElementById('bkLog');
