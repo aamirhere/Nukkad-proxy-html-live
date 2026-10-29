@@ -908,6 +908,10 @@ input[type=file]{display:none}
     .bk-tbl tr.bk-g label{display:flex;gap:8px;align-items:center;flex-wrap:wrap;cursor:pointer;font-size:.8rem}
     .bk-tbl tr.bk-g b{color:var(--ink)}.bk-tbl tr.bk-g .bk-z{border-radius:999px;padding:1px 8px;font-size:.68rem;font-weight:700;background:#e8f1ff;color:#1d4e89}.bk-tbl tr.bk-g .bk-z.air{background:#ffe9d6;color:#9a4a00}
     .bk-soft{color:#9a6a00;font-size:.72rem}
+    .bk-it{display:flex;gap:4px;align-items:center;font-size:.7rem;color:var(--muted);font-weight:400;margin:2px 0;white-space:nowrap}.bk-it input[type=checkbox]{margin:0}.bk-it input[type=number]{padding:1px 3px;font-size:.7rem}
+    .bk-box{display:flex;gap:2px;align-items:center;font-size:.7rem;color:var(--muted);margin:2px 0}.bk-box input{width:44px;padding:2px 3px;font-size:.72rem}.bk-box input[data-f=kg]{width:54px}
+    .bk-rule{display:grid;grid-template-columns:22px 1fr;gap:6px;align-items:start;border-top:1px solid #f3ece2;padding:6px 0}.bk-rule .bk-row{margin:0}.bk-rule input[type=text],.bk-rule input[type=number],.bk-rule select{font-family:var(--fb);font-size:.76rem;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:#fff}
+    .bk-rule .ord{display:flex;flex-direction:column;gap:2px}.bk-rule .ord button{border:1px solid var(--line);background:#fff;border-radius:4px;font-size:.6rem;padding:1px 3px;cursor:pointer}
     .bk-sec{font-family:var(--ff);font-size:1rem;margin:14px 0 6px}
   </style>
   <div class="bk-tabs">
@@ -1682,16 +1686,20 @@ function bkCarrierSel(sel, name) {
 }
 function bkRowHtml(r, i, gi) {
   const box = r.box ? `${r.box.l}×${r.box.b}×${r.box.h} · ${r.box.kg} kg` : '';
-  const bookable = (r.ok || (r.soft && _bkForce)) && !(r.result && r.result.ok && !r.result.dry);
-  const st = r.result ? (r.result.ok ? (r.result.dry ? `<span class="bk-ok">dry run ✓</span> <span class="bk-m">would send carrier ${bkEsc(r.result.payload.carrier_id)} · ${bkEsc(r.result.payload.order_weight)} g · ${bkEsc(r.result.payload.box_length)}×${bkEsc(r.result.payload.box_breadth)}×${bkEsc(r.result.payload.box_height)} · ${r.result.payload.payment_type === 'C' ? 'COD' : 'prepaid'}</span>` : `<span class="bk-ok">✓ ${bkEsc(r.result.awb)}</span>${r.result.label_url ? ` <a href="${bkEsc(r.result.label_url)}" target="_blank">label</a>` : ''}`) : `<span class="bk-why">${bkEsc(r.result.error)}</span>`) : (r.ok ? `<span class="bk-m">ready${r.rack ? ' · rack ' + bkEsc(r.rack) : ''}</span>` : `<span class="${r.soft ? 'bk-soft' : 'bk-why'}">${bkEsc(r.why)}</span>`);
+  const bookable = (r.ok || (r.soft && _bkForce)) && !(r.result && r.result.ok && !r.result.dry && r.result.part === r.part);
+  const st = r.result ? (r.result.ok ? (r.result.dry ? `<span class="bk-ok">dry run ✓</span> <span class="bk-m">would send carrier ${bkEsc(r.result.payload.carrier_id)} · ${bkEsc(r.result.payload.order_weight)} g · ${bkEsc(r.result.payload.box_length)}×${bkEsc(r.result.payload.box_breadth)}×${bkEsc(r.result.payload.box_height)} · ${r.result.payload.payment_type === 'C' ? 'COD' : 'prepaid'}</span>` : `<span class="bk-ok">✓ ${bkEsc(r.result.awb)}</span>${r.result.part > 1 || (r.result.pieces && r.pieces_total && r.result.pieces < r.pieces_total) ? ` <span class="bk-m">part ${r.result.part} · ${r.result.pieces} pc</span>` : ''}${r.result.label_url ? ` <a href="${bkEsc(r.result.label_url)}" target="_blank">label</a>` : ''}${r.ok && r.result.part !== r.part ? '<div class="bk-m">rest still to book</div>' : ''}`) : `<span class="bk-why">${bkEsc(r.result.error)}</span>`) : (r.ok ? `<span class="bk-m">ready${r.rack ? ' · rack ' + bkEsc(r.rack) : ''}</span>` : `<span class="${r.soft ? 'bk-soft' : 'bk-why'}">${bkEsc(r.why)}</span>`);
+  // every item of the order, lightly, with a tick and a count: untick or lower a count to send only part of the order now
+  const items = (r.items || []).map(it => `<label class="bk-it"><input type="checkbox" data-it="${it.i}" ${it.on > 0 ? 'checked' : ''} ${it.q - it.on >= it.q && it.on === 0 && r.booked ? '' : ''}>${it.q > 1 ? `<input type="number" data-itq="${it.i}" value="${it.on || it.q}" min="1" max="${it.q}" style="width:36px">×` : ''} <span>${bkEsc(it.n)}</span></label>`).join('');
+  const partNote = r.note ? `<div class="bk-soft">${bkEsc(r.note)}</div>` : '';
+  const boxEd = r.box ? `<div class="bk-box"><input type="number" data-f="l" value="${r.box.l}">×<input type="number" data-f="b" value="${r.box.b}">×<input type="number" data-f="h" value="${r.box.h}"> cm</div><div class="bk-box"><input type="number" step="0.01" data-f="kg" value="${r.box.kg}"> kg</div>` : '';
   return `<tr data-i="${i}"${gi != null ? ` data-g="${gi}"` : ''}>
     <td><input type="checkbox" data-f="sel" ${bookable ? (r.ok ? 'checked' : '') : 'disabled'}></td>
-    <td><b>${bkEsc(r.order_name)}</b><div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-m">${bkEsc(r.city)}${r.state ? ', ' + bkEsc(r.state) : ''} ${bkEsc(r.zip)}</div></td>
+    <td><b>${bkEsc(r.order_name)}</b><div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-m">${bkEsc(r.city)}${r.state ? ', ' + bkEsc(r.state) : ''} ${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
-    <td><input type="number" data-f="pieces" value="${r.pieces || 1}" min="1" style="width:52px"><div class="bk-m">${(r.products || []).slice(0, 3).map(bkEsc).join('<br>')}</div></td>
-    <td>${box}</td>
-    <td>${r.ok || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}</div></td>
+    <td><div class="bk-m"><b>${r.pieces || 0}</b>${r.pieces_total && r.pieces_total !== r.pieces ? ` of ${r.pieces_total}` : ''} pc</div>${items}</td>
+    <td>${boxEd}</td>
+    <td>${r.ok || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div></td>
     <td>${st}</td></tr>`;
 }
 function bkTable(rows, idBase) {
@@ -1704,11 +1712,10 @@ function bkRenderReady() {
     <button class="bk-btn sec" onclick="bkPreview()" ${_bkBusy || !cands.length ? 'disabled' : ''}>Preview rules</button>
     <button class="bk-btn" onclick="bkBookSelected('bkReadyTbl')" ${_bkBusy || !_bkRows.length ? 'disabled' : ''}>Book selected</button>
     <span id="bkReadyMsg" class="bk-m"></span></div>
-    <div class="bk-m">Warehouse ${_bkCfg ? _bkCfg.warehouse_id : ''} · COD → ${bkEsc(bkLadderName('cod_surface'))} · Prepaid surface → ${bkEsc(bkLadderName('prepaid_surface'))} · Prepaid air → ${bkEsc(bkLadderName('prepaid_air'))}</div></div>`;
+    <div class="bk-m">Warehouse ${_bkCfg ? _bkCfg.warehouse_id : ''} · ${_bkCfg && _bkCfg.rules ? _bkCfg.rules.length + ' carrier rules' : ''} · box ${_bkCfg && _bkCfg.box ? `${_bkCfg.box.l}×${_bkCfg.box.b}×${_bkCfg.box.h_per_piece} cm per piece` : ''}</div></div>`;
   el.innerHTML = head + (_bkRows.length ? `<div id="bkReadyTbl">${bkTable(_bkRows)}</div>` : (cands.length ? `<div class="empty-msg">Press Preview rules to see carrier, box and weight for each order.</div>` : '<div class="empty-msg">Nothing complete and unbooked right now.</div>'));
   bkBindEdits('bkReadyTbl', _bkRows);
 }
-function bkLadderName(k) { const l = (_bkCfg && _bkCfg.carriers && _bkCfg.carriers[k]) || []; return l.length ? (l.length > 1 ? l.map(t => t.name || '#' + t.carrier_id).join(' / ') : (l[0].name || '#' + l[0].carrier_id)) : '—'; }
 async function bkPreview() {
   const names = bkCandidates().map(o => o.name);
   _bkBusy = true; _bkRows = []; bkRenderReady();
@@ -1725,12 +1732,18 @@ async function bkPreview() {
 function bkBindEdits(wrapId, rows) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
   wrap.querySelectorAll('tr[data-i]').forEach(tr => {
-    tr.querySelectorAll('[data-f]').forEach(inp => {
+    tr.querySelectorAll('[data-f],[data-it],[data-itq]').forEach(inp => {
       if (inp.dataset.f === 'sel') return;
       inp.addEventListener('change', async () => {
         const r = rows[+tr.dataset.i]; if (!r) return;
-        const ov = { payment: tr.querySelector('[data-f=payment]').value, zone: tr.querySelector('[data-f=zone]').value, pieces: +tr.querySelector('[data-f=pieces]').value || 1 };
-        const cs = tr.querySelector('[data-f=carrier_id]'); if (cs && inp.dataset.f === 'carrier_id') ov.carrier_id = +cs.value;
+        const ov = { payment: tr.querySelector('[data-f=payment]').value, zone: tr.querySelector('[data-f=zone]').value };
+        // items ticked for this parcel
+        const items = [...tr.querySelectorAll('[data-it]')].filter(c => c.checked).map(c => { const q = tr.querySelector(`[data-itq="${c.dataset.it}"]`); return { i: +c.dataset.it, q: q ? (+q.value || 1) : 1 }; });
+        if (items.length) ov.items = items; else ov.pieces = 0;
+        const cs = tr.querySelector('[data-f=carrier_id]'); if (cs && (inp.dataset.f === 'carrier_id' || (r.ov && r.ov.carrier_id))) ov.carrier_id = +cs.value;
+        // a size or weight typed in stays until the pieces change again
+        const f = inp.dataset.f;
+        if (['l', 'b', 'h', 'kg'].includes(f) || (r.ov && r.ov.kg && !inp.dataset.it && !inp.dataset.itq)) { ov.l = +tr.querySelector('[data-f=l]').value; ov.b = +tr.querySelector('[data-f=b]').value; ov.h = +tr.querySelector('[data-f=h]').value; ov.kg = +tr.querySelector('[data-f=kg]').value; }
         r.ov = ov;
         try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name], overrides: { [r.order_name]: ov } }); Object.assign(r, p.rows[0], { ov }); } catch (e) { r.why = e.message; r.ok = false; }
         tr.outerHTML = bkRowHtml(r, +tr.dataset.i, tr.dataset.g); bkBindEdits(wrapId, rows);
@@ -1749,9 +1762,12 @@ async function bkBookSelected(wrapId) {
     const r = rows[i]; const tr = wrap.querySelector(`tr[data-i="${i}"]`);
     if (tr) tr.querySelector('td:last-child').innerHTML = '<span class="bk-m">booking…</span>';
     const ov = r.ov || {};
-    try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, pieces: r.pieces, force: !!(r.soft && _bkForce), ...ov }, API, 28000); }
+    const items = (r.items || []).filter(it => it.on > 0).map(it => ({ i: it.i, q: it.on }));
+    try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!(r.soft && _bkForce), ...ov }, API, 28000); }
     catch (e) { r.result = { ok: false, error: e.message }; }
     const tr2 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr2) tr2.outerHTML = bkRowHtml(r, i, tr2.dataset.g);
+    // a part shipment leaves the rest of the order bookable: refresh the row from the server
+    if (r.result && r.result.ok && !r.result.dry && r.pieces < (r.pieces_total || r.pieces)) { try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name] }); const nr = { ...p.rows[0], result: r.result }; rows[i] = nr; const tr3 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr3) tr3.outerHTML = bkRowHtml(nr, i, tr3.dataset.g); } catch (_) {} }
   }
   _bkBusy = false; bkBindEdits(wrapId, rows);
   if (rows.some(r => r.result && r.result.ok && !r.result.dry)) { for (const r of rows) if (r.result && r.result.ok && !r.result.dry) for (const it of rackItems) if (it.order_name === r.order_name) { it.tracking = r.result.awb; it.tracking_company = r.result.carrier; } }
@@ -1778,7 +1794,7 @@ async function bkRenderLog() {
   if (!rows.length) { el.innerHTML = '<div class="empty-msg">No bookings yet.</div>'; return; }
   const fmt = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   el.innerHTML = `<table class="bk-tbl"><thead><tr><th>When</th><th>Order</th><th>Carrier</th><th>Pay · zone</th><th>Pcs · box</th><th>AWB</th><th></th></tr></thead><tbody>${rows.map(r => `<tr>
-    <td class="bk-m">${fmt(r.created_at)}</td><td><b>${bkEsc(r.order_name)}</b><div class="bk-m">${bkEsc(r.shipway_id)}</div></td><td>${bkEsc(r.carrier || '#' + r.carrier_id)}</td><td>${bkEsc(r.payment)} · ${bkEsc(r.zone)}</td><td>${r.pieces} · ${bkEsc(r.box)} · ${r.weight_kg} kg</td>
+    <td class="bk-m">${fmt(r.created_at)}</td><td><b>${bkEsc(r.order_name)}</b>${r.part > 1 ? ` <span class="bk-soft">part ${r.part}</span>` : ''}<div class="bk-m">${bkEsc(r.shipway_id)}</div></td><td>${bkEsc(r.carrier || '#' + r.carrier_id)}</td><td>${bkEsc(r.payment)} · ${bkEsc(r.zone)}</td><td>${r.pieces} · ${bkEsc(r.box)} · ${r.weight_kg} kg${Array.isArray(r.items) && r.items.length ? `<div class="bk-m">${r.items.map(it => `${it.q}× ${bkEsc(it.n)}`).join('<br>')}</div>` : ''}</td>
     <td>${r.ok ? `<span class="bk-ok">${bkEsc(r.awb)}</span>${r.label_url ? ` <a href="${bkEsc(r.label_url)}" target="_blank">label</a>` : ''}${r.cancelled_at ? '<div class="bk-why">cancelled</div>' : ''}` : `<span class="bk-why">${bkEsc(r.error || 'failed')}</span>`}</td>
     <td>${r.ok && !r.cancelled_at ? `<button class="ftab" onclick="bkCancel(${r.id}, this)">Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
 }
@@ -1791,29 +1807,40 @@ function bkRenderSettings() {
   const el = document.getElementById('bkSettings'); const c = _bkCfg; if (!c) return;
   const wh = (_bkCarriers && _bkCarriers.warehouses) || [];
   const whSel = (id, f) => `<select data-s="${f}">${wh.length ? wh.map(w => `<option value="${w.id}"${w.id === +c[f] ? ' selected' : ''}>${w.id} · ${bkEsc(w.title)} ${bkEsc(w.pincode)}</option>`).join('') : `<option value="${+c[f]}">${+c[f]}</option>`}</select>`;
-  const ladder = k => `<div class="bk-card"><h4>${{ cod_surface: 'COD · surface', cod_air: 'COD · air', prepaid_surface: 'Prepaid · surface', prepaid_air: 'Prepaid · air' }[k]}</h4><div id="bkL_${k}">${(c.carriers[k] || []).map(t => bkLadderRow(k, t)).join('')}</div><button class="ftab" onclick="bkLadderAdd('${k}')">+ weight step</button></div>`;
   el.innerHTML = `<div class="bk-card"><h4>Warehouse</h4><div class="bk-row">Pickup ${whSel(c.warehouse_id, 'warehouse_id')} Return ${whSel(c.return_warehouse_id, 'return_warehouse_id')}</div>
     <div class="bk-row"><label><input type="checkbox" data-s="dry_run" ${c.dry_run ? 'checked' : ''}> Dry run (show the payload, book nothing)</label></div></div>
-    <div class="bk-card"><h4>Carrier by payment and zone</h4><div class="bk-m">Each list is a weight ladder: the first step whose max weight covers the parcel is used, so Delhivery Surface 0.5 / 1 / 2 / 5 kg pick themselves.</div></div>
-    ${ladder('cod_surface')}${ladder('cod_air')}${ladder('prepaid_surface')}${ladder('prepaid_air')}
+    <div class="bk-card"><h4>Carrier rules, in order</h4><div class="bk-m">The first rule whose every condition holds wins. Leave a condition blank for "any". Area is matched by pincode start or city tier (1 Delhi NCR, 2 North, 3 Metro, 4 Rest, 5 Remote); either matching is enough.</div>
+    <div id="bkRules">${(c.rules || []).map((r, i) => bkRuleRow(r, i)).join('')}</div><div class="bk-row"><button class="ftab" onclick="bkRuleAdd()">+ rule</button></div></div>
     <div class="bk-card"><h4>Surface zone</h4><div class="bk-m">Pincode prefixes (first two digits) that go by surface; everything else is air. Delhi 11, Haryana 12–13, Punjab 14–16, HP 17, J&amp;K 18–19, UP/Uttarakhand 20–28, Rajasthan 30–34, MP 45–48, Chhattisgarh 49, Gujarat 36–39, Maharashtra 40–44.</div>
     <textarea data-s="surface_prefixes" rows="2" style="width:100%;font-family:var(--fb);font-size:.8rem;border:1.5px solid var(--line);border-radius:8px;padding:6px">${(c.surface_prefixes || []).join(' ')}</textarea></div>
-    <div class="bk-card"><h4>Box and weight by pieces</h4><table class="bk-tbl" id="bkBoxes"><thead><tr><th>Up to pieces</th><th>L cm</th><th>B cm</th><th>H cm</th><th>kg</th><th></th></tr></thead><tbody>${(c.boxes || []).map(bkBoxRow).join('')}</tbody></table>
-    <div class="bk-row"><button class="ftab" onclick="bkBoxAdd()">+ box</button> <span class="bk-m">Beyond the last row: pieces × </span><input type="number" step="0.01" data-s="piece_kg" value="${c.piece_kg}" style="width:70px"> kg</div>
+    <div class="bk-card"><h4>Box and weight</h4>
+    <div class="bk-row"><span class="bk-m">Standard carton</span> <input type="number" data-s="box_l" value="${c.box.l}" style="width:60px"> × <input type="number" data-s="box_b" value="${c.box.b}" style="width:60px"> cm, height <input type="number" data-s="box_h" value="${c.box.h_per_piece}" style="width:60px"> cm per piece, <input type="number" step="0.01" data-s="piece_kg" value="${c.piece_kg}" style="width:70px"> kg per piece</div>
+    <div class="bk-m">So 1 piece → ${c.box.l}×${c.box.b}×${c.box.h_per_piece}, 2 → ${c.box.l}×${c.box.b}×${c.box.h_per_piece * 2}, 3 → ${c.box.l}×${c.box.b}×${c.box.h_per_piece * 3}. Exceptions for an exact piece count go below; any order can also be resized in its row.</div>
+    <table class="bk-tbl" id="bkBoxes"><thead><tr><th>Exactly pieces</th><th>L cm</th><th>B cm</th><th>H cm</th><th>kg</th><th></th></tr></thead><tbody>${(c.boxes || []).map(bkBoxRow).join('')}</tbody></table>
+    <div class="bk-row"><button class="ftab" onclick="bkBoxAdd()">+ exception</button></div>
     <div class="bk-row"><span class="bk-m">Line items to ignore when counting pieces (regex):</span> <input type="text" data-s="skip_titles" value="${bkEsc(c.skip_titles)}" style="flex:1;min-width:200px"></div></div>
     <div class="bk-row"><button class="bk-btn" onclick="bkSaveSettings(this)">Save rules</button> <button class="bk-btn sec" onclick="bkRefreshCarriers(this)">↻ Reload carriers from Shipway</button> <span id="bkSetMsg" class="bk-m"></span></div>`;
 }
-function bkLadderRow(k, t) { return `<div class="bk-row" data-l="${k}">up to <input type="number" step="0.5" data-f="max_kg" value="${t.max_kg}" style="width:64px"> kg → ${bkCarrierSel(t.carrier_id)} <button class="ftab" onclick="this.parentNode.remove()">✕</button></div>`; }
-function bkLadderAdd(k) { document.getElementById('bkL_' + k).insertAdjacentHTML('beforeend', bkLadderRow(k, { max_kg: 99, carrier_id: 0 })); }
+function bkRuleRow(r, i) {
+  const sel = (f, opts, v) => `<select data-r="${f}">${opts.map(([val, lab]) => `<option value="${val}"${val === (v || '') ? ' selected' : ''}>${lab}</option>`).join('')}</select>`;
+  return `<div class="bk-rule" data-rule>
+    <div class="ord"><button onclick="bkRuleMove(this,-1)" title="up">▲</button><button onclick="bkRuleMove(this,1)" title="down">▼</button></div>
+    <div><div class="bk-row"><input type="text" data-r="name" value="${bkEsc(r.name || '')}" placeholder="rule name" style="min-width:180px;flex:1"> → ${bkCarrierSel(r.carrier_id)} <button class="ftab" onclick="this.closest('[data-rule]').remove()">✕</button></div>
+    <div class="bk-row bk-m">${sel('payment', [['', 'any payment'], ['cod', 'COD'], ['prepaid', 'Prepaid']], r.payment)} ${sel('zone', [['', 'any zone'], ['surface', 'surface'], ['air', 'air']], r.zone)}
+      up to <input type="number" step="0.5" data-r="max_kg" value="${r.max_kg || ''}" placeholder="any" style="width:60px"> kg ·
+      pincode starts <input type="text" data-r="prefixes" value="${bkEsc((r.prefixes || []).join(' '))}" placeholder="any" style="width:110px"> ·
+      tiers <input type="text" data-r="tiers" value="${bkEsc((r.tiers || []).join(' '))}" placeholder="any" style="width:60px"></div></div></div>`;
+}
+function bkRuleAdd() { document.getElementById('bkRules').insertAdjacentHTML('beforeend', bkRuleRow({ name: '', carrier_id: 0 }, 0)); }
+function bkRuleMove(btn, dir) { const row = btn.closest('[data-rule]'); const sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling; if (!sib) return; if (dir < 0) sib.before(row); else sib.after(row); }
 function bkBoxRow(b) { return `<tr><td><input type="number" data-f="pieces" value="${b.pieces}" style="width:60px"></td><td><input type="number" data-f="l" value="${b.l}" style="width:60px"></td><td><input type="number" data-f="b" value="${b.b}" style="width:60px"></td><td><input type="number" data-f="h" value="${b.h}" style="width:60px"></td><td><input type="number" step="0.01" data-f="kg" value="${b.kg}" style="width:70px"></td><td><button class="ftab" onclick="this.closest('tr').remove()">✕</button></td></tr>`; }
 function bkBoxAdd() { document.querySelector('#bkBoxes tbody').insertAdjacentHTML('beforeend', bkBoxRow({ pieces: 1, l: 24, b: 18, h: 5, kg: 0.38 })); }
 async function bkSaveSettings(btn) {
   const el = document.getElementById('bkSettings');
   const g = f => el.querySelector(`[data-s="${f}"]`);
-  const carriers = {};
-  for (const k of ['cod_surface', 'cod_air', 'prepaid_surface', 'prepaid_air']) carriers[k] = [...el.querySelectorAll(`[data-l="${k}"]`)].map(r => { const s = r.querySelector('[data-f=carrier_id]'); return { max_kg: +r.querySelector('[data-f=max_kg]').value || 99, carrier_id: +s.value, name: s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : '' }; });
+  const rules = [...el.querySelectorAll('[data-rule]')].map(r => { const q = f => r.querySelector(`[data-r="${f}"]`); const s = r.querySelector('[data-f=carrier_id]'); return { name: q('name').value, payment: q('payment').value, zone: q('zone').value, max_kg: +q('max_kg').value || 0, prefixes: q('prefixes').value.split(/[\s,]+/).filter(Boolean), tiers: q('tiers').value.split(/[\s,]+/).filter(Boolean).map(Number), carrier_id: +s.value, carrier: s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : '' }; });
   const boxes = [...el.querySelectorAll('#bkBoxes tbody tr')].map(r => Object.fromEntries(['pieces', 'l', 'b', 'h', 'kg'].map(f => [f, +r.querySelector(`[data-f=${f}]`).value])));
-  const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, dry_run: g('dry_run').checked, carriers, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value };
+  const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, dry_run: g('dry_run').checked, rules, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), box: { l: +g('box_l').value, b: +g('box_b').value, h_per_piece: +g('box_h').value }, boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value };
   btn.disabled = true;
   try { _bkCfg = await apiFetch(body); document.getElementById('bkSetMsg').textContent = 'Saved'; document.getElementById('bkDry').style.display = _bkCfg.dry_run ? '' : 'none'; _bkRows = []; }
   catch (e) { document.getElementById('bkSetMsg').textContent = e.message; }
