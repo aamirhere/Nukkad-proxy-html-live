@@ -1619,7 +1619,29 @@ function homeSubs() {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { zenScanClose(); laptopClose(); paneClose(); } });
 // ── Book courier: rules pick carrier, box and weight; Shipway books the AWB ──────────────────
-let _bkCfg = null, _bkCarriers = null, _bkRows = [], _bkTab = 'day', _bkBusy = false, _bkDay = null, _bkForce = false;
+let _bkCfg = null, _bkCarriers = null, _bkRows = [], _bkTab = 'day', _bkBusy = false, _bkDay = null, _bkForce = false, _bkLabelIds = [];
+async function bkEnsureCfg() { if (!_bkCfg) [_bkCfg, _bkCarriers] = await Promise.all([apiFetch({ action: 'booking_config' }), apiFetch({ action: 'booking_carriers' }).catch(() => ({ carriers: [], warehouses: [] }))]); return _bkCfg; }
+// All labels of the given bookings as one PDF, in that order, opened for printing; non-PDF labels open as links
+async function bkPrintLabels(ids, btn, date) {
+  if (btn) { btn.disabled = true; btn.textContent = 'fetching labels…'; }
+  try {
+    const r = await apiFetch(ids && ids.length ? { action: 'booking_labels', ids } : { action: 'booking_labels', date }, API, 28000);
+    if (r.pdf) { const bytes = Uint8Array.from(atob(r.pdf), c => c.charCodeAt(0)); const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); window.open(url, '_blank'); }
+    for (const l of (r.links || [])) window.open(l.url, '_blank');
+    if (!r.pdf && !(r.links || []).length) alert('No labels found' + (r.missing && r.missing.length ? ':\n' + r.missing.join('\n') : ''));
+    else if (r.missing && r.missing.length) alert('Some labels could not be fetched:\n' + r.missing.join('\n'));
+  } catch (e) { alert(e.message); }
+  if (btn) { btn.disabled = false; btn.textContent = `🖨 Print labels${ids && ids.length ? ` (${ids.length})` : ''}`; }
+}
+// After a failed booking, the next rule that also matched is offered; nothing is retried on its own
+async function bkUseNext(wrapId, i) {
+  const rows = bkRowsFor(wrapId), r = rows[i]; if (!r || !r.altQueue || !r.altQueue.length) return;
+  const next = r.altQueue.shift();
+  const ov = { ...(r.ov || {}), carrier_id: next.carrier_id };
+  try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name], overrides: { [r.order_name]: ov } }); Object.assign(r, p.rows[0], { ov, altQueue: r.altQueue, result: null, triedNote: `${next.name} · ${r.altQueue.length} more to try` }); r.carrier = next.name; }
+  catch (e) { r.result = { ok: false, error: e.message }; }
+  const wrap = document.getElementById(wrapId); const tr = wrap && wrap.querySelector(`tr[data-i="${i}"]`); if (tr) { tr.outerHTML = bkRowHtml(r, i, tr.dataset.g); bkBindEdits(wrapId, rows); }
+}
 const bkRowsFor = wrapId => ({ bkReadyTbl: _bkRows, bkOneTbl: _bkOneRows, bkDayWeb: _bkDay ? _bkDay.website : [], bkDayAmz: _bkDay ? _bkDay.amazon : [] })[wrapId] || [];
 const bkEsc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 async function bkOpen() {
@@ -1639,10 +1661,15 @@ function bkRenderDay() {
   const d = (_bkDay && _bkDay.date) || new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
   const n = _bkDay ? _bkDay.website.length + _bkDay.amazon.length : 0;
   const ready = _bkDay ? [..._bkDay.website, ..._bkDay.amazon].filter(r => r.ok).length : 0;
-  el.innerHTML = `<div class="bk-card"><div class="bk-row">
+  // one chip per date with unbooked orders on the rack, newest first, so the backlog is visible before loading
+  const open = {};
+  for (const it of rackItems) { if (it.cancelled || it.dispatched || it.tracking || !it.order_date) continue; (open[it.order_date] ||= new Set()).add(it.order_name); }
+  const chips = Object.keys(open).sort((a, b) => b.localeCompare(a)).slice(0, 14).map(dt => `<div class="ftab${dt === d ? ' active' : ''}" onclick="document.getElementById('bkDayInp').value='${dt}';bkLoadDay()">${new Date(dt + 'T00:00:00+05:30').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ${open[dt].size}</div>`).join('');
+  el.innerHTML = `<div class="bk-card"><div class="bk-row" style="margin-bottom:6px">${chips || '<span class="bk-m">No unbooked orders on the rack.</span>'}</div><div class="bk-row">
       <input type="date" id="bkDayInp" value="${d}" style="font-family:var(--fb);font-size:.85rem;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="bkLoadDay()">
       <button class="bk-btn sec" onclick="bkLoadDay()" ${_bkBusy ? 'disabled' : ''}>Load</button>
       <button class="bk-btn" onclick="bkBookSelected('bkDayWeb');bkBookSelected('bkDayAmz')" ${_bkBusy || !n ? 'disabled' : ''}>Book selected</button>
+      ${_bkLabelIds.length ? `<button class="bk-btn sec" onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>` : ''}
       <label class="bk-m" style="display:flex;gap:4px;align-items:center"><input type="checkbox" ${_bkForce ? 'checked' : ''} onchange="_bkForce=this.checked;bkRenderDay()"> allow orders not complete on the rack</label>
       <span id="bkDayMsg" class="bk-m">${_bkDay ? `${n} orders · ${ready} ready` : ''}</span></div>
       <div class="bk-m">Groups run surface zone first, Delhi NCR on top, then each state by city tier. Tick a group header to select all of it; the header shows which courier the rules pick for COD and prepaid in that group.</div></div>
@@ -1687,7 +1714,7 @@ function bkCarrierSel(sel, name) {
 function bkRowHtml(r, i, gi) {
   const box = r.box ? `${r.box.l}×${r.box.b}×${r.box.h} · ${r.box.kg} kg` : '';
   const bookable = (r.ok || (r.soft && _bkForce)) && !(r.result && r.result.ok && !r.result.dry && r.result.part === r.part);
-  const st = r.result ? (r.result.ok ? (r.result.dry ? `<span class="bk-ok">dry run ✓</span> <span class="bk-m">would send carrier ${bkEsc(r.result.payload.carrier_id)} · ${bkEsc(r.result.payload.order_weight)} g · ${bkEsc(r.result.payload.box_length)}×${bkEsc(r.result.payload.box_breadth)}×${bkEsc(r.result.payload.box_height)} · ${r.result.payload.payment_type === 'C' ? 'COD' : 'prepaid'}</span>` : `<span class="bk-ok">✓ ${bkEsc(r.result.awb)}</span>${r.result.part > 1 || (r.result.pieces && r.pieces_total && r.result.pieces < r.pieces_total) ? ` <span class="bk-m">part ${r.result.part} · ${r.result.pieces} pc</span>` : ''}${r.result.label_url ? ` <a href="${bkEsc(r.result.label_url)}" target="_blank">label</a>` : ''}${r.ok && r.result.part !== r.part ? '<div class="bk-m">rest still to book</div>' : ''}`) : `<span class="bk-why">${bkEsc(r.result.error)}</span>`) : (r.ok ? `<span class="bk-m">ready${r.rack ? ' · rack ' + bkEsc(r.rack) : ''}</span>` : `<span class="${r.soft ? 'bk-soft' : 'bk-why'}">${bkEsc(r.why)}</span>`);
+  const st = r.result ? (r.result.ok ? (r.result.dry ? `<span class="bk-ok">dry run ✓</span> <span class="bk-m">would send carrier ${bkEsc(r.result.payload.carrier_id)} · ${bkEsc(r.result.payload.order_weight)} g · ${bkEsc(r.result.payload.box_length)}×${bkEsc(r.result.payload.box_breadth)}×${bkEsc(r.result.payload.box_height)} · ${r.result.payload.payment_type === 'C' ? 'COD' : 'prepaid'}</span>` : `<span class="bk-ok">✓ ${bkEsc(r.result.awb)}</span>${r.result.part > 1 || (r.result.pieces && r.pieces_total && r.result.pieces < r.pieces_total) ? ` <span class="bk-m">part ${r.result.part} · ${r.result.pieces} pc</span>` : ''}${r.result.label_url ? ` <a href="${bkEsc(r.result.label_url)}" target="_blank">label</a>` : ''}${r.ok && r.result.part !== r.part ? '<div class="bk-m">rest still to book</div>' : ''}`) : `<span class="bk-why">${bkEsc(r.result.error)}</span>${r.altQueue && r.altQueue.length ? `<div class="bk-soft">next: ${bkEsc(r.altQueue[0].name)} · ${r.altQueue.length} more rule${r.altQueue.length === 1 ? '' : 's'} match</div><button class="ftab" data-next="1">Use next →</button>` : (r.altQueue ? '<div class="bk-m">no other rule matches</div>' : '')}`) : (r.ok ? `<span class="bk-m">ready${r.rack ? ' · rack ' + bkEsc(r.rack) : ''}${r.triedNote ? ' · ' + bkEsc(r.triedNote) : ''}</span>` : `<span class="${r.soft ? 'bk-soft' : 'bk-why'}">${bkEsc(r.why)}</span>`);
   // every item of the order, lightly, with a tick and a count: untick or lower a count to send only part of the order now
   const items = (r.items || []).map(it => `<label class="bk-it"><input type="checkbox" data-it="${it.i}" ${it.on > 0 ? 'checked' : ''} ${it.q - it.on >= it.q && it.on === 0 && r.booked ? '' : ''}>${it.q > 1 ? `<input type="number" data-itq="${it.i}" value="${it.on || it.q}" min="1" max="${it.q}" style="width:36px">×` : ''} <span>${bkEsc(it.n)}</span></label>`).join('');
   const partNote = r.note ? `<div class="bk-soft">${bkEsc(r.note)}</div>` : '';
@@ -1732,6 +1759,7 @@ async function bkPreview() {
 function bkBindEdits(wrapId, rows) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
   wrap.querySelectorAll('tr[data-i]').forEach(tr => {
+    const nx = tr.querySelector('[data-next]'); if (nx) nx.onclick = () => bkUseNext(wrapId, +tr.dataset.i);
     tr.querySelectorAll('[data-f],[data-it],[data-itq]').forEach(inp => {
       if (inp.dataset.f === 'sel') return;
       inp.addEventListener('change', async () => {
@@ -1764,13 +1792,52 @@ async function bkBookSelected(wrapId) {
     const ov = r.ov || {};
     const items = (r.items || []).filter(it => it.on > 0).map(it => ({ i: it.i, q: it.on }));
     try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!(r.soft && _bkForce), ...ov }, API, 28000); }
-    catch (e) { r.result = { ok: false, error: e.message }; }
+    catch (e) { r.result = { ok: false, error: e.message }; if (!r.altQueue) r.altQueue = (r.alt || []).slice(); }
+    if (r.result && r.result.ok && !r.result.dry && r.result.id) _bkLabelIds.push(r.result.id);
     const tr2 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr2) tr2.outerHTML = bkRowHtml(r, i, tr2.dataset.g);
     // a part shipment leaves the rest of the order bookable: refresh the row from the server
     if (r.result && r.result.ok && !r.result.dry && r.pieces < (r.pieces_total || r.pieces)) { try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name] }); const nr = { ...p.rows[0], result: r.result }; rows[i] = nr; const tr3 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr3) tr3.outerHTML = bkRowHtml(nr, i, tr3.dataset.g); } catch (_) {} }
   }
   _bkBusy = false; bkBindEdits(wrapId, rows);
   if (rows.some(r => r.result && r.result.ok && !r.result.dry)) { for (const r of rows) if (r.result && r.result.ok && !r.result.dry) for (const it of rackItems) if (it.order_name === r.order_name) { it.tracking = r.result.awb; it.tracking_company = r.result.carrier; } }
+  // the print-labels button appears once a batch has real bookings
+  if (_bkLabelIds.length) { const bar = document.querySelector(`#${wrapId === 'bkReadyTbl' ? 'bkReady' : wrapId === 'bkOneTbl' ? 'bkOne' : 'bkDay'} .bk-row`); if (bar && !bar.querySelector('[data-labels]')) bar.insertAdjacentHTML('beforeend', `<button class="bk-btn sec" data-labels onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>`); else if (bar) bar.querySelector('[data-labels]').textContent = `🖨 Print labels (${_bkLabelIds.length})`; }
+}
+// On the scan screen: once an order is complete, the carrier and box the rules pick, and a one-tap Book
+async function bkScanCard(orderName) {
+  const el = document.getElementById('scanBook'); if (!el) return;
+  el.innerHTML = '<div class="bk-m" style="text-align:center">checking courier…</div>';
+  try {
+    await bkEnsureCfg();
+    const p = await apiFetch({ action: 'booking_preview', order_names: [orderName] });
+    const r = p.rows[0]; if (!r) { el.innerHTML = ''; return; }
+    window._bkScanRow = r;
+    const box = r.box ? `${r.box.l}×${r.box.b}×${r.box.h} cm · ${r.box.kg} kg` : '';
+    if (!r.ok && !r.soft) { el.innerHTML = `<div class="bk-m" style="text-align:center">📦 ${bkEsc(r.why)}</div>`; return; }
+    el.innerHTML = `<div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;text-align:center">
+      <div style="font-size:.8rem;font-weight:700">📦 ${bkEsc(r.carrier || '')}</div>
+      <div class="bk-m">${r.payment === 'cod' ? 'COD' : 'Prepaid'} · ${bkEsc(r.zone)} · ${r.pieces} pc · ${box}${r.note ? ' · ' + bkEsc(r.note) : ''}</div>
+      ${_bkCfg.dry_run ? '<div class="bk-soft">dry run is on: Book only shows the payload</div>' : ''}
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:8px"><button class="act-btn" style="background:var(--accent);color:#fff;border:none" onclick="bkScanBook(this)">Book courier</button></div>
+      <div id="scanBookMsg" class="bk-m" style="margin-top:6px"></div></div>`;
+  } catch (e) { el.innerHTML = `<div class="bk-m" style="text-align:center">📦 ${bkEsc(e.message)}</div>`; }
+}
+async function bkScanBook(btn) {
+  const r = window._bkScanRow; if (!r) return;
+  if (!_bkCfg.dry_run && !confirm(`Book ${r.order_name} on ${r.carrier}?`)) return;
+  btn.disabled = true; btn.textContent = 'booking…';
+  const msg = document.getElementById('scanBookMsg');
+  try {
+    const res = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, force: !!r.soft }, API, 28000);
+    if (res.dry) { msg.innerHTML = `<span class="bk-ok">dry run ✓</span> would send carrier ${bkEsc(res.payload.carrier_id)} · ${bkEsc(res.payload.order_weight)} g`; btn.disabled = false; btn.textContent = 'Book courier'; return; }
+    msg.innerHTML = `<span class="bk-ok">✓ ${bkEsc(res.awb)}</span> · ${bkEsc(res.carrier || '')}${res.label_url ? ` · <a href="${bkEsc(res.label_url)}" target="_blank">label</a>` : ''} <button class="ftab" onclick="bkPrintLabels([${+res.id}], this)">🖨 Print label</button>`;
+    btn.textContent = 'Booked';
+    for (const it of rackItems) if (it.order_name === r.order_name) { it.tracking = res.awb; it.tracking_company = res.carrier; }
+  } catch (e) {
+    const alt = (r.alt || []);
+    msg.innerHTML = `<span class="bk-why">${bkEsc(e.message)}</span>${alt.length ? `<div class="bk-soft">next: ${bkEsc(alt[0].name)} · ${alt.length} more rule${alt.length === 1 ? '' : 's'} match</div><button class="ftab" onclick="window._bkScanRow.carrier_id=${+alt[0].carrier_id};window._bkScanRow.carrier=${JSON.stringify(alt[0].name)};window._bkScanRow.alt=window._bkScanRow.alt.slice(1);bkScanBook(this)">Use next →</button>` : ''}`;
+    btn.disabled = false; btn.textContent = 'Book courier';
+  }
 }
 let _bkOneRows = [];
 function bkRenderOne() {
@@ -1793,7 +1860,9 @@ async function bkRenderLog() {
   try { rows = (await apiFetch({ action: 'booking_log' })).rows; } catch (e) { el.innerHTML = `<div class="empty-msg">${bkEsc(e.message)}</div>`; return; }
   if (!rows.length) { el.innerHTML = '<div class="empty-msg">No bookings yet.</div>'; return; }
   const fmt = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  el.innerHTML = `<table class="bk-tbl"><thead><tr><th>When</th><th>Order</th><th>Carrier</th><th>Pay · zone</th><th>Pcs · box</th><th>AWB</th><th></th></tr></thead><tbody>${rows.map(r => `<tr>
+  const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+  el.innerHTML = `<div class="bk-card"><div class="bk-row"><span class="bk-m">All labels booked on</span> <input type="date" id="bkLogDate" value="${today}" style="font-family:var(--fb);font-size:.82rem;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <button class="bk-btn sec" onclick="bkPrintLabels(null, this, document.getElementById('bkLogDate').value)">🖨 Print labels</button></div></div>
+  <table class="bk-tbl"><thead><tr><th>When</th><th>Order</th><th>Carrier</th><th>Pay · zone</th><th>Pcs · box</th><th>AWB</th><th></th></tr></thead><tbody>${rows.map(r => `<tr>
     <td class="bk-m">${fmt(r.created_at)}</td><td><b>${bkEsc(r.order_name)}</b>${r.part > 1 ? ` <span class="bk-soft">part ${r.part}</span>` : ''}<div class="bk-m">${bkEsc(r.shipway_id)}</div></td><td>${bkEsc(r.carrier || '#' + r.carrier_id)}</td><td>${bkEsc(r.payment)} · ${bkEsc(r.zone)}</td><td>${r.pieces} · ${bkEsc(r.box)} · ${r.weight_kg} kg${Array.isArray(r.items) && r.items.length ? `<div class="bk-m">${r.items.map(it => `${it.q}× ${bkEsc(it.n)}`).join('<br>')}</div>` : ''}</td>
     <td>${r.ok ? `<span class="bk-ok">${bkEsc(r.awb)}</span>${r.label_url ? ` <a href="${bkEsc(r.label_url)}" target="_blank">label</a>` : ''}${r.cancelled_at ? '<div class="bk-why">cancelled</div>' : ''}` : `<span class="bk-why">${bkEsc(r.error || 'failed')}</span>`}</td>
     <td>${r.ok && !r.cancelled_at ? `<button class="ftab" onclick="bkCancel(${r.id}, this)">Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
@@ -2431,7 +2500,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
               </div>`;
             }).join('')}
           </div>
-          ${allDone ? `<div style="text-align:center;font-size:.82rem;color:#4caf50;font-weight:700;margin-bottom:10px">All pieces found — ready to dispatch!</div>` : ''}
+          ${allDone ? `<div style="text-align:center;font-size:.82rem;color:#4caf50;font-weight:700;margin-bottom:10px">All pieces found — ready to dispatch!</div><div id="scanBook"></div>` : ''}
           <div style="font-size:.76rem;color:var(--ink2);margin-bottom:10px;text-align:center">Is this a duplicate / extra piece painted?</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
             <button class="act-btn go" onclick="triggerCamera()">Scan Next</button>
@@ -2440,6 +2509,7 @@ function showResult({ type, quote, color, confidence, matches, message, counted,
         </div>
       </div>`;
       if (!isManual) area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (allDone) bkScanCard(it.order_name);
     }
     return;
   }
@@ -2622,6 +2692,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
         <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px">
           ${itemsHtml}
         </div>
+        ${allFound ? '<div id="scanBook"></div>' : ''}
         ${sameHtml}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;justify-content:center">
           <button class="act-btn go" onclick="triggerCamera()">Scan Next</button>
@@ -2639,6 +2710,7 @@ async function confirmMatch(orderName, quote, color, orderDate, visQuote, visCol
       todayDispatchCount++;
       updateSummary();
       apiFetch({ action: 'queue_for_print', order_name: orderName }).then(() => loadPrintQueue()).catch(() => {});
+      bkScanCard(orderName);
     }
     renderHistory();
   } catch(e) { alert('Error: ' + e.message); }
