@@ -888,6 +888,36 @@ input[type=file]{display:none}
   </div>
 </div>
 
+<!-- ── BOOK COURIER (Shipway) ── -->
+<div id="bookTab" class="list-wrap" style="display:none">
+  <style>
+    .bk-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+    .bk-tbl{width:100%;border-collapse:collapse;font-size:.78rem;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+    .bk-tbl th{background:#f6efe4;color:var(--ink2);font-weight:700;text-align:left;padding:7px 8px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+    .bk-tbl td{padding:7px 8px;border-top:1px solid #f3ece2;vertical-align:top}
+    .bk-tbl select,.bk-tbl input{font-family:var(--fb);font-size:.76rem;padding:3px 5px;border:1px solid var(--line);border-radius:6px;background:#fff;max-width:170px}
+    .bk-why{color:#b03a2e;font-size:.72rem}.bk-ok{color:#1e7b4f;font-weight:700}.bk-m{color:var(--muted);font-size:.7rem}
+    .bk-btn{font-family:var(--fb);font-size:.8rem;font-weight:700;padding:8px 14px;border-radius:10px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+    .bk-btn.sec{background:#fff;color:var(--accent)}.bk-btn:disabled{opacity:.5;cursor:default}
+    .bk-card{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+    .bk-card h4{margin:0 0 6px;font-size:.78rem;color:var(--ink2)}
+    .bk-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0}
+    .bk-row input[type=text],.bk-row input[type=number]{font-family:var(--fb);font-size:.8rem;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px}
+    .bk-dry{background:#fff3cd;color:#7a5a00;border-radius:8px;padding:6px 10px;font-size:.76rem;font-weight:700;margin-bottom:8px}
+  </style>
+  <div class="bk-tabs">
+    <div class="ftab active" data-bk="ready" onclick="bkTab('ready')">Ready to book</div>
+    <div class="ftab" data-bk="one" onclick="bkTab('one')">One order</div>
+    <div class="ftab" data-bk="log" onclick="bkTab('log')">Bookings log</div>
+    <div class="ftab" data-bk="settings" onclick="bkTab('settings')">Rules</div>
+  </div>
+  <div id="bkDry" class="bk-dry" style="display:none">Dry run is on: Book shows what would be sent to Shipway, nothing is booked. Turn it off under Rules.</div>
+  <div id="bkReady"></div>
+  <div id="bkOne" style="display:none"></div>
+  <div id="bkLog" style="display:none"></div>
+  <div id="bkSettings" style="display:none"></div>
+</div>
+
 <!-- ── TRACK TAB ── -->
 <div id="trackTab" class="list-wrap" style="display:none">
   <div style="padding:16px 12px 32px">
@@ -1552,7 +1582,7 @@ function laptopOpen() {
 }
 function laptopClose() { document.getElementById('laptopZen').style.display = 'none'; }
 // Dispatch, Pending and Track are read-mostly views: they open on demand as popups, not as tabs
-const PANES = { dispatch: ['dispatchTab', '🚚 Dispatch', () => renderDispatch()], pending: ['pendingTab', '⏳ Pending photos', () => renderPending()], track: ['trackTab', '📍 Track', null] };
+const PANES = { dispatch: ['dispatchTab', '🚚 Dispatch', () => renderDispatch()], pending: ['pendingTab', '⏳ Pending photos', () => renderPending()], track: ['trackTab', '📍 Track', null], book: ['bookTab', '📦 Book courier', () => bkOpen()] };
 let _paneOpen = null;
 function paneOpen(name) {
   const def = PANES[name]; if (!def) return;
@@ -1577,6 +1607,174 @@ function homeSubs() {
   if (b) b.textContent = activeMode === 'laptop' ? 'Auto-print ON' : 'Auto-print off';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { zenScanClose(); laptopClose(); paneClose(); } });
+// ── Book courier: rules pick carrier, box and weight; Shipway books the AWB ──────────────────
+let _bkCfg = null, _bkCarriers = null, _bkRows = [], _bkTab = 'ready', _bkBusy = false;
+const bkEsc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+async function bkOpen() {
+  if (!_bkCfg) { try { [_bkCfg, _bkCarriers] = await Promise.all([apiFetch({ action: 'booking_config' }), apiFetch({ action: 'booking_carriers' }).catch(() => ({ carriers: [], warehouses: [] }))]); } catch (e) { document.getElementById('bkReady').innerHTML = `<div class="empty-msg">${bkEsc(e.message)}</div>`; return; } }
+  document.getElementById('bkDry').style.display = _bkCfg.dry_run ? '' : 'none';
+  bkTab(_bkTab);
+}
+function bkTab(t) {
+  _bkTab = t;
+  document.querySelectorAll('#bookTab .ftab').forEach(el => el.classList.toggle('active', el.dataset.bk === t));
+  for (const k of ['Ready', 'One', 'Log', 'Settings']) document.getElementById('bk' + k).style.display = k.toLowerCase() === t ? '' : 'none';
+  if (t === 'ready') bkRenderReady(); if (t === 'one') bkRenderOne(); if (t === 'log') bkRenderLog(); if (t === 'settings') bkRenderSettings();
+}
+// Orders the rack says are complete and that have no AWB yet
+function bkCandidates() {
+  const g = {};
+  for (const it of rackItems) {
+    if (it.cancelled || it.dispatched || it.tracking) continue;
+    const o = g[it.order_name] ||= { name: it.order_name, date: it.order_date, customer: it.customer, needed: 0, found: 0, src: it.source, payment: it.payment };
+    o.needed += +it.needed || 0; o.found += +it.found || 0;
+  }
+  return Object.values(g).filter(o => o.needed && o.found >= o.needed).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+}
+function bkCarrierSel(sel, name) {
+  const list = (_bkCarriers && _bkCarriers.carriers) || [];
+  const opts = list.map(c => `<option value="${c.id}"${+sel === c.id ? ' selected' : ''}>${bkEsc(c.name)}</option>`).join('');
+  return `<select data-f="carrier_id" ${name ? `data-n="${bkEsc(name)}"` : ''}>${+sel && !list.some(c => c.id === +sel) ? `<option value="${+sel}" selected>#${+sel}</option>` : ''}${opts}</select>`;
+}
+function bkRowHtml(r, i) {
+  const box = r.box ? `${r.box.l}×${r.box.b}×${r.box.h} · ${r.box.kg} kg` : '';
+  const st = r.result ? (r.result.ok ? (r.result.dry ? `<span class="bk-ok">dry run ✓</span> <span class="bk-m">would send carrier ${bkEsc(r.result.payload.carrier_id)} · ${bkEsc(r.result.payload.order_weight)} g · ${bkEsc(r.result.payload.box_length)}×${bkEsc(r.result.payload.box_breadth)}×${bkEsc(r.result.payload.box_height)} · ${r.result.payload.payment_type === 'C' ? 'COD' : 'prepaid'}</span>` : `<span class="bk-ok">✓ ${bkEsc(r.result.awb)}</span>${r.result.label_url ? ` <a href="${bkEsc(r.result.label_url)}" target="_blank">label</a>` : ''}`) : `<span class="bk-why">${bkEsc(r.result.error)}</span>`) : (r.ok ? '<span class="bk-m">ready</span>' : `<span class="bk-why">${bkEsc(r.why)}</span>`);
+  return `<tr data-i="${i}">
+    <td><input type="checkbox" data-f="sel" ${r.ok && !(r.result && r.result.ok && !r.result.dry) ? 'checked' : 'disabled'}></td>
+    <td><b>${bkEsc(r.order_name)}</b><div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-m">${bkEsc(r.city)} ${bkEsc(r.zip)}</div></td>
+    <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
+    <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
+    <td><input type="number" data-f="pieces" value="${r.pieces || 1}" min="1" style="width:52px"><div class="bk-m">${(r.products || []).slice(0, 3).map(bkEsc).join('<br>')}</div></td>
+    <td>${box}</td>
+    <td>${r.ok || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}</div></td>
+    <td>${st}</td></tr>`;
+}
+function bkTable(rows, idBase) {
+  return `<table class="bk-tbl"><thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Pcs</th><th>Box · weight</th><th>Carrier</th><th>Status</th></tr></thead><tbody>${rows.map((r, i) => bkRowHtml(r, i)).join('')}</tbody></table>`;
+}
+function bkRenderReady() {
+  const el = document.getElementById('bkReady');
+  const cands = bkCandidates();
+  const head = `<div class="bk-card"><div class="bk-row"><b>${cands.length} order${cands.length === 1 ? '' : 's'}</b> <span class="bk-m">complete on the rack, no AWB yet</span>
+    <button class="bk-btn sec" onclick="bkPreview()" ${_bkBusy || !cands.length ? 'disabled' : ''}>Preview rules</button>
+    <button class="bk-btn" onclick="bkBookSelected('bkReadyTbl')" ${_bkBusy || !_bkRows.length ? 'disabled' : ''}>Book selected</button>
+    <span id="bkReadyMsg" class="bk-m"></span></div>
+    <div class="bk-m">Warehouse ${_bkCfg ? _bkCfg.warehouse_id : ''} · COD → ${bkEsc(bkLadderName('cod_surface'))} · Prepaid surface → ${bkEsc(bkLadderName('prepaid_surface'))} · Prepaid air → ${bkEsc(bkLadderName('prepaid_air'))}</div></div>`;
+  el.innerHTML = head + (_bkRows.length ? `<div id="bkReadyTbl">${bkTable(_bkRows)}</div>` : (cands.length ? `<div class="empty-msg">Press Preview rules to see carrier, box and weight for each order.</div>` : '<div class="empty-msg">Nothing complete and unbooked right now.</div>'));
+  bkBindEdits('bkReadyTbl', _bkRows);
+}
+function bkLadderName(k) { const l = (_bkCfg && _bkCfg.carriers && _bkCfg.carriers[k]) || []; return l.length ? (l.length > 1 ? l.map(t => t.name || '#' + t.carrier_id).join(' / ') : (l[0].name || '#' + l[0].carrier_id)) : '—'; }
+async function bkPreview() {
+  const names = bkCandidates().map(o => o.name);
+  _bkBusy = true; _bkRows = []; bkRenderReady();
+  const msg = document.getElementById('bkReadyMsg');
+  const out = [];
+  for (let i = 0; i < names.length; i += 10) {
+    msg.textContent = `checking ${Math.min(i + 10, names.length)} / ${names.length}…`;
+    try { const r = await apiFetch({ action: 'booking_preview', order_names: names.slice(i, i + 10) }, API, 28000); out.push(...r.rows); }
+    catch (e) { out.push(...names.slice(i, i + 10).map(n => ({ order_name: n, ok: false, why: e.message }))); }
+  }
+  _bkRows = out; _bkBusy = false; bkRenderReady();
+}
+// edits in a row (pay, zone, pieces, carrier) re-run the preview for that order so the box and carrier follow
+function bkBindEdits(wrapId, rows) {
+  const wrap = document.getElementById(wrapId); if (!wrap) return;
+  wrap.querySelectorAll('tr[data-i]').forEach(tr => {
+    tr.querySelectorAll('[data-f]').forEach(inp => {
+      if (inp.dataset.f === 'sel') return;
+      inp.addEventListener('change', async () => {
+        const r = rows[+tr.dataset.i]; if (!r) return;
+        const ov = { payment: tr.querySelector('[data-f=payment]').value, zone: tr.querySelector('[data-f=zone]').value, pieces: +tr.querySelector('[data-f=pieces]').value || 1 };
+        const cs = tr.querySelector('[data-f=carrier_id]'); if (cs && inp.dataset.f === 'carrier_id') ov.carrier_id = +cs.value;
+        r.ov = ov;
+        try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name], overrides: { [r.order_name]: ov } }); Object.assign(r, p.rows[0], { ov }); } catch (e) { r.why = e.message; r.ok = false; }
+        tr.outerHTML = bkRowHtml(r, +tr.dataset.i); bkBindEdits(wrapId, rows);
+      });
+    });
+  });
+}
+async function bkBookSelected(wrapId) {
+  const wrap = document.getElementById(wrapId); if (!wrap) return;
+  const rows = wrapId === 'bkReadyTbl' ? _bkRows : _bkOneRows;
+  const picks = [...wrap.querySelectorAll('tr[data-i]')].filter(tr => { const c = tr.querySelector('[data-f=sel]'); return c && c.checked && !c.disabled; }).map(tr => +tr.dataset.i);
+  if (!picks.length) return;
+  if (!_bkCfg.dry_run && !confirm(`Book ${picks.length} order${picks.length === 1 ? '' : 's'} on Shipway now?`)) return;
+  _bkBusy = true;
+  for (const i of picks) {
+    const r = rows[i]; const tr = wrap.querySelector(`tr[data-i="${i}"]`);
+    if (tr) tr.querySelector('td:last-child').innerHTML = '<span class="bk-m">booking…</span>';
+    const ov = r.ov || {};
+    try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, pieces: r.pieces, ...ov }, API, 28000); }
+    catch (e) { r.result = { ok: false, error: e.message }; }
+    const tr2 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr2) tr2.outerHTML = bkRowHtml(r, i);
+  }
+  _bkBusy = false; bkBindEdits(wrapId, rows);
+  if (rows.some(r => r.result && r.result.ok && !r.result.dry)) { for (const r of rows) if (r.result && r.result.ok && !r.result.dry) for (const it of rackItems) if (it.order_name === r.order_name) { it.tracking = r.result.awb; it.tracking_company = r.result.carrier; } }
+}
+let _bkOneRows = [];
+function bkRenderOne() {
+  const el = document.getElementById('bkOne');
+  el.innerHTML = `<div class="bk-card"><h4>Book a single order (test or manual)</h4><div class="bk-row"><input type="text" id="bkOneInp" placeholder="Order # (e.g. #91066) or Amazon id" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')bkOneLookup()"><button class="bk-btn sec" onclick="bkOneLookup()">Preview</button><button class="bk-btn" onclick="bkBookSelected('bkOneTbl')" ${_bkOneRows.length ? '' : 'disabled'}>Book</button></div><div id="bkOneMsg" class="bk-m"></div></div>
+    <div id="bkOneTbl">${_bkOneRows.length ? bkTable(_bkOneRows) : ''}</div>`;
+  bkBindEdits('bkOneTbl', _bkOneRows);
+}
+async function bkOneLookup() {
+  const v = document.getElementById('bkOneInp').value.trim(); if (!v) return;
+  const name = /^\d{3}-\d{7}-\d{7}$/.test(v) ? v : '#' + v.replace(/^#/, '');
+  document.getElementById('bkOneMsg').textContent = 'looking up…';
+  try { const p = await apiFetch({ action: 'booking_preview', order_names: [name] }); _bkOneRows = p.rows; } catch (e) { _bkOneRows = [{ order_name: name, ok: false, why: e.message }]; }
+  bkRenderOne();
+}
+async function bkRenderLog() {
+  const el = document.getElementById('bkLog');
+  el.innerHTML = '<div class="empty-msg">Loading…</div>';
+  let rows = [];
+  try { rows = (await apiFetch({ action: 'booking_log' })).rows; } catch (e) { el.innerHTML = `<div class="empty-msg">${bkEsc(e.message)}</div>`; return; }
+  if (!rows.length) { el.innerHTML = '<div class="empty-msg">No bookings yet.</div>'; return; }
+  const fmt = d => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  el.innerHTML = `<table class="bk-tbl"><thead><tr><th>When</th><th>Order</th><th>Carrier</th><th>Pay · zone</th><th>Pcs · box</th><th>AWB</th><th></th></tr></thead><tbody>${rows.map(r => `<tr>
+    <td class="bk-m">${fmt(r.created_at)}</td><td><b>${bkEsc(r.order_name)}</b><div class="bk-m">${bkEsc(r.shipway_id)}</div></td><td>${bkEsc(r.carrier || '#' + r.carrier_id)}</td><td>${bkEsc(r.payment)} · ${bkEsc(r.zone)}</td><td>${r.pieces} · ${bkEsc(r.box)} · ${r.weight_kg} kg</td>
+    <td>${r.ok ? `<span class="bk-ok">${bkEsc(r.awb)}</span>${r.label_url ? ` <a href="${bkEsc(r.label_url)}" target="_blank">label</a>` : ''}${r.cancelled_at ? '<div class="bk-why">cancelled</div>' : ''}` : `<span class="bk-why">${bkEsc(r.error || 'failed')}</span>`}</td>
+    <td>${r.ok && !r.cancelled_at ? `<button class="ftab" onclick="bkCancel(${r.id}, this)">Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+}
+async function bkCancel(id, btn) {
+  if (!confirm('Cancel this booking on Shipway? The AWB is released and the order goes back to unbooked.')) return;
+  btn.disabled = true; btn.textContent = 'cancelling…';
+  try { await apiFetch({ action: 'booking_cancel', id }); bkRenderLog(); } catch (e) { btn.disabled = false; btn.textContent = 'Cancel'; alert(e.message); }
+}
+function bkRenderSettings() {
+  const el = document.getElementById('bkSettings'); const c = _bkCfg; if (!c) return;
+  const wh = (_bkCarriers && _bkCarriers.warehouses) || [];
+  const whSel = (id, f) => `<select data-s="${f}">${wh.length ? wh.map(w => `<option value="${w.id}"${w.id === +c[f] ? ' selected' : ''}>${w.id} · ${bkEsc(w.title)} ${bkEsc(w.pincode)}</option>`).join('') : `<option value="${+c[f]}">${+c[f]}</option>`}</select>`;
+  const ladder = k => `<div class="bk-card"><h4>${{ cod_surface: 'COD · surface', cod_air: 'COD · air', prepaid_surface: 'Prepaid · surface', prepaid_air: 'Prepaid · air' }[k]}</h4><div id="bkL_${k}">${(c.carriers[k] || []).map(t => bkLadderRow(k, t)).join('')}</div><button class="ftab" onclick="bkLadderAdd('${k}')">+ weight step</button></div>`;
+  el.innerHTML = `<div class="bk-card"><h4>Warehouse</h4><div class="bk-row">Pickup ${whSel(c.warehouse_id, 'warehouse_id')} Return ${whSel(c.return_warehouse_id, 'return_warehouse_id')}</div>
+    <div class="bk-row"><label><input type="checkbox" data-s="dry_run" ${c.dry_run ? 'checked' : ''}> Dry run (show the payload, book nothing)</label></div></div>
+    <div class="bk-card"><h4>Carrier by payment and zone</h4><div class="bk-m">Each list is a weight ladder: the first step whose max weight covers the parcel is used, so Delhivery Surface 0.5 / 1 / 2 / 5 kg pick themselves.</div></div>
+    ${ladder('cod_surface')}${ladder('cod_air')}${ladder('prepaid_surface')}${ladder('prepaid_air')}
+    <div class="bk-card"><h4>Surface zone</h4><div class="bk-m">Pincode prefixes (first two digits) that go by surface; everything else is air. Delhi 11, Haryana 12–13, Punjab 14–16, HP 17, J&amp;K 18–19, UP/Uttarakhand 20–28, Rajasthan 30–34, MP 45–48, Chhattisgarh 49, Gujarat 36–39, Maharashtra 40–44.</div>
+    <textarea data-s="surface_prefixes" rows="2" style="width:100%;font-family:var(--fb);font-size:.8rem;border:1.5px solid var(--line);border-radius:8px;padding:6px">${(c.surface_prefixes || []).join(' ')}</textarea></div>
+    <div class="bk-card"><h4>Box and weight by pieces</h4><table class="bk-tbl" id="bkBoxes"><thead><tr><th>Up to pieces</th><th>L cm</th><th>B cm</th><th>H cm</th><th>kg</th><th></th></tr></thead><tbody>${(c.boxes || []).map(bkBoxRow).join('')}</tbody></table>
+    <div class="bk-row"><button class="ftab" onclick="bkBoxAdd()">+ box</button> <span class="bk-m">Beyond the last row: pieces × </span><input type="number" step="0.01" data-s="piece_kg" value="${c.piece_kg}" style="width:70px"> kg</div>
+    <div class="bk-row"><span class="bk-m">Line items to ignore when counting pieces (regex):</span> <input type="text" data-s="skip_titles" value="${bkEsc(c.skip_titles)}" style="flex:1;min-width:200px"></div></div>
+    <div class="bk-row"><button class="bk-btn" onclick="bkSaveSettings(this)">Save rules</button> <button class="bk-btn sec" onclick="bkRefreshCarriers(this)">↻ Reload carriers from Shipway</button> <span id="bkSetMsg" class="bk-m"></span></div>`;
+}
+function bkLadderRow(k, t) { return `<div class="bk-row" data-l="${k}">up to <input type="number" step="0.5" data-f="max_kg" value="${t.max_kg}" style="width:64px"> kg → ${bkCarrierSel(t.carrier_id)} <button class="ftab" onclick="this.parentNode.remove()">✕</button></div>`; }
+function bkLadderAdd(k) { document.getElementById('bkL_' + k).insertAdjacentHTML('beforeend', bkLadderRow(k, { max_kg: 99, carrier_id: 0 })); }
+function bkBoxRow(b) { return `<tr><td><input type="number" data-f="pieces" value="${b.pieces}" style="width:60px"></td><td><input type="number" data-f="l" value="${b.l}" style="width:60px"></td><td><input type="number" data-f="b" value="${b.b}" style="width:60px"></td><td><input type="number" data-f="h" value="${b.h}" style="width:60px"></td><td><input type="number" step="0.01" data-f="kg" value="${b.kg}" style="width:70px"></td><td><button class="ftab" onclick="this.closest('tr').remove()">✕</button></td></tr>`; }
+function bkBoxAdd() { document.querySelector('#bkBoxes tbody').insertAdjacentHTML('beforeend', bkBoxRow({ pieces: 1, l: 24, b: 18, h: 5, kg: 0.38 })); }
+async function bkSaveSettings(btn) {
+  const el = document.getElementById('bkSettings');
+  const g = f => el.querySelector(`[data-s="${f}"]`);
+  const carriers = {};
+  for (const k of ['cod_surface', 'cod_air', 'prepaid_surface', 'prepaid_air']) carriers[k] = [...el.querySelectorAll(`[data-l="${k}"]`)].map(r => { const s = r.querySelector('[data-f=carrier_id]'); return { max_kg: +r.querySelector('[data-f=max_kg]').value || 99, carrier_id: +s.value, name: s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : '' }; });
+  const boxes = [...el.querySelectorAll('#bkBoxes tbody tr')].map(r => Object.fromEntries(['pieces', 'l', 'b', 'h', 'kg'].map(f => [f, +r.querySelector(`[data-f=${f}]`).value])));
+  const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, dry_run: g('dry_run').checked, carriers, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value };
+  btn.disabled = true;
+  try { _bkCfg = await apiFetch(body); document.getElementById('bkSetMsg').textContent = 'Saved'; document.getElementById('bkDry').style.display = _bkCfg.dry_run ? '' : 'none'; _bkRows = []; }
+  catch (e) { document.getElementById('bkSetMsg').textContent = e.message; }
+  btn.disabled = false;
+}
+async function bkRefreshCarriers(btn) { btn.disabled = true; try { _bkCarriers = await apiFetch({ action: 'booking_carriers', fresh: true }); bkRenderSettings(); } catch (e) { alert(e.message); } btn.disabled = false; }
 // ── Reissue tab: every replacement, open or dispatched, with the original order, reason, pieces and its own AWB ──
 let _reissueFilter = 'open';
 function setReissueFilter(f) { _reissueFilter = f; renderReissue(); }
@@ -3876,6 +4074,7 @@ function renderDashboard() {
       <button onclick="switchTab('prod')">🏭 Production</button>
       <button onclick="paneOpen('pending')">⏳ Pending photos</button>
       <button onclick="paneOpen('track')">📍 Track</button>
+      <button onclick="paneOpen('book')">📦 Book courier</button>
       <button onclick="window.open('nt-inventory.html','_blank')">🚨 Emergency page</button>
     </div>
     <div class="dash-sec"><h4>Pending by order date <a onclick="dashList('all')">all →</a></h4>
