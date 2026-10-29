@@ -910,6 +910,8 @@ input[type=file]{display:none}
     .bk-soft{color:#9a6a00;font-size:.72rem}
     .bk-city{font-size:.8rem;font-weight:700;color:var(--accent);margin-top:2px}
     .bk-tag{display:inline-block;border-radius:999px;padding:1px 7px;font-size:.62rem;font-weight:700;background:#f1e8dc;color:var(--ink2);vertical-align:middle}.bk-tag.ok{background:#e3f4e8;color:#1e7b4f}.bk-tag.warn{background:#fff3cd;color:#7a5a00}.bk-tag.bad{background:#fde2de;color:#b03a2e}
+    .bk-done{display:inline-flex;width:18px;height:18px;border-radius:50%;background:#1e7b4f;color:#fff;font-size:.72rem;font-weight:900;align-items:center;justify-content:center}.bk-done.bad{background:#b03a2e}
+    .bk-tbl tr.bk-booked td{background:#f4faf5}.bk-tbl tr.bk-booked select,.bk-tbl tr.bk-booked input:not([type=checkbox]){pointer-events:none;opacity:.6}
     .bk-tbl tr.bk-cancelled td{background:#fff5f3}.bk-tbl tr.bk-cancelled td:not(:nth-child(2)){opacity:.45}.bk-tbl tr.bk-cancelled select,.bk-tbl tr.bk-cancelled input:not([type=checkbox]){pointer-events:none}
     .bk-it{display:flex;gap:4px;align-items:center;font-size:.7rem;color:var(--muted);font-weight:400;margin:2px 0;white-space:nowrap}.bk-it input[type=checkbox]{margin:0}.bk-it input[type=number]{padding:1px 3px;font-size:.7rem}
     .bk-box{display:flex;gap:2px;align-items:center;font-size:.7rem;color:var(--muted);margin:2px 0}.bk-box input{width:44px;padding:2px 3px;font-size:.72rem}.bk-box input[data-f=kg]{width:54px}
@@ -1749,9 +1751,12 @@ function bkRowHtml(r, i, gi) {
   const partNote = r.note ? `<div class="bk-soft">${bkEsc(r.note)}</div>` : '';
   const boxEd = r.box ? `<div class="bk-box"><input type="number" data-f="l" value="${r.box.l}">×<input type="number" data-f="b" value="${r.box.b}">×<input type="number" data-f="h" value="${r.box.h}"> cm</div><div class="bk-box"><input type="number" step="0.01" data-f="kg" value="${r.box.kg}"> kg</div>` : '';
   const cancelled = /^cancelled/.test(r.why || '');
-  return `<tr data-i="${i}"${gi != null ? ` data-g="${gi}"` : ''}${cancelled ? ' class="bk-cancelled"' : ''}>
-    <td><input type="checkbox" data-f="sel" ${bookable ? (r.ok ? 'checked' : '') : 'disabled'}></td>
-    <td><b>${bkEsc(r.order_name)}</b>${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
+  // a booked row gets a green tick instead of an empty box; a cancelled one a red cross; only bookable rows get a checkbox
+  const done = !bookable && bkIsBooked(r);
+  const sel = done ? '<span class="bk-done" title="booked">✓</span>' : cancelled ? '<span class="bk-done bad">✕</span>' : `<input type="checkbox" data-f="sel" ${bookable ? (r.ok ? 'checked' : '') : 'disabled'}>`;
+  return `<tr data-i="${i}"${gi != null ? ` data-g="${gi}"` : ''}${cancelled ? ' class="bk-cancelled"' : done ? ' class="bk-booked"' : ''}>
+    <td>${sel}</td>
+    <td><b>${bkEsc(r.order_name)}</b>${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : done ? ' <span class="bk-tag ok">✓ booked</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !done && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
     <td>${r.ok || r.soft || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div></td>
