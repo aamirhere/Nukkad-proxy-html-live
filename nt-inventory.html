@@ -460,15 +460,18 @@ body.cut-printing .cut-fab, body.seq-printing .cut-fab { display:none !important
 }
 .dg-chevron {
   color: var(--muted);
-  font-size: .7rem;
+  font-size: .8rem;
   transition: transform .2s;
   cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 4px;
+  min-width: 40px; min-height: 36px;
+  border: none; background: none; font-family: inherit;
+  border-radius: 6px;
   flex-shrink: 0;
   line-height: 1;
+  -webkit-tap-highlight-color: transparent;
 }
-.dg-chevron:hover { background: var(--bg2); }
+/* hover only where a pointer can hover: on touch screens a sticky hover style used to swallow the first tap */
+@media (hover: hover) { .dg-chevron:hover { background: var(--bg2); } }
 .dg-card.open .dg-chevron { transform: rotate(180deg); }
 .dg-body { display: none; border-top: 1px solid var(--line); }
 .dg-card.open .dg-body { display: block; }
@@ -3834,7 +3837,7 @@ function renderGroup(g) {
   const amzGroupStyle = isAmazonGroup ? 'border-left:3px solid #ff9900;background:linear-gradient(135deg,rgba(255,153,0,.07) 0%,transparent 60%)' : '';
   return `
   <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${slug}" style="${amzGroupStyle}">
-    <div class="dg-head"${!isSingle ? ` onclick="toggleGroup('${slug}')" style="cursor:pointer"` : ''}>
+    <div class="dg-head"${!isSingle ? ` data-toggle="${slug}" style="cursor:pointer"` : ''}>
       ${leftBtn}
       <div class="dg-info">
         <div class="dg-title"><span class="dg-print-qty">${total}×</span> ${isAmazonGroup ? '<span style="background:#ff9900;color:#fff;font-size:.66rem;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:4px;vertical-align:middle">Amazon</span>' : ''}${displayTitle} ${colorLine} ${orderTag}</div>
@@ -3842,7 +3845,7 @@ function renderGroup(g) {
       </div>
       <div class="dg-actions-row">
         ${rightBtn}
-        ${!isSingle ? `<span class="dg-chevron">▼</span>` : ''}
+        ${!isSingle ? `<button type="button" class="dg-chevron" aria-label="Expand">▼</button>` : ''}
       </div>
     </div>
     ${!isSingle ? `
@@ -3891,12 +3894,20 @@ function titleSlug(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-function toggleGroup(slug) {
-  if (openGroups.has(slug)) openGroups.delete(slug);
-  else openGroups.add(slug);
-  const card = document.getElementById(`dg-${slug}`);
-  if (card) card.classList.toggle('open', openGroups.has(slug));
+function toggleGroup(slug, card) {
+  // the card that was tapped is the truth; the set only remembers what to reopen after a re-render
+  card = card || document.getElementById(`dg-${slug}`);
+  if (!card) return;
+  const open = !card.classList.contains('open');
+  card.classList.toggle('open', open);
+  if (open) openGroups.add(slug); else openGroups.delete(slug);
 }
+// Delegated, so a tap anywhere on the header (chevron, title, colour pills) opens the group; buttons keep their own handlers
+document.getElementById('designGroups').addEventListener('click', e => {
+  if (e.target.closest('button:not(.dg-chevron)')) return;
+  const head = e.target.closest('.dg-head[data-toggle]'); if (!head) return;
+  toggleGroup(head.dataset.toggle, head.closest('.dg-card'));
+});
 
 function restoreOpenGroups() {
   openGroups.forEach(slug => {
