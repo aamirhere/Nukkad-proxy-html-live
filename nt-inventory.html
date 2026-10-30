@@ -3833,7 +3833,8 @@ function renderGroup(g) {
     ? (isSingle ? (u0.order_name || g.title) : g.title)
     : g.title;
 
-  const slug = titleSlug(g.title);
+  // an Amazon group and a website group can share a name: keep their ids apart so neither toggles the other
+  const slug = titleSlug(g.title) + (isAmazonGroup ? '-amz' : '');
   const amzGroupStyle = isAmazonGroup ? 'border-left:3px solid #ff9900;background:linear-gradient(135deg,rgba(255,153,0,.07) 0%,transparent 60%)' : '';
   return `
   <div class="dg-card${isSingle ? '' : ' expandable'}" id="dg-${slug}" style="${amzGroupStyle}">
