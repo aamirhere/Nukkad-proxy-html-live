@@ -515,6 +515,8 @@ input[type=file]{display:none}
     .zen-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .zen-head b{font-family:var(--ff);font-size:1rem}.zen-x{border:none;background:#f1e8dc;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;color:var(--ink2)}
     #scanZen .zen-panel{background:#fff}
+    .zen-panel.zen-wide{max-width:none;width:calc(100vw - 20px);max-height:calc(100vh - 20px);padding:16px 22px 20px}
+    @media (max-width:600px){.zen-panel.zen-wide{width:100vw;max-height:100dvh;border-radius:0;padding:12px 10px 20px}}
     #scanZen .zen-pills{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:10px}
     #scanZen .zen-pills > div{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:0!important;padding:0!important;border:none!important;background:none!important;overflow:visible!important}
     #scanZen .zen-pills > div.mode-picker,#scanZen .mode-picker .mode-row{display:contents}
@@ -891,20 +893,24 @@ input[type=file]{display:none}
 <!-- ── BOOK COURIER (Shipway) ── -->
 <div id="bookTab" class="list-wrap" style="display:none">
   <style>
+    #bookTab{padding:4px 4px 24px;gap:12px}
     .bk-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
-    .bk-tbl{width:100%;border-collapse:collapse;font-size:.78rem;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-    .bk-tbl th{background:#f6efe4;color:var(--ink2);font-weight:700;text-align:left;padding:7px 8px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
-    .bk-tbl td{padding:7px 8px;border-top:1px solid #f3ece2;vertical-align:top}
-    .bk-tbl select,.bk-tbl input{font-family:var(--fb);font-size:.76rem;padding:3px 5px;border:1px solid var(--line);border-radius:6px;background:#fff;max-width:170px}
+    .bk-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+    .bk-tbl{width:100%;min-width:860px;border-collapse:collapse;font-size:.8rem;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+    .bk-tbl th{background:#f6efe4;color:var(--ink2);font-weight:700;text-align:left;padding:9px 12px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+    .bk-tbl td{padding:12px;border-top:1px solid #f3ece2;vertical-align:top;line-height:1.45}
+    .bk-tbl td:first-child{padding-left:16px}.bk-tbl th:first-child{padding-left:16px}
+    .bk-tbl td:nth-child(2){min-width:170px}
+    .bk-tbl select,.bk-tbl input{font-family:var(--fb);font-size:.78rem;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:#fff;max-width:190px}
     .bk-why{color:#b03a2e;font-size:.72rem}.bk-ok{color:#1e7b4f;font-weight:700}.bk-m{color:var(--muted);font-size:.7rem}
     .bk-btn{font-family:var(--fb);font-size:.8rem;font-weight:700;padding:8px 14px;border-radius:10px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
     .bk-btn.sec{background:#fff;color:var(--accent)}.bk-btn:disabled{opacity:.5;cursor:default}
-    .bk-card{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+    .bk-card{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
     .bk-card h4{margin:0 0 6px;font-size:.78rem;color:var(--ink2)}
     .bk-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0}
     .bk-row input[type=text],.bk-row input[type=number]{font-family:var(--fb);font-size:.8rem;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px}
     .bk-dry{background:#fff3cd;color:#7a5a00;border-radius:8px;padding:6px 10px;font-size:.76rem;font-weight:700;margin-bottom:8px}
-    .bk-tbl tr.bk-g td{background:#fbf3e8;border-top:2px solid var(--line);padding:8px}
+    .bk-tbl tr.bk-g td{background:#fbf3e8;border-top:2px solid var(--line);padding:10px 16px}
     .bk-tbl tr.bk-g label{display:flex;gap:8px;align-items:center;flex-wrap:wrap;cursor:pointer;font-size:.8rem}
     .bk-tbl tr.bk-g b{color:var(--ink)}.bk-tbl tr.bk-g .bk-z{border-radius:999px;padding:1px 8px;font-size:.68rem;font-weight:700;background:#e8f1ff;color:#1d4e89}.bk-tbl tr.bk-g .bk-z.air{background:#ffe9d6;color:#9a4a00}
     .bk-soft{color:#9a6a00;font-size:.72rem}
@@ -913,8 +919,8 @@ input[type=file]{display:none}
     .bk-done{display:inline-flex;width:18px;height:18px;border-radius:50%;background:#1e7b4f;color:#fff;font-size:.72rem;font-weight:900;align-items:center;justify-content:center}.bk-done.bad{background:#b03a2e}
     .bk-tbl tr.bk-booked td{background:#f4faf5}.bk-tbl tr.bk-booked select,.bk-tbl tr.bk-booked input:not([type=checkbox]){pointer-events:none;opacity:.6}
     .bk-tbl tr.bk-cancelled td{background:#fff5f3}.bk-tbl tr.bk-cancelled td:not(:nth-child(2)){opacity:.45}.bk-tbl tr.bk-cancelled select,.bk-tbl tr.bk-cancelled input:not([type=checkbox]){pointer-events:none}
-    .bk-it{display:flex;gap:4px;align-items:center;font-size:.7rem;color:var(--muted);font-weight:400;margin:2px 0;white-space:nowrap}.bk-it input[type=checkbox]{margin:0}.bk-it input[type=number]{padding:1px 3px;font-size:.7rem}
-    .bk-box{display:flex;gap:2px;align-items:center;font-size:.7rem;color:var(--muted);margin:2px 0}.bk-box input{width:44px;padding:2px 3px;font-size:.72rem}.bk-box input[data-f=kg]{width:54px}
+    .bk-it{display:flex;gap:6px;align-items:center;font-size:.74rem;color:var(--ink2);font-weight:400;margin:3px 0}.bk-it input[type=checkbox]{margin:0}.bk-it input[type=number]{padding:2px 4px;font-size:.72rem}.bk-it span{white-space:normal}
+    .bk-box{display:flex;gap:3px;align-items:center;font-size:.72rem;color:var(--muted);margin:3px 0}.bk-box input{width:46px;padding:3px 4px;font-size:.74rem}.bk-box input[data-f=kg]{width:58px}
     .bk-rule{display:grid;grid-template-columns:22px 1fr;gap:6px;align-items:start;border-top:1px solid #f3ece2;padding:6px 0}.bk-rule .bk-row{margin:0}.bk-rule input[type=text],.bk-rule input[type=number],.bk-rule select{font-family:var(--fb);font-size:.76rem;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:#fff}
     .bk-rule .ord{display:flex;flex-direction:column;gap:2px}.bk-rule .ord button{border:1px solid var(--line);background:#fff;border-radius:4px;font-size:.6rem;padding:1px 3px;cursor:pointer}
     .bk-sec{font-family:var(--ff);font-size:1rem;margin:14px 0 6px}
@@ -1608,6 +1614,8 @@ function paneOpen(name) {
   const def = PANES[name]; if (!def) return;
   if (_paneOpen) paneClose();
   const pane = document.getElementById(def[0]); if (!pane) return;
+  // the booking table needs the room: that pane takes the whole viewport
+  document.querySelector('#paneZen .zen-panel').classList.toggle('zen-wide', name === 'book');
   document.getElementById('paneZenTitle').textContent = def[1];
   document.getElementById('paneZenBody').appendChild(pane); pane.style.display = '';
   document.getElementById('paneZen').style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
@@ -1722,7 +1730,7 @@ function bkGroupTable(rows, wrapId) {
     const head = `<tr class="bk-g"><td colspan="8"><label><input type="checkbox" data-g="${gi}" onchange="bkGroupToggle('${wrapId}', ${gi}, this.checked)"><b>${bkEsc(g.key)}</b><span class="bk-z ${g.zone}">${g.zone}</span><span>${rs.length} order${rs.length === 1 ? '' : 's'} · ${rs.filter(r => r.ok).length} ready</span><span class="bk-m">${bkEsc(hint)}</span><span class="bk-m" style="flex-basis:100%">${bkEsc(cities)}</span></label></td></tr>`;
     return head + g.idx.map(i => bkRowHtml(rows[i], i, gi)).join('');
   }).join('');
-  return `<table class="bk-tbl">${BK_HEAD}<tbody>${body}</tbody></table>`;
+  return `<div class="bk-wrap"><table class="bk-tbl">${BK_HEAD}<tbody>${body}</tbody></table></div>`;
 }
 function bkGroupToggle(wrapId, gi, on) { document.querySelectorAll(`#${wrapId} tr[data-g="${gi}"] [data-f=sel]`).forEach(c => { if (!c.disabled) c.checked = on; }); }
 // Orders the rack says are complete and that have no AWB yet
@@ -1766,7 +1774,7 @@ function bkRowHtml(r, i, gi) {
 }
 const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
 function bkTable(rows, idBase) {
-  return `<table class="bk-tbl">${BK_HEAD}<tbody>${rows.map((r, i) => bkRowHtml(r, i)).join('')}</tbody></table>`;
+  return `<div class="bk-wrap"><table class="bk-tbl">${BK_HEAD}<tbody>${rows.map((r, i) => bkRowHtml(r, i)).join('')}</tbody></table></div>`;
 }
 function bkRenderReady() {
   const el = document.getElementById('bkReady');
