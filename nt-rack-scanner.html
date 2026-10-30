@@ -1615,7 +1615,7 @@ function paneOpen(name) {
   if (_paneOpen) paneClose();
   const pane = document.getElementById(def[0]); if (!pane) return;
   // the booking table needs the room: that pane takes the whole viewport
-  document.querySelector('#paneZen .zen-panel').classList.toggle('zen-wide', name === 'book');
+  const panel = document.querySelector('#paneZen .zen-panel'); panel.classList.toggle('zen-wide', name === 'book'); panel.style.maxWidth = name === 'book' ? 'none' : '900px';
   document.getElementById('paneZenTitle').textContent = def[1];
   document.getElementById('paneZenBody').appendChild(pane); pane.style.display = '';
   document.getElementById('paneZen').style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
