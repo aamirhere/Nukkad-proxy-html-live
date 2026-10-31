@@ -16,8 +16,13 @@
   /* ── offer ──────────────────────────────────────────────── */
   // The offer the strip talks about. Published from the dashboard (Sheet picks → Offer); these defaults run until then.
   var OFFER = D.offer || { title: 'Special Diwali offers', type: 'free_nth', every: 3, steps: [3, 6, 9], price: 599, code: '', codes: ['DIWALI1', 'DIWALI2', 'DIWALI3'], note: 'Prepaid only · till 2 Nov', ends: '2026-11-02' };
-  var EVERY = Math.max(2, +OFFER.every || 3), UNIT = +OFFER.price || 599, TIERS = OFFER.type === 'tiers' ? (OFFER.tiers && OFFER.tiers.length ? OFFER.tiers : LADDER) : [];
-  var offerLive = !OFFER.ends || new Date().toISOString().slice(0, 10) <= OFFER.ends;
+  // Kind of offer: 'free_nth' (every Nth quote free), 'tiers' (step discounts) or 'none' (no offer: the site shows plain prices)
+  var MODE = OFFER.mode || OFFER.type || 'free_nth';
+  // The fixed areas the offer can show in; each is a switch on the dashboard (Sheet picks → Offer → Where it shows)
+  var AREA = {}; ['strip', 'drawer', 'band', 'ladder', 'price', 'also', 'cards'].forEach(function (k) { AREA[k] = !OFFER.areas || OFFER.areas[k] !== false; });
+  var EVERY = Math.max(2, +OFFER.every || 3), UNIT = +OFFER.price || 599, TIERS = MODE === 'tiers' ? (OFFER.tiers && OFFER.tiers.length ? OFFER.tiers : LADDER) : [];
+  function offerIsLive() { return MODE !== 'none' && (!OFFER.ends || new Date().toISOString().slice(0, 10) <= OFFER.ends); }
+  var offerLive = offerIsLive();
   /* ── flat sale (dashboard → Sale mode): timed in 24-hour days from an IST start; while it runs the strip is the sale
      timer and the free-quote offer rests (no ladder, no FREE tags, no price strike) ── */
   var SALE = D.sale && D.sale.on ? D.sale : null;
@@ -107,7 +112,12 @@
     if (n) a = tx('summary', vars({ n: n, pay: pay, list: list, k: 0, more: 0, next_n: 0, next_pay: 0 }));
     return { n: n, list: list, pay: pay, saving: Math.max(0, list - pay), steps: steps, next: next, tier: tier, a: a, line: line, side: n ? '' : OFFER.note || '', after: '', short: short, pct: Math.min(100, n / maxAt * 100), hot: false, celebrate: false };
   }
-  function ladderState(cart) { return TIERS.length ? tierState(cart) : freeState(cart); }
+  // No offer running: the strip is a plain cart summary, nothing is free, nothing is struck
+  function plainState(cart) {
+    var n = cart.item_count || 0, total = (cart.total_price || 0) / 100;
+    return { n: n, list: total, pay: total, saving: 0, free: 0, steps: [], next: null, a: n + ' in cart', line: fmt(total), side: '', after: '', short: '', pct: 0, hot: false, celebrate: false };
+  }
+  function ladderState(cart) { return !offerLive ? plainState(cart) : TIERS.length ? tierState(cart) : freeState(cart); }
   function ladderHtml(S) {
     return '<div class="nts-ladder">' + S.steps.map(function (s) { return '<div class="st' + (S.n >= s.at ? ' done' : '') + (S.next && S.next.at === s.at ? ' next' : '') + '"><b>' + s.v + '</b>' + s.l + '</div>'; }).join('') + '</div>';
   }
@@ -154,7 +164,7 @@
     '#ntsPdp .nts-ac .nm{font-family:var(--ff,Georgia,serif);font-weight:600;font-size:12.5px;line-height:1.2;margin:6px 0 4px;height:2.4em;overflow:hidden}#ntsPdp .nts-ac .cs{display:flex;gap:4px;height:14px;overflow:hidden;margin-bottom:5px}#ntsPdp .nts-ac .cs span{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line,#e9ddca);cursor:pointer;flex:none}#ntsPdp .nts-ac .cs span.on{box-shadow:0 0 0 2px var(--ink,#3a2b1d)}' +
     '#ntsPdp .nts-ac .pr{font-size:13px;font-weight:800}#ntsPdp .nts-ac .pr em{font-style:normal;color:#2e8b57}#ntsPdp .nts-ac .pr s{color:var(--muted,#9c8a76);font-weight:600;margin-left:4px;font-size:11px}#ntsPdp .nts-ac .add{margin-top:6px;width:100%;border:0;background:var(--accent,#d4541f);color:#fff;border-radius:8px;padding:7px 4px;font:inherit;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ntsPdp .nts-ac .add.in{background:#2e8b57}#ntsPdp .nts-ac.all{display:grid;place-items:center;text-align:center;font-weight:800;font-size:13px;color:var(--ink2,#6f5b46);border-style:dashed;background:transparent;text-decoration:none;line-height:1.4}' +
     '#ntSheetRoot .nts-mini .gift{display:grid;place-items:center;width:100%;height:100%;font-size:22px;background:#fbe9d7}#ntSheetRoot .nts-ladder{grid-template-columns:repeat(auto-fit,minmax(56px,1fr))}' +
-    '#ntSheetRoot .nts-strip.sale{background:linear-gradient(100deg,#c1001a 0%,#e8192c 55%,#ff5a3c 100%);padding:8px 30px 8px 12px;animation:ntsGlow 1.1s ease-in-out infinite}@keyframes ntsGlow{0%,100%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 0 rgba(232,25,44,.65)}60%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 8px rgba(232,25,44,0)}}#ntSheetRoot .nts-strip.sale .a{color:#fff2a8;font-weight:900;opacity:1;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;white-space:normal;overflow:visible;line-height:1.2}#ntSheetRoot .nts-strip.sale .b{display:flex;flex-direction:column;gap:4px;margin-top:4px;white-space:normal;line-height:1}#ntSheetRoot .nts-strip.sale .row{display:flex;align-items:center;gap:10px}#ntSheetRoot .nts-strip.sale .clk{display:inline-flex;align-items:center;gap:2px;flex:none}#ntSheetRoot .nts-strip.sale .clk b{display:inline-block;min-width:2ch;text-align:center;font-size:24px;font-weight:900;color:#fff;background:#1a0608;border-radius:7px;padding:5px 6px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.02em;box-shadow:inset 0 -2px 0 rgba(255,255,255,.08)}#ntSheetRoot .nts-strip.sale .clk b[data-s]{animation:ntsSec 1s steps(1) infinite}@keyframes ntsSec{0%{background:#5a0a12;color:#fff2a8}50%{background:#1a0608;color:#fff}}#ntSheetRoot .nts-strip.sale .clk i{font-style:normal;font-weight:900;font-size:20px;color:#fff;line-height:1;margin:0 1px;animation:ntsColon 1s steps(1) infinite}@keyframes ntsColon{50%{opacity:.35}}#ntSheetRoot .nts-strip.sale .of{color:#fff;font-size:16px;font-weight:900;line-height:1.1;min-width:0}#ntSheetRoot .nts-strip.sale .hurry{display:block;color:#fff;font-size:11px;font-weight:700;opacity:.95;line-height:1.2}#ntSheetRoot .nts-strip.sale .br{display:none}#ntSheetRoot .nts-strip.sale .chev{border-color:#fff}#ntSheetRoot .nts-strip.sale.hot{animation-duration:.6s}#ntSheetRoot .nts-strip.sale.hot .clk b{background:#fff;color:#c1001a}#ntSheetRoot .nts-strip.sale.hot .clk b[data-s]{animation:none}#ntSheetRoot .nts-foot .nts-strip.sale{animation:none;padding-right:12px}#ntSheetRoot .nts-foot .nts-strip.sale .clk b{font-size:18px;padding:4px 5px}#ntSheetRoot .nts-foot .nts-strip.sale .of{font-size:14px}#ntSheetRoot .nts-foot .nts-strip.sale .b small{display:block}' +
+    '#ntSheetRoot .nts-strip.sale{background:linear-gradient(100deg,#c1001a 0%,#e8192c 55%,#ff5a3c 100%);padding:8px 30px 8px 12px;animation:ntsGlow 1.1s ease-in-out infinite}@keyframes ntsGlow{0%,100%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 0 rgba(232,25,44,.65)}60%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 8px rgba(232,25,44,0)}}#ntSheetRoot .nts-strip.sale .a{color:#fff2a8;font-weight:900;opacity:1;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;white-space:normal;overflow:visible;line-height:1.2}#ntSheetRoot .nts-strip.sale .b{display:flex;flex-direction:column;gap:4px;margin-top:4px;white-space:normal;line-height:1}#ntSheetRoot .nts-strip.sale .row{display:flex;align-items:center;gap:10px}#ntSheetRoot .nts-strip.sale .clk{display:inline-flex;align-items:center;gap:2px;flex:none}#ntSheetRoot .nts-strip.sale .clk b{display:inline-block;min-width:2ch;text-align:center;font-size:24px;font-weight:900;color:#fff;background:#1a0608;border-radius:7px;padding:5px 6px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.02em;box-shadow:inset 0 -2px 0 rgba(255,255,255,.08)}#ntSheetRoot .nts-strip.sale .clk b[data-s]{animation:ntsSec 1s steps(1) infinite}@keyframes ntsSec{0%{background:#5a0a12;color:#fff2a8}50%{background:#1a0608;color:#fff}}#ntSheetRoot .nts-strip.sale .clk i{font-style:normal;font-weight:900;font-size:20px;color:#fff;line-height:1;margin:0 1px;animation:ntsColon 1s steps(1) infinite}@keyframes ntsColon{50%{opacity:.35}}#ntSheetRoot .nts-strip.sale .of{color:#fff;font-size:16px;font-weight:900;line-height:1.1;min-width:0}#ntSheetRoot .nts-strip.sale .hurry{display:block;color:#fff;font-size:11px;font-weight:700;opacity:.95;line-height:1.2}#ntSheetRoot .nts-strip.sale .br,#ntSheetRoot .nts-strip.plain .br{display:none}#ntSheetRoot .nts-strip.sale .chev{border-color:#fff}#ntSheetRoot .nts-strip.sale.hot{animation-duration:.6s}#ntSheetRoot .nts-strip.sale.hot .clk b{background:#fff;color:#c1001a}#ntSheetRoot .nts-strip.sale.hot .clk b[data-s]{animation:none}#ntSheetRoot .nts-foot .nts-strip.sale{animation:none;padding-right:12px}#ntSheetRoot .nts-foot .nts-strip.sale .clk b{font-size:18px;padding:4px 5px}#ntSheetRoot .nts-foot .nts-strip.sale .of{font-size:14px}#ntSheetRoot .nts-foot .nts-strip.sale .b small{display:block}' +
     '#ntsPdp .nts-fest.sale{background:linear-gradient(100deg,#c1001a 0%,#e8192c 55%,#ff5a3c 100%);box-shadow:0 8px 20px -10px rgba(232,25,44,.7)}#ntsPdp .nts-fest.sale .t{color:#fff2a8;text-transform:uppercase;letter-spacing:.06em;font-size:13px;font-family:var(--fb,"Nunito",sans-serif);font-weight:900}#ntsPdp .nts-fest.sale .s b{color:#fff;font-size:15px}#ntsPdp .nts-fest.sale .n.c{font-variant-numeric:tabular-nums;font-size:13px;padding:2px 9px;background:#1a0608;color:#fff;letter-spacing:.04em}';
   root.appendChild(css);
   var _lastN = -1;
@@ -165,7 +175,8 @@
     st.classList.toggle('empty', !S.n); $('ntsSheet').classList.toggle('empty', !total);
     if (saleNow) { paintSale(total); return; }
     $('ntsStrip').classList.remove('sale'); $('ntsFootA').parentNode.classList.remove('sale');
-    if (!S.n && !offerLive) { st.classList.remove('on'); _lastN = 0; return; }
+    $('ntsStrip').classList.toggle('plain', !offerLive);
+    if (!AREA.strip || (!S.n && !offerLive)) { st.classList.remove('on'); _lastN = 0; if (document.getElementById('ntsPdp')) renderPdp(); decorateCards(); return; }
     if (S.n && !cur) cur = lastHandle();
     st.classList.add('on');
     $('ntsStripA').innerHTML = chips(esc(S.n ? S.a : '🎁 ' + S.a)); $('ntsStripPP').innerHTML = chips(esc(S.side || ''));
@@ -188,7 +199,7 @@
   // The strip as the sale timer: the day line and clock on top, the flat offer below, the cart count at the side
   function paintSale(total) {
     var s = saleState();
-    if (!s) { saleNow = null; offerLive = !OFFER.ends || new Date().toISOString().slice(0, 10) <= OFFER.ends; paintStrip(); return; }
+    if (!s) { saleNow = null; offerLive = offerIsLive(); paintStrip(); return; }
     var st = $('ntsDock'), strip = $('ntsStrip');
     st.classList.add('on'); st.classList.toggle('empty', !total); strip.classList.add('sale'); strip.classList.toggle('hot', !!s.urgent); strip.classList.remove('pulse');
     // three lines: the sale's name and day on top, the ticking clock as the hero with the offer beside it, the hurry line below
@@ -220,7 +231,7 @@
     if (c.gift) all.gift.l = 'Another gift';
     return order.filter(function (k) { return (P[k] || []).filter(function (x) { return CAT[x]; }).length; }).map(function (k) { return { k: k, l: all[k].l, lead: all[k].lead, items: P[k].filter(function (x) { return CAT[x]; }).slice(0, 4) }; });
   }
-  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (saleNow) { var sp = salePrice(base); return sp ? sp.now : base; } if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
+  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (saleNow) { var sp = salePrice(base); return sp ? sp.now : base; } if (!offerLive) return base; if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
   function renderTabs() {
     $('ntsTabs').innerHTML = tabs.map(function (t, i) { return '<button class="nts-tab' + (i === tab ? ' on' : '') + '" data-i="' + i + '">' + t.l + '</button>'; }).join('');
     renderRow();
@@ -257,8 +268,9 @@
     $('ntsOffers').innerHTML = ladderHtml(S) + '<ul class="nts-rules">' + offerRules() + '</ul>';
   }
   function openOffers() {
-    // in the sale the strip is a plain link to the sale collection: no ladder to explain
+    // in the sale the strip is a plain link to the sale collection: no ladder to explain; with no offer (or the drawer switched off) it opens the cart
     if (saleNow) { window.location.href = SALE.link || '/collections/all'; return; }
+    if (!offerLive || !AREA.drawer) { openCart(); return; }
     var S = ladderState(_cart);
     $('ntsT').textContent = OFFER.title; $('ntsMini').innerHTML = '<span class="gift">🎁</span>';
     $('ntsSheet').classList.add('offers'); renderOffers(S); paintStrip();
@@ -300,17 +312,17 @@
     // No rows of its own but a collection: lead with that collection's designs from the catalogue
     if (!P.self && (CAT[h] || {}).cl) { var ch = CAT[h].cl.h, fromColl = []; for (var hk in CAT) if (hk !== h && CAT[hk].cl && CAT[hk].cl.h === ch) fromColl.push(hk); P = { self: fromColl, coll: CAT[h].cl }; }
     // A design in a highlighted collection leads with that collection (its "self" row), then what sold with it
-    (P.coll ? [P.self, P.pairs, P.home, G.pairs, G.self, G.home] : [P.pairs, P.self, P.home, G.pairs, G.self, G.home]).forEach(function (l) { (l || []).forEach(function (x) { var c = CAT[x]; if (!c || seen[x] || !eligibleHandle(x) || (c.p !== UNIT && !(saleNow && salePrice(c.p))) || !c.cols.length) return; seen[x] = 1; out.push(x); }); });
+    (P.coll ? [P.self, P.pairs, P.home, G.pairs, G.self, G.home] : [P.pairs, P.self, P.home, G.pairs, G.self, G.home]).forEach(function (l) { (l || []).forEach(function (x) { var c = CAT[x]; if (!c || seen[x] || !eligibleHandle(x) || (offerLive && c.p !== UNIT) || !c.cols.length) return; seen[x] = 1; out.push(x); }); });
     return out.slice(0, 6);
   }
   function pageColour() { var r = document.querySelector('input[type=radio][name^="ntpb-opt-"]:checked'); return r ? String(r.value).toLowerCase() : ''; }
-  function alsoHeader(S) { var r = S.n % EVERY, c = _pdp && (PICKS[_pdp.h] || {}).coll, V = vars({ n: S.n, pay: S.pay, list: S.list, k: 0, more: 0, next_n: 0, next_pay: 0, coll: c ? c.t : '' }); return saleNow || TIERS.length || !S.n ? tx(c ? 'also_coll' : 'also_empty', V) : r === EVERY - 1 ? tx('also_hot', V) : r ? tx('also_first', V) : tx('also_done', V); }
+  function alsoHeader(S) { var r = S.n % EVERY, c = _pdp && (PICKS[_pdp.h] || {}).coll, V = vars({ n: S.n, pay: S.pay, list: S.list, k: 0, more: 0, next_n: 0, next_pay: 0, coll: c ? c.t : '' }); return saleNow || !offerLive || !AREA.also || TIERS.length || !S.n ? tx(c ? 'also_coll' : 'also_empty', V) : r === EVERY - 1 ? tx('also_hot', V) : r ? tx('also_first', V) : tx('also_done', V); }
   var _pdp = null;
   function renderAlso() {
     if (!_pdp || !$('ntsAlsoRow')) return;
     // Each card shows what adding it really costs: the cheapest piece in a full set goes free, so a dearer colour is not "free"
     var S = ladderState(_cart), units = unitsOf(_cart), pc = pageColour();
-    var marginal = function (base) { return TIERS.length ? base : Math.max(0, payFor(units.concat([base])) - payFor(units)); };
+    var marginal = function (base) { return TIERS.length || !offerLive || !AREA.also ? base : Math.max(0, payFor(units.concat([base])) - payFor(units)); };
     $('ntsAlsoH').innerHTML = '<span>' + esc(alsoHeader(S)) + '</span>';
     var inCart = {}; (_cart.items || []).forEach(function (it) { inCart[it.handle] = (inCart[it.handle] || 0) + it.quantity; });
     $('ntsAlsoRow').innerHTML = _pdp.list.map(function (x) {
@@ -328,7 +340,9 @@
   // The page's own price: when adding this piece completes a set, strike the price and show FREE (or the difference for a dearer colour)
   var _pp = { html: null, base: null };
   function decoratePrice() {
-    var el = document.querySelector('.ph-price'), h = productHandle(); if (!el || !h || TIERS.length || !offerLive) return;
+    var el = document.querySelector('.ph-price'), h = productHandle(); if (!el || !h) return;
+    // Offer over (or the price area switched off) while the page is open: put the price back as the theme wrote it
+    if (TIERS.length || !offerLive || !AREA.price) { if (_pp.base != null && el.innerHTML === _pp.html && _pp.html !== _pp.base) { el.innerHTML = _pp.base; el.classList.remove('nts-on'); _pp = { html: null, base: null }; } return; }
     var base = el.innerHTML === _pp.html ? _pp.base : el.innerHTML;
     var tmp = document.createElement('span'); tmp.innerHTML = base; Array.prototype.forEach.call(tmp.querySelectorAll('s,small'), function (x) { x.parentNode.removeChild(x); });
     var m = tmp.textContent.match(/₹\s*([\d,]+)/), price = m ? +m[1].replace(/,/g, '') : 0;
@@ -351,11 +365,11 @@
     // A festive band above the offer: the offer title, its one-line promise and the small note
     var V0 = vars({ n: 0, pay: 0, list: 0, k: 0, more: 0, next_n: 0, next_pay: 0 });
     var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(saleNow.day) + '</div><div class="s"><b>' + esc(SALE.title || 'Pick any at ₹399') + '</b> · ' + esc(SALE.sub || '') + ' <span class="n c" id="ntsFestClock">' + esc(saleNow.clock) + '</span></div></div>'
-      : offerLive ? '<div class="nts-fest"><div class="t">✨ ' + esc(OFFER.title) + '</div><div class="s">' + (TIERS.length ? esc(TIERS.map(function (t) { return t.label + ' at ' + t.at; }).join(' · ')) : bold(tx('empty_line', V0)) + ' · ' + esc(tx('empty_side', V0))) + '' + (OFFER.note ? ' <span class="n">' + esc(OFFER.note) + '</span>' : '') + '</div></div>' : '';
-    box.innerHTML = band + (saleNow ? '' : '<div class="nts-lbox"><div class="h">' + esc(TIERS.length ? 'Buy more, pay less' : tx('ladder_title', V0)) + '</div><div id="ntsPdpLadder"></div></div>') +
-      (list.length ? '<div class="nts-lbox nts-also"><div class="h" id="ntsAlsoH"></div><div class="nts-arow" id="ntsAlsoRow"></div></div>' : '');
+      : offerLive && AREA.band ? '<div class="nts-fest"><div class="t">✨ ' + esc(OFFER.title) + '</div><div class="s">' + (TIERS.length ? esc(TIERS.map(function (t) { return t.label + ' at ' + t.at; }).join(' · ')) : bold(tx('empty_line', V0)) + ' · ' + esc(tx('empty_side', V0))) + '' + (OFFER.note ? ' <span class="n">' + esc(OFFER.note) + '</span>' : '') + '</div></div>' : '';
+    box.innerHTML = band + (!saleNow && offerLive && AREA.ladder ? '<div class="nts-lbox"><div class="h">' + esc(TIERS.length ? 'Buy more, pay less' : tx('ladder_title', V0)) + '</div><div id="ntsPdpLadder"></div></div>' : '') +
+      (list.length && AREA.also ? '<div class="nts-lbox nts-also"><div class="h" id="ntsAlsoH"></div><div class="nts-arow" id="ntsAlsoRow"></div></div>' : '');
     form.insertAdjacentElement('afterend', box);
-    _pdp = list.length ? { h: h, list: list, pick: {} } : null;
+    _pdp = list.length && AREA.also ? { h: h, list: list, pick: {} } : null;
     renderPdp();
     // The theme rewrites the price on every colour change; follow it
     var pe = document.querySelector('.ph-price'); if (pe) { try { new MutationObserver(function () { decoratePrice(); }).observe(pe, { childList: true, subtree: true, characterData: true }); } catch (e) {} }
@@ -456,7 +470,12 @@
   }
   // Collection and grid cards: a small tag on the photo of every piece the offer covers (stock quotes at the quote price)
   function decorateCards() {
-    if (!offerLive || TIERS.length) return;
+    if (!offerLive || TIERS.length || !AREA.cards) {
+      // Nothing to show: cards already touched go back to the theme's price
+      var done = document.querySelectorAll('a.pcard .pp[data-nts]');
+      for (var j = 0; j < done.length; j++) { var p0 = done[j], b0 = p0.getAttribute('data-nts'); if (p0.innerHTML !== b0) p0.innerHTML = b0; var l0 = p0.closest('a.pcard').querySelector('.nts-line'); if (l0) l0.style.display = 'none'; }
+      return;
+    }
     // Cards follow the cart: the price strikes through to FREE when this piece completes a set; before that, a quiet line says what is still needed
     var n = unitsOf(_cart).length, toNext = nextAt(n) - n, V = vars({ n: n, pay: 0, list: 0, k: 0, more: toNext, next_n: nextAt(n), next_pay: 0 }); V.more_1 = toNext - 1;
     var free = n > 0 && toNext === 1, line = !n ? tx('card_tag', V) : free ? '' : tx('card_tag_more', V), word = tx('card_tag_free', V);

@@ -266,7 +266,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 <div class="modal" id="spModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:46">
   <div class="panel" style="width:min(1100px,100%)">
     <div class="hd"><h2>🧺 Sheet picks</h2><span class="note" id="spWhen"></span><button class="btn" id="spPub" onclick="spPublish()" style="margin-left:auto">⬆ Update website</button><button class="x" onclick="document.getElementById('spModal').classList.remove('open')">✕</button></div>
-    <div class="note" style="margin-bottom:8px">What the site shows after an Add to cart. Suggestions come from sales; pin what you want kept, remove what you do not, and press Update website. Untouched cards keep following the data.</div>
+    <div class="note" style="margin-bottom:8px">Everything the strip script puts on the site is set here and nowhere else: the Sale mode switch, the regular offer with the fixed areas it shows in, the "similar to this" collections, and the picks under Add to cart. Save, then press Update website.</div>
     <div class="sp-offer" id="spSale"></div>
     <div class="sp-offer" id="spOffer"></div>
     <div class="sp-offer" id="spColls"></div>
@@ -727,6 +727,7 @@ const spFmt = s => s ? new Date(s).toLocaleString('en-IN', { timeZone: 'Asia/Kol
 async function spSaleLoad() {
   try { _spSale = await api({ action: 'sale_status' }); } catch (e) { document.getElementById('spSale').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   spRenderSale();
+  if (_sp && document.getElementById('spo_mode')) spOfferPreview();
   clearTimeout(_spSalePoll);
   if (_spSale.running) _spSalePoll = setTimeout(spSaleLoad, 5000);
 }
@@ -741,7 +742,7 @@ function spRenderSale() {
     state = `<div style="padding:10px 12px;border-radius:10px;background:#fde8df;border:1.5px solid var(--accent);margin:6px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1rem">🔥 Sale is ON</b><span class="note">${esc(phase)} · ${esc(pr)}${sch.revert_at ? ` · back to normal at ${esc(sch.revert_at)}` : ''}</span><button class="btn" style="margin-left:auto" onclick="spSaleOff(this)" ${run ? 'disabled' : ''}>Turn sale OFF</button></div>`;
   } else state = `<div style="padding:10px 12px;border-radius:10px;background:#f4f0ea;border:1.5px solid var(--line);margin:6px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1rem">Sale is OFF</b><span class="note">the site shows the regular offer below · ${cur ? `<b style="color:#b03a2e">but prices are still cut (${cur.done} variants)</b>` : 'prices normal'}</span>${cur ? `<button class="btn" style="margin-left:auto" onclick="spSaleOff(this)">Restore prices</button>` : ''}</div>`;
   document.getElementById('spSale').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap"><b>🔥 Sale mode</b><span class="note">one switch: the bottom strip on every page becomes the sale timer with the offer, the free-quote lines rest, and the prices are cut for exactly the window (599→399, 799→599, 899→699). OFF puts everything back.</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap"><b>🔥 Sale mode</b><span class="note">one switch that overrides the regular offer below for a set window: the strip on every page becomes the sale timer, the product band turns red with the clock, the ladder / FREE lines / collection tags rest, the "also buy" cards show the cut price, and the prices are cut for exactly the window (599→399, 799→599, 899→699). OFF puts everything back.</span></div>
     ${state}${bar}
     <div class="row">${inp('start', 'Starts (IST)', (s.start || '2026-11-01 00:00').replace(' ', 'T'), 'datetime-local')}${inp('days', 'Days (24 h each)', s.days || 3, 'number', 'style="width:70px" min="1" max="14"')}${inp('title', 'Headline on the strip', s.title || 'Pick any at ₹399', 'text', 'style="width:230px"')}${inp('sub', 'Small line', s.sub || 'Hurry · only 24 hours · ends at midnight', 'text', 'style="width:240px"')}${inp('link', 'Strip opens', s.link || '/collections/all', 'text', 'style="width:160px"')}</div>
     <div class="row">${inp('day1', 'Day 1 line', s.day1 || 'Now or never sale · Day 1', 'text', 'style="width:190px"')}${inp('day2', 'Day 2 line', s.day2 || 'Now or never sale · Extended! Day 2', 'text', 'style="width:190px"')}${inp('day3', 'Day 3 line', s.day3 || 'Now or never sale · Last day', 'text', 'style="width:190px"')}
@@ -762,6 +763,153 @@ function spSaleOff(btn) {
   if (!confirm('Turn the sale OFF now? The strip goes back to the regular offer and every price returns to what it was.')) return;
   btn.disabled = true;
   (async () => { try { await api({ action: 'sale_mode_off' }); } catch (e) { alert(e.message); } btn.disabled = false; spSaleLoad(); })();
+}
+// Collections that stand for "similar to this": a design in one of them gets that collection as its One for you row and a See all link on its page
+let _spCollQ = '';
+function spRenderColls() {
+  const ol = document.getElementById('spCollList'); if (ol) _spCollScroll = ol.scrollTop;
+  const hl = _sp.highlight || [], all = _sp.collections || [], byH = {}; all.forEach(c => byH[c.handle] = c);
+  const q = _spCollQ.toLowerCase(), hit = c => !q || c.title.toLowerCase().includes(q) || c.handle.includes(q);
+  const rest = all.filter(c => !hl.includes(c.handle) && hit(c));
+  const row = (c, i) => `<div class="sp-crow" data-h="${c.handle}"${i >= 0 ? ' draggable="true" ondragstart="spCollDragStart(event)" ondragover="spCollDragOver(event)" ondragleave="this.classList.remove(\'over\')" ondrop="spCollDrop(event)"' : ''} style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:${i >= 0 ? '#fff' : 'transparent'}">
+    ${i >= 0 ? '<span title="drag to reorder" style="cursor:grab;color:var(--muted);font-size:1rem;line-height:1;user-select:none">⋮⋮</span>' : ''}<label style="display:flex;flex-direction:row;gap:6px;align-items:center;min-width:260px;cursor:pointer;font-size:.85rem;color:var(--ink)"><input type="checkbox"${i >= 0 ? ' checked' : ''} onchange="spCollToggle('${c.handle}', this.closest('div').querySelector('input[type=text]').value)">${i >= 0 ? `<b style="color:var(--muted)">${i + 1}.</b>` : ''}<b>${esc(c.title)}</b><small class="note">${c.count}</small></label>
+    <span class="note">opens</span><input type="text" value="${esc(c.url)}" placeholder="/collections/${esc(c.handle)}" style="flex:1;min-width:220px;font:inherit;font-size:.78rem;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="spCollUrl('${c.handle}', this.value)">
+    ${i > 0 ? `<button class="btn" style="padding:2px 8px" title="higher wins when a design is in two" onclick="spCollMove('${c.handle}', -1)">↑</button>` : ''}</div>`;
+  document.getElementById('spColls').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🧭 "Similar to this" collections</b><span class="note">tick a collection and put the link it should open · every design in it gets that collection on its product page · ticked ones stay on top, higher wins when a design is in two</span><button class="btn" id="spCollSaveBtn" style="margin-left:auto;${_spCollDirty ? 'background:var(--ink);color:#fff' : ''}" onclick="spCollCommit()"${_spCollDirty ? '' : ' disabled'}>${_spCollDirty ? 'Save collections · unsaved' : 'Saved'}</button></div>
+    <input id="spCollQ" placeholder="Find a collection…" value="${esc(_spCollQ)}" oninput="_spCollQ=this.value;spRenderColls();document.getElementById('spCollQ').focus();document.getElementById('spCollQ').setSelectionRange(99,99)" style="width:100%;font:inherit;padding:6px 10px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px">
+    <div id="spCollList" style="display:grid;gap:4px;max-height:360px;overflow:auto;padding-right:4px">${hl.map((h, i) => byH[h] ? row(byH[h], i) : '').join('')}${rest.map(c => row(c, -1)).join('')}${!all.length ? `<span class="note">${_sp.collections_loading ? 'reading your collections from Shopify… reopen Sheet picks in a minute' : 'no collections found'}</span>` : ''}</div>`;
+  // The list redraws on every tick: keep where it was scrolled
+  const nl = document.getElementById('spCollList'); if (nl && _spCollScroll) nl.scrollTop = _spCollScroll;
+}
+let _spCollScroll = 0, _spDrag = null;
+function spCollDragStart(e) { _spDrag = e.currentTarget.getAttribute('data-h'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', _spDrag); } catch {} }
+function spCollDragOver(e) { if (!_spDrag) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('over'); }
+function spCollDrop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('over');
+  const to = e.currentTarget.getAttribute('data-h'), from = _spDrag; _spDrag = null; if (!from || from === to) return;
+  const hl = (_sp.highlight || []).filter(x => x !== from), j = hl.indexOf(to); if (j < 0) return;
+  const r = e.currentTarget.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+  hl.splice(after ? j + 1 : j, 0, from); spCollSave(hl);
+}
+// Ticks, links and order change on the screen only; one Save sends them all together
+let _spCollDirty = false, _spCollUrls = {};
+// Unsaved ticks are lost on a reload or when another tab saves; warn before leaving
+window.addEventListener('beforeunload', e => { if (_spCollDirty) { e.preventDefault(); e.returnValue = ''; } });
+function spCollSave(hl, urls) {
+  _sp.highlight = hl; if (urls) for (const h in urls) { _spCollUrls[h] = urls[h]; const c = (_sp.collections || []).find(x => x.handle === h); if (c) c.url = urls[h] || c.auto_url || '/collections/' + h; }
+  _spCollDirty = true; spRenderColls(); return true;
+}
+async function spCollCommit() {
+  const b = document.getElementById('spCollSaveBtn'); if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  try { await api({ action: 'sheet_save', collections: _sp.highlight || [], collection_urls: _spCollUrls }); } catch (e) { alert(e.message); if (b) { b.disabled = false; b.textContent = 'Save collections'; } return; }
+  _spCollDirty = false; _spCollUrls = {}; spRenderColls(); spRender();
+}
+async function spCollUrl(h, url) { await spCollSave(_sp.highlight || [], { [h]: url }); }
+async function spCollMove(h, d) {
+  const hl = (_sp.highlight || []).slice(), i = hl.indexOf(h), j = i + d; if (i < 0 || j < 0 || j >= hl.length) return;
+  hl.splice(i, 1); hl.splice(j, 0, h); await spCollSave(hl);
+}
+async function spCollToggle(h, url) {
+  const hl = (_sp.highlight || []).filter(x => x !== h); if (!(_sp.highlight || []).includes(h)) hl.push(h);
+  await spCollSave(hl, url ? { [h]: url } : null);
+}
+// ---------- The regular offer: one kind, one set of numbers, and the fixed areas of the site it shows in ----------
+// Every place the storefront script can touch. Each is a switch; off means that spot shows plain prices / nothing.
+const SPO_AREAS = [
+  ['strip', 'Bottom strip on every page', 'the offer line with the progress bar and the cart button; off hides the whole strip'],
+  ['drawer', 'Offers drawer', 'what opens when the strip is tapped: the ladder and the rules; off makes the strip open the cart'],
+  ['band', 'Product page · festive band', 'the coloured band under Add to cart with the title and the one-line promise'],
+  ['ladder', 'Product page · ladder box', 'the 3 FREE / 6 FREE / 9 FREE steps (or the step discounts) under the band'],
+  ['price', 'Product page · price line', 'strikes the price to FREE (or the difference) when this piece completes a set'],
+  ['also', 'Product page · "People also buy" cards', 'the row of designs with FREE / cut prices and the set-progress header; off hides the row'],
+  ['cards', 'Collection cards', 'the small line under each price and the FREE strike when a piece completes the set'],
+];
+function spRenderOffer() {
+  const o = _sp.offer || {}; const tiers = o.tiers && o.tiers.length ? o.tiers : [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }];
+  const mode = o.mode || o.type || 'free_nth', areas = o.areas || {};
+  const inp = (id, label, v, type = 'text', extra = '') => `<label>${label}<input id="spo_${id}" type="${type}" value="${esc(String(v ?? ''))}" ${extra} oninput="spOfferPreview()"></label>`;
+  document.getElementById('spOffer').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><b>🎁 Regular offer</b><span class="note">the one offer the site talks about when Sale mode is off · pick the kind, set the numbers, tick where it shows · the money off itself is the automatic discount in Shopify and must match</span><button class="btn" id="spoSave" style="margin-left:auto" onclick="spSaveOffer(this)">Save offer</button></div>
+    <div id="spoLive" style="padding:8px 12px;border-radius:10px;margin:0 0 8px;font-size:.85rem"></div>
+    <div class="row"><label>Kind<select id="spo_mode" onchange="spOfferPreview()"><option value="none"${mode === 'none' ? ' selected' : ''}>No offer — plain prices everywhere</option><option value="free_nth"${mode === 'free_nth' ? ' selected' : ''}>Every Nth quote free (Buy 2, get the 3rd free)</option><option value="tiers"${mode === 'tiers' ? ' selected' : ''}>Step discounts (₹ or % off at N pieces)</option></select></label>
+      ${inp('title', 'Title', o.title || 'Special Diwali offers', 'text', 'style="width:200px"')}${inp('note', 'Small line (right of the bar)', o.note ?? 'Prepaid only · till 2 Nov', 'text', 'style="width:200px"')}${inp('ends', 'Ends on (blank = no end)', o.ends || '', 'date')}</div>
+    <div class="row" id="spoFree" style="margin-top:8px">${inp('steps', 'Free quote unlocks at (quotes in cart)', (o.steps || [3, 6, 9]).join(', '), 'text', 'style="width:150px" title="counts at which the 1st, 2nd, 3rd free quote unlock; the last gap repeats"')}${inp('price', 'Quote price ₹', o.price || 599, 'number', 'style="width:90px"')}<label>Shopify discount is set on<select id="spo_collection" onchange="spOfferPreview()" style="min-width:200px" title="the collection your Buy 2 get 1 discount uses; the strip then counts exactly those designs"><option value=""${!o.collection ? ' selected' : ''}>by price (below) — not recommended</option>${(_sp.collections || []).map(c => `<option value="${c.handle}"${o.collection === c.handle ? ' selected' : ''}>${esc(c.title)} (${c.count})</option>`).join('')}</select></label>${inp('max_price', 'else counts items up to ₹', o.max_price || 999, 'number', 'style="width:100px" title="used only when no collection is chosen"')}
+      ${inp('codes', 'Coupon codes, one per unlock (Shopflo)', (o.codes || ['DIWALI1', 'DIWALI2', 'DIWALI3']).join(', '), 'text', 'style="width:230px" placeholder="DIWALI1, DIWALI2, DIWALI3"')}</div>
+    <div class="row" id="spoTiers" style="margin-top:8px">${tiers.slice(0, 3).map((t, i) => `<label>Step ${i + 1}: at N pieces<input id="spo_t${i}_at" type="number" min="2" value="${t.at || ''}" style="width:70px" oninput="spOfferPreview()"></label><label>&nbsp;<select id="spo_t${i}_k" onchange="spOfferPreview()"><option value="off"${t.pct ? '' : ' selected'}>₹ off</option><option value="pct"${t.pct ? ' selected' : ''}>% off</option></select></label><label>value<input id="spo_t${i}_v" type="number" value="${t.pct || t.off || ''}" style="width:70px" oninput="spOfferPreview()"></label>`).join('')}</div>
+    <div id="spoAreas" style="margin-top:10px"><div class="note" style="margin-bottom:4px"><b>Where it shows</b> · these are the only places the script touches; untick to switch a spot off without changing the offer</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 14px">${SPO_AREAS.map(([k, l, d]) => `<label style="flex-direction:row;align-items:flex-start;gap:8px;font-size:.8rem;color:var(--ink);cursor:pointer"><input type="checkbox" id="spo_a_${k}" ${areas[k] !== false ? 'checked' : ''} onchange="spOfferPreview()" style="margin-top:3px"><span><b>${l}</b><br><small class="note">${d}</small></span></label>`).join('')}</div></div>
+    <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Texts on the site (what each line says · edit if you like · blank = default)</summary>
+      <div class="note" style="margin:6px 0">Words in braces fill themselves: {t1} {t2} {t3} the unlock points and {t1_pay} {t2_pay} {t3_pay} their prices · {code} the code earned so far · {next_code} the next code · {codes} all codes · {n} pieces in cart · {pay} what they pay · {k} how many free · {more} pieces to the next free · {next_n} / {next_pay} the next set and its price · {every} {every_1} {nth} the offer numbers · {note} the small line · {coll} the collection name. FREE goes bold on its own.</div>
+      <div class="row" id="spoText">${Object.entries(SPO_TEXT_LABELS).map(([k, l]) => `<label style="min-width:260px;flex:1">${l}<input id="spo_tx_${k}" value="${esc((o.text || {})[k] || SPO_TEXT_DEFAULT[k])}" oninput="spOfferPreview()"></label>`).join('')}</div>
+    </details>
+    <div class="prev" id="spoPrev"></div>`;
+  spOfferPreview();
+}
+// The same lines the storefront script carries as defaults; the site shows whatever is saved here
+const SPO_TEXT_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'People also buy with this', also_coll: 'More from {coll}', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
+const SPO_TEXT_LABELS = { empty_line: 'Strip · empty cart · main line', empty_side: 'Strip · empty cart · right of the bar', first: 'Strip · 1 in cart', mid: 'Strip · 2 or more to go (4, 7…)', hot: 'Strip · 1 to go (2, 5, 8)', done: 'Strip · set complete (3, 6, 9)', side_next: 'Strip · right of the bar · next set', side_done: 'Strip · right of the bar · set complete', summary: 'Strip · small top line', summary_done: 'Strip · small top line · set complete', ladder_title: 'Product page · ladder title', rule1: 'Drawer · rule 1', rule2: 'Drawer · rule 2', rule3: 'Drawer · rule 3', also_empty: 'Product page row · empty cart', also_coll: 'Product page row · empty cart, in a collection', also_first: 'Product page row · 1 in cart', also_hot: 'Product page row · 1 to go', also_done: 'Product page row · set complete', sim_tag: 'Product page row · small tag on each photo (opens that design’s collection)', card_tag: 'Collection cards · line under the price · empty cart (blank = nothing)', card_tag_more: 'Collection cards · line under the price · pieces still needed ({more} counts this one)', card_tag_free: 'Collection cards · word next to the struck price when this piece completes the set' };
+function spReadOffer() {
+  const g = id => document.getElementById('spo_' + id).value;
+  const tiers = [0, 1, 2].map(i => ({ at: +g(`t${i}_at`), [g(`t${i}_k`)]: +g(`t${i}_v`) })).filter(t => t.at && (t.off || t.pct));
+  const text = {}; for (const k in SPO_TEXT_DEFAULT) { const el = document.getElementById('spo_tx_' + k); text[k] = el ? el.value : ''; }
+  const areas = {}; SPO_AREAS.forEach(([k]) => { areas[k] = document.getElementById('spo_a_' + k).checked; });
+  const mode = g('mode');
+  return { title: g('title'), mode, type: mode === 'tiers' ? 'tiers' : 'free_nth', areas, every: 3, steps: g('steps'), price: +g('price') || 599, max_price: +g('max_price') || 999, collection: g('collection'), codes: g('codes'), note: g('note'), ends: g('ends'), tiers, text };
+}
+// What the site shows right now, from the sale switch and this offer: one line the owner can read before saving
+function spOfferLiveLine(o) {
+  const el = document.getElementById('spoLive'); if (!el) return;
+  const s = (_spSale && _spSale.sale) || {}, now = (_spSale && _spSale.now_ist) || '';
+  const saleLive = s.on && now >= (s.start || '') && now < (s.end || '');
+  const on = SPO_AREAS.filter(([k]) => o.areas[k]).map(([k, l]) => l.replace(/^Product page · /, 'PDP ').replace(/^Bottom strip.*/, 'strip').replace(/^Offers drawer/, 'drawer').replace(/^Collection cards/, 'collection cards')), off = SPO_AREAS.filter(([k]) => !o.areas[k]);
+  const ended = o.ends && now.slice(0, 10) > o.ends;
+  let txt, bg, bd;
+  if (saleLive) { txt = `<b>🔥 Sale mode is live</b> — the site shows the sale timer and the cut prices; this regular offer is resting and comes back when the sale ends${s.end ? ` (${esc(s.end)})` : ''}.`; bg = '#fde8df'; bd = 'var(--accent)'; }
+  else if (o.mode === 'none') { txt = `<b>No offer on the site</b> — plain prices everywhere; the strip shows only when the cart has something in it.`; bg = '#f4f0ea'; bd = 'var(--line)'; }
+  else if (ended) { txt = `<b>Offer ended on ${esc(o.ends)}</b> — the site shows plain prices. Clear the end date or set a new one to bring it back.`; bg = '#fff3cd'; bd = '#e0a800'; }
+  else { txt = `<b>${esc(o.title || 'Offer')} is on</b> (${o.mode === 'tiers' ? 'step discounts' : 'every Nth free'})${o.ends ? ` till ${esc(o.ends)}` : ''} · shows in: ${on.map(esc).join(', ') || 'nowhere'}${off.length ? ` · <span style="color:#b03a2e">off: ${off.map(([, l]) => esc(l.toLowerCase())).join(', ')}</span>` : ''}${s.on && now < (s.start || '') ? ` · <b>sale takes over at ${esc(s.start)}</b>` : ''}`; bg = '#e6f4ea'; bd = '#2e8b57'; }
+  el.style.background = bg; el.style.border = `1.5px solid ${bd}`; el.innerHTML = txt + (_spOfferDirty ? ' <span style="color:#b03a2e">· unsaved changes</span>' : '');
+}
+let _spOfferDirty = false;
+function spOfferPreview() {
+  const o = spReadOffer(), free = o.mode === 'free_nth', none = o.mode === 'none';
+  document.getElementById('spoTiers').style.display = o.mode === 'tiers' ? 'flex' : 'none';
+  document.getElementById('spoFree').style.display = free ? 'flex' : 'none';
+  document.getElementById('spoAreas').style.opacity = none ? '.45' : '';
+  _spOfferDirty = _sp.offer ? JSON.stringify(spOfferKey(o)) !== JSON.stringify(spOfferKey(_sp.offer)) : true;
+  const sb = document.getElementById('spoSave'); if (sb) { sb.textContent = _spOfferDirty ? 'Save offer · unsaved' : 'Saved'; sb.style.background = _spOfferDirty ? 'var(--ink)' : ''; sb.style.color = _spOfferDirty ? '#fff' : ''; }
+  spOfferLiveLine(o);
+  const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
+  const ord = n => n + (n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'), E = 3, P = o.price, note = (o.note || '').split(' · ')[0];
+  const tx = (k, v) => esc((o.text[k] || SPO_TEXT_DEFAULT[k]).replace(/\{(\w+)\}/g, (m, x) => v[x] != null ? v[x] : m).replace(/\s*·\s*·/g, ' ·').replace(/^\s*·\s*|\s*·\s*$/g, '')).replace(/FREE/g, '<b>FREE</b>');
+  const TH = String(o.steps || '').split(/[^0-9]+/).map(x => +x).filter(x => x >= 2).sort((a, b) => a - b); if (!TH.length) TH.push(3, 6, 9);
+  const GAP = TH.length > 1 ? TH[TH.length - 1] - TH[TH.length - 2] : TH[0];
+  const fc = n => { let k = 0; TH.forEach((t, i) => { if (n >= t) k = i + 1; }); if (k === TH.length) k += Math.floor((n - TH[TH.length - 1]) / GAP); return k; };
+  const na = n => { for (const t of TH) if (n < t) return t; const l = TH[TH.length - 1]; return l + GAP * (Math.floor((n - l) / GAP) + 1); };
+  const t = i => TH[i] || TH[TH.length - 1] + GAP * (i - TH.length + 1);
+  const CODES = String(o.codes || '').split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean), cf = k => !CODES.length || k < 1 ? '' : CODES[Math.min(k, CODES.length) - 1];
+  const V = n => { const k = fc(n), nn = na(n), more = nn - n; return { n, pay: inr(P * (n - k)), k, more, next_n: nn, next_paid: nn - fc(nn), next_free: fc(nn), next_pay: inr(P * (nn - fc(nn))), every: E, every_1: E - 1, every2: E * 2, every3: E * 3, nth: ord(E), t1: t(0), t1_1: t(0) - 1, t1_nth: ord(t(0)), t1_pay: inr(P * (t(0) - 1)), t2: t(1), t2_pay: inr(P * (t(1) - 2)), t3: t(2), t3_pay: inr(P * (t(2) - 3)), note, unit: inr(P), code: cf(k), next_code: cf(fc(nn)), codes: CODES.join(' · '), coll: 'Chai' }; };
+  const lines = none ? ['<small>strip with 2 pieces in the cart</small>2 in cart · ₹1,198', '<small>empty cart</small>no strip']
+    : free
+    ? [`<small>🎁 ${esc(o.title)} · ${tx('empty_side', V(0))}</small>${tx('empty_line', V(0))}`, `<small>${tx('summary', V(1))} · ${tx('side_next', V(1))}</small>${tx('first', V(1))}`, `<small>${tx('summary', V(TH[0] - 1))} · ${tx('side_next', V(TH[0] - 1))}</small>${tx('hot', V(TH[0] - 1))}`, `<small>${tx('summary_done', V(TH[0]))} · ${tx('side_done', V(TH[0]))}</small>${tx('done', V(TH[0]))}`, `<small>${tx('summary', V(TH[0] + 1))} · ${tx('side_next', V(TH[0] + 1))}</small>${tx('mid', V(TH[0] + 1))}`]
+    : [`<small>🎁 ${esc(o.title)}</small>${o.tiers.map(t => (t.pct ? t.pct + '% off' : '₹' + t.off + ' off') + ' at ' + t.at).join(' · ')}`];
+  document.getElementById('spoPrev').innerHTML = lines.map(l => `<div style="padding:3px 0">${l}</div>`).join('');
+}
+// The fields that matter for "unsaved": the same shape the server keeps, so a reopened panel reads as saved
+function spOfferKey(o) {
+  const steps = String(Array.isArray(o.steps) ? o.steps.join(',') : (o.steps || '')).split(/[^0-9]+/).map(x => +x).filter(x => x >= 2).sort((a, b) => a - b);
+  const codes = String(Array.isArray(o.codes) ? o.codes.join(',') : (o.codes || '')).split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+  const text = {}; for (const k in SPO_TEXT_DEFAULT) text[k] = ((o.text || {})[k] || SPO_TEXT_DEFAULT[k]);
+  const areas = {}; SPO_AREAS.forEach(([k]) => { areas[k] = !o.areas || o.areas[k] !== false; });
+  const mode = o.mode || o.type || 'free_nth';
+  return { mode, title: o.title || '', note: o.note || '', ends: o.ends || '', steps, price: +o.price || 599, max_price: +o.max_price || 999, collection: o.collection || '', codes, tiers: mode === 'tiers' ? (o.tiers || []).map(t => ({ at: +t.at, off: +t.off || 0, pct: +t.pct || 0 })) : [], text, areas };
+}
+async function spSaveOffer(btn) {
+  const o = spReadOffer(); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try { await api({ action: 'sheet_save', offer: o }); } catch (e) { alert(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Save offer'; } return; }
+  _sp.offer = o; if (btn) btn.disabled = false; spOfferPreview();
+  if (confirm('Offer saved. Put it on the site now? (Update website · takes about a minute)')) spPublish();
 }
 function spRenderList() {
   const q = (document.getElementById('spSearch').value || '').toLowerCase();
