@@ -150,7 +150,7 @@
     '#ntsPdp .nts-ac .nm{font-family:var(--ff,Georgia,serif);font-weight:600;font-size:12.5px;line-height:1.2;margin:6px 0 4px;height:2.4em;overflow:hidden}#ntsPdp .nts-ac .cs{display:flex;gap:4px;height:14px;overflow:hidden;margin-bottom:5px}#ntsPdp .nts-ac .cs span{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line,#e9ddca);cursor:pointer;flex:none}#ntsPdp .nts-ac .cs span.on{box-shadow:0 0 0 2px var(--ink,#3a2b1d)}' +
     '#ntsPdp .nts-ac .pr{font-size:13px;font-weight:800}#ntsPdp .nts-ac .pr em{font-style:normal;color:#2e8b57}#ntsPdp .nts-ac .pr s{color:var(--muted,#9c8a76);font-weight:600;margin-left:4px;font-size:11px}#ntsPdp .nts-ac .add{margin-top:6px;width:100%;border:0;background:var(--accent,#d4541f);color:#fff;border-radius:8px;padding:7px 4px;font:inherit;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ntsPdp .nts-ac .add.in{background:#2e8b57}#ntsPdp .nts-ac.all{display:grid;place-items:center;text-align:center;font-weight:800;font-size:13px;color:var(--ink2,#6f5b46);border-style:dashed;background:transparent;text-decoration:none;line-height:1.4}' +
     '#ntSheetRoot .nts-mini .gift{display:grid;place-items:center;width:100%;height:100%;font-size:22px;background:#fbe9d7}#ntSheetRoot .nts-ladder{grid-template-columns:repeat(auto-fit,minmax(56px,1fr))}' +
-    '#ntSheetRoot .nts-strip.sale{background:linear-gradient(100deg,#b8431a 0%,var(--accent,#d4541f) 60%,#e8873f 100%)}#ntSheetRoot .nts-strip.sale .a{color:#ffe3a3;font-weight:800;opacity:1;font-variant-numeric:tabular-nums;letter-spacing:.02em}#ntSheetRoot .nts-strip.sale .b{font-size:14px}#ntSheetRoot .nts-strip.sale .b b{color:#fff}#ntSheetRoot .nts-strip.sale .b{white-space:normal}#ntSheetRoot .nts-strip.sale .b small{display:block;font-size:11px;opacity:.9;font-weight:600;margin-top:1px}#ntSheetRoot .nts-strip.sale .br{display:none}#ntSheetRoot .nts-strip.sale .chev{border-color:#fff}#ntSheetRoot .nts-strip.sale.hot .a{animation:ntsBlink 1s ease-in-out infinite}@keyframes ntsBlink{50%{opacity:.55}}' +
+    '#ntSheetRoot .nts-strip.sale{background:linear-gradient(100deg,#8f2a0c 0%,#c4441a 55%,#e8873f 100%);padding:8px 30px 9px 12px}#ntSheetRoot .nts-strip.sale .a{color:#ffe3a3;font-weight:800;opacity:1;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ntSheetRoot .nts-strip.sale .b{display:flex;align-items:center;gap:10px;margin-top:3px;white-space:normal;line-height:1}#ntSheetRoot .nts-strip.sale .clk{display:inline-flex;align-items:center;gap:2px;flex:none}#ntSheetRoot .nts-strip.sale .clk b{display:inline-block;min-width:2ch;text-align:center;font-size:22px;font-weight:900;color:#fff;background:rgba(0,0,0,.3);border-radius:7px;padding:4px 6px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.02em}#ntSheetRoot .nts-strip.sale .clk i{font-style:normal;font-weight:900;font-size:18px;color:#ffe3a3;line-height:1;margin:0 1px}#ntSheetRoot .nts-strip.sale .of{display:flex;flex-direction:column;gap:3px;min-width:0}#ntSheetRoot .nts-strip.sale .of b{color:#fff;font-size:14.5px;font-weight:800;line-height:1.1}#ntSheetRoot .nts-strip.sale .of small{font-size:10.5px;opacity:.92;font-weight:600;line-height:1.15}#ntSheetRoot .nts-strip.sale .br{display:none}#ntSheetRoot .nts-strip.sale .chev{border-color:#fff}#ntSheetRoot .nts-strip.sale .clk b{animation:ntsTick 1s steps(1) infinite}@keyframes ntsTick{50%{background:rgba(0,0,0,.42)}}#ntSheetRoot .nts-strip.sale.hot .clk b{background:#fff;color:#b8431a;animation:ntsHot .8s ease-in-out infinite alternate}@keyframes ntsHot{to{background:#ffe3a3}}' +
     '#ntsPdp .nts-fest.sale .n{font-variant-numeric:tabular-nums}';
   root.appendChild(css);
   var _lastN = -1;
@@ -187,14 +187,19 @@
     if (!s) { saleNow = null; offerLive = !OFFER.ends || new Date().toISOString().slice(0, 10) <= OFFER.ends; paintStrip(); return; }
     var st = $('ntsDock'), strip = $('ntsStrip');
     st.classList.add('on'); st.classList.toggle('empty', !total); strip.classList.add('sale'); strip.classList.toggle('hot', !!s.urgent); strip.classList.remove('pulse');
-    var a = saleLine(s), b = '<b>' + esc(SALE.title || 'All quotes at ₹399 · pick any') + '</b>' + (SALE.sub ? ' <small>' + esc(SALE.sub) + '</small>' : '');
+    // the clock is the hero: big digits that tick; the offer sits beside them
+    var a = '\u23F3 ' + s.day + ' \u00b7 ends in';
+    var parts = s.clock.split(':');
+    var html = '<span class="clk"><b data-h>' + parts[0] + '</b><i>:</i><b data-m>' + parts[1] + '</b><i>:</i><b data-s>' + parts[2] + '</b></span><span class="of"><b>' + esc(SALE.title || 'Pick any at \u20b9399') + '</b>' + (SALE.sub ? '<small>' + esc(SALE.sub) + '</small>' : '') + '</span>';
+    var B = $('ntsStripB'), FB = $('ntsFootB');
     if ($('ntsStripA').textContent !== a) $('ntsStripA').textContent = a;
-    if ($('ntsStripB').innerHTML !== b) $('ntsStripB').innerHTML = b;
-    $('ntsStripPP').textContent = total ? total + ' in cart' : '';
+    if (!B.querySelector('.clk')) B.innerHTML = html; else { B.querySelector('[data-h]').textContent = parts[0]; B.querySelector('[data-m]').textContent = parts[1]; B.querySelector('[data-s]').textContent = parts[2]; }
+    $('ntsStripPP').textContent = '';
     $('ntsStripBar').style.width = '0';
-    $('ntsFootA').textContent = a; $('ntsFootB').innerHTML = b; $('ntsCartN2').textContent = $('ntsCartN').textContent;
+    $('ntsFootA').textContent = a; if (!FB.querySelector('.clk')) FB.innerHTML = html; else { FB.querySelector('[data-h]').textContent = parts[0]; FB.querySelector('[data-m]').textContent = parts[1]; FB.querySelector('[data-s]').textContent = parts[2]; }
+    $('ntsCartN2').textContent = $('ntsCartN').textContent;
     $('ntsS').textContent = SALE.title || '';
-    var fc = document.getElementById('ntsFestClock'); if (fc) fc.textContent = s.day + ' · ' + s.clock;
+    var fc = document.getElementById('ntsFestClock'); if (fc) fc.textContent = s.day + ' \u00b7 ' + s.clock;
     if (document.getElementById('ntsPdp')) renderPdp();
     decorateCards();
   }
@@ -340,7 +345,7 @@
     // The offer first, then the pieces that complete it
     // A festive band above the offer: the offer title, its one-line promise and the small note
     var V0 = vars({ n: 0, pay: 0, list: 0, k: 0, more: 0, next_n: 0, next_pay: 0 });
-    var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(SALE.title || 'All quotes at ₹399 · pick any') + '</div><div class="s">' + esc(SALE.sub || '') + ' <span class="n" id="ntsFestClock">' + esc(saleNow.day + ' · ' + saleNow.clock) + '</span></div></div>'
+    var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(SALE.title || 'Pick any at ₹399') + '</div><div class="s">' + esc(SALE.sub || '') + ' <span class="n" id="ntsFestClock">' + esc(saleNow.day + ' · ' + saleNow.clock) + '</span></div></div>'
       : offerLive ? '<div class="nts-fest"><div class="t">✨ ' + esc(OFFER.title) + '</div><div class="s">' + (TIERS.length ? esc(TIERS.map(function (t) { return t.label + ' at ' + t.at; }).join(' · ')) : bold(tx('empty_line', V0)) + ' · ' + esc(tx('empty_side', V0))) + '' + (OFFER.note ? ' <span class="n">' + esc(OFFER.note) + '</span>' : '') + '</div></div>' : '';
     box.innerHTML = band + (saleNow ? '' : '<div class="nts-lbox"><div class="h">' + esc(TIERS.length ? 'Buy more, pay less' : tx('ladder_title', V0)) + '</div><div id="ntsPdpLadder"></div></div>') +
       (list.length ? '<div class="nts-lbox nts-also"><div class="h" id="ntsAlsoH"></div><div class="nts-arow" id="ntsAlsoRow"></div></div>' : '');
