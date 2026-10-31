@@ -13,39 +13,77 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var ss = { get: function (k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} } };
 
-  /* ── offer ──────────────────────────────────────────────── */
-  // The offer the strip talks about. Published from the dashboard (Sheet picks → Offer); these defaults run until then.
-  var OFFER = D.offer || { title: 'Special Diwali offers', type: 'free_nth', every: 3, steps: [3, 6, 9], price: 599, code: '', codes: ['DIWALI1', 'DIWALI2', 'DIWALI3'], note: 'Prepaid only · till 2 Nov', ends: '2026-11-02' };
-  // Kind of offer: 'free_nth' (every Nth quote free), 'tiers' (step discounts) or 'none' (no offer: the site shows plain prices)
-  var MODE = OFFER.mode || OFFER.type || 'free_nth';
-  // The fixed areas the offer can show in; each is a switch on the dashboard (Sheet picks → Offer → Where it shows)
-  var AREA = {}; ['strip', 'drawer', 'band', 'ladder', 'price', 'also', 'cards'].forEach(function (k) { AREA[k] = !OFFER.areas || OFFER.areas[k] !== false; });
-  var EVERY = Math.max(2, +OFFER.every || 3), UNIT = +OFFER.price || 599, TIERS = MODE === 'tiers' ? (OFFER.tiers && OFFER.tiers.length ? OFFER.tiers : LADDER) : [];
-  function offerIsLive() { return MODE !== 'none' && (!OFFER.ends || new Date().toISOString().slice(0, 10) <= OFFER.ends); }
-  var offerLive = offerIsLive();
-  /* ── flat sale (dashboard → Sale mode): timed in 24-hour days from an IST start; while it runs the strip is the sale
-     timer and the free-quote offer rests (no ladder, no FREE tags, no price strike) ── */
-  var SALE = D.sale && D.sale.on ? D.sale : null;
-  function saleIst(s) { var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 5, +m[5] - 30) : NaN; }
+  /* ── offers ─────────────────────────────────────────────── */
+  // Every offer the dashboard holds (Sheet picks → Offers): one default, the rest scheduled with an IST start and end.
+  // The live one is the scheduled offer whose window holds now (latest start wins), else the default. Older data
+  // (a single offer + a sale switch) is read into the same shape.
+  var IST = function (s) { var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 5, +m[5] - 30) : NaN; };
+  var saleIst = IST;
+  var OFFERS = D.offers && D.offers.offers ? D.offers : (function () {
+    var o = D.offer || { title: 'Special Diwali offers', type: 'free_nth', every: 3, steps: [3, 6, 9], price: 599, codes: ['DIWALI1', 'DIWALI2', 'DIWALI3'], note: 'Prepaid only · till 2 Nov', ends: '2026-11-02' };
+    var list = [{ id: 'plain', kind: 'none' }];
+    var mode = o.mode || o.type || 'free_nth';
+    list.push({ id: 'legacy', kind: mode === 'tiers' ? 'tiers' : mode === 'none' ? 'none' : 'free_nth', start: '', end: o.ends ? o.ends + ' 23:59' : '', title: o.title, every: o.every, steps: o.steps, price: o.price, max_price: o.max_price, codes: o.codes || (o.code ? [o.code] : []), note: o.note, tiers: o.tiers, text: o.text, eligible: o.eligible, areas: o.areas });
+    if (D.sale && D.sale.on) { var sl = D.sale, st = IST(sl.start), days = +sl.days || 3; list.push({ id: 'sale', kind: 'sale', start: sl.start, end: sl.end || new Date(st + days * 864e5 + 5.5 * 36e5).toISOString().slice(0, 16).replace('T', ' '), days: days, title: sl.title, sub: sl.sub, day1: sl.day1, day2: sl.day2, day3: sl.day3, day_more: sl.day_more, link: sl.link, prices: sl.prices, off: sl.off, areas: { ladder: false, price: false, cards: false, drawer: false } }); }
+    return { default_id: 'legacy', offers: list };
+  })();
+  function resolveOffer(now) {
+    var live = null, i, o;
+    for (i = 0; i < OFFERS.offers.length; i++) {
+      o = OFFERS.offers[i]; if (o.enabled === false) continue;
+      var s = IST(o.start), e = o.end ? IST(o.end) : Infinity;
+      if (!o.start) { if (o.id === 'legacy' && o.end && now >= e) continue; continue; }
+      if (now >= s && now < e && (!live || s > IST(live.start))) live = o;
+    }
+    if (live) return live;
+    for (i = 0; i < OFFERS.offers.length; i++) { o = OFFERS.offers[i]; if (o.id === OFFERS.default_id) { if (o.id === 'legacy' && o.end && now >= IST(o.end)) break; return o; } }
+    return { id: 'none', kind: 'none' };
+  }
+  // The live offer's numbers, read into the variables the rest of the script works from; called again when the window changes
+  var ACTIVE, KIND, OFFER, MODE, AREA, EVERY, UNIT, TIERS, offerLive, SALE, saleNow, NOTE_SHORT, CODES, TX, MAX_PRICE, ELIG, TH, GAP;
+  var TX_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'People also buy with this', also_coll: 'More from {coll}', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
+  function applyOffer(o) {
+    ACTIVE = o; KIND = o.kind || 'none';
+    SALE = KIND === 'sale' ? o : null;
+    OFFER = KIND === 'free_nth' || KIND === 'tiers' ? o : {};
+    MODE = KIND === 'free_nth' || KIND === 'tiers' ? KIND : 'none';
+    // The fixed areas the offer may show in; each is a switch on the dashboard
+    AREA = {}; ['strip', 'drawer', 'band', 'ladder', 'price', 'also', 'cards'].forEach(function (k) { AREA[k] = !o.areas || o.areas[k] !== false; });
+    EVERY = Math.max(2, +OFFER.every || 3); UNIT = +OFFER.price || 599; TIERS = MODE === 'tiers' ? (OFFER.tiers && OFFER.tiers.length ? OFFER.tiers : LADDER) : [];
+    offerLive = MODE !== 'none';
+    saleNow = saleState();
+    // The strip has one short line for the cart summary: first part of the note only ("Prepaid only"); the drawer carries all of it
+    NOTE_SHORT = (OFFER.note || '').split(' · ')[0].trim();
+    // One coupon per unlock point (DIWALI1 at 3, DIWALI2 at 6, DIWALI3 at 9); the last one repeats beyond
+    CODES = (OFFER.codes && OFFER.codes.length ? OFFER.codes : (OFFER.code ? [OFFER.code] : [])).map(String);
+    TX = {}; for (var tk in TX_DEFAULT) TX[tk] = (OFFER.text && OFFER.text[tk]) || TX_DEFAULT[tk];
+    // Only stock quotes and their colour variations are in the offer: the custom pick, customised pieces and brand logos stay out
+    MAX_PRICE = +OFFER.max_price || 999;
+    // When the offer names the collection the Shopify discount is set on, only those designs count, exactly as checkout does
+    ELIG = null; if (OFFER.eligible && OFFER.eligible.length) { ELIG = {}; OFFER.eligible.forEach(function (h) { ELIG[h] = 1; }); }
+    // Free quotes unlock at set counts (3, 6, 9); past the last point the gap repeats
+    TH = (OFFER.steps && OFFER.steps.length ? OFFER.steps : [EVERY, EVERY * 2, EVERY * 3]).map(Number).filter(function (x) { return x > 0; }).sort(function (a, b) { return a - b; });
+    GAP = TH.length > 1 ? TH[TH.length - 1] - TH[TH.length - 2] : TH[0];
+  }
+  function offerIsLive() { return MODE !== 'none'; }
+  /* ── flat sale: timed in 24-hour days from an IST start; while it runs the strip is the sale timer and the
+     free-quote offer rests (no ladder, no FREE tags, no price strike) ── */
   function saleState() {
     if (!SALE) return null;
-    var start = saleIst(SALE.start), days = +SALE.days || 3, DAY = 86400000, now = Date.now();
+    var start = IST(SALE.start), end = SALE.end ? IST(SALE.end) : NaN, DAY = 86400000, now = Date.now();
+    var days = +SALE.days || (isNaN(end) ? 3 : Math.max(1, Math.ceil((end - start) / DAY)));
     if (isNaN(start) || now < start) return null;
-    var idx = Math.floor((now - start) / DAY) + 1; if (idx > days) return null;
+    var idx = Math.floor((now - start) / DAY) + 1; if (idx > days || (!isNaN(end) && now >= end)) return null;
     var txt = idx === 1 ? SALE.day1 : idx === 2 ? SALE.day2 : idx === 3 ? SALE.day3 : (SALE.day_more || 'Day {n}');
-    var t = Math.floor((start + idx * DAY - now) / 1000), pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var dayEnd = Math.min(start + idx * DAY, isNaN(end) ? Infinity : end);
+    var t = Math.max(0, Math.floor((dayEnd - now) / 1000)), pad = function (n) { return (n < 10 ? '0' : '') + n; };
     return { idx: idx, last: idx === days, day: String(txt || '').replace('{n}', idx).replace('{days}', days), clock: pad(Math.floor(t / 3600)) + ':' + pad(Math.floor(t % 3600 / 60)) + ':' + pad(t % 60), urgent: t < 3600 };
   }
-  var saleNow = saleState(); if (saleNow) offerLive = false;
   function saleLine(s) { return '🔥 ' + s.day + ' · ' + (s.last ? 'ends in ' : 'today ends in ') + s.clock; }
   // In the sale every card shows the cut price with the old one struck: a 599 reads ₹399 (was ₹599) whether the data
   // still carries the old price or already the cut one
   function salePrice(base) { if (!SALE) return null; var off = +SALE.off || 200, pts = (SALE.prices || [599, 799, 899]).map(Number); for (var i = 0; i < pts.length; i++) { if (base === pts[i]) return { now: base - off, was: base }; if (base === pts[i] - off) return { now: base, was: pts[i] }; } return null; }
   function salePriceHtml(base) { var sp = salePrice(base); return sp ? '<em>' + fmt(sp.now) + '</em><s>' + fmt(sp.was) + '</s>' : fmt(base); }
-  // The strip has one short line for the cart summary: first part of the note only ("Prepaid only"); the drawer carries all of it
-  var NOTE_SHORT = (OFFER.note || '').split(' · ')[0].trim();
-  // One coupon per unlock point (DIWALI1 at 3, DIWALI2 at 6, DIWALI3 at 9); the last one repeats beyond
-  var CODES = (OFFER.codes && OFFER.codes.length ? OFFER.codes : (OFFER.code ? [OFFER.code] : [])).map(String);
   function codeFor(k) { return !CODES.length || k < 1 ? '' : CODES[Math.min(k, CODES.length) - 1]; }
   // Any code in a line becomes a coupon chip
   function chips(html) {
@@ -54,22 +92,12 @@
     // "use code" goes in front unless the line already says so
     return html.replace(re, function (m, c, at) { var before = html.slice(Math.max(0, at - 12), at); return (/code\s*[-:–]?\s*$/i.test(before) ? '' : 'use code ') + '<code class="cc">' + c + '</code>'; });
   }
-  // Every line, editable on the dashboard (Sheet picks → Offer → Texts); these are the defaults
-  var TX_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'People also buy with this', also_coll: 'More from {coll}', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
-  var TX = {}; for (var tk in TX_DEFAULT) TX[tk] = (OFFER.text && OFFER.text[tk]) || TX_DEFAULT[tk];
   function tx(key, v) { return TX[key].replace(/\{(\w+)\}/g, function (m, k) { return v && v[k] != null ? v[k] : m; }).replace(/\s*·\s*·/g, ' ·').replace(/^\s*·\s*|\s*·\s*$/g, ''); }
   var bold = function (t) { return esc(t).replace(/FREE/g, '<b>FREE</b>'); };
-  // Only stock quotes and their colour variations are in the offer: the custom pick, customised pieces and brand logos stay out
-  var MAX_PRICE = +OFFER.max_price || 999;
-  // When the offer names the collection the Shopify discount is set on, only those designs count, exactly as checkout does
-  var ELIG = null; if (OFFER.eligible && OFFER.eligible.length) { ELIG = {}; OFFER.eligible.forEach(function (h) { ELIG[h] = 1; }); }
   function eligibleHandle(h) { return h !== CUSTOM && (!ELIG || !!ELIG[h]); }
   function eligible(it) { var p = (it.original_price != null ? it.original_price : it.price) / 100; if (it.handle === CUSTOM) return false; if (ELIG) return !!ELIG[it.handle]; return p >= UNIT && p <= MAX_PRICE && !/custom|personali|logo/i.test(it.product_type || ''); }
   function unitsOf(cart) { var u = []; (cart.items || []).forEach(function (it) { if (!eligible(it)) return; var p = (it.original_price != null ? it.original_price : it.price) / 100; for (var i = 0; i < it.quantity; i++) u.push(p); }); return u; }
-  // Every Nth quote free: the cheapest ones go free, as Shopify's automatic discount applies it
-  // Free quotes unlock at set counts (default 3, 8, 12: Shopflo's three coupons); past the last point the gap repeats
-  var TH = (OFFER.steps && OFFER.steps.length ? OFFER.steps : [EVERY, EVERY * 2, EVERY * 3]).map(Number).filter(function (x) { return x > 0; }).sort(function (a, b) { return a - b; });
-  var GAP = TH.length > 1 ? TH[TH.length - 1] - TH[TH.length - 2] : TH[0];
+  applyOffer(resolveOffer(Date.now()));
   function freeCount(n) { var k = 0; for (var i = 0; i < TH.length; i++) if (n >= TH[i]) k = i + 1; if (k === TH.length) k += Math.floor((n - TH[TH.length - 1]) / GAP); return k; }
   function nextAt(n) { for (var i = 0; i < TH.length; i++) if (n < TH[i]) return TH[i]; var last = TH[TH.length - 1]; return last + GAP * (Math.floor((n - last) / GAP) + 1); }
   function prevAt(n) { var p = 0; for (var i = 0; i < TH.length; i++) if (n >= TH[i]) p = TH[i]; var last = TH[TH.length - 1]; if (n >= last) p = last + GAP * Math.floor((n - last) / GAP); return p; }
@@ -219,9 +247,21 @@
     if (document.getElementById('ntsPdp')) renderPdp();
     decorateCards();
   }
-  if (SALE) setInterval(function () { if (saleState()) { saleNow = saleNow || saleState(); paintStrip(); } else if (saleNow) paintStrip(); }, 1000);
+  // Every second: a sale's clock ticks; at a window edge the next offer takes over and every area is drawn again
+  function switchOffer(o) {
+    var el = document.querySelector('.ph-price'); if (el && _pp.base != null && el.innerHTML === _pp.html) { el.innerHTML = _pp.base; el.classList.remove('nts-on'); } _pp = { html: null, base: null };
+    applyOffer(o); closeSheet();
+    var box = document.getElementById('ntsPdp'); if (box) box.parentNode.removeChild(box); _pdp = null;
+    mountProduct(); paintStrip(); decorateCards();
+  }
+  setInterval(function () {
+    var o = resolveOffer(Date.now());
+    if (o.id !== ACTIVE.id) { switchOffer(o); return; }
+    if (SALE) { var s = saleState(); if (s) { saleNow = s; paintStrip(); } else if (saleNow) { saleNow = null; paintStrip(); } }
+  }, 1000);
+  window.ntOfferSwitch = function (id) { for (var i = 0; i < OFFERS.offers.length; i++) if (OFFERS.offers[i].id === id) return switchOffer(OFFERS.offers[i]); };
   function lastHandle() { var h = ss.get('nts_last'); if (h && CAT[h] && PICKS[h]) return h; var items = _cart.items || []; for (var i = 0; i < items.length; i++) if (CAT[items[i].handle] && PICKS[items[i].handle]) return items[i].handle; return D.generic && CAT[D.generic] ? D.generic : null; }
-  window.ntSheetDebug = function () { console.log('NT_SHEET v' + D.v, Object.keys(CAT).length + ' designs', 'cart:', (_cart.items || []).map(function (i) { return i.handle + (CAT[i.handle] ? ' ✓' : ' ✗ not in data'); }), 'generic:', D.generic); };
+  window.ntSheetDebug = function () { console.log('NT_SHEET v' + D.v, 'offer:', ACTIVE.id, KIND, Object.keys(CAT).length + ' designs', 'cart:', (_cart.items || []).map(function (i) { return i.handle + (CAT[i.handle] ? ' ✓' : ' ✗ not in data'); }), 'generic:', D.generic); };
 
   function tabsFor(h) {
     var c = CAT[h] || {}, P = PICKS[h] || {};
@@ -305,7 +345,8 @@
   });
 
   /* ── product page: "people also buy" row + the ladder ─────── */
-  function productHandle() { var m = location.pathname.match(/\/products\/([^/?#]+)/); return m ? m[1] : null; }
+  // NT_PREVIEW_PATH: the dashboard's preview frame has no real URL and says which page it stands for
+  function productHandle() { var m = String(window.NT_PREVIEW_PATH || location.pathname).match(/\/products\/([^/?#]+)/); return m ? m[1] : null; }
   // Designs bought with this one (published picks), topped up from the top seller's rows; ₹599 pieces only, since the cheapest one is the free one
   function alsoList(h) {
     var P = PICKS[h] || {}, G = PICKS[D.generic] || {}, out = [], seen = {}; seen[h] = 1;

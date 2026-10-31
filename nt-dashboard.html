@@ -267,8 +267,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
   <div class="panel" style="width:min(1100px,100%)">
     <div class="hd"><h2>🧺 Sheet picks</h2><span class="note" id="spWhen"></span><button class="btn" id="spPub" onclick="spPublish()" style="margin-left:auto">⬆ Update website</button><button class="x" onclick="document.getElementById('spModal').classList.remove('open')">✕</button></div>
     <div class="note" style="margin-bottom:8px">Everything the strip script puts on the site is set here and nowhere else: the Sale mode switch, the regular offer with the fixed areas it shows in, the "similar to this" collections, and the picks under Add to cart. Save, then press Update website.</div>
-    <div class="sp-offer" id="spSale"></div>
-    <div class="sp-offer" id="spOffer"></div>
+    <div class="sp-offer" id="spOffers"></div>
     <div class="sp-offer" id="spColls"></div>
     <div class="sp-wrap"><div class="sp-list"><input id="spSearch" placeholder="Find a design…" oninput="spRenderList()" style="width:100%;font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px"><div id="spList"></div></div><div class="sp-body" id="spBody"><div class="skel" style="height:120px"></div></div></div>
   </div>
@@ -717,52 +716,8 @@ async function openSheetPicks(after) {
   try { _sp = await spLoad(after); } catch (e) { document.getElementById('spBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
   const pub = _sp.published;
   document.getElementById('spWhen').textContent = pub ? `on site: ${new Date(pub.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${pub.products} designs` : 'not on the site yet';
-  _spCur = _sp.products[0] && _sp.products[0].handle; spRenderOffer(); spRenderColls(); spRenderList(); spRender();
-  spSaleLoad();
-}
-// ---------- Sale prices and the scheduled offer switch ----------
-let _spSale = null, _spSalePrev = null, _spSalePoll = null;
-const spIst = v => v ? v.replace('T', ' ').slice(0, 16) : '';
-const spFmt = s => s ? new Date(s).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-async function spSaleLoad() {
-  try { _spSale = await api({ action: 'sale_status' }); } catch (e) { document.getElementById('spSale').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
-  spRenderSale();
-  if (_sp && document.getElementById('spo_mode')) spOfferPreview();
-  clearTimeout(_spSalePoll);
-  if (_spSale.running) _spSalePoll = setTimeout(spSaleLoad, 5000);
-}
-function spRenderSale() {
-  const st = _spSale || {}, s = st.sale || {}, cur = st.current, run = st.running, sch = st.schedule || {};
-  const inp = (id, label, v, type = 'text', extra = '') => `<label>${label}<input id="sps_${id}" type="${type}" value="${esc(String(v ?? ''))}" ${extra}></label>`;
-  const bar = run ? `<div style="margin:6px 0"><div class="note">${run.action === 'apply' ? 'Cutting prices' : 'Restoring prices'} · ${run.done} of ${run.total} variants…</div><div style="height:6px;background:#eee;border-radius:3px"><div style="height:6px;width:${run.total ? Math.round(run.done / run.total * 100) : 0}%;background:#2e8b57;border-radius:3px"></div></div></div>` : '';
-  let state;
-  if (s.on) {
-    const now = st.now_ist || '', phase = now < s.start ? `starts ${s.start}` : now < s.end ? `live · day ${Math.min(s.days, Math.floor((new Date(now.replace(' ', 'T') + ':00Z') - new Date(s.start.replace(' ', 'T') + ':00Z')) / 864e5) + 1)} of ${s.days}` : `window over (ended ${s.end})`;
-    const pr = !s.change_prices ? 'prices untouched' : cur ? `prices cut on ${cur.done}/${cur.total} variants` : sch.apply_at && !sch.applied_fired ? `prices cut at ${sch.apply_at}` : 'prices normal';
-    state = `<div style="padding:10px 12px;border-radius:10px;background:#fde8df;border:1.5px solid var(--accent);margin:6px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1rem">🔥 Sale is ON</b><span class="note">${esc(phase)} · ${esc(pr)}${sch.revert_at ? ` · back to normal at ${esc(sch.revert_at)}` : ''}</span><button class="btn" style="margin-left:auto" onclick="spSaleOff(this)" ${run ? 'disabled' : ''}>Turn sale OFF</button></div>`;
-  } else state = `<div style="padding:10px 12px;border-radius:10px;background:#f4f0ea;border:1.5px solid var(--line);margin:6px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:1rem">Sale is OFF</b><span class="note">the site shows the regular offer below · ${cur ? `<b style="color:#b03a2e">but prices are still cut (${cur.done} variants)</b>` : 'prices normal'}</span>${cur ? `<button class="btn" style="margin-left:auto" onclick="spSaleOff(this)">Restore prices</button>` : ''}</div>`;
-  document.getElementById('spSale').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap"><b>🔥 Sale mode</b><span class="note">one switch that overrides the regular offer below for a set window: the strip on every page becomes the sale timer, the product band turns red with the clock, the ladder / FREE lines / collection tags rest, the "also buy" cards show the cut price, and the prices are cut for exactly the window (599→399, 799→599, 899→699). OFF puts everything back.</span></div>
-    ${state}${bar}
-    <div class="row">${inp('start', 'Starts (IST)', (s.start || '2026-11-01 00:00').replace(' ', 'T'), 'datetime-local')}${inp('days', 'Days (24 h each)', s.days || 3, 'number', 'style="width:70px" min="1" max="14"')}${inp('title', 'Headline on the strip', s.title || 'Pick any at ₹399', 'text', 'style="width:230px"')}${inp('sub', 'Small line', s.sub || 'Hurry · only 24 hours · ends at midnight', 'text', 'style="width:240px"')}${inp('link', 'Strip opens', s.link || '/collections/all', 'text', 'style="width:160px"')}</div>
-    <div class="row">${inp('day1', 'Day 1 line', s.day1 || 'Now or never sale · Day 1', 'text', 'style="width:190px"')}${inp('day2', 'Day 2 line', s.day2 || 'Now or never sale · Extended! Day 2', 'text', 'style="width:190px"')}${inp('day3', 'Day 3 line', s.day3 || 'Now or never sale · Last day', 'text', 'style="width:190px"')}
-      <label style="flex-direction:row;align-items:center;gap:6px;margin-top:14px"><input type="checkbox" id="sps_change" ${s.change_prices !== false ? 'checked' : ''}> cut the prices too</label>
-      ${s.on ? `<button class="btn" style="margin-top:12px" onclick="spSaleOn(this)">Save changes</button>` : `<button class="btn" style="margin-top:12px;background:var(--accent);color:#fff;border-color:var(--accent)" onclick="spSaleOn(this)">🔥 Turn sale ON</button>`}</div>
-    <div class="note" style="margin-top:4px">The strip shows "${esc(s.day1 || 'Now or never sale · Day 1')}" over a big clock counting down to midnight, then rolls to the Day 2 line on its own. Before the start and after the last day the regular offer shows. Turn ON any time before the start; it waits.</div>`;
-}
-function spSaleOn(btn) {
-  const g = id => document.getElementById('sps_' + id).value;
-  const body = { action: 'sale_mode_on', start: spIst(g('start')), days: +g('days') || 3, title: g('title'), sub: g('sub'), link: g('link'), day1: g('day1'), day2: g('day2'), day3: g('day3'), change_prices: document.getElementById('sps_change').checked };
-  if (!body.start) return alert('Pick the start date and time.');
-  const now = (_spSale && _spSale.now_ist) || '';
-  if (!confirm(`${_spSale && _spSale.sale && _spSale.sale.on ? 'Save the sale settings' : 'Turn the sale ON'}: strip and site from ${body.start} IST for ${body.days} day${body.days === 1 ? '' : 's'}${body.change_prices ? (now >= body.start ? ', prices cut right now' : ', prices cut at the start') + ', back to normal at the end' : ''}?`)) return;
-  btn.disabled = true;
-  (async () => { try { await api(body); } catch (e) { alert(e.message); } btn.disabled = false; spSaleLoad(); })();
-}
-function spSaleOff(btn) {
-  if (!confirm('Turn the sale OFF now? The strip goes back to the regular offer and every price returns to what it was.')) return;
-  btn.disabled = true;
-  (async () => { try { await api({ action: 'sale_mode_off' }); } catch (e) { alert(e.message); } btn.disabled = false; spSaleLoad(); })();
+  _spCur = _sp.products[0] && _sp.products[0].handle; spRenderColls(); spRenderList(); spRender();
+  ofLoad();
 }
 // Collections that stand for "similar to this": a design in one of them gets that collection as its One for you row and a See all link on its page
 let _spCollQ = '';
@@ -825,91 +780,204 @@ const SPO_AREAS = [
   ['also', 'Product page · "People also buy" cards', 'the row of designs with FREE / cut prices and the set-progress header; off hides the row'],
   ['cards', 'Collection cards', 'the small line under each price and the FREE strike when a piece completes the set'],
 ];
-function spRenderOffer() {
-  const o = _sp.offer || {}; const tiers = o.tiers && o.tiers.length ? o.tiers : [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }];
-  const mode = o.mode || o.type || 'free_nth', areas = o.areas || {};
-  const inp = (id, label, v, type = 'text', extra = '') => `<label>${label}<input id="spo_${id}" type="${type}" value="${esc(String(v ?? ''))}" ${extra} oninput="spOfferPreview()"></label>`;
-  document.getElementById('spOffer').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><b>🎁 Regular offer</b><span class="note">the one offer the site talks about when Sale mode is off · pick the kind, set the numbers, tick where it shows · the money off itself is the automatic discount in Shopify and must match</span><button class="btn" id="spoSave" style="margin-left:auto" onclick="spSaveOffer(this)">Save offer</button></div>
-    <div id="spoLive" style="padding:8px 12px;border-radius:10px;margin:0 0 8px;font-size:.85rem"></div>
-    <div class="row"><label>Kind<select id="spo_mode" onchange="spOfferPreview()"><option value="none"${mode === 'none' ? ' selected' : ''}>No offer — plain prices everywhere</option><option value="free_nth"${mode === 'free_nth' ? ' selected' : ''}>Every Nth quote free (Buy 2, get the 3rd free)</option><option value="tiers"${mode === 'tiers' ? ' selected' : ''}>Step discounts (₹ or % off at N pieces)</option></select></label>
-      ${inp('title', 'Title', o.title || 'Special Diwali offers', 'text', 'style="width:200px"')}${inp('note', 'Small line (right of the bar)', o.note ?? 'Prepaid only · till 2 Nov', 'text', 'style="width:200px"')}${inp('ends', 'Ends on (blank = no end)', o.ends || '', 'date')}</div>
-    <div class="row" id="spoFree" style="margin-top:8px">${inp('steps', 'Free quote unlocks at (quotes in cart)', (o.steps || [3, 6, 9]).join(', '), 'text', 'style="width:150px" title="counts at which the 1st, 2nd, 3rd free quote unlock; the last gap repeats"')}${inp('price', 'Quote price ₹', o.price || 599, 'number', 'style="width:90px"')}<label>Shopify discount is set on<select id="spo_collection" onchange="spOfferPreview()" style="min-width:200px" title="the collection your Buy 2 get 1 discount uses; the strip then counts exactly those designs"><option value=""${!o.collection ? ' selected' : ''}>by price (below) — not recommended</option>${(_sp.collections || []).map(c => `<option value="${c.handle}"${o.collection === c.handle ? ' selected' : ''}>${esc(c.title)} (${c.count})</option>`).join('')}</select></label>${inp('max_price', 'else counts items up to ₹', o.max_price || 999, 'number', 'style="width:100px" title="used only when no collection is chosen"')}
-      ${inp('codes', 'Coupon codes, one per unlock (Shopflo)', (o.codes || ['DIWALI1', 'DIWALI2', 'DIWALI3']).join(', '), 'text', 'style="width:230px" placeholder="DIWALI1, DIWALI2, DIWALI3"')}</div>
-    <div class="row" id="spoTiers" style="margin-top:8px">${tiers.slice(0, 3).map((t, i) => `<label>Step ${i + 1}: at N pieces<input id="spo_t${i}_at" type="number" min="2" value="${t.at || ''}" style="width:70px" oninput="spOfferPreview()"></label><label>&nbsp;<select id="spo_t${i}_k" onchange="spOfferPreview()"><option value="off"${t.pct ? '' : ' selected'}>₹ off</option><option value="pct"${t.pct ? ' selected' : ''}>% off</option></select></label><label>value<input id="spo_t${i}_v" type="number" value="${t.pct || t.off || ''}" style="width:70px" oninput="spOfferPreview()"></label>`).join('')}</div>
-    <div id="spoAreas" style="margin-top:10px"><div class="note" style="margin-bottom:4px"><b>Where it shows</b> · these are the only places the script touches; untick to switch a spot off without changing the offer</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 14px">${SPO_AREAS.map(([k, l, d]) => `<label style="flex-direction:row;align-items:flex-start;gap:8px;font-size:.8rem;color:var(--ink);cursor:pointer"><input type="checkbox" id="spo_a_${k}" ${areas[k] !== false ? 'checked' : ''} onchange="spOfferPreview()" style="margin-top:3px"><span><b>${l}</b><br><small class="note">${d}</small></span></label>`).join('')}</div></div>
-    <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Texts on the site (what each line says · edit if you like · blank = default)</summary>
-      <div class="note" style="margin:6px 0">Words in braces fill themselves: {t1} {t2} {t3} the unlock points and {t1_pay} {t2_pay} {t3_pay} their prices · {code} the code earned so far · {next_code} the next code · {codes} all codes · {n} pieces in cart · {pay} what they pay · {k} how many free · {more} pieces to the next free · {next_n} / {next_pay} the next set and its price · {every} {every_1} {nth} the offer numbers · {note} the small line · {coll} the collection name. FREE goes bold on its own.</div>
-      <div class="row" id="spoText">${Object.entries(SPO_TEXT_LABELS).map(([k, l]) => `<label style="min-width:260px;flex:1">${l}<input id="spo_tx_${k}" value="${esc((o.text || {})[k] || SPO_TEXT_DEFAULT[k])}" oninput="spOfferPreview()"></label>`).join('')}</div>
-    </details>
-    <div class="prev" id="spoPrev"></div>`;
-  spOfferPreview();
-}
-// The same lines the storefront script carries as defaults; the site shows whatever is saved here
+// The same lines the storefront script carries as defaults; the site shows whatever is saved per offer
 const SPO_TEXT_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'People also buy with this', also_coll: 'More from {coll}', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
 const SPO_TEXT_LABELS = { empty_line: 'Strip · empty cart · main line', empty_side: 'Strip · empty cart · right of the bar', first: 'Strip · 1 in cart', mid: 'Strip · 2 or more to go (4, 7…)', hot: 'Strip · 1 to go (2, 5, 8)', done: 'Strip · set complete (3, 6, 9)', side_next: 'Strip · right of the bar · next set', side_done: 'Strip · right of the bar · set complete', summary: 'Strip · small top line', summary_done: 'Strip · small top line · set complete', ladder_title: 'Product page · ladder title', rule1: 'Drawer · rule 1', rule2: 'Drawer · rule 2', rule3: 'Drawer · rule 3', also_empty: 'Product page row · empty cart', also_coll: 'Product page row · empty cart, in a collection', also_first: 'Product page row · 1 in cart', also_hot: 'Product page row · 1 to go', also_done: 'Product page row · set complete', sim_tag: 'Product page row · small tag on each photo (opens that design’s collection)', card_tag: 'Collection cards · line under the price · empty cart (blank = nothing)', card_tag_more: 'Collection cards · line under the price · pieces still needed ({more} counts this one)', card_tag_free: 'Collection cards · word next to the struck price when this piece completes the set' };
-function spReadOffer() {
-  const g = id => document.getElementById('spo_' + id).value;
-  const tiers = [0, 1, 2].map(i => ({ at: +g(`t${i}_at`), [g(`t${i}_k`)]: +g(`t${i}_v`) })).filter(t => t.at && (t.off || t.pct));
-  const text = {}; for (const k in SPO_TEXT_DEFAULT) { const el = document.getElementById('spo_tx_' + k); text[k] = el ? el.value : ''; }
-  const areas = {}; SPO_AREAS.forEach(([k]) => { areas[k] = document.getElementById('spo_a_' + k).checked; });
-  const mode = g('mode');
-  return { title: g('title'), mode, type: mode === 'tiers' ? 'tiers' : 'free_nth', areas, every: 3, steps: g('steps'), price: +g('price') || 599, max_price: +g('max_price') || 999, collection: g('collection'), codes: g('codes'), note: g('note'), ends: g('ends'), tiers, text };
+// ---------- Offers: the list the site runs from. One is the default; the rest have a start and an end (IST). ----------
+// Every spot the storefront script can touch. Each is a switch per offer; off means that spot shows plain prices / nothing.
+const OF_AREAS = [
+  ['strip', 'Bottom strip on every page', 'the offer line with the progress bar and the cart button; off hides the whole strip'],
+  ['drawer', 'Offers drawer', 'what opens when the strip is tapped: the ladder and the rules; off makes the strip open the cart'],
+  ['band', 'Product page · band', 'the coloured band under Add to cart with the title and the one-line promise (red with the clock in a sale)'],
+  ['ladder', 'Product page · ladder box', 'the 3 FREE / 6 FREE / 9 FREE steps (or the step discounts) under the band'],
+  ['price', 'Product page · price line', 'strikes the price to FREE (or the difference) when this piece completes a set'],
+  ['also', 'Product page · "People also buy" cards', 'the row of designs with FREE / cut prices and the set-progress header; off hides the row'],
+  ['cards', 'Collection cards', 'the small line under each price and the FREE strike when a piece completes the set'],
+];
+const OF_KINDS = { none: 'No offer · plain prices', free_nth: 'Every Nth quote free (Buy 2, get the 3rd free)', tiers: 'Step discounts (₹ or % off at N pieces)', sale: 'Flat sale with a timer (prices cut for the window)' };
+const OF_SALE_AREAS = { strip: 1, band: 1, also: 1 };
+let _of = null, _ofEdit = null, _ofDirty = false, _ofPoll = null, _ofPrev = { cart: 2, view: 'product', when: 'day1' };
+const ofIst = v => v ? v.replace('T', ' ').slice(0, 16) : '';
+const ofLocal = v => v ? v.replace(' ', 'T') : '';
+const ofNice = s => s ? new Date(s.replace(' ', 'T') + ':00Z').toLocaleString('en-IN', { timeZone: 'UTC', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+const ofPlus = (s, h) => { const d = new Date(s.replace(' ', 'T') + ':00Z'); d.setTime(d.getTime() + h * 36e5); return d.toISOString().slice(0, 16).replace('T', ' '); };
+const ofId = () => 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+// The same shape the server keeps (lib/offers.js cleanAny), so the preview runs exactly what will be published
+function ofClean(o) {
+  const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+  const kind = OF_KINDS[o.kind] ? o.kind : 'free_nth';
+  const areas = {}; OF_AREAS.forEach(([k]) => { areas[k] = !o.areas || o.areas[k] !== false; });
+  const out = { id: o.id || ofId(), name: String(o.name || '').slice(0, 60), kind, enabled: o.enabled !== false, start: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(o.start || '') ? o.start : '', end: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(o.end || '') ? o.end : '', areas };
+  if (kind === 'sale') {
+    const T = { title: 'Pick any at ₹399', sub: 'Hurry · only 24 hours · ends at midnight', day1: 'Now or never sale · Day 1', day2: 'Now or never sale · Extended! Day 2', day3: 'Now or never sale · Last day', day_more: 'Day {n} of {days}', link: '/collections/all' };
+    for (const k in T) out[k] = String(o[k] != null && o[k] !== '' ? o[k] : T[k]).slice(0, 120);
+    out.prices = [...new Set((Array.isArray(o.prices) ? o.prices : String(o.prices || '599,799,899').split(/[^0-9]+/)).map(Number).filter(p => p > 0))]; if (!out.prices.length) out.prices = [599, 799, 899];
+    out.off = Math.round(num(o.off, 200)) || 200; out.change_prices = o.change_prices !== false;
+    const days = Math.min(14, Math.max(1, Math.round(num(o.days, 0)) || 0));
+    if (out.start && !out.end) out.end = ofPlus(out.start, (days || 3) * 24);
+    out.days = out.start && out.end ? Math.max(1, Math.ceil((new Date(out.end.replace(' ', 'T') + ':00Z') - new Date(out.start.replace(' ', 'T') + ':00Z')) / 864e5)) : (days || 3);
+    out.areas.ladder = false; out.areas.price = false; out.areas.cards = false; out.areas.drawer = false;
+  } else if (kind !== 'none') {
+    const text = {}; for (const k in SPO_TEXT_DEFAULT) { const v = o.text && o.text[k] != null ? String(o.text[k]).slice(0, 140) : ''; text[k] = v || SPO_TEXT_DEFAULT[k]; }
+    const LAD = [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }];
+    const tiers = (Array.isArray(o.tiers) && o.tiers.length ? o.tiers : LAD).map(t => ({ at: Math.max(2, Math.round(num(t.at, 2))), ...(t.pct ? { pct: num(t.pct, 10) } : { off: num(t.off, 100) }) })).filter(t => t.at).sort((a, b) => a.at - b.at).map(t => ({ ...t, label: t.pct ? `${t.pct}% off` : `₹${t.off} off` }));
+    const steps = String(Array.isArray(o.steps) ? o.steps.join(',') : (o.steps || '')).split(/[^0-9]+/).map(x => parseInt(x, 10)).filter(x => x >= 2).sort((a, b) => a - b).filter((x, i, arr) => arr.indexOf(x) === i).slice(0, 8);
+    Object.assign(out, { title: String(o.title || out.name || 'Offer').slice(0, 60), mode: kind, type: kind, every: 3, steps: steps.length ? steps : [3, 6, 9], price: Math.round(num(o.price, 599)) || 599, max_price: Math.round(num(o.max_price, 999)) || 999, collection: String(o.collection || '').slice(0, 80), codes: String(Array.isArray(o.codes) ? o.codes.join(',') : (o.codes || '')).split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean).slice(0, 8), note: String(o.note || '').slice(0, 60), tiers, text });
+  }
+  if (!out.name) out.name = kind === 'none' ? 'Plain prices' : out.title || 'Offer';
+  return out;
 }
-// What the site shows right now, from the sale switch and this offer: one line the owner can read before saving
-function spOfferLiveLine(o) {
-  const el = document.getElementById('spoLive'); if (!el) return;
-  const s = (_spSale && _spSale.sale) || {}, now = (_spSale && _spSale.now_ist) || '';
-  const saleLive = s.on && now >= (s.start || '') && now < (s.end || '');
-  const on = SPO_AREAS.filter(([k]) => o.areas[k]).map(([k, l]) => l.replace(/^Product page · /, 'PDP ').replace(/^Bottom strip.*/, 'strip').replace(/^Offers drawer/, 'drawer').replace(/^Collection cards/, 'collection cards')), off = SPO_AREAS.filter(([k]) => !o.areas[k]);
-  const ended = o.ends && now.slice(0, 10) > o.ends;
-  let txt, bg, bd;
-  if (saleLive) { txt = `<b>🔥 Sale mode is live</b> — the site shows the sale timer and the cut prices; this regular offer is resting and comes back when the sale ends${s.end ? ` (${esc(s.end)})` : ''}.`; bg = '#fde8df'; bd = 'var(--accent)'; }
-  else if (o.mode === 'none') { txt = `<b>No offer on the site</b> — plain prices everywhere; the strip shows only when the cart has something in it.`; bg = '#f4f0ea'; bd = 'var(--line)'; }
-  else if (ended) { txt = `<b>Offer ended on ${esc(o.ends)}</b> — the site shows plain prices. Clear the end date or set a new one to bring it back.`; bg = '#fff3cd'; bd = '#e0a800'; }
-  else { txt = `<b>${esc(o.title || 'Offer')} is on</b> (${o.mode === 'tiers' ? 'step discounts' : 'every Nth free'})${o.ends ? ` till ${esc(o.ends)}` : ''} · shows in: ${on.map(esc).join(', ') || 'nowhere'}${off.length ? ` · <span style="color:#b03a2e">off: ${off.map(([, l]) => esc(l.toLowerCase())).join(', ')}</span>` : ''}${s.on && now < (s.start || '') ? ` · <b>sale takes over at ${esc(s.start)}</b>` : ''}`; bg = '#e6f4ea'; bd = '#2e8b57'; }
-  el.style.background = bg; el.style.border = `1.5px solid ${bd}`; el.innerHTML = txt + (_spOfferDirty ? ' <span style="color:#b03a2e">· unsaved changes</span>' : '');
+// Who is live at a moment: a scheduled window holding now (latest start wins), else the default
+function ofLiveAt(now) {
+  let live = null;
+  for (const o of _of.offers) { if (o.enabled === false || !o.start) continue; if (now >= o.start && (!o.end || now < o.end) && (!live || o.start > live.start)) live = o; }
+  return live || _of.offers.find(o => o.id === _of.default_id) || null;
 }
-let _spOfferDirty = false;
-function spOfferPreview() {
-  const o = spReadOffer(), free = o.mode === 'free_nth', none = o.mode === 'none';
-  document.getElementById('spoTiers').style.display = o.mode === 'tiers' ? 'flex' : 'none';
-  document.getElementById('spoFree').style.display = free ? 'flex' : 'none';
-  document.getElementById('spoAreas').style.opacity = none ? '.45' : '';
-  _spOfferDirty = _sp.offer ? JSON.stringify(spOfferKey(o)) !== JSON.stringify(spOfferKey(_sp.offer)) : true;
-  const sb = document.getElementById('spoSave'); if (sb) { sb.textContent = _spOfferDirty ? 'Save offer · unsaved' : 'Saved'; sb.style.background = _spOfferDirty ? 'var(--ink)' : ''; sb.style.color = _spOfferDirty ? '#fff' : ''; }
-  spOfferLiveLine(o);
-  const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
-  const ord = n => n + (n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'), E = 3, P = o.price, note = (o.note || '').split(' · ')[0];
-  const tx = (k, v) => esc((o.text[k] || SPO_TEXT_DEFAULT[k]).replace(/\{(\w+)\}/g, (m, x) => v[x] != null ? v[x] : m).replace(/\s*·\s*·/g, ' ·').replace(/^\s*·\s*|\s*·\s*$/g, '')).replace(/FREE/g, '<b>FREE</b>');
-  const TH = String(o.steps || '').split(/[^0-9]+/).map(x => +x).filter(x => x >= 2).sort((a, b) => a - b); if (!TH.length) TH.push(3, 6, 9);
-  const GAP = TH.length > 1 ? TH[TH.length - 1] - TH[TH.length - 2] : TH[0];
-  const fc = n => { let k = 0; TH.forEach((t, i) => { if (n >= t) k = i + 1; }); if (k === TH.length) k += Math.floor((n - TH[TH.length - 1]) / GAP); return k; };
-  const na = n => { for (const t of TH) if (n < t) return t; const l = TH[TH.length - 1]; return l + GAP * (Math.floor((n - l) / GAP) + 1); };
-  const t = i => TH[i] || TH[TH.length - 1] + GAP * (i - TH.length + 1);
-  const CODES = String(o.codes || '').split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean), cf = k => !CODES.length || k < 1 ? '' : CODES[Math.min(k, CODES.length) - 1];
-  const V = n => { const k = fc(n), nn = na(n), more = nn - n; return { n, pay: inr(P * (n - k)), k, more, next_n: nn, next_paid: nn - fc(nn), next_free: fc(nn), next_pay: inr(P * (nn - fc(nn))), every: E, every_1: E - 1, every2: E * 2, every3: E * 3, nth: ord(E), t1: t(0), t1_1: t(0) - 1, t1_nth: ord(t(0)), t1_pay: inr(P * (t(0) - 1)), t2: t(1), t2_pay: inr(P * (t(1) - 2)), t3: t(2), t3_pay: inr(P * (t(2) - 3)), note, unit: inr(P), code: cf(k), next_code: cf(fc(nn)), codes: CODES.join(' · '), coll: 'Chai' }; };
-  const lines = none ? ['<small>strip with 2 pieces in the cart</small>2 in cart · ₹1,198', '<small>empty cart</small>no strip']
-    : free
-    ? [`<small>🎁 ${esc(o.title)} · ${tx('empty_side', V(0))}</small>${tx('empty_line', V(0))}`, `<small>${tx('summary', V(1))} · ${tx('side_next', V(1))}</small>${tx('first', V(1))}`, `<small>${tx('summary', V(TH[0] - 1))} · ${tx('side_next', V(TH[0] - 1))}</small>${tx('hot', V(TH[0] - 1))}`, `<small>${tx('summary_done', V(TH[0]))} · ${tx('side_done', V(TH[0]))}</small>${tx('done', V(TH[0]))}`, `<small>${tx('summary', V(TH[0] + 1))} · ${tx('side_next', V(TH[0] + 1))}</small>${tx('mid', V(TH[0] + 1))}`]
-    : [`<small>🎁 ${esc(o.title)}</small>${o.tiers.map(t => (t.pct ? t.pct + '% off' : '₹' + t.off + ' off') + ' at ' + t.at).join(' · ')}`];
-  document.getElementById('spoPrev').innerHTML = lines.map(l => `<div style="padding:3px 0">${l}</div>`).join('');
+function ofState(o) {
+  const now = _of.now_ist || '', live = ofLiveAt(now);
+  if (live && live.id === o.id) return ['live', 'LIVE NOW', '#2e8b57'];
+  if (o.enabled === false) return ['off', 'off', '#9c8a76'];
+  if (o.id === _of.default_id) return ['default', 'default · waiting', '#6f5b46'];
+  if (!o.start) return ['idle', 'not scheduled · never shows', '#b03a2e'];
+  if (now < o.start) return ['upcoming', 'starts ' + ofNice(o.start), '#d4541f'];
+  if (o.end && now >= o.end) return ['ended', 'ended ' + ofNice(o.end), '#9c8a76'];
+  return ['shadowed', 'window open, another offer wins', '#9c8a76'];
 }
-// The fields that matter for "unsaved": the same shape the server keeps, so a reopened panel reads as saved
-function spOfferKey(o) {
-  const steps = String(Array.isArray(o.steps) ? o.steps.join(',') : (o.steps || '')).split(/[^0-9]+/).map(x => +x).filter(x => x >= 2).sort((a, b) => a - b);
-  const codes = String(Array.isArray(o.codes) ? o.codes.join(',') : (o.codes || '')).split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
-  const text = {}; for (const k in SPO_TEXT_DEFAULT) text[k] = ((o.text || {})[k] || SPO_TEXT_DEFAULT[k]);
-  const areas = {}; SPO_AREAS.forEach(([k]) => { areas[k] = !o.areas || o.areas[k] !== false; });
-  const mode = o.mode || o.type || 'free_nth';
-  return { mode, title: o.title || '', note: o.note || '', ends: o.ends || '', steps, price: +o.price || 599, max_price: +o.max_price || 999, collection: o.collection || '', codes, tiers: mode === 'tiers' ? (o.tiers || []).map(t => ({ at: +t.at, off: +t.off || 0, pct: +t.pct || 0 })) : [], text, areas };
+async function ofLoad() {
+  try { const r = await api({ action: 'offers_get' }); if (_ofDirty && _of) { _of.now_ist = r.now_ist; _of.prices = r.prices; } else _of = r; }
+  catch (e) { document.getElementById('spOffers').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  ofRender();
+  clearTimeout(_ofPoll); if (_of.prices && _of.prices.running) _ofPoll = setTimeout(ofLoad, 5000);
 }
-async function spSaveOffer(btn) {
-  const o = spReadOffer(); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-  try { await api({ action: 'sheet_save', offer: o }); } catch (e) { alert(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Save offer'; } return; }
-  _sp.offer = o; if (btn) btn.disabled = false; spOfferPreview();
-  if (confirm('Offer saved. Put it on the site now? (Update website · takes about a minute)')) spPublish();
+function ofRender(full) {
+  if (!_of) return;
+  const now = _of.now_ist || '', live = ofLiveAt(now), pr = _of.prices || {}, cur = pr.current, run = pr.running;
+  const win = o => o.id === _of.default_id && !o.start ? 'default · runs whenever nothing else is on' : o.start ? `${ofNice(o.start)} → ${o.end ? ofNice(o.end) : 'no end'}` : 'no window set';
+  const kindShort = o => o.kind === 'none' ? 'plain prices' : o.kind === 'sale' ? `flat sale · ${o.prices.map(p => p + '→' + (p - o.off)).join(', ')}` : o.kind === 'tiers' ? 'step discounts' : `every Nth free · ${(o.steps || []).join(', ')}`;
+  const priceLine = run ? `${run.action === 'apply' ? 'cutting prices' : 'restoring prices'} · ${run.done} of ${run.total} variants…` : cur ? `<b style="color:#b03a2e">prices are cut</b> on ${cur.done} variants since ${new Date(cur.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'prices normal';
+  const bar = run ? `<div style="height:5px;background:#eee;border-radius:3px;margin:4px 0"><div style="height:5px;width:${run.total ? Math.round(run.done / run.total * 100) : 0}%;background:#2e8b57;border-radius:3px"></div></div>` : '';
+  const cards = _of.offers.map((o, i) => {
+    const [st, lbl, col] = ofState(o), ed = _ofEdit === o.id;
+    return `<div class="of-card${ed ? ' on' : ''}${st === 'live' ? ' live' : ''}" style="border:1.5px solid ${ed ? 'var(--ink)' : st === 'live' ? '#2e8b57' : 'var(--line)'};border-radius:12px;padding:8px 12px;background:${st === 'live' ? '#e6f4ea' : '#fff'};display:flex;gap:10px;align-items:center;flex-wrap:wrap;opacity:${o.enabled === false ? '.6' : '1'}">
+      <label title="the default runs whenever no scheduled offer is on" style="flex-direction:row;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);cursor:pointer"><input type="radio" name="of_def" ${o.id === _of.default_id ? 'checked' : ''} ${o.kind === 'sale' ? 'disabled title="a sale needs a window; it cannot be the default"' : ''} onchange="ofSetDefault('${o.id}')">default</label>
+      <div style="min-width:220px;flex:1"><b>${esc(o.name)}</b> <small class="note">${esc(kindShort(o))}</small><br><small class="note">${esc(win(o))}</small></div>
+      <span style="font-size:.72rem;font-weight:800;color:${col};${st === 'live' ? 'background:#2e8b57;color:#fff;padding:2px 8px;border-radius:999px' : ''}">${esc(lbl)}</span>
+      <span style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn" style="padding:3px 9px" onclick="ofEditOpen('${o.id}')">${ed ? 'Close' : '✎ Edit'}</button>
+        <button class="btn" style="padding:3px 9px" onclick="ofToggle('${o.id}')">${o.enabled === false ? 'Turn on' : 'Turn off'}</button>
+        <button class="btn" style="padding:3px 9px" title="copy as a new offer" onclick="ofDup('${o.id}')">⧉</button>
+        <button class="btn" style="padding:3px 9px" title="delete" onclick="ofDel('${o.id}')" ${o.id === _of.default_id ? 'disabled' : ''}>🗑</button>
+      </span></div>`;
+  }).join('');
+  const root = document.getElementById('spOffers');
+  if (!document.getElementById('ofList')) root.innerHTML = '<div id="ofHead"></div><div id="ofList" style="display:grid;gap:6px"></div><div id="ofNew" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div><div id="ofEditor" style="margin-top:10px"></div>';
+  document.getElementById('ofHead').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🎁 Offers</b><span class="note">everything the strip script shows comes from this list · one offer is the default, the others run between their start and end (IST) and win over it · the site switches on its own at the minute, no publish needed; a sale's price cut is written to Shopify within 10 minutes of its window</span>
+      <button class="btn" id="ofSaveBtn" style="margin-left:auto;${_ofDirty ? 'background:var(--ink);color:#fff' : ''}" onclick="ofSaveAll(this)" ${_ofDirty ? '' : 'disabled'}>${_ofDirty ? 'Save offers · unsaved' : 'Saved'}</button></div>
+    <div style="padding:8px 12px;border-radius:10px;margin:0 0 8px;font-size:.85rem;background:${live && live.kind !== 'none' ? '#e6f4ea' : '#f4f0ea'};border:1.5px solid ${live && live.kind !== 'none' ? '#2e8b57' : 'var(--line)'}">
+      <b>Live now${_ofDirty ? ' (after save)' : ''}:</b> ${live ? `${esc(live.name)} · ${esc(kindShort(live))}` : 'nothing'} · ${priceLine}${bar}
+      ${(() => { const nx = _of.offers.filter(o => o.enabled !== false && o.start && o.start > now).sort((a, b) => a.start < b.start ? -1 : 1)[0]; return nx ? ` · <b>next:</b> ${esc(nx.name)} at ${ofNice(nx.start)}` : ''; })()}
+      ${cur && !(live && live.kind === 'sale' && live.change_prices) && !run ? ` · <button class="btn" style="padding:2px 8px" onclick="ofRestorePrices(this)">Restore prices now</button>` : ''}</div>`;
+  document.getElementById('ofList').innerHTML = cards;
+  document.getElementById('ofNew').innerHTML = `<span class="note">New offer:</span>${Object.entries(OF_KINDS).map(([k, l]) => `<button class="btn" style="padding:3px 10px" onclick="ofNew('${k}')">+ ${esc(l.split(' (')[0].split(' · ')[0])}</button>`).join('')}`;
+  if (full !== false) ofRenderEditor();
+}
+function ofMark() { _ofDirty = true; }
+function ofSetDefault(id) { _of.default_id = id; ofMark(); ofRender(); }
+function ofToggle(id) { const o = _of.offers.find(x => x.id === id); if (!o) return; o.enabled = o.enabled === false; ofMark(); ofRender(); }
+function ofDup(id) { const o = _of.offers.find(x => x.id === id); if (!o) return; const c = JSON.parse(JSON.stringify(o)); c.id = ofId(); c.name = o.name + ' (copy)'; c.enabled = false; _of.offers.splice(_of.offers.indexOf(o) + 1, 0, c); _ofEdit = c.id; ofMark(); ofRender(); }
+function ofDel(id) { const o = _of.offers.find(x => x.id === id); if (!o || !confirm(`Delete "${o.name}"? It stops showing once you save and publish.`)) return; _of.offers = _of.offers.filter(x => x.id !== id); if (_ofEdit === id) _ofEdit = null; ofMark(); ofRender(); }
+function ofNew(kind) {
+  const start = (_of.now_ist || '').slice(0, 10) + ' 00:00';
+  const o = ofClean({ id: ofId(), kind, name: kind === 'none' ? 'Plain prices' : kind === 'sale' ? 'Now or never sale' : kind === 'tiers' ? 'Buy more, pay less' : 'Buy 2, get the 3rd free', start: kind === 'none' ? '' : ofPlus(start, 24), days: 3, enabled: false, title: kind === 'free_nth' ? 'Special offer' : kind === 'tiers' ? 'Buy more, pay less' : 'Pick any at ₹399', codes: '' });
+  if (kind !== 'sale' && kind !== 'none') o.end = ofPlus(o.start, 7 * 24);
+  _of.offers.push(o); _ofEdit = o.id; ofMark(); ofRender();
+  setTimeout(() => { const el = document.getElementById('ofEditor'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+}
+function ofEditOpen(id) { _ofEdit = _ofEdit === id ? null : id; ofRender(); if (_ofEdit) setTimeout(() => { const el = document.getElementById('ofEditor'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
+async function ofSaveAll(btn) {
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try { const r = await api({ action: 'offers_save', offers: _of.offers, default_id: _of.default_id }); _of.offers = r.offers; _of.default_id = r.default_id; }
+  catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Save offers · unsaved'; return; }
+  _ofDirty = false; await ofLoad();
+  if (confirm('Offers saved. Put them on the site now? (Update website · about a minute)')) spPublish();
+}
+async function ofRestorePrices(btn) { if (!confirm('Restore every cut price to what it was before the sale?')) return; btn.disabled = true; try { await api({ action: 'sale_revert' }); } catch (e) { alert(e.message); } ofLoad(); }
+// ---- the editor: fields on the left, the real strip script running on a mock page on the right ----
+function ofRenderEditor() {
+  const box = document.getElementById('ofEditor'); if (!box) return;
+  const o = _of.offers.find(x => x.id === _ofEdit); if (!o) { box.innerHTML = ''; return; }
+  const inp = (k, label, v, type = 'text', extra = '') => `<label>${label}<input id="of_${k}" type="${type}" value="${esc(String(v ?? ''))}" ${extra} oninput="ofField('${k}', this.value)"></label>`;
+  const sale = o.kind === 'sale', none = o.kind === 'none', isDef = o.id === _of.default_id;
+  const tiers = o.tiers && o.tiers.length ? o.tiers : [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }];
+  box.innerHTML = `<div style="border:1.5px solid var(--ink);border-radius:12px;padding:10px 12px;background:#fff">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b>✎ ${esc(o.name)}</b><span class="note">changes show on the preview as you type · they reach the site after Save offers + Update website</span><button class="btn" style="margin-left:auto;padding:3px 10px" onclick="_ofEdit=null;ofRender()">Close editor</button></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:14px;align-items:start">
+    <div>
+      <div class="row">${inp('name', 'Name (for this list)', o.name, 'text', 'style="width:200px"')}<label>Kind<select id="of_kind" onchange="ofKind(this.value)">${Object.entries(OF_KINDS).map(([k, l]) => `<option value="${k}"${o.kind === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+        <label style="flex-direction:row;align-items:center;gap:6px;margin-top:14px"><input type="checkbox" ${o.enabled !== false ? 'checked' : ''} onchange="ofField('enabled', this.checked)"> on</label></div>
+      <div class="row" style="margin-top:8px;align-items:center"><b style="font-size:.8rem">When</b>
+        ${sale ? '' : `<label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="of_when" ${isDef ? 'checked' : ''} onchange="ofSetDefault('${o.id}')"> default · whenever nothing else is on</label>`}
+        <label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="of_when" ${!isDef || sale ? 'checked' : ''} onchange="ofWindowOn('${o.id}')"> scheduled</label>
+        ${inp('start', 'from (IST)', ofLocal(o.start), 'datetime-local', '')}${sale ? inp('days', 'days (24 h each)', o.days || 3, 'number', 'style="width:70px" min="1" max="14"') : ''}${inp('end', sale ? 'ends (IST) · set by days' : 'till (IST, blank = no end)', ofLocal(o.end), 'datetime-local', sale ? 'disabled' : '')}</div>
+      ${none ? '<div class="note" style="margin-top:8px">Plain prices: the site shows nothing extra. The strip appears only with something in the cart, as a cart summary.</div>' : ''}
+      ${sale ? `<div class="row" style="margin-top:8px">${inp('title', 'Headline (the offer)', o.title, 'text', 'style="width:200px"')}${inp('sub', 'Hurry line', o.sub, 'text', 'style="width:240px"')}${inp('link', 'Strip opens', o.link, 'text', 'style="width:150px"')}</div>
+        <div class="row" style="margin-top:6px">${inp('day1', 'Day 1 line', o.day1, 'text', 'style="width:190px"')}${inp('day2', 'Day 2 line', o.day2, 'text', 'style="width:190px"')}${inp('day3', 'Day 3 line', o.day3, 'text', 'style="width:190px"')}${inp('day_more', 'Day 4+ line', o.day_more, 'text', 'style="width:150px"')}</div>
+        <div class="row" style="margin-top:6px">${inp('prices', 'Price points to cut', o.prices.join(', '), 'text', 'style="width:150px"')}${inp('off', '₹ off each', o.off, 'number', 'style="width:80px"')}<label style="flex-direction:row;align-items:center;gap:6px;margin-top:14px"><input type="checkbox" ${o.change_prices !== false ? 'checked' : ''} onchange="ofField('change_prices', this.checked)"> cut the prices in Shopify for the window (old price kept as compare-at, restored after)</label></div>` : ''}
+      ${!sale && !none ? `<div class="row" style="margin-top:8px">${inp('title', 'Title on the site', o.title, 'text', 'style="width:200px"')}${inp('note', 'Small line (right of the bar)', o.note, 'text', 'style="width:200px"')}${inp('price', 'Quote price ₹', o.price, 'number', 'style="width:90px"')}</div>
+        ${o.kind === 'free_nth' ? `<div class="row" style="margin-top:6px">${inp('steps', 'Free quote unlocks at (quotes in cart)', (o.steps || []).join(', '), 'text', 'style="width:150px"')}<label>Shopify discount is set on<select id="of_collection" onchange="ofField('collection', this.value)" style="min-width:200px"><option value=""${!o.collection ? ' selected' : ''}>by price (below)</option>${(_sp && _sp.collections || []).map(c => `<option value="${c.handle}"${o.collection === c.handle ? ' selected' : ''}>${esc(c.title)} (${c.count})</option>`).join('')}</select></label>${inp('max_price', 'else counts items up to ₹', o.max_price, 'number', 'style="width:100px"')}${inp('codes', 'Coupon codes, one per unlock', (o.codes || []).join(', '), 'text', 'style="width:220px"')}</div>` : ''}
+        ${o.kind === 'tiers' ? `<div class="row" style="margin-top:6px">${tiers.slice(0, 3).map((t, i) => `<label>Step ${i + 1}: at N pieces<input type="number" min="2" value="${t.at || ''}" style="width:70px" oninput="ofTier(${i},'at',this.value)"></label><label>&nbsp;<select onchange="ofTier(${i},'k',this.value)"><option value="off"${t.pct ? '' : ' selected'}>₹ off</option><option value="pct"${t.pct ? ' selected' : ''}>% off</option></select></label><label>value<input type="number" value="${t.pct || t.off || ''}" style="width:70px" oninput="ofTier(${i},'v',this.value)"></label>`).join('')}</div>` : ''}` : ''}
+      ${none ? '' : `<div style="margin-top:10px"><div class="note" style="margin-bottom:4px"><b>Where it shows</b> · untick to switch a spot off for this offer</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 12px">${OF_AREAS.filter(([k]) => !sale || OF_SALE_AREAS[k]).map(([k, l, d]) => `<label style="flex-direction:row;align-items:flex-start;gap:8px;font-size:.8rem;color:var(--ink);cursor:pointer"><input type="checkbox" ${o.areas[k] !== false ? 'checked' : ''} onchange="ofArea('${k}', this.checked)" style="margin-top:3px"><span><b>${l}</b><br><small class="note">${d}</small></span></label>`).join('')}</div></div>`}
+      ${o.kind === 'free_nth' || o.kind === 'tiers' ? `<details style="margin-top:8px"><summary class="note" style="cursor:pointer">Texts on the site (every line · blank = default)</summary>
+        <div class="note" style="margin:6px 0">Words in braces fill themselves: {t1} {t2} {t3} the unlock points and {t1_pay} {t2_pay} {t3_pay} their prices · {code} the code earned so far · {next_code} the next code · {codes} all codes · {n} pieces in cart · {pay} what they pay · {k} how many free · {more} pieces to the next free · {next_n} / {next_pay} the next set and its price · {note} the small line · {coll} the collection name. FREE goes bold on its own.</div>
+        <div class="row">${Object.entries(SPO_TEXT_LABELS).map(([k, l]) => `<label style="min-width:260px;flex:1">${l}<input value="${esc((o.text || {})[k] || SPO_TEXT_DEFAULT[k])}" oninput="ofText('${k}', this.value)"></label>`).join('')}</div></details>` : ''}
+    </div>
+    <div id="ofPreviewWrap" style="position:sticky;top:0">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;font-size:.75rem">
+        <b>Preview</b>
+        <select id="of_pv_view" onchange="_ofPrev.view=this.value;ofPreview()"><option value="product"${_ofPrev.view === 'product' ? ' selected' : ''}>product page</option><option value="collection"${_ofPrev.view === 'collection' ? ' selected' : ''}>collection page</option>${!sale && !none ? `<option value="drawer"${_ofPrev.view === 'drawer' ? ' selected' : ''}>strip opened (drawer)</option>` : ''}</select>
+        <select id="of_pv_cart" onchange="_ofPrev.cart=+this.value;ofPreview()">${[0, 1, 2, 3, 4].map(n => `<option value="${n}"${_ofPrev.cart === n ? ' selected' : ''}>${n === 0 ? 'empty cart' : n + ' in cart'}</option>`).join('')}</select>
+        ${sale ? `<select id="of_pv_when" onchange="_ofPrev.when=this.value;ofPreview()">${[['day1', 'day 1'], ['day2', 'day 2'], ['last', 'last day'], ['hour', 'last hour']].map(([v, l]) => `<option value="${v}"${_ofPrev.when === v ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+      </div>
+      <iframe id="ofPreview" style="width:390px;height:720px;border:8px solid #2b2118;border-radius:28px;background:#fdf7f0;display:block"></iframe>
+      <div class="note" style="margin-top:4px">The real strip script on a mock page with three ₹599 designs. Scroll inside it; tap the strip to open the drawer.</div>
+    </div></div></div>`;
+  ofPreview();
+}
+function ofCur() { return _of.offers.find(x => x.id === _ofEdit); }
+function ofField(k, v) { const o = ofCur(); if (!o) return; if (k === 'start' || k === 'end') v = ofIst(v); o[k] = v; if (o.kind === 'sale' && (k === 'start' || k === 'days')) { o.end = o.start ? ofPlus(o.start, (+o.days || 3) * 24) : ''; const e = document.getElementById('of_end'); if (e) e.value = ofLocal(o.end); } ofMark(); ofPreview(); ofListOnly(); }
+function ofKind(k) { const o = ofCur(); if (!o) return; const keep = { id: o.id, name: o.name, enabled: o.enabled, start: o.start, end: o.end, areas: o.areas }; const c = ofClean({ ...o, ...keep, kind: k }); if (k === 'sale' && !c.start) c.start = ofPlus((_of.now_ist || '').slice(0, 10) + ' 00:00', 24); Object.assign(o, c); for (const key in o) if (!(key in c)) delete o[key]; if (k === 'sale' && _of.default_id === o.id) _of.default_id = (_of.offers.find(x => x.kind === 'none' && x.id !== o.id) || {}).id || ''; ofMark(); ofRender(); }
+function ofWindowOn(id) { const o = _of.offers.find(x => x.id === id); if (!o) return; if (_of.default_id === id) _of.default_id = (_of.offers.find(x => x.kind === 'none' && x.id !== id) || {}).id || ''; if (!o.start) o.start = ofPlus((_of.now_ist || '').slice(0, 10) + ' 00:00', 24); ofMark(); ofRender(); }
+function ofArea(k, on) { const o = ofCur(); if (!o) return; o.areas = o.areas || {}; o.areas[k] = on; ofMark(); ofPreview(); ofListOnly(); }
+function ofText(k, v) { const o = ofCur(); if (!o) return; o.text = o.text || {}; o.text[k] = v; ofMark(); ofPreview(); }
+function ofTier(i, k, v) { const o = ofCur(); if (!o) return; o.tiers = (o.tiers && o.tiers.length ? o.tiers : [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }]).slice(0, 3); const t = o.tiers[i] || (o.tiers[i] = { at: 2, off: 100 }); if (k === 'at') t.at = +v; else if (k === 'k') { const val = t.pct || t.off || 10; delete t.pct; delete t.off; t[v] = val; } else { const key = t.pct != null ? 'pct' : 'off'; t[key] = +v; } ofMark(); ofPreview(); }
+// Redraw the list and the live line without rebuilding the editor (keeps the cursor in the field)
+function ofListOnly() { ofRender(false); }
+let _ofPvT = null;
+function ofPreview() { clearTimeout(_ofPvT); _ofPvT = setTimeout(ofPreviewNow, 250); }
+function ofPreviewNow() {
+  const fr = document.getElementById('ofPreview'), o = ofCur(); if (!fr || !o) return;
+  const c = ofClean(o);
+  // the preview runs only this offer, as the live one: its window is made to hold the preview moment
+  const cat = {}; [['sabr-shukr', 'Sabr Shukr'], ['dream-believe-achieve', 'Dream Believe Achieve'], ['born-to-shine', 'Born to shine'], ['ghar-bar', 'Ghar Bar'], ['trust-the-process', 'Trust the process']].forEach(([h, t]) => { cat[h] = { t, p: c.price || 599, cols: [['Peach', 1, c.price || 599], ['Blue', 2, c.price || 599], ['Gold', 3, 899]] }; });
+  const data = { v: 4, custom: 'custom', catalogue: cat, picks: { 'sabr-shukr': { pairs: ['dream-believe-achieve', 'born-to-shine', 'trust-the-process', 'ghar-bar'] } }, why: {}, colors: {}, offers: { default_id: c.id, offers: [{ ...c, start: c.kind === 'sale' ? c.start : '', end: c.kind === 'sale' ? c.end : '' }] }, offer: null, sale: null };
+  let at = null;
+  if (c.kind === 'sale') { const s = new Date(c.start.replace(' ', 'T') + ':00Z').getTime() - 5.5 * 36e5, DAY = 864e5, days = c.days || 3; at = _ofPrev.when === 'day2' ? s + DAY + 15 * 36e5 : _ofPrev.when === 'last' ? s + (days - 1) * DAY + 15 * 36e5 : _ofPrev.when === 'hour' ? s + days * DAY - 25 * 60e3 : s + 15 * 36e5; }
+  const n = _ofPrev.cart, unit = c.price || 599, items = n ? [{ handle: 'ghar-bar', quantity: n, price: unit * 100, original_price: unit * 100, product_type: '', title: 'Ghar Bar' }] : [];
+  const cart = { item_count: n, total_price: n * unit * 100, items };
+  const view = _ofPrev.view;
+  const card = (h, t) => `<a class="pcard" href="/products/${h}"><div class="pi"></div><div class="pb"><div class="pf">${t}</div><div class="pp">₹${unit}</div></div></a>`;
+  const body = view === 'collection'
+    ? `<div class="hdr">Collection · All quotes</div><div class="grid">${card('dream-believe-achieve', 'Dream Believe Achieve')}${card('born-to-shine', 'Born to shine')}${card('trust-the-process', 'Trust the process')}${card('ghar-bar', 'Ghar Bar')}</div>`
+    : `<div class="wrap"><div class="pimg"></div><h1 class="ph-title">Sabr Shukr</h1><div class="ph-price">₹${unit}</div><form class="ntpb-form" action="/cart/add"><input type="hidden" name="id" value="1"><button class="btn" type="button">Add to cart</button></form></div>`;
+  const src = new URL('assets/nt-sheet.js', location.href).href, cssHref = new URL('assets/nt-sheet-preview.css', location.href).href;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="${cssHref}"><style>body{margin:0;font-family:Nunito,Helvetica Neue,sans-serif;background:#fdf7f0;color:#3a2b1d;--ff:Fraunces,Georgia,serif;--fb:Nunito,sans-serif;--ink:#3a2b1d;--line:#e9ddca;--paper:#fbf6ee;--accent:#d4541f;--muted:#9c8a76;--ink2:#6f5b46}.wrap{padding:14px}.pimg{aspect-ratio:1;background:#ece2d2;border-radius:14px;margin-bottom:12px}.ph-title{font-family:Georgia,serif;font-size:24px;margin:0 0 6px}.ph-price{font-size:20px;font-weight:800;margin-bottom:10px}.ph-price s{font-size:14px;color:#9c8a76;font-weight:400;margin-right:6px}.btn{display:block;width:100%;background:#d4541f;color:#fff;border:0;border-radius:12px;padding:14px;font:inherit;font-weight:800;font-size:15px}.nts-lbox{margin-top:14px;border:1px solid #e9ddca;border-radius:12px;padding:10px;background:#fff}.nts-lbox .h{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9c8a76;font-weight:800;margin-bottom:8px}.hdr{padding:14px 14px 4px;font-family:Georgia,serif;font-size:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px}.pcard{display:block;border:1px solid #e9ddca;border-radius:10px;padding:8px;text-decoration:none;color:inherit;background:#fff}.pcard .pi{aspect-ratio:1;background:#ece2d2;border-radius:8px;margin-bottom:6px}.pcard .pf{font-size:12px}.pcard .pp{font-weight:800}</style></head><body>${body}<div style="height:420px"></div>
+<script>window.NT_PREVIEW_PATH=${JSON.stringify(view === 'collection' ? '/collections/all' : '/products/sabr-shukr')};window.NT_SHEET=${JSON.stringify(data)};${at ? `(function(){var t=${at},n=Date.now,d=n();Date.now=function(){return t+(n()-d)};})();` : ''}
+var __cart=${JSON.stringify(cart)};var __f=window.fetch;window.fetch=function(u,i){var s=typeof u==='string'?u:(u&&u.url)||'';if(/\\/cart\\.js/.test(s))return Promise.resolve(new Response(JSON.stringify(__cart),{headers:{'Content-Type':'application/json'}}));if(/\\/cart\\/add/.test(s)){var b={};try{b=JSON.parse(i.body)}catch(e){};var q=(b.items&&b.items[0]&&b.items[0].quantity)||1;__cart.item_count+=q;__cart.total_price+=q*${unit * 100};__cart.items.push({handle:'dream-believe-achieve',quantity:q,price:${unit * 100},original_price:${unit * 100},product_type:'',title:'Dream'});return Promise.resolve(new Response(JSON.stringify({items:[{handle:'dream-believe-achieve'}]}),{headers:{'Content-Type':'application/json'}}));}return __f.apply(this,arguments)};
+${view === 'drawer' ? `window.addEventListener('load',function(){setTimeout(function(){if(window.ntOffersOpen)window.ntOffersOpen();},700)});` : ''}<\/script>
+<script src="${src}"><\/script></body></html>`;
+  fr.srcdoc = html;
 }
 function spRenderList() {
   const q = (document.getElementById('spSearch').value || '').toLowerCase();
