@@ -837,7 +837,7 @@ function ofState(o) {
   const now = _of.now_ist || '', live = ofLiveAt(now);
   if (live && live.id === o.id) return ['live', 'LIVE NOW', '#2e8b57'];
   if (o.enabled === false) return ['off', 'off', '#9c8a76'];
-  if (o.id === _of.default_id) return ['default', 'default · waiting', '#6f5b46'];
+  if (o.id === _of.default_id) return ['default', 'always · shows when no dated offer runs', '#6f5b46'];
   if (!o.start) return ['idle', 'not scheduled · never shows', '#b03a2e'];
   if (now < o.start) return ['upcoming', 'starts ' + ofNice(o.start), '#d4541f'];
   if (o.end && now >= o.end) return ['ended', 'ended ' + ofNice(o.end), '#9c8a76'];
@@ -852,14 +852,14 @@ async function ofLoad() {
 function ofRender(full) {
   if (!_of) return;
   const now = _of.now_ist || '', live = ofLiveAt(now), pr = _of.prices || {}, cur = pr.current, run = pr.running;
-  const win = o => o.id === _of.default_id && !o.start ? 'default · runs whenever nothing else is on' : o.start ? `${ofNice(o.start)} → ${o.end ? ofNice(o.end) : 'no end'}` : 'no window set';
+  const win = o => o.id === _of.default_id && !o.start ? 'always (default)' : o.start ? `starts ${ofNice(o.start)} · ${o.end ? 'ends ' + ofNice(o.end) : 'no end'}` : 'no start date set';
   const kindShort = o => o.kind === 'none' ? 'plain prices' : o.kind === 'sale' ? `flat sale · ${o.prices.map(p => p + '→' + (p - o.off)).join(', ')}` : o.kind === 'tiers' ? 'step discounts' : `every Nth free · ${(o.steps || []).join(', ')}`;
   const priceLine = run ? `${run.action === 'apply' ? 'cutting prices' : 'restoring prices'} · ${run.done} of ${run.total} variants…` : cur ? `<b style="color:#b03a2e">prices are cut</b> on ${cur.done} variants since ${new Date(cur.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'prices normal';
   const bar = run ? `<div style="height:5px;background:#eee;border-radius:3px;margin:4px 0"><div style="height:5px;width:${run.total ? Math.round(run.done / run.total * 100) : 0}%;background:#2e8b57;border-radius:3px"></div></div>` : '';
   const cards = _of.offers.map((o, i) => {
     const [st, lbl, col] = ofState(o), ed = _ofEdit === o.id;
     return `<div class="of-card${ed ? ' on' : ''}${st === 'live' ? ' live' : ''}" style="border:1.5px solid ${ed ? 'var(--ink)' : st === 'live' ? '#2e8b57' : 'var(--line)'};border-radius:12px;padding:8px 12px;background:${st === 'live' ? '#e6f4ea' : '#fff'};display:flex;gap:10px;align-items:center;flex-wrap:wrap;opacity:${o.enabled === false ? '.6' : '1'}">
-      <label title="the default runs whenever no scheduled offer is on" style="flex-direction:row;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);cursor:pointer"><input type="radio" name="of_def" ${o.id === _of.default_id ? 'checked' : ''} ${o.kind === 'sale' ? 'disabled title="a sale needs a window; it cannot be the default"' : ''} onchange="ofSetDefault('${o.id}')">default</label>
+      <label title="the default shows whenever no dated offer is running" style="flex-direction:row;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);cursor:pointer"><input type="radio" name="of_def" ${o.id === _of.default_id ? 'checked' : ''} ${o.kind === 'sale' ? 'disabled title="a sale needs dates; it cannot be the default"' : ''} onchange="ofSetDefault('${o.id}')">always</label>
       <div style="min-width:220px;flex:1"><b>${esc(o.name)}</b> <small class="note">${esc(kindShort(o))}</small><br><small class="note">${esc(win(o))}</small></div>
       <span style="font-size:.72rem;font-weight:800;color:${col};${st === 'live' ? 'background:#2e8b57;color:#fff;padding:2px 8px;border-radius:999px' : ''}">${esc(lbl)}</span>
       <span style="display:flex;gap:4px;flex-wrap:wrap">
@@ -916,10 +916,14 @@ function ofRenderEditor() {
     <div>
       <div class="row">${inp('name', 'Name (for this list)', o.name, 'text', 'style="width:200px"')}<label>Kind<select id="of_kind" onchange="ofKind(this.value)">${Object.entries(OF_KINDS).map(([k, l]) => `<option value="${k}"${o.kind === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <label style="flex-direction:row;align-items:center;gap:6px;margin-top:14px"><input type="checkbox" ${o.enabled !== false ? 'checked' : ''} onchange="ofField('enabled', this.checked)"> on</label></div>
-      <div class="row" style="margin-top:8px;align-items:center"><b style="font-size:.8rem">When</b>
-        ${sale ? '' : `<label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="of_when" ${isDef ? 'checked' : ''} onchange="ofSetDefault('${o.id}')"> default · whenever nothing else is on</label>`}
-        <label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="of_when" ${!isDef || sale ? 'checked' : ''} onchange="ofWindowOn('${o.id}')"> scheduled</label>
-        ${inp('start', 'from (IST)', ofLocal(o.start), 'datetime-local', '')}${sale ? inp('days', 'days (24 h each)', o.days || 3, 'number', 'style="width:70px" min="1" max="14"') : ''}${inp('end', sale ? 'ends (IST) · set by days' : 'till (IST, blank = no end)', ofLocal(o.end), 'datetime-local', sale ? 'disabled' : '')}</div>
+      <div style="margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fdf8f1">
+        <div class="row" style="align-items:center"><b style="font-size:.8rem">When does it run?</b>
+          ${sale ? '' : `<label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="of_when" ${isDef ? 'checked' : ''} onchange="ofSetDefault('${o.id}')"> Always · it is the default, shown whenever no dated offer is running</label>`}
+          <label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="of_when" ${!isDef || sale ? 'checked' : ''} onchange="ofWindowOn('${o.id}')"> Between two dates</label></div>
+        ${isDef && !sale ? '' : `<div class="row" style="margin-top:6px;align-items:flex-end">${inp('start', 'Starts (IST)', ofLocal(o.start), 'datetime-local', '')}
+          ${sale ? `${inp('days', 'Runs for (days, 24 h each)', o.days || 3, 'number', 'style="width:90px" min="1" max="14"')}<span class="note" style="padding-bottom:8px">→ ends <b id="of_endtxt">${esc(ofNice(o.end) || '—')}</b></span>`
+          : `<label style="flex-direction:row;align-items:center;gap:6px;padding-bottom:8px"><input type="checkbox" id="of_noend" ${o.end ? '' : 'checked'} onchange="ofNoEnd(this.checked)"> No end · runs until you turn it off</label>${inp('end', 'Ends (IST)', ofLocal(o.end), 'datetime-local', o.end ? '' : 'disabled')}`}</div>`}
+      </div>
       ${none ? '<div class="note" style="margin-top:8px">Plain prices: the site shows nothing extra. The strip appears only with something in the cart, as a cart summary.</div>' : ''}
       ${sale ? `<div class="row" style="margin-top:8px">${inp('title', 'Headline (the offer)', o.title, 'text', 'style="width:200px"')}${inp('sub', 'Hurry line', o.sub, 'text', 'style="width:240px"')}</div>
         <div class="row" style="margin-top:6px">${inp('day1', 'Day 1 line', o.day1, 'text', 'style="width:190px"')}${inp('day2', 'Day 2 line', o.day2, 'text', 'style="width:190px"')}${inp('day3', 'Day 3 line', o.day3, 'text', 'style="width:190px"')}${inp('day_more', 'Day 4+ line', o.day_more, 'text', 'style="width:150px"')}</div>
@@ -946,7 +950,8 @@ function ofRenderEditor() {
   ofPreview();
 }
 function ofCur() { return _of.offers.find(x => x.id === _ofEdit); }
-function ofField(k, v) { const o = ofCur(); if (!o) return; if (k === 'start' || k === 'end') v = ofIst(v); o[k] = v; if (o.kind === 'sale' && (k === 'start' || k === 'days')) { o.end = o.start ? ofPlus(o.start, (+o.days || 3) * 24) : ''; const e = document.getElementById('of_end'); if (e) e.value = ofLocal(o.end); } ofMark(); ofPreview(); ofListOnly(); }
+function ofField(k, v) { const o = ofCur(); if (!o) return; if (k === 'start' || k === 'end') v = ofIst(v); o[k] = v; if (o.kind === 'sale' && (k === 'start' || k === 'days')) { o.end = o.start ? ofPlus(o.start, (+o.days || 3) * 24) : ''; const e = document.getElementById('of_endtxt'); if (e) e.textContent = ofNice(o.end) || '—'; } ofMark(); ofPreview(); ofListOnly(); }
+function ofNoEnd(on) { const o = ofCur(); if (!o) return; const e = document.getElementById('of_end'); if (on) { o.end = ''; if (e) { e.value = ''; e.disabled = true; } } else { o.end = ofPlus(o.start || (_of.now_ist || '').slice(0, 10) + ' 00:00', 7 * 24); if (e) { e.value = ofLocal(o.end); e.disabled = false; } } ofMark(); ofPreview(); ofListOnly(); }
 function ofKind(k) { const o = ofCur(); if (!o) return; const keep = { id: o.id, name: o.name, enabled: o.enabled, start: o.start, end: o.end, areas: o.areas }; const c = ofClean({ ...o, ...keep, kind: k }); if (k === 'sale' && !c.start) c.start = ofPlus((_of.now_ist || '').slice(0, 10) + ' 00:00', 24); Object.assign(o, c); for (const key in o) if (!(key in c)) delete o[key]; if (k === 'sale' && _of.default_id === o.id) _of.default_id = (_of.offers.find(x => x.kind === 'none' && x.id !== o.id) || {}).id || ''; ofMark(); ofRender(); }
 function ofWindowOn(id) { const o = _of.offers.find(x => x.id === id); if (!o) return; if (_of.default_id === id) _of.default_id = (_of.offers.find(x => x.kind === 'none' && x.id !== id) || {}).id || ''; if (!o.start) o.start = ofPlus((_of.now_ist || '').slice(0, 10) + ' 00:00', 24); ofMark(); ofRender(); }
 function ofArea(k, on) { const o = ofCur(); if (!o) return; o.areas = o.areas || {}; o.areas[k] = on; ofMark(); ofPreview(); ofListOnly(); }
