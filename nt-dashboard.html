@@ -912,7 +912,7 @@ function ofRenderEditor() {
   const tiers = o.tiers && o.tiers.length ? o.tiers : [{ at: 2, off: 100 }, { at: 3, pct: 10 }, { at: 6, pct: 20 }];
   box.innerHTML = `<div style="border:1.5px solid var(--ink);border-radius:12px;padding:10px 12px;background:#fff">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b>✎ ${esc(o.name)}</b><span class="note">changes show on the preview as you type · they reach the site after Save offers + Update website</span><button class="btn" style="margin-left:auto;padding:3px 10px" onclick="_ofEdit=null;ofRender()">Close editor</button></div>
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:14px;align-items:start">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 410px;gap:14px;align-items:start">
     <div>
       <div class="row">${inp('name', 'Name (for this list)', o.name, 'text', 'style="width:200px"')}<label>Kind<select id="of_kind" onchange="ofKind(this.value)">${Object.entries(OF_KINDS).map(([k, l]) => `<option value="${k}"${o.kind === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <label style="flex-direction:row;align-items:center;gap:6px;margin-top:14px"><input type="checkbox" ${o.enabled !== false ? 'checked' : ''} onchange="ofField('enabled', this.checked)"> on</label></div>
@@ -940,7 +940,7 @@ function ofRenderEditor() {
         <select id="of_pv_cart" onchange="_ofPrev.cart=+this.value;ofPreview()">${[0, 1, 2, 3, 4].map(n => `<option value="${n}"${_ofPrev.cart === n ? ' selected' : ''}>${n === 0 ? 'empty cart' : n + ' in cart'}</option>`).join('')}</select>
         ${sale ? `<select id="of_pv_when" onchange="_ofPrev.when=this.value;ofPreview()">${[['day1', 'day 1'], ['day2', 'day 2'], ['last', 'last day'], ['hour', 'last hour']].map(([v, l]) => `<option value="${v}"${_ofPrev.when === v ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
       </div>
-      <iframe id="ofPreview" style="width:390px;height:720px;border:8px solid #2b2118;border-radius:28px;background:#fdf7f0;display:block"></iframe>
+      <iframe id="ofPreview" style="box-sizing:content-box;width:390px;height:720px;border:8px solid #2b2118;border-radius:28px;background:#fdf7f0;display:block"></iframe>
       <div class="note" style="margin-top:4px">The real strip script on a mock page with three ₹599 designs. Scroll inside it; tap the strip to open the drawer.</div>
     </div></div></div>`;
   ofPreview();
