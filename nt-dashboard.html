@@ -268,6 +268,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
     <div class="hd"><h2>🧺 Sheet picks</h2><span class="note" id="spWhen"></span><button class="btn" id="spPub" onclick="spPublish()" style="margin-left:auto">⬆ Update website</button><button class="x" onclick="document.getElementById('spModal').classList.remove('open')">✕</button></div>
     <div class="note" style="margin-bottom:8px">What the site shows after an Add to cart. Suggestions come from sales; pin what you want kept, remove what you do not, and press Update website. Untouched cards keep following the data.</div>
     <div class="sp-offer" id="spOffer"></div>
+    <div class="sp-offer" id="spSale"></div>
     <div class="sp-offer" id="spColls"></div>
     <div class="sp-wrap"><div class="sp-list"><input id="spSearch" placeholder="Find a design…" oninput="spRenderList()" style="width:100%;font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:6px"><div id="spList"></div></div><div class="sp-body" id="spBody"><div class="skel" style="height:120px"></div></div></div>
   </div>
@@ -717,6 +718,76 @@ async function openSheetPicks(after) {
   const pub = _sp.published;
   document.getElementById('spWhen').textContent = pub ? `on site: ${new Date(pub.at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${pub.products} designs` : 'not on the site yet';
   _spCur = _sp.products[0] && _sp.products[0].handle; spRenderOffer(); spRenderColls(); spRenderList(); spRender();
+  spSaleLoad();
+}
+// ---------- Sale prices and the scheduled offer switch ----------
+let _spSale = null, _spSalePrev = null, _spSalePoll = null;
+const spIst = v => v ? v.replace('T', ' ').slice(0, 16) : '';
+const spFmt = s => s ? new Date(s).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+async function spSaleLoad() {
+  try { _spSale = await api({ action: 'sale_status' }); } catch (e) { document.getElementById('spSale').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  spRenderSale(); spRenderOfferNext();
+  clearTimeout(_spSalePoll);
+  if (_spSale.running) _spSalePoll = setTimeout(spSaleLoad, 5000);
+}
+function spRenderOfferNext() {
+  const el = document.getElementById('spoNext'); if (!el) return;
+  const n = _spSale && _spSale.offer_next;
+  el.innerHTML = n && !n.fired
+    ? `<span class="note">⏰ <b>${esc(n.offer.title || 'next offer')}</b> goes live at <b>${esc(n.at)}</b> IST (${esc(n.offer.note || '')}) · the site is republished then on its own</span> <button class="btn" style="padding:2px 8px" onclick="spOfferUnschedule()">cancel</button>`
+    : (n && n.fired ? `<span class="note">last switch: ${esc(n.offer.title || '')} went live at ${esc(n.at)}${n.error ? ' · <b style="color:#b03a2e">' + esc(n.error) + '</b>' : ''}</span>` : '');
+}
+async function spOfferSchedule() {
+  const at = spIst(document.getElementById('spo_at').value); if (!at) return alert('Pick the date and time (IST) first.');
+  if (!confirm(`Schedule the offer as filled in above to go live at ${at} IST? The current offer stays on the site until then.`)) return;
+  try { await api({ action: 'offer_schedule', at, offer: spReadOffer() }); } catch (e) { return alert(e.message); }
+  spSaleLoad();
+}
+async function spOfferUnschedule() { try { await api({ action: 'offer_schedule_cancel' }); } catch (e) { return alert(e.message); } spSaleLoad(); }
+function spRenderSale() {
+  const s = _spSale || {}, cur = s.current, run = s.running, sch = s.schedule || {};
+  const prices = (sch.prices && sch.prices.length ? sch.prices : [599, 799, 899]);
+  const pts = [599, 799, 899, 999].map(p => `<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="sps_p${p}" ${prices.includes(p) ? 'checked' : ''}> ₹${p}</label>`).join('');
+  const bar = run ? `<div style="margin:6px 0"><div class="note">${run.action === 'apply' ? 'Applying' : 'Reverting'} · ${run.done} of ${run.total} variants…</div><div style="height:6px;background:#eee;border-radius:3px"><div style="height:6px;width:${run.total ? Math.round(run.done / run.total * 100) : 0}%;background:#2e8b57;border-radius:3px"></div></div></div>` : '';
+  const state = cur
+    ? `<div style="padding:8px 10px;border-radius:10px;background:#e6f4ea;border:1.5px solid #2e8b57;margin:6px 0"><b>Sale prices are ON</b> · ₹${cur.off} off at ${(cur.prices || []).map(p => '₹' + p).join(', ')} · ${cur.done}/${cur.total} variants · since ${spFmt(cur.created_at)}${cur.error ? `<div class="note" style="color:#b03a2e;white-space:pre-line">${esc(cur.error)}</div>` : ''} <button class="btn" style="margin-left:8px" onclick="spSaleRevert()" ${run ? 'disabled' : ''}>↩ Revert to normal prices</button></div>`
+    : `<div class="note" style="margin:6px 0">Normal prices are on the site. Preview, then apply when ready, or set the times below.</div>`;
+  const prev = _spSalePrev ? `<table style="margin:6px 0;width:auto"><thead><tr><th>Price</th><th class="num">Becomes</th><th class="num">Variants</th><th class="num">Designs</th><th>Examples</th></tr></thead><tbody>${_spSalePrev.summary.map(b => `<tr><td>₹${b.price}</td><td class="num"><b>₹${b.new_price}</b> <span class="note">(was ₹${b.price})</span></td><td class="num">${b.variants}</td><td class="num">${b.products}</td><td class="note">${esc(b.samples.join(' · '))}</td></tr>`).join('')}</tbody></table><div class="note">${_spSalePrev.total} variants on ${_spSalePrev.products} designs would change${_spSalePrev.skipped.already ? ` · ${_spSalePrev.skipped.already} already carry this discount` : ''}${_spSalePrev.skipped.draft ? ` · ${_spSalePrev.skipped.draft} draft products left alone` : ''}. The old price becomes the struck-through compare-at price, so the site shows the cut.</div>` : '';
+  const hist = (s.runs || []).slice(0, 6).map(r => `<div class="note">${spFmt(r.created_at)} · ${r.action}${r.of_run ? ' of #' + r.of_run : ''} #${r.id} · ₹${r.off} off ${(r.prices || []).join('/')} · ${r.done}/${r.total} · ${r.status}${r.reverted_at ? ' · reverted ' + spFmt(r.reverted_at) : ''}</div>`).join('');
+  document.getElementById('spSale').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🏷 Sale prices</b><span class="note">flat ₹ off every variant at these price points · old price shown struck through · one tap puts everything back exactly</span></div>
+    ${state}${bar}
+    <div class="row" style="align-items:center">${pts}<label>Flat off ₹<input id="sps_off" type="number" value="${sch.off || 200}" style="width:80px"></label>
+      <button class="btn" onclick="spSalePreview(this)">Preview</button>
+      <button class="btn" style="background:var(--ink);color:#fff" onclick="spSaleApply(this)" ${cur || run ? 'disabled' : ''}>Apply now</button></div>
+    ${prev}
+    <div class="row" style="align-items:center;margin-top:8px"><span class="note">Or on a timer (IST):</span><label>apply at<input id="sps_apply_at" type="datetime-local" value="${(sch.apply_at || '').replace(' ', 'T')}"></label><label>revert at<input id="sps_revert_at" type="datetime-local" value="${(sch.revert_at || '').replace(' ', 'T')}"></label><button class="btn" onclick="spSaleSchedule(this)">Save timer</button>
+      ${sch.apply_at || sch.revert_at ? `<span class="note">${sch.apply_at ? `apply ${esc(sch.apply_at)}${sch.applied_fired ? ' ✓ fired' : ''}` : ''}${sch.revert_at ? ` · revert ${esc(sch.revert_at)}${sch.reverted_fired ? ' ✓ fired' : ''}` : ''} · checked every 10 min</span>` : ''}</div>
+    ${hist ? `<details style="margin-top:6px"><summary class="note" style="cursor:pointer">History</summary>${hist}</details>` : ''}`;
+}
+function spSaleBody() { const prices = [599, 799, 899, 999].filter(p => document.getElementById('sps_p' + p).checked); return { prices, off: +document.getElementById('sps_off').value || 200 }; }
+async function spSalePreview(btn) {
+  btn.disabled = true; btn.textContent = 'reading prices…';
+  try { _spSalePrev = await api({ action: 'sale_preview', ...spSaleBody() }); } catch (e) { alert(e.message); }
+  btn.disabled = false; btn.textContent = 'Preview'; spRenderSale();
+}
+async function spSaleApply(btn) {
+  const b = spSaleBody(); if (!b.prices.length) return alert('Tick at least one price point.');
+  if (!_spSalePrev) return alert('Press Preview first to see what will change.');
+  if (!confirm(`Cut ₹${b.off} from ${_spSalePrev.total} variants (${b.prices.map(p => '₹' + p).join(', ')}) on the live store now?`)) return;
+  btn.disabled = true;
+  try { await api({ action: 'sale_apply', ...b }); } catch (e) { alert(e.message); }
+  _spSalePrev = null; spSaleLoad();
+}
+async function spSaleRevert() {
+  if (!confirm('Put every variant back to its old price and compare-at now?')) return;
+  try { await api({ action: 'sale_revert' }); } catch (e) { alert(e.message); }
+  spSaleLoad();
+}
+async function spSaleSchedule(btn) {
+  const b = spSaleBody(); btn.disabled = true;
+  try { await api({ action: 'sale_schedule', ...b, apply_at: spIst(document.getElementById('sps_apply_at').value), revert_at: spIst(document.getElementById('sps_revert_at').value) }); } catch (e) { alert(e.message); }
+  btn.disabled = false; spSaleLoad();
 }
 // Collections that stand for "similar to this": a design in one of them gets that collection as its One for you row and a See all link on its page
 let _spCollQ = '';
@@ -781,6 +852,7 @@ function spRenderOffer() {
       <div class="note" style="margin:6px 0">Words in braces fill themselves: {t1} {t2} {t3} the unlock points and {t1_pay} {t2_pay} {t3_pay} their prices · {code} the code earned so far · {next_code} the next code · {codes} all codes · {n} pieces in cart · {pay} what they pay · {k} how many free · {more} pieces to the next free · {next_n} / {next_pay} the next set and its price · {every} {every_1} {nth} the offer numbers · {note} the small line · {coll} the collection name. FREE goes bold on its own.</div>
       <div class="row" id="spoText">${Object.entries(SPO_TEXT_LABELS).map(([k, l]) => `<label style="min-width:260px;flex:1">${l}<input id="spo_tx_${k}" value="${esc((o.text || {})[k] || SPO_TEXT_DEFAULT[k])}" oninput="spOfferPreview()"></label>`).join('')}</div>
     </details>
+    <div class="row" style="margin-top:8px;align-items:center"><span class="note">⏰ Or make the offer above go live later:</span><label>at (IST)<input id="spo_at" type="datetime-local"></label><button class="btn" onclick="spOfferSchedule()">Schedule</button><span id="spoNext"></span></div>
     <div class="row" id="spoTiers" style="margin-top:8px">${tiers.slice(0, 3).map((t, i) => `<label>Step ${i + 1}: at N pieces<input id="spo_t${i}_at" type="number" min="2" value="${t.at || ''}" style="width:70px" oninput="spOfferPreview()"></label><label>&nbsp;<select id="spo_t${i}_k" onchange="spOfferPreview()"><option value="off"${t.pct ? '' : ' selected'}>₹ off</option><option value="pct"${t.pct ? ' selected' : ''}>% off</option></select></label><label>value<input id="spo_t${i}_v" type="number" value="${t.pct || t.off || ''}" style="width:70px" oninput="spOfferPreview()"></label>`).join('')}</div>
     <div class="prev" id="spoPrev"></div>`;
   spOfferPreview();
