@@ -33,6 +33,10 @@
   }
   var saleNow = saleState(); if (saleNow) offerLive = false;
   function saleLine(s) { return '🔥 ' + s.day + ' · ' + (s.last ? 'ends in ' : 'today ends in ') + s.clock; }
+  // In the sale every card shows the cut price with the old one struck: a 599 reads ₹399 (was ₹599) whether the data
+  // still carries the old price or already the cut one
+  function salePrice(base) { if (!SALE) return null; var off = +SALE.off || 200, pts = (SALE.prices || [599, 799, 899]).map(Number); for (var i = 0; i < pts.length; i++) { if (base === pts[i]) return { now: base - off, was: base }; if (base === pts[i] - off) return { now: base, was: pts[i] }; } return null; }
+  function salePriceHtml(base) { var sp = salePrice(base); return sp ? '<em>' + fmt(sp.now) + '</em><s>' + fmt(sp.was) + '</s>' : fmt(base); }
   // The strip has one short line for the cart summary: first part of the note only ("Prepaid only"); the drawer carries all of it
   var NOTE_SHORT = (OFFER.note || '').split(' · ')[0].trim();
   // One coupon per unlock point (DIWALI1 at 3, DIWALI2 at 6, DIWALI3 at 9); the last one repeats beyond
@@ -150,8 +154,8 @@
     '#ntsPdp .nts-ac .nm{font-family:var(--ff,Georgia,serif);font-weight:600;font-size:12.5px;line-height:1.2;margin:6px 0 4px;height:2.4em;overflow:hidden}#ntsPdp .nts-ac .cs{display:flex;gap:4px;height:14px;overflow:hidden;margin-bottom:5px}#ntsPdp .nts-ac .cs span{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line,#e9ddca);cursor:pointer;flex:none}#ntsPdp .nts-ac .cs span.on{box-shadow:0 0 0 2px var(--ink,#3a2b1d)}' +
     '#ntsPdp .nts-ac .pr{font-size:13px;font-weight:800}#ntsPdp .nts-ac .pr em{font-style:normal;color:#2e8b57}#ntsPdp .nts-ac .pr s{color:var(--muted,#9c8a76);font-weight:600;margin-left:4px;font-size:11px}#ntsPdp .nts-ac .add{margin-top:6px;width:100%;border:0;background:var(--accent,#d4541f);color:#fff;border-radius:8px;padding:7px 4px;font:inherit;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#ntsPdp .nts-ac .add.in{background:#2e8b57}#ntsPdp .nts-ac.all{display:grid;place-items:center;text-align:center;font-weight:800;font-size:13px;color:var(--ink2,#6f5b46);border-style:dashed;background:transparent;text-decoration:none;line-height:1.4}' +
     '#ntSheetRoot .nts-mini .gift{display:grid;place-items:center;width:100%;height:100%;font-size:22px;background:#fbe9d7}#ntSheetRoot .nts-ladder{grid-template-columns:repeat(auto-fit,minmax(56px,1fr))}' +
-    '#ntSheetRoot .nts-strip.sale{background:linear-gradient(100deg,#c1001a 0%,#e8192c 55%,#ff5a3c 100%);padding:8px 30px 8px 12px;animation:ntsGlow 1.1s ease-in-out infinite}@keyframes ntsGlow{0%,100%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 0 rgba(232,25,44,.65)}60%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 8px rgba(232,25,44,0)}}#ntSheetRoot .nts-strip.sale .a{color:#fff2a8;font-weight:900;opacity:1;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;white-space:normal;overflow:visible;line-height:1.2}#ntSheetRoot .nts-strip.sale .b{display:flex;flex-direction:column;gap:4px;margin-top:4px;white-space:normal;line-height:1}#ntSheetRoot .nts-strip.sale .row{display:flex;align-items:center;gap:10px}#ntSheetRoot .nts-strip.sale .clk{display:inline-flex;align-items:center;gap:2px;flex:none}#ntSheetRoot .nts-strip.sale .clk b{display:inline-block;min-width:2ch;text-align:center;font-size:24px;font-weight:900;color:#fff;background:#1a0608;border-radius:7px;padding:5px 6px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.02em;box-shadow:inset 0 -2px 0 rgba(255,255,255,.08)}#ntSheetRoot .nts-strip.sale .clk b[data-s]{animation:ntsSec 1s steps(1) infinite}@keyframes ntsSec{0%{background:#5a0a12;color:#fff2a8}50%{background:#1a0608;color:#fff}}#ntSheetRoot .nts-strip.sale .clk i{font-style:normal;font-weight:900;font-size:20px;color:#fff;line-height:1;margin:0 1px;animation:ntsColon 1s steps(1) infinite}@keyframes ntsColon{50%{opacity:.35}}#ntSheetRoot .nts-strip.sale .of{color:#fff;font-size:16px;font-weight:900;line-height:1.1;min-width:0}#ntSheetRoot .nts-strip.sale .hurry{display:block;color:#fff;font-size:11px;font-weight:700;opacity:.95;line-height:1.2}#ntSheetRoot .nts-strip.sale .br{display:none}#ntSheetRoot .nts-strip.sale .chev{border-color:#fff}#ntSheetRoot .nts-strip.sale.hot{animation-duration:.6s}#ntSheetRoot .nts-strip.sale.hot .clk b{background:#fff;color:#c1001a}#ntSheetRoot .nts-strip.sale.hot .clk b[data-s]{animation:none}' +
-    '#ntsPdp .nts-fest.sale .n{font-variant-numeric:tabular-nums}';
+    '#ntSheetRoot .nts-strip.sale{background:linear-gradient(100deg,#c1001a 0%,#e8192c 55%,#ff5a3c 100%);padding:8px 30px 8px 12px;animation:ntsGlow 1.1s ease-in-out infinite}@keyframes ntsGlow{0%,100%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 0 rgba(232,25,44,.65)}60%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 8px rgba(232,25,44,0)}}#ntSheetRoot .nts-strip.sale .a{color:#fff2a8;font-weight:900;opacity:1;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;white-space:normal;overflow:visible;line-height:1.2}#ntSheetRoot .nts-strip.sale .b{display:flex;flex-direction:column;gap:4px;margin-top:4px;white-space:normal;line-height:1}#ntSheetRoot .nts-strip.sale .row{display:flex;align-items:center;gap:10px}#ntSheetRoot .nts-strip.sale .clk{display:inline-flex;align-items:center;gap:2px;flex:none}#ntSheetRoot .nts-strip.sale .clk b{display:inline-block;min-width:2ch;text-align:center;font-size:24px;font-weight:900;color:#fff;background:#1a0608;border-radius:7px;padding:5px 6px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.02em;box-shadow:inset 0 -2px 0 rgba(255,255,255,.08)}#ntSheetRoot .nts-strip.sale .clk b[data-s]{animation:ntsSec 1s steps(1) infinite}@keyframes ntsSec{0%{background:#5a0a12;color:#fff2a8}50%{background:#1a0608;color:#fff}}#ntSheetRoot .nts-strip.sale .clk i{font-style:normal;font-weight:900;font-size:20px;color:#fff;line-height:1;margin:0 1px;animation:ntsColon 1s steps(1) infinite}@keyframes ntsColon{50%{opacity:.35}}#ntSheetRoot .nts-strip.sale .of{color:#fff;font-size:16px;font-weight:900;line-height:1.1;min-width:0}#ntSheetRoot .nts-strip.sale .hurry{display:block;color:#fff;font-size:11px;font-weight:700;opacity:.95;line-height:1.2}#ntSheetRoot .nts-strip.sale .br{display:none}#ntSheetRoot .nts-strip.sale .chev{border-color:#fff}#ntSheetRoot .nts-strip.sale.hot{animation-duration:.6s}#ntSheetRoot .nts-strip.sale.hot .clk b{background:#fff;color:#c1001a}#ntSheetRoot .nts-strip.sale.hot .clk b[data-s]{animation:none}#ntSheetRoot .nts-foot .nts-strip.sale{animation:none;padding-right:12px}#ntSheetRoot .nts-foot .nts-strip.sale .clk b{font-size:18px;padding:4px 5px}#ntSheetRoot .nts-foot .nts-strip.sale .of{font-size:14px}#ntSheetRoot .nts-foot .nts-strip.sale .b small{display:block}' +
+    '#ntsPdp .nts-fest.sale{background:linear-gradient(100deg,#c1001a 0%,#e8192c 55%,#ff5a3c 100%);box-shadow:0 8px 20px -10px rgba(232,25,44,.7)}#ntsPdp .nts-fest.sale .t{color:#fff2a8;text-transform:uppercase;letter-spacing:.06em;font-size:13px;font-family:var(--fb,"Nunito",sans-serif);font-weight:900}#ntsPdp .nts-fest.sale .s b{color:#fff;font-size:15px}#ntsPdp .nts-fest.sale .n.c{font-variant-numeric:tabular-nums;font-size:13px;padding:2px 9px;background:#1a0608;color:#fff;letter-spacing:.04em}';
   root.appendChild(css);
   var _lastN = -1;
   function paintStrip() {
@@ -160,7 +164,7 @@
     $('ntsCartN').textContent = total + ' item' + (total === 1 ? '' : 's');
     st.classList.toggle('empty', !S.n); $('ntsSheet').classList.toggle('empty', !total);
     if (saleNow) { paintSale(total); return; }
-    $('ntsStrip').classList.remove('sale');
+    $('ntsStrip').classList.remove('sale'); $('ntsFootA').parentNode.classList.remove('sale');
     if (!S.n && !offerLive) { st.classList.remove('on'); _lastN = 0; return; }
     if (S.n && !cur) cur = lastHandle();
     st.classList.add('on');
@@ -197,10 +201,10 @@
     setClock(B);
     $('ntsStripPP').textContent = '';
     $('ntsStripBar').style.width = '0';
-    $('ntsFootA').textContent = a; setClock(FB);
+    $('ntsFootA').textContent = a; FB.parentNode.classList.add('sale'); setClock(FB);
     $('ntsCartN2').textContent = $('ntsCartN').textContent;
     $('ntsS').textContent = SALE.title || '';
-    var fc = document.getElementById('ntsFestClock'); if (fc) fc.textContent = s.day + ' \u00b7 ' + s.clock;
+    var fc = document.getElementById('ntsFestClock'); if (fc) fc.textContent = s.clock;
     if (document.getElementById('ntsPdp')) renderPdp();
     decorateCards();
   }
@@ -216,7 +220,7 @@
     if (c.gift) all.gift.l = 'Another gift';
     return order.filter(function (k) { return (P[k] || []).filter(function (x) { return CAT[x]; }).length; }).map(function (k) { return { k: k, l: all[k].l, lead: all[k].lead, items: P[k].filter(function (x) { return CAT[x]; }).slice(0, 4) }; });
   }
-  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
+  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (saleNow) { var sp = salePrice(base); return sp ? sp.now : base; } if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
   function renderTabs() {
     $('ntsTabs').innerHTML = tabs.map(function (t, i) { return '<button class="nts-tab' + (i === tab ? ' on' : '') + '" data-i="' + i + '">' + t.l + '</button>'; }).join('');
     renderRow();
@@ -233,7 +237,7 @@
         '<a class="im" href="/products/' + h + '">' + (c.img ? '<img src="' + esc(c.img) + '" alt="" loading="lazy">' : '') + '</a>' +
         '<div class="nm">' + esc(c.t) + '</div><div class="pf">' + esc(why) + '</div>' +
         (c.cols.length > 1 ? '<div class="cs">' + c.cols.map(function (cc, i) { return '<span class="' + (i === pi ? 'on' : '') + '" style="background:' + hexOf(cc) + '" title="' + esc(cc.n) + '" data-h="' + h + '" data-i="' + i + '"></span>'; }).join('') + '</div>' : '<div class="cs"></div>') +
-        '<div class="pr">' + (np ? fmt(np) : 'FREE') + (np < base ? '<s>' + fmt(base) + '</s>' : '') + '</div>' +
+        '<div class="pr">' + (np ? fmt(np) : 'FREE') + (np < base ? '<s>' + fmt(base) + '</s>' : (saleNow && salePrice(base) ? '<s>' + fmt(salePrice(base).was) + '</s>' : '')) + '</div>' +
         '<button class="add' + (inCart[h] ? ' in' : '') + '" data-h="' + h + '" data-vid="' + col.vid + '">' + (inCart[h] ? 'Added ✓  + 1 more' : '+ Add' + (c.cols.length > 1 ? ' · ' + esc(col.n) : '')) + '</button></div>';
     }).join('') + '<a class="nts-card all" href="' + (t.k === 'home' ? '/collections/all' : t.k === 'gift' ? '/collections/all' : t.k === 'pairs' ? '/pages/ask-nukkad' : '/collections/all') + '">See all →</a>';
   }
@@ -296,11 +300,11 @@
     // No rows of its own but a collection: lead with that collection's designs from the catalogue
     if (!P.self && (CAT[h] || {}).cl) { var ch = CAT[h].cl.h, fromColl = []; for (var hk in CAT) if (hk !== h && CAT[hk].cl && CAT[hk].cl.h === ch) fromColl.push(hk); P = { self: fromColl, coll: CAT[h].cl }; }
     // A design in a highlighted collection leads with that collection (its "self" row), then what sold with it
-    (P.coll ? [P.self, P.pairs, P.home, G.pairs, G.self, G.home] : [P.pairs, P.self, P.home, G.pairs, G.self, G.home]).forEach(function (l) { (l || []).forEach(function (x) { var c = CAT[x]; if (!c || seen[x] || !eligibleHandle(x) || c.p !== UNIT || !c.cols.length) return; seen[x] = 1; out.push(x); }); });
+    (P.coll ? [P.self, P.pairs, P.home, G.pairs, G.self, G.home] : [P.pairs, P.self, P.home, G.pairs, G.self, G.home]).forEach(function (l) { (l || []).forEach(function (x) { var c = CAT[x]; if (!c || seen[x] || !eligibleHandle(x) || (c.p !== UNIT && !(saleNow && salePrice(c.p))) || !c.cols.length) return; seen[x] = 1; out.push(x); }); });
     return out.slice(0, 6);
   }
   function pageColour() { var r = document.querySelector('input[type=radio][name^="ntpb-opt-"]:checked'); return r ? String(r.value).toLowerCase() : ''; }
-  function alsoHeader(S) { var r = S.n % EVERY, c = _pdp && (PICKS[_pdp.h] || {}).coll, V = vars({ n: S.n, pay: S.pay, list: S.list, k: 0, more: 0, next_n: 0, next_pay: 0, coll: c ? c.t : '' }); return TIERS.length || !S.n ? tx(c ? 'also_coll' : 'also_empty', V) : r === EVERY - 1 ? tx('also_hot', V) : r ? tx('also_first', V) : tx('also_done', V); }
+  function alsoHeader(S) { var r = S.n % EVERY, c = _pdp && (PICKS[_pdp.h] || {}).coll, V = vars({ n: S.n, pay: S.pay, list: S.list, k: 0, more: 0, next_n: 0, next_pay: 0, coll: c ? c.t : '' }); return saleNow || TIERS.length || !S.n ? tx(c ? 'also_coll' : 'also_empty', V) : r === EVERY - 1 ? tx('also_hot', V) : r ? tx('also_first', V) : tx('also_done', V); }
   var _pdp = null;
   function renderAlso() {
     if (!_pdp || !$('ntsAlsoRow')) return;
@@ -317,7 +321,7 @@
       var sc = c.cl || (PICKS[x] || {}).coll;
       return '<div class="nts-ac" data-h="' + x + '"><a class="im" href="/products/' + x + '">' + (c.img ? '<img src="' + esc(c.img) + '" alt="" loading="lazy">' : '') + '</a>' + (sc ? '<a class="sim" href="' + esc(sc.u || '/collections/' + sc.h) + '" title="' + esc(sc.t) + '">' + esc(tx('sim_tag', { coll: sc.t })) + '</a>' : '') + '<div class="nm">' + esc(c.t) + '</div>' +
         (c.cols.length > 1 ? '<div class="cs">' + c.cols.map(function (cc, i) { return '<span class="' + (i === _pdp.pick[x] ? 'on' : '') + '" style="background:' + hexOf(cc) + '" title="' + esc(cc.n) + '" data-h="' + x + '" data-i="' + i + '"></span>'; }).join('') + '</div>' : '<div class="cs"></div>') +
-        '<div class="pr">' + (function (m) { return m <= 0 ? '<em>FREE</em><s>' + fmt(base) + '</s>' : m < base ? '<em>' + fmt(m) + '</em><s>' + fmt(base) + '</s>' : fmt(base); })(marginal(base)) + '</div>' +
+        '<div class="pr">' + (saleNow ? salePriceHtml(base) : (function (m) { return m <= 0 ? '<em>FREE</em><s>' + fmt(base) + '</s>' : m < base ? '<em>' + fmt(m) + '</em><s>' + fmt(base) + '</s>' : fmt(base); })(marginal(base))) + '</div>' +
         '<button class="add' + (inCart[x] ? ' in' : '') + '" data-h="' + x + '" data-vid="' + col.vid + '">' + (inCart[x] ? 'Added ✓ · +1' : '+ Add' + (c.cols.length > 1 ? ' · ' + esc(col.n) : '')) + '</button></div>';
     }).join('');
   }
@@ -346,7 +350,7 @@
     // The offer first, then the pieces that complete it
     // A festive band above the offer: the offer title, its one-line promise and the small note
     var V0 = vars({ n: 0, pay: 0, list: 0, k: 0, more: 0, next_n: 0, next_pay: 0 });
-    var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(SALE.title || 'Pick any at ₹399') + '</div><div class="s">' + esc(SALE.sub || '') + ' <span class="n" id="ntsFestClock">' + esc(saleNow.day + ' · ' + saleNow.clock) + '</span></div></div>'
+    var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(saleNow.day) + '</div><div class="s"><b>' + esc(SALE.title || 'Pick any at ₹399') + '</b> · ' + esc(SALE.sub || '') + ' <span class="n c" id="ntsFestClock">' + esc(saleNow.clock) + '</span></div></div>'
       : offerLive ? '<div class="nts-fest"><div class="t">✨ ' + esc(OFFER.title) + '</div><div class="s">' + (TIERS.length ? esc(TIERS.map(function (t) { return t.label + ' at ' + t.at; }).join(' · ')) : bold(tx('empty_line', V0)) + ' · ' + esc(tx('empty_side', V0))) + '' + (OFFER.note ? ' <span class="n">' + esc(OFFER.note) + '</span>' : '') + '</div></div>' : '';
     box.innerHTML = band + (saleNow ? '' : '<div class="nts-lbox"><div class="h">' + esc(TIERS.length ? 'Buy more, pay less' : tx('ladder_title', V0)) + '</div><div id="ntsPdpLadder"></div></div>') +
       (list.length ? '<div class="nts-lbox nts-also"><div class="h" id="ntsAlsoH"></div><div class="nts-arow" id="ntsAlsoRow"></div></div>' : '');
