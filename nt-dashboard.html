@@ -177,6 +177,20 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <div class="row" id="amzRow"></div>
     </div>
   </div>
+  <section id="ledger" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">📒 Ledger</h2>
+      <span class="note" id="lgWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span class="pills" style="margin:0" id="lgGroup"><span class="pill on" data-g="day" onclick="lgSet('day')">Days</span><span class="pill" data-g="week" onclick="lgSet('week')">Weeks</span><span class="pill" data-g="month" onclick="lgSet('month')">Months</span><span class="pill" data-g="fy" onclick="lgSet('fy')">Financial years</span></span>
+        <select id="lgDays" onchange="loadLedger(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="7" selected>last 7 days</option><option value="14">last 14 days</option><option value="30">last 30 days</option><option value="60">last 60 days</option><option value="90">last 90 days</option></select>
+        <select id="lgWeeks" onchange="loadLedger(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px;display:none"><option value="8">last 8 weeks</option><option value="12" selected>last 12 weeks</option><option value="26">last 26 weeks</option><option value="52">last 52 weeks</option></select>
+        <button class="btn" onclick="lgCsv()">⬇ CSV</button>
+        <button class="btn" onclick="loadLedger(true)">↻</button>
+      </span>
+    </div>
+    <div id="lgBody"><div class="skel" style="height:120px"></div></div>
+  </section>
   <section id="pace" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <h2 style="margin:0;font-size:1.05rem">⏱ Pace</h2>
@@ -196,20 +210,6 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       </span>
     </div>
     <div id="nightBody"><div class="skel" style="height:90px"></div></div>
-  </section>
-  <section id="ledger" class="pace">
-    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <h2 style="margin:0;font-size:1.05rem">📒 Ledger</h2>
-      <span class="note" id="lgWhen"></span>
-      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <span class="pills" style="margin:0" id="lgGroup"><span class="pill on" data-g="day" onclick="lgSet('day')">Days</span><span class="pill" data-g="week" onclick="lgSet('week')">Weeks</span><span class="pill" data-g="month" onclick="lgSet('month')">Months</span><span class="pill" data-g="fy" onclick="lgSet('fy')">Financial years</span></span>
-        <select id="lgDays" onchange="loadLedger(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px"><option value="7" selected>last 7 days</option><option value="14">last 14 days</option><option value="30">last 30 days</option><option value="60">last 60 days</option><option value="90">last 90 days</option></select>
-        <select id="lgWeeks" onchange="loadLedger(true)" style="font:inherit;padding:4px 8px;border:1.5px solid var(--line);border-radius:8px;display:none"><option value="8">last 8 weeks</option><option value="12" selected>last 12 weeks</option><option value="26">last 26 weeks</option><option value="52">last 52 weeks</option></select>
-        <button class="btn" onclick="lgCsv()">⬇ CSV</button>
-        <button class="btn" onclick="loadLedger(true)">↻</button>
-      </span>
-    </div>
-    <div id="lgBody"><div class="skel" style="height:120px"></div></div>
   </section>
   <section id="codw" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
