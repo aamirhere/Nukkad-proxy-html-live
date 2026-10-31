@@ -746,7 +746,7 @@ async function spOfferSchedule() {
 async function spOfferUnschedule() { try { await api({ action: 'offer_schedule_cancel' }); } catch (e) { return alert(e.message); } spSaleLoad(); }
 function spRenderSale() {
   const s = _spSale || {}, cur = s.current, run = s.running, sch = s.schedule || {};
-  const prices = (sch.prices && sch.prices.length ? sch.prices : [599, 799, 899]);
+  const prices = (sch.prices && sch.prices.length ? sch.prices : [799, 899]);
   const pts = [599, 799, 899, 999].map(p => `<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" id="sps_p${p}" ${prices.includes(p) ? 'checked' : ''}> ₹${p}</label>`).join('');
   const bar = run ? `<div style="margin:6px 0"><div class="note">${run.action === 'apply' ? 'Applying' : 'Reverting'} · ${run.done} of ${run.total} variants…</div><div style="height:6px;background:#eee;border-radius:3px"><div style="height:6px;width:${run.total ? Math.round(run.done / run.total * 100) : 0}%;background:#2e8b57;border-radius:3px"></div></div></div>` : '';
   const state = cur
