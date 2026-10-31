@@ -187,7 +187,7 @@
     if (!s) { saleNow = null; offerLive = !OFFER.ends || new Date().toISOString().slice(0, 10) <= OFFER.ends; paintStrip(); return; }
     var st = $('ntsDock'), strip = $('ntsStrip');
     st.classList.add('on'); st.classList.toggle('empty', !total); strip.classList.add('sale'); strip.classList.toggle('hot', !!s.urgent); strip.classList.remove('pulse');
-    var a = saleLine(s), b = '<b>' + esc(SALE.title || 'Flat ₹200 off every quote') + '</b>' + (SALE.sub ? ' <small>' + esc(SALE.sub) + '</small>' : '');
+    var a = saleLine(s), b = '<b>' + esc(SALE.title || 'All quotes at ₹399 · pick any') + '</b>' + (SALE.sub ? ' <small>' + esc(SALE.sub) + '</small>' : '');
     if ($('ntsStripA').textContent !== a) $('ntsStripA').textContent = a;
     if ($('ntsStripB').innerHTML !== b) $('ntsStripB').innerHTML = b;
     $('ntsStripPP').textContent = total ? total + ' in cart' : '';
@@ -340,7 +340,7 @@
     // The offer first, then the pieces that complete it
     // A festive band above the offer: the offer title, its one-line promise and the small note
     var V0 = vars({ n: 0, pay: 0, list: 0, k: 0, more: 0, next_n: 0, next_pay: 0 });
-    var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(SALE.title || 'Flat ₹200 off every quote') + '</div><div class="s">' + esc(SALE.sub || '') + ' <span class="n" id="ntsFestClock">' + esc(saleNow.day + ' · ' + saleNow.clock) + '</span></div></div>'
+    var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(SALE.title || 'All quotes at ₹399 · pick any') + '</div><div class="s">' + esc(SALE.sub || '') + ' <span class="n" id="ntsFestClock">' + esc(saleNow.day + ' · ' + saleNow.clock) + '</span></div></div>'
       : offerLive ? '<div class="nts-fest"><div class="t">✨ ' + esc(OFFER.title) + '</div><div class="s">' + (TIERS.length ? esc(TIERS.map(function (t) { return t.label + ' at ' + t.at; }).join(' · ')) : bold(tx('empty_line', V0)) + ' · ' + esc(tx('empty_side', V0))) + '' + (OFFER.note ? ' <span class="n">' + esc(OFFER.note) + '</span>' : '') + '</div></div>' : '';
     box.innerHTML = band + (saleNow ? '' : '<div class="nts-lbox"><div class="h">' + esc(TIERS.length ? 'Buy more, pay less' : tx('ladder_title', V0)) + '</div><div id="ntsPdpLadder"></div></div>') +
       (list.length ? '<div class="nts-lbox nts-also"><div class="h" id="ntsAlsoH"></div><div class="nts-arow" id="ntsAlsoRow"></div></div>' : '');
