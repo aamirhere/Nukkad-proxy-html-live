@@ -41,7 +41,7 @@
   }
   // The live offer's numbers, read into the variables the rest of the script works from; called again when the window changes
   var ACTIVE, KIND, OFFER, MODE, AREA, EVERY, UNIT, TIERS, offerLive, SALE, saleNow, NOTE_SHORT, CODES, TX, MAX_PRICE, ELIG, TH, GAP;
-  var TX_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'People also buy with this', also_coll: 'More from {coll}', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
+  var TX_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'You might also like', also_coll: 'You might also like', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
   function applyOffer(o) {
     ACTIVE = o; KIND = o.kind || 'none';
     SALE = KIND === 'sale' ? o : null;
@@ -226,6 +226,14 @@
     decorateCards();
   }
   // The strip as the sale timer: the day line and clock on top, the flat offer below, the cart count at the side
+  // Just the digits: the strip's clock tiles, the sheet foot and the product band, updated in place every second
+  function saleClocks(s) {
+    var parts = s.clock.split(':'), set = function (el) { if (!el || !el.querySelector('.clk')) return; el.querySelector('[data-h]').textContent = parts[0]; el.querySelector('[data-m]').textContent = parts[1]; el.querySelector('[data-s]').textContent = parts[2]; };
+    set($('ntsStripB')); set($('ntsFootB'));
+    var fc = document.getElementById('ntsFestClock'); if (fc) fc.textContent = s.clock;
+    var a = '\uD83D\uDD25 ' + s.day; if ($('ntsStripA').textContent !== a) { paintStrip(); return; }
+    $('ntsStrip').classList.toggle('hot', !!s.urgent);
+  }
   function paintSale(total) {
     var s = saleState();
     if (!s) { saleNow = null; offerLive = offerIsLive(); paintStrip(); return; }
@@ -258,7 +266,7 @@
   setInterval(function () {
     var o = resolveOffer(Date.now());
     if (o.id !== ACTIVE.id) { switchOffer(o); return; }
-    if (SALE) { var s = saleState(); if (s) { saleNow = s; paintStrip(); } else if (saleNow) { saleNow = null; paintStrip(); } }
+    if (SALE) { var s = saleState(); if (s) { saleNow = s; saleClocks(s); } else if (saleNow) { saleNow = null; paintStrip(); } }
   }, 1000);
   window.ntOfferSwitch = function (id) { for (var i = 0; i < OFFERS.offers.length; i++) if (OFFERS.offers[i].id === id) return switchOffer(OFFERS.offers[i]); };
   function lastHandle() { var h = ss.get('nts_last'); if (h && CAT[h] && PICKS[h]) return h; var items = _cart.items || []; for (var i = 0; i < items.length; i++) if (CAT[items[i].handle] && PICKS[items[i].handle]) return items[i].handle; return D.generic && CAT[D.generic] ? D.generic : null; }
