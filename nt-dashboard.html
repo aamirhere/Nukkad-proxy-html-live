@@ -177,6 +177,17 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <div class="row" id="amzRow"></div>
     </div>
   </div>
+  <section id="saleday" class="pace" style="border:2px solid #e8192c">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">🔥 Sale day</h2>
+      <span class="note" id="sdWhen"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button class="btn" onclick="openSaleDay()">⤢ Open · every ad, targets</button>
+        <button class="btn" onclick="loadSaleDay(true)">↻</button>
+      </span>
+    </div>
+    <div id="sdBody"><div class="skel" style="height:120px"></div></div>
+  </section>
   <section id="ledger" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <h2 style="margin:0;font-size:1.05rem">📒 Ledger</h2>
@@ -261,6 +272,12 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
       <button class="btn" onclick="loadShop(true)">↻ Refresh</button>
     </div>
     <div id="shopBody"><div class="skel" style="height:80px"></div></div>
+  </div>
+</div>
+<div class="modal" id="sdModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:45">
+  <div class="panel" style="width:min(1200px,100%)">
+    <div class="hd"><h2>🔥 Sale day · every ad</h2><span class="note" id="sdWhen2"></span><button class="btn" style="margin-left:auto" onclick="loadSaleDay(true)">↻</button><button class="x" onclick="document.getElementById('sdModal').classList.remove('open')">✕</button></div>
+    <div id="sdFull"><div class="skel" style="height:200px"></div></div>
   </div>
 </div>
 <div class="modal" id="spModal" onclick="if(event.target===this)this.classList.remove('open')" style="z-index:46">
@@ -697,6 +714,63 @@ function lineChart(series, key, color, fmt) {
 // Meta's signed image links expire after a while; when one fails, ask our thumb route for a fresh one, once
 function thumbUrl(r) { const id = (r.ads && r.ads[0] && r.ads[0].ad_id) || ''; return id ? `${API}?action=thumb&ad_id=${id}` : ''; }
 function thumbRetry(img) { const id = img.getAttribute('data-ad'); if (id && !img.dataset.retried) { img.dataset.retried = '1'; img.src = `${API}?action=thumb&ad_id=${id}&t=${Date.now()}`; } else img.style.visibility = 'hidden'; }
+
+// ---------- Sale day: one account against targets ----------
+let _sd = null, _sdT = null;
+async function loadSaleDay(force) {
+  if (!force && _sd) { renderSaleDay(); return; }
+  try { _sd = await api({ action: 'sale_day' }); } catch (e) { document.getElementById('sdBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  renderSaleDay();
+  clearTimeout(_sdT); _sdT = setTimeout(() => loadSaleDay(true), 5 * 60e3);
+}
+const sdTag = t => ({ scale: ['#d8f3dc', '#1a7f37'], hold: ['#e8f0fe', '#1a3f9c'], watch: ['#fff3cd', '#8a6d00'], pause: ['#fde8e8', '#b00020'], 'too early': ['#eee', '#777'] })[t] || ['#eee', '#777'];
+const sdPill = t => { const [bg, fg] = sdTag(t); return `<span style="background:${bg};color:${fg};font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap">${esc(t)}</span>`; };
+function sdClock(sale) {
+  if (!sale || !sale.end) return '';
+  const end = new Date(sale.end.replace(' ', 'T') + ':00+05:30').getTime(), s = Math.max(0, Math.floor((end - Date.now()) / 1000));
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d ? `${d}d ${h}h left` : `${h}h ${String(m).padStart(2, '0')}m left`;
+}
+function renderSaleDay() {
+  const d = _sd; if (!d) return;
+  const f = v => '₹' + Math.round(v || 0).toLocaleString('en-IN');
+  const T = d.targets, m = d.meta, sh = d.shop, b = d.budgets, p = d.projection;
+  const when = `${d.account} account · ${d.day} · by ${d.at}${d.sale ? ` · ${esc(d.sale.name)} · ${sdClock(d.sale)}` : ' · no sale window open'}`;
+  document.getElementById('sdWhen').textContent = when; const w2 = document.getElementById('sdWhen2'); if (w2) w2.textContent = when;
+  const tile = (n, l, sub, col) => `<div class="tile"><div class="n"${col ? ` style="color:${col}"` : ''}>${n}</div><div class="l">${l}</div><div class="s">${sub}</div></div>`;
+  const roasCol = m.roas >= T.roas ? '#1a7f37' : m.roas >= T.roas * 0.6 ? '#8a6d00' : '#b00020';
+  const bar = (used, elapsed) => `<div style="position:relative;height:8px;background:#eee;border-radius:4px;margin-top:6px"><div style="height:8px;width:${Math.min(100, used || 0)}%;background:${used != null && elapsed != null && elapsed - used >= 15 ? '#c0392b' : used - elapsed >= 10 ? '#1a3f9c' : '#2e8b57'};border-radius:4px"></div><i style="position:absolute;top:-2px;left:${Math.min(100, elapsed || 0)}%;width:2px;height:12px;background:var(--ink)"></i></div>`;
+  const tiles = `<div class="pt">
+    ${tile(f(m.spend), `Spend so far · ${esc(d.account)}`, `target ${f(T.spend)} · ${d.vs.spend_pct ?? '—'}% · pace ${f(p.spend)} by midnight`)}
+    ${tile(`${b.used_pct ?? '—'}%`, 'Budget spent', `${f(b.spent)} of ${f(b.total)} · ${f(b.left)} left · ${b.holders.length} live budget${b.holders.length === 1 ? '' : 's'}${bar(b.used_pct, b.elapsed_pct)}`)}
+    ${tile(m.roas, `Meta ROAS`, `target ${T.roas} · ${m.purchases} sales · ${f(m.value)}`, roasCol)}
+    ${tile(sh.orders, 'Shop orders today', `target ${T.orders} · ${d.vs.orders_pct ?? '—'}% · pace ${p.orders}${d.vs.orders_on_pace === false ? ' <b class="dn">behind</b>' : d.vs.orders_on_pace ? ' <b class="up">on track</b>' : ''}`)}
+    ${tile(f(sh.revenue), 'Shop revenue today', `AOV ${f(sh.aov)} · ${sh.units_per_order} pieces/order · pace ${f(p.revenue)}`)}
+    ${tile(m.cpa == null ? '—' : f(m.cpa), 'Cost per sale', `CTR ${m.ctr}% · CPC ${m.cpc == null ? '—' : f(m.cpc)} · ${m.clicks} clicks`)}
+  </div>`;
+  const read = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}</div>`;
+  const counts = Object.entries(d.counts).map(([t, n]) => `${sdPill(t)} <b style="margin-right:8px">${n}</b>`).join('');
+  const top = d.ads.slice(0, 6).map(a => `<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line);font-size:.82rem"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.name)} · ${esc(a.adset || '')}">${esc(a.name)}</span><span style="width:70px;text-align:right">${f(a.spend)}</span><span style="width:60px;text-align:right">${a.purchases} sale${a.purchases === 1 ? '' : 's'}</span><span style="width:60px;text-align:right;font-weight:800;color:${a.roas >= T.roas ? '#1a7f37' : a.roas < 1.5 ? '#b00020' : 'inherit'}">${a.roas}</span>${sdPill(a.tag)}</div>`).join('');
+  document.getElementById('sdBody').innerHTML = read + tiles + (d.ads.length ? `<div class="note" style="margin:4px 0 2px"><b>Ads today</b> · ${counts} · top by spend, open for all ${d.ads.length}</div>${top}` : '');
+  if (document.getElementById('sdModal').classList.contains('open')) renderSaleDayFull();
+}
+function openSaleDay() { document.getElementById('sdModal').classList.add('open'); if (_sd) renderSaleDayFull(); else loadSaleDay(true); }
+function renderSaleDayFull() {
+  const d = _sd; if (!d) return;
+  const f = v => '₹' + Math.round(v || 0).toLocaleString('en-IN'), T = d.targets;
+  const inp = (k, l, v) => `<label style="font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:2px">${l}<input id="sdt_${k}" type="number" value="${esc(String(v ?? ''))}" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px;width:110px"></label>`;
+  const targets = `<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fdf8f1;margin-bottom:10px"><b style="font-size:.85rem">Targets for the day</b>${inp('roas', 'Meta ROAS', T.roas)}${inp('orders', 'Shop orders', T.orders)}${inp('spend', 'Spend ₹', T.spend)}<label style="font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:2px">Account<select id="sdt_account" style="font:inherit;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"><option${d.account === 'IST' ? ' selected' : ''}>IST</option><option${d.account === 'IST new' ? ' selected' : ''}>IST new</option><option${d.account === 'PDT' ? ' selected' : ''}>PDT</option></select></label><button class="btn" onclick="sdSaveTargets(this)">Save targets</button><span class="note">the verdicts use the ROAS target: an ad at or above it with 2+ sales reads scale</span></div>`;
+  const b = d.budgets;
+  const budgets = b.holders.length ? `<div class="note" style="margin:6px 0 2px"><b>Budgets on ${esc(d.account)}</b> · ${f(b.spent)} of ${f(b.total)} spent · ${b.elapsed_pct}% of the day gone</div><table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:12px"><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase"><th style="text-align:left;padding:4px">Budget holder</th><th style="text-align:right">Daily budget</th><th style="text-align:right">Spent</th><th style="text-align:right">Left</th><th style="text-align:right">Used</th></tr>${b.holders.map(h => `<tr style="border-top:1px solid var(--line)"><td style="padding:4px">${esc(h.name)}<br><small class="note">${h.kind === 'campaign' ? 'CBO campaign' : esc(h.campaign || '')}</small></td><td style="text-align:right">${f(h.budget)}</td><td style="text-align:right">${f(h.spent)}</td><td style="text-align:right">${f(h.left)}</td><td style="text-align:right;font-weight:800;color:${h.used_pct != null && b.elapsed_pct - h.used_pct >= 15 ? '#b00020' : 'inherit'}">${h.used_pct ?? '—'}%</td></tr>`).join('')}</table>` : `<div class="note">No live budget on ${esc(d.account)} right now${b.error ? ` · ${esc(b.error)}` : ''}.</div>`;
+  const ads = d.ads.length ? `<div class="note" style="margin:6px 0 2px"><b>Every ad today</b> · sorted by spend · verdicts against a ${T.roas} ROAS target</div><table style="width:100%;border-collapse:collapse;font-size:.8rem"><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase"><th style="text-align:left;padding:4px">Ad</th><th style="text-align:right">Spend</th><th style="text-align:right">Sales</th><th style="text-align:right">Value</th><th style="text-align:right">ROAS</th><th style="text-align:right">CPA</th><th style="text-align:right">CTR</th><th style="text-align:right">Clicks</th><th style="text-align:left;padding-left:8px">Verdict</th></tr>${d.ads.map(a => `<tr style="border-top:1px solid var(--line)"><td style="padding:4px;max-width:320px"><b>${esc(a.name)}</b><br><small class="note">${esc(a.adset || '')} · ${esc(a.campaign || '')}</small></td><td style="text-align:right">${f(a.spend)}</td><td style="text-align:right">${a.purchases}</td><td style="text-align:right">${f(a.value)}</td><td style="text-align:right;font-weight:800;color:${a.roas >= T.roas ? '#1a7f37' : a.roas < 1.5 && a.spend >= 300 ? '#b00020' : 'inherit'}">${a.roas}</td><td style="text-align:right">${a.cpa == null ? '—' : f(a.cpa)}</td><td style="text-align:right">${a.ctr}%</td><td style="text-align:right">${a.clicks}</td><td style="padding-left:8px">${sdPill(a.tag)}<br><small class="note">${esc(a.why)}</small></td></tr>`).join('')}</table>` : '<div class="note">No ad has delivered yet today.</div>';
+  document.getElementById('sdFull').innerHTML = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}</div>` + targets + budgets + ads;
+}
+async function sdSaveTargets(btn) {
+  const g = id => document.getElementById('sdt_' + id).value;
+  btn.disabled = true;
+  try { await api({ action: 'sale_day_targets', roas: g('roas'), orders: g('orders'), spend: g('spend'), account: g('account') }); } catch (e) { alert(e.message); }
+  btn.disabled = false; loadSaleDay(true);
+}
 // ---------- Sheet picks ----------
 let _sp = null, _spCur = null, _spDirty = {};
 // The picks are built in the background; the page shows the last build and waits for a newer one after a save
@@ -1721,7 +1795,7 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
-  loadPace(true); loadNight(true); loadCod(true); loadLedger(true); loadBasket(true); loadWho(true, true);
+  loadPace(true); loadNight(true); loadCod(true); loadLedger(true); loadBasket(true); loadWho(true, true); loadSaleDay(true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
@@ -1729,7 +1803,7 @@ async function refreshAll() {
 _g = { ...presetRange('today'), label: 'today' }; _range = { since: _g.since, until: _g.until }; _shopRange = { since: _g.since, until: _g.until }; document.getElementById('gFrom').value = _g.since; document.getElementById('gTo').value = _g.until; document.getElementById('gDay').value = _g.since; document.getElementById('gLabel').textContent = _g.since;
 // The top blocks first; the heavier sections a moment later so eight calls do not hit Shopify and Meta at once
 loadAds(); loadBlocks(); loadCrawl(); loadPace();
-setTimeout(() => { loadLedger(true); loadCod(true); }, 2500);
+setTimeout(() => { loadLedger(true); loadCod(true); loadSaleDay(true); }, 2500);
 setTimeout(() => { loadNight(); loadBasket(); loadWho(true); }, 6000);
 // Keep the page live while it is open: store numbers every 2 minutes, ads every 5. Reads come from the snapshot, so this is cheap.
 setInterval(() => { if (!document.hidden) loadCrawl(); }, 60e3);
