@@ -362,9 +362,11 @@
     // No rows of its own but a collection: lead with that collection's designs from the catalogue
     if (!P.self && (CAT[h] || {}).cl) { var ch = CAT[h].cl.h, fromColl = []; for (var hk in CAT) if (hk !== h && CAT[hk].cl && CAT[hk].cl.h === ch) fromColl.push(hk); P = { self: fromColl, coll: CAT[h].cl }; }
     // A design in a highlighted collection leads with that collection (its "self" row), then what sold with it
-    (P.coll ? [P.self, P.pairs, P.home, G.pairs, G.self, G.home] : [P.pairs, P.self, P.home, G.pairs, G.self, G.home]).forEach(function (l) { (l || []).forEach(function (x) { var c = CAT[x]; if (!c || seen[x] || !eligibleHandle(x) || (offerLive && c.p !== UNIT) || !c.cols.length) return; seen[x] = 1; out.push(x); }); });
+    (P.coll ? [P.self, P.pairs, P.home, G.pairs, G.self, G.home] : [P.pairs, P.self, P.home, G.pairs, G.self, G.home]).forEach(function (l) { (l || []).forEach(function (x) { var c = CAT[x]; if (!c || seen[x] || !eligibleHandle(x) || !has599(c) || !c.cols.length) return; seen[x] = 1; out.push(x); }); });
     return out.slice(0, 6);
   }
+  // Stock quotes only: a piece whose own price, or one of its colour prices, is the quote price (₹599, read through the sale's cut)
+  function has599(c) { var ps = [c.p].concat((c.cols || []).map(function (x) { return x.p; })); if (/custom|logo|hamper|personali/i.test(c.t || '')) return false; return ps.some(function (p) { var sp = salePrice(+p); return (sp ? sp.was : +p) === 599; }); }
   function pageColour() { var r = document.querySelector('input[type=radio][name^="ntpb-opt-"]:checked'); return r ? String(r.value).toLowerCase() : ''; }
   function alsoHeader(S) { var r = S.n % EVERY, c = _pdp && (PICKS[_pdp.h] || {}).coll, V = vars({ n: S.n, pay: S.pay, list: S.list, k: 0, more: 0, next_n: 0, next_pay: 0, coll: c ? c.t : '' }); return saleNow || !offerLive || !AREA.also || TIERS.length || !S.n ? tx(c ? 'also_coll' : 'also_empty', V) : r === EVERY - 1 ? tx('also_hot', V) : r ? tx('also_first', V) : tx('also_done', V); }
   var _pdp = null;
