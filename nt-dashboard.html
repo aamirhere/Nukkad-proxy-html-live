@@ -1743,7 +1743,7 @@ async function loadPace(force) {
   catch (e) { if (seq !== _paceSeq) return; body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
   document.getElementById('pace').classList.remove('loading');
 }
-function paceChart(series, keys, colors, fmt, { cumulative = false, hourNow = 23, bars = false } = {}) {
+function paceChart(series, keys, colors, fmt, { cumulative = false, hourNow = 23, bars = false, flipAt = window._paceFlip || 12.5 } = {}) {
   const W = 640, H = 200, L = 60, R = 12, T = 14, B = 30, n = series.length;
   const vals = keys.map(k => { const a = series.map(r => +r[k] || 0); if (!cumulative) return a; let s = 0; return a.map(v => (s += v)); });
   const max = Math.max(...vals.flat(), 0.0001);
@@ -1751,7 +1751,8 @@ function paceChart(series, keys, colors, fmt, { cumulative = false, hourNow = 23
   const yT = [0, .25, .5, .75, 1].map(f => `<line x1="${L}" x2="${W - R}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="#eee3d3"/><text x="${L - 6}" y="${y(max * f) + 4}" font-size="11" fill="#9c8a76" text-anchor="end">${fmt(max * f)}</text>`).join('');
   const xT = series.map((r, i) => i % 3 === 0 ? `<text x="${x(i)}" y="${H - B + 16}" font-size="10.5" fill="#9c8a76" text-anchor="middle">${r.h}:00</text>` : '').join('');
   const nowLine = hourNow < 23 ? `<line x1="${x(hourNow)}" x2="${x(hourNow)}" y1="${T}" y2="${H - B}" stroke="#d4541f" stroke-dasharray="3 3" opacity=".6"/><text x="${x(hourNow) + 4}" y="${T + 10}" font-size="10" fill="#d4541f">now</text>` : '';
-  const flip = `<line x1="${x(12) + (x(13) - x(12)) / 2}" x2="${x(12) + (x(13) - x(12)) / 2}" y1="${T}" y2="${H - B}" stroke="#1a3f9c" stroke-dasharray="2 4" opacity=".5"/><text x="${x(12) + (x(13) - x(12)) / 2 + 4}" y="${H - B - 4}" font-size="9.5" fill="#1a3f9c">PDT flip</text>`;
+  const fx = x(Math.floor(flipAt)) + (x(Math.floor(flipAt) + 1) - x(Math.floor(flipAt))) * (flipAt % 1);
+  const flip = `<line x1="${fx}" x2="${fx}" y1="${T}" y2="${H - B}" stroke="#1a3f9c" stroke-dasharray="2 4" opacity=".5"/><text x="${fx + 4}" y="${H - B - 4}" font-size="9.5" fill="#1a3f9c">PDT flip</text>`;
   let body = '';
   if (bars) {
     const bw = (x(1) - x(0)) / (keys.length + 1);
@@ -1772,6 +1773,7 @@ function renderPace() {
   const mSeries = A ? d.series.map((r, i) => ({ ...r, spend: A.series[i].spend, spend_prev: A.series[i].spend_prev, clicks: A.series[i].clicks, clicks_prev: A.series[i].clicks_prev })) : d.series;
   const f = v => '₹' + Math.round(v).toLocaleString('en-IN');
   const dlt = (a, b, money) => { const pc = b ? Math.round(((a - b) / b) * 100) : null; return pc == null ? '<span class="note">—</span>' : `<b class="${pc >= 0 ? 'up' : 'dn'}">${pc > 0 ? '+' : ''}${pc}%</b> <span class="note">vs ${money ? f(b) : b}</span>`; };
+  window._paceFlip = (d.flip || {}).hours || 12.5;
   document.getElementById('paceWhen').textContent = `${d.day}${d.is_today ? ' · live, by ' + d.at : ''} · against ${d.ref} (${d.ref_label})`;
   let h = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}${d.errors && d.errors.length ? `<p class="note">⚠ ${d.errors.map(esc).join(' · ')}</p>` : ''}</div>`;
   const accts = Object.keys(d.per_account || {}).filter(a => d.per_account[a].totals.spend || d.per_account[a].totals.spend_prev);
