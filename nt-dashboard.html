@@ -139,6 +139,10 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .skel{height:14px;border-radius:6px;background:linear-gradient(90deg,#f3ebdf,#faf5ee,#f3ebdf);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 @media (max-width:600px){.panel{padding:14px}.tile .n{font-size:1.15rem}}
+/* phones: a wide table scrolls inside its box instead of pushing the page out of the screen */
+html,body{overflow-x:hidden;max-width:100%}
+.pace,.panel{min-width:0;max-width:100%}
+@media (max-width:760px){main{padding:10px 10px 60px}.pace{padding:12px 10px}.pace table,.panel table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}.pace table td,.pace table th,.panel table td,.panel table th{white-space:nowrap}.pace .pills,.panel .pills{max-width:100%}}
 </style>
 </head>
 <body>
