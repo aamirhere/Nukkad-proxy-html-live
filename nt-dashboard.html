@@ -185,12 +185,14 @@ html,body{overflow-x:hidden;max-width:100%}
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <h2 style="margin:0;font-size:1.05rem">🔥 Sale day</h2>
       <span class="note" id="sdWhen"></span>
+      <span id="sdLeft" style="font-weight:800;color:#b00020;font-size:.85rem"></span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span class="pills" style="margin:0" id="sdAccts"></span>
         <button class="btn" onclick="openSaleDay()">⤢ Open · every ad, targets</button>
         <button class="btn" onclick="loadSaleDay(true)">↻</button>
       </span>
     </div>
+    <div id="sdBench"></div>
     <div id="sdBody"><div class="skel" style="height:120px"></div></div>
   </section>
   <section id="ledger" class="pace">
@@ -722,11 +724,41 @@ function thumbRetry(img) { const id = img.getAttribute('data-ad'); if (id && !im
 
 // ---------- Sale day: one account against targets ----------
 let _sd = null, _sdT = null;
+let _sdB = null;
 async function loadSaleDay(force) {
   if (!force && _sd) { renderSaleDay(); return; }
-  try { _sd = await api({ action: 'sale_day' }); } catch (e) { document.getElementById('sdBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
-  renderSaleDay();
+  sdTick();
+  const bench = api({ action: 'sale_bench' }).then(b => { _sdB = b; renderSaleBench(); }).catch(e => { document.getElementById('sdBench').innerHTML = `<div class="warn">${esc(e.message)}</div>`; });
+  try { _sd = await api({ action: 'sale_day' }); } catch (e) { document.getElementById('sdBody').innerHTML = `<div class="warn">${esc(e.message)}</div>`; await bench; return; }
+  renderSaleDay(); await bench;
   clearTimeout(_sdT); _sdT = setTimeout(() => loadSaleDay(true), 5 * 60e3);
+}
+// minutes left in the Indian day, ticking on the page's own clock
+function sdTick() { const ist = new Date(Date.now() + 330 * 60000), left = 1440 - (ist.getUTCHours() * 60 + ist.getUTCMinutes()); const el = document.getElementById('sdLeft'); if (el) el.textContent = `⏳ ${Math.floor(left / 60)}h ${String(left % 60).padStart(2, '0')}m left today`; }
+setInterval(sdTick, 30000);
+// The benchmark: running totals by hour, two reference sale days beside today and tomorrow
+function renderSaleBench() {
+  const b = _sdB, box = document.getElementById('sdBench'); if (!b || !box) return;
+  const f = v => '₹' + Math.round(v || 0).toLocaleString('en-IN');
+  const ist = new Date(Date.now() + 330 * 60000), nowH = ist.getUTCHours();
+  const cols = b.cols || [];
+  const head = cols.map(c => `<th colspan="3" style="text-align:center;padding:4px 6px;border-left:1px solid var(--line);${c.key === b.today ? 'background:#fde8df' : ''}">${esc(c.label)}${c.key === b.today && c.at ? ` <small class="note">by ${esc(c.at)}</small>` : ''}</th>`).join('');
+  const sub = cols.map(c => `<th style="text-align:right;border-left:1px solid var(--line)">spend</th><th style="text-align:right">revenue</th><th style="text-align:right">ROAS</th>`).join('');
+  const rows = Array.from({ length: 24 }, (_, h) => {
+    const isNow = h === nowH;
+    const cells = cols.map(c => {
+      const has = h < c.hours, sp = c.spend[h], rv = c.rev[h];
+      const partial = c.key === b.today && h === c.hours - 1;
+      if (!has) return `<td style="border-left:1px solid var(--line)"></td><td></td><td></td>`;
+      const roas = sp ? (rv / sp).toFixed(2) : '—';
+      return `<td style="text-align:right;border-left:1px solid var(--line);${c.key === b.today ? 'background:#fff7f3' : ''}">${f(sp)}</td><td style="text-align:right;${c.key === b.today ? 'background:#fff7f3' : ''}">${f(rv)}${partial ? '<small class="note">*</small>' : ''}</td><td style="text-align:right;font-weight:800;${c.key === b.today ? 'background:#fff7f3;' : ''}color:${sp && rv / sp >= 4 ? '#1a7f37' : sp && rv / sp < 3 ? '#b00020' : 'inherit'}">${roas}</td>`;
+    }).join('');
+    return `<tr style="border-top:1px solid var(--line);${isNow ? 'outline:2px solid #e8192c;outline-offset:-2px' : ''}"><td style="padding:3px 6px;white-space:nowrap;color:var(--muted)">by ${String(h).padStart(2, '0')}:59</td>${cells}</tr>`;
+  }).join('');
+  const tot = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; return n >= 0 ? `<td style="text-align:right;border-left:1px solid var(--line)"><b>${f(c.spend[n])}</b></td><td style="text-align:right"><b>${f(c.rev[n])}</b></td><td style="text-align:right"><b>${c.spend[n] ? (c.rev[n] / c.spend[n]).toFixed(2) : '—'}</b></td>` : `<td style="border-left:1px solid var(--line)"></td><td></td><td></td>`; }).join('');
+  const ord = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; return `<td colspan="3" style="text-align:right;border-left:1px solid var(--line)" class="note">${n >= 0 ? c.orders[n] + ' orders' : ''}</td>`; }).join('');
+  box.innerHTML = `<div class="note" style="margin:0 0 4px"><b>Running totals since midnight</b> · Meta spend on every account, Shopify revenue · ROAS green at 4+, red under 3 · the red box is this hour · * means the hour is still running</div>
+    <div style="overflow-x:auto;max-width:100%"><table style="border-collapse:collapse;font-size:.78rem;min-width:720px;width:100%"><tr><th></th>${head}</tr><tr style="color:var(--muted);font-size:.66rem;text-transform:uppercase"><th></th>${sub}</tr>${rows}<tr style="border-top:2px solid var(--ink)"><td style="padding:4px 6px;color:var(--muted)">so far</td>${tot}</tr><tr><td></td>${ord}</tr></table></div>`;
 }
 const sdTag = t => ({ scale: ['#d8f3dc', '#1a7f37'], hold: ['#e8f0fe', '#1a3f9c'], watch: ['#fff3cd', '#8a6d00'], pause: ['#fde8e8', '#b00020'], 'too early': ['#eee', '#777'] })[t] || ['#eee', '#777'];
 const sdPill = t => { const [bg, fg] = sdTag(t); return `<span style="background:${bg};color:${fg};font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap">${esc(t)}</span>`; };
