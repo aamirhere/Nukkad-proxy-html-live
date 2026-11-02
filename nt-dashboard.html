@@ -139,7 +139,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .skel{height:14px;border-radius:6px;background:linear-gradient(90deg,#f3ebdf,#faf5ee,#f3ebdf);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 @media (max-width:600px){.panel{padding:14px}.tile .n{font-size:1.15rem}}
-.sdb td,.sdb th{padding:6px 8px}.sdb tr{border-top:1px solid #f0e6d8!important}.sdb tbody tr:hover td{background:#faf3ea}
+.sdb td,.sdb th{padding:6px 8px}@media (max-width:760px){.sdb td,.sdb th{padding:5px 4px}.pace #sdBench table{display:table;white-space:normal}}.sdb tr{border-top:1px solid #f0e6d8!important}.sdb tbody tr:hover td{background:#faf3ea}
 /* phones: a wide table scrolls inside its box instead of pushing the page out of the screen */
 html,body{overflow-x:hidden;max-width:100%}
 .pace,.panel{min-width:0;max-width:100%}
@@ -738,12 +738,15 @@ async function loadSaleDay(force) {
 let _sdHour = -1;
 function sdTick() { const ist = new Date(Date.now() + 330 * 60000), left = 1440 - (ist.getUTCHours() * 60 + ist.getUTCMinutes()); const el = document.getElementById('sdLeft'); if (el) el.textContent = `⏳ ${Math.floor(left / 60)}h ${String(left % 60).padStart(2, '0')}m left today · ${60 - ist.getUTCMinutes()} min left in this hour`; const hl = document.getElementById('sdHourLeft'); if (hl) hl.textContent = `${60 - ist.getUTCMinutes()} min left`; if (_sdHour >= 0 && _sdHour !== ist.getUTCHours() && _sdB) renderSaleBench(); _sdHour = ist.getUTCHours(); }
 setInterval(sdTick, 30000);
+let _sdNarrow = window.innerWidth < 760; window.addEventListener('resize', () => { const n = window.innerWidth < 760; if (n !== _sdNarrow) { _sdNarrow = n; if (_sdB) renderSaleBench(); } });
 // The benchmark: running totals by hour, two reference sale days beside today and tomorrow
 function renderSaleBench() {
   const b = _sdB, box = document.getElementById('sdBench'); if (!b || !box) return;
   const f = v => '₹' + Math.round(v || 0).toLocaleString('en-IN');
   const ist = new Date(Date.now() + 330 * 60000), nowH = ist.getUTCHours();
-  const cols = b.cols || [];
+  // phones: the first reference day and today only, side by side; the other two need a wide screen
+  const narrow = window.innerWidth < 760;
+  const cols = narrow ? (b.cols || []).filter((c, i) => i === 0 || c.key === b.today) : (b.cols || []);
   const head = cols.map(c => `<th colspan="4" style="text-align:center;padding:4px 6px;border-left:1px solid var(--line);${c.key === b.today ? 'background:#fde8df' : ''}">${esc(c.label)}${c.key === b.today && c.at ? ` <small class="note">by ${esc(c.at)}</small>` : ''}</th>`).join('');
   const sub = cols.map(c => `<th style="text-align:right;border-left:1px solid var(--line)">spend</th><th style="text-align:right">revenue</th><th style="text-align:right">orders<br><small style="font-weight:400;text-transform:none">pieces</small></th><th style="text-align:right">ROAS<br><small style="font-weight:400;text-transform:none">AOV</small></th>`).join('');
   const rows = Array.from({ length: 24 }, (_, h) => {
@@ -763,7 +766,7 @@ function renderSaleBench() {
   const tot = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; if (n < 0) return `<td style="border-left:1px solid var(--line)"></td><td></td><td></td><td></td>`; const od = (c.orders || [])[n] || 0, un = (c.units || [])[n] || 0; return `<td style="text-align:right;white-space:nowrap;border-left:1px solid var(--line)"><b>${f(c.spend[n])}</b></td><td style="text-align:right;white-space:nowrap"><b>${f(c.rev[n])}</b></td><td style="text-align:right;white-space:nowrap;line-height:1.15"><b>${od}</b><br><small class="note">${un ? un + ' pcs' : ''}</small></td><td style="text-align:right;line-height:1.15"><b>${c.spend[n] ? (c.rev[n] / c.spend[n]).toFixed(2) : '—'}</b><br><small class="note">${od ? 'AOV ' + f(c.rev[n] / od) : ''}</small></td>`; }).join('');
   const ord = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; const od = n >= 0 ? (c.orders || [])[n] || 0 : 0, un = n >= 0 ? (c.units || [])[n] || 0 : 0; return `<td colspan="4" style="text-align:right;border-left:1px solid var(--line)" class="note">${od && un ? (un / od).toFixed(2) + ' pieces per order' : ''}</td>`; }).join('');
   box.innerHTML = `<div class="note" style="margin:0 0 4px"><b>Running totals since midnight</b> · Meta spend on every account, Shopify revenue · ROAS green at 4+, red under 3 · the red box is this hour · * the hour is still running · ~ spend Meta may still restate (it settles about two hours after the hour ends)</div>
-    <div style="overflow-x:auto;max-width:100%"><table class="sdb" style="border-collapse:collapse;font-size:.8rem;min-width:960px;width:100%"><tr><th></th>${head}</tr><tr style="color:var(--muted);font-size:.66rem;text-transform:uppercase"><th></th>${sub}</tr>${rows}<tr style="border-top:2px solid var(--ink)"><td style="padding:4px 6px;color:var(--muted)">so far</td>${tot}</tr><tr><td></td>${ord}</tr></table></div>`;
+    <div style="overflow-x:auto;max-width:100%"><table class="sdb" style="border-collapse:collapse;font-size:${narrow ? '.72rem' : '.8rem'};min-width:${narrow ? '0' : '960px'};width:100%"><tr><th></th>${head}</tr><tr style="color:var(--muted);font-size:.66rem;text-transform:uppercase"><th></th>${sub}</tr>${rows}<tr style="border-top:2px solid var(--ink)"><td style="padding:4px 6px;color:var(--muted)">so far</td>${tot}</tr><tr><td></td>${ord}</tr></table></div>`;
 }
 const sdTag = t => ({ scale: ['#d8f3dc', '#1a7f37'], hold: ['#e8f0fe', '#1a3f9c'], watch: ['#fff3cd', '#8a6d00'], pause: ['#fde8e8', '#b00020'], 'too early': ['#eee', '#777'] })[t] || ['#eee', '#777'];
 const sdPill = t => { const [bg, fg] = sdTag(t); return `<span style="background:${bg};color:${fg};font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap">${esc(t)}</span>`; };
