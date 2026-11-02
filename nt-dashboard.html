@@ -734,7 +734,8 @@ async function loadSaleDay(force) {
   clearTimeout(_sdT); _sdT = setTimeout(() => loadSaleDay(true), 5 * 60e3);
 }
 // minutes left in the Indian day, ticking on the page's own clock
-function sdTick() { const ist = new Date(Date.now() + 330 * 60000), left = 1440 - (ist.getUTCHours() * 60 + ist.getUTCMinutes()); const el = document.getElementById('sdLeft'); if (el) el.textContent = `⏳ ${Math.floor(left / 60)}h ${String(left % 60).padStart(2, '0')}m left today`; }
+let _sdHour = -1;
+function sdTick() { const ist = new Date(Date.now() + 330 * 60000), left = 1440 - (ist.getUTCHours() * 60 + ist.getUTCMinutes()); const el = document.getElementById('sdLeft'); if (el) el.textContent = `⏳ ${Math.floor(left / 60)}h ${String(left % 60).padStart(2, '0')}m left today · ${60 - ist.getUTCMinutes()} min left in this hour`; const hl = document.getElementById('sdHourLeft'); if (hl) hl.textContent = `${60 - ist.getUTCMinutes()} min left`; if (_sdHour >= 0 && _sdHour !== ist.getUTCHours() && _sdB) renderSaleBench(); _sdHour = ist.getUTCHours(); }
 setInterval(sdTick, 30000);
 // The benchmark: running totals by hour, two reference sale days beside today and tomorrow
 function renderSaleBench() {
@@ -753,7 +754,8 @@ function renderSaleBench() {
       const roas = sp ? (rv / sp).toFixed(2) : '—';
       return `<td style="text-align:right;border-left:1px solid var(--line);${c.key === b.today ? 'background:#fff7f3' : ''}">${f(sp)}</td><td style="text-align:right;${c.key === b.today ? 'background:#fff7f3' : ''}">${f(rv)}${partial ? '<small class="note">*</small>' : ''}</td><td style="text-align:right;font-weight:800;${c.key === b.today ? 'background:#fff7f3;' : ''}color:${sp && rv / sp >= 4 ? '#1a7f37' : sp && rv / sp < 3 ? '#b00020' : 'inherit'}">${roas}</td>`;
     }).join('');
-    return `<tr style="border-top:1px solid var(--line);${isNow ? 'outline:2px solid #e8192c;outline-offset:-2px' : ''}"><td style="padding:3px 6px;white-space:nowrap;color:var(--muted)">by ${String(h).padStart(2, '0')}:59</td>${cells}</tr>`;
+    const leftMin = isNow ? 60 - ist.getUTCMinutes() : 0;
+    return `<tr style="border-top:1px solid var(--line);${isNow ? 'outline:2px solid #e8192c;outline-offset:-2px' : ''}"><td style="padding:3px 6px;white-space:nowrap;color:var(--muted)">by ${String(h).padStart(2, '0')}:59${isNow ? `<br><b style="color:#b00020" id="sdHourLeft">${leftMin} min left</b>` : ''}</td>${cells}</tr>`;
   }).join('');
   const tot = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; return n >= 0 ? `<td style="text-align:right;border-left:1px solid var(--line)"><b>${f(c.spend[n])}</b></td><td style="text-align:right"><b>${f(c.rev[n])}</b></td><td style="text-align:right"><b>${c.spend[n] ? (c.rev[n] / c.spend[n]).toFixed(2) : '—'}</b></td>` : `<td style="border-left:1px solid var(--line)"></td><td></td><td></td>`; }).join('');
   const ord = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; return `<td colspan="3" style="text-align:right;border-left:1px solid var(--line)" class="note">${n >= 0 ? c.orders[n] + ' orders' : ''}</td>`; }).join('');
