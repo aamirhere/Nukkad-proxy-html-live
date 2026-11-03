@@ -3974,8 +3974,11 @@ async function pushAllToEmergency() {
   renderOrders();
   updateEmergencyBadge();
   try {
-    await Promise.all(targets.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
-    toast(`⚠ ${targets.length} unit${targets.length !== 1 ? 's' : ''} pushed to Emergency tab`);
+    const rs = await Promise.all(targets.map(u => api({ action: 'save_emergency', ...u, date, is_emergency: true })));
+    const skipped = targets.filter((u, i) => rs[i] && rs[i].skipped);
+    skipped.forEach(u => { u.is_emergency = false; });
+    if (skipped.length) renderOrders();
+    toast(`⚠ ${targets.length - skipped.length} unit${targets.length - skipped.length !== 1 ? 's' : ''} pushed to Emergency tab${skipped.length ? ` · ${skipped.length} not pushed: ${rs.find(r => r && r.skipped).reason}` : ''}`);
   } catch(e) { targets.forEach(u => { u.is_emergency = false; }); renderOrders(); toast('Push failed: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '⚠ Push to Emergency'; }
 }
