@@ -739,15 +739,16 @@ let _sdHour = -1;
 function sdTick() { const ist = new Date(Date.now() + 330 * 60000), left = 1440 - (ist.getUTCHours() * 60 + ist.getUTCMinutes()); const el = document.getElementById('sdLeft'); if (el) el.textContent = `⏳ ${Math.floor(left / 60)}h ${String(left % 60).padStart(2, '0')}m left today · ${60 - ist.getUTCMinutes()} min left in this hour`; const hl = document.getElementById('sdHourLeft'); if (hl) hl.textContent = `${60 - ist.getUTCMinutes()} min left`; if (_sdHour >= 0 && _sdHour !== ist.getUTCHours() && _sdB) renderSaleBench(); _sdHour = ist.getUTCHours(); }
 setInterval(sdTick, 30000);
 let _sdNarrow = window.innerWidth < 760; window.addEventListener('resize', () => { const n = window.innerWidth < 760; if (n !== _sdNarrow) { _sdNarrow = n; if (_sdB) renderSaleBench(); } });
-// The benchmark: running totals by hour, two reference sale days beside today and tomorrow
+// The benchmark: running totals by hour, the two reference sale days beside yesterday and today (day 1 ↔ day 1, day 2 ↔ day 2)
 function renderSaleBench() {
   const b = _sdB, box = document.getElementById('sdBench'); if (!b || !box) return;
   const narrow0 = window.innerWidth < 760;
   const f = v => narrow0 ? (v >= 1e5 ? '₹' + (v / 1e5).toFixed(2) + 'L' : v >= 1000 ? '₹' + (v / 1000).toFixed(1) + 'K' : '₹' + Math.round(v || 0)) : '₹' + Math.round(v || 0).toLocaleString('en-IN');
   const ist = new Date(Date.now() + 330 * 60000), nowH = ist.getUTCHours();
-  // phones: the first reference day and today only, side by side; the other two need a wide screen
+  // phones: today and the reference day it is paired with, side by side; the yesterday pair needs a wide screen
   const narrow = window.innerWidth < 760;
-  const cols = narrow ? (b.cols || []).filter((c, i) => i === 0 || c.key === b.today) : (b.cols || []);
+  const all = b.cols || [], ti = all.findIndex(c => c.key === b.today);
+  const cols = narrow && ti >= 0 ? all.slice(Math.max(0, ti - 1), ti + 1) : all;
   const span = narrow ? 3 : 4;
   const head = cols.map(c => `<th colspan="${span}" style="text-align:center;padding:4px 6px;border-left:1px solid var(--line);${c.key === b.today ? 'background:#fde8df' : ''}">${esc(c.label)}${c.key === b.today && c.at ? ` <small class="note">by ${esc(c.at)}</small>` : ''}</th>`).join('');
   const sub = cols.map(c => narrow
