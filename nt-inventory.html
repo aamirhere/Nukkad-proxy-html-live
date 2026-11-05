@@ -58,6 +58,13 @@ input.sa-in[type=search]{min-width:200px;flex:1 1 200px}
 .sa-note{font:inherit;font-size:.72rem;padding:4px 7px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:150px;margin-top:4px;background:#fffdf9;display:block}
 .sa-tbl td.call{width:150px}
 .sa-warn{background:#fdecea;color:#8a1c12;border-radius:10px;padding:10px 12px;font-size:.84rem}
+.sa-draft{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:.82rem;margin:0 0 10px}
+.sa-draft:empty{display:none}
+.sa-draft .box{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.sa-draft .box.go{border-color:var(--red);background:#fdf6f5}
+.btn-red{background:var(--red);color:#fff;border:none;border-radius:10px;padding:8px 14px;font:inherit;font-weight:800;cursor:pointer}
+.btn-red:disabled{opacity:.5;cursor:default}
+.sa-prog{height:6px;background:#eee;border-radius:3px;width:160px;overflow:hidden}.sa-prog i{display:block;height:6px;background:var(--red)}
 .sa-cards{display:flex;flex-direction:column;gap:8px}
 .sa-cardrow{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;border-left-width:4px}
 .sa-cardrow[data-call=keep]{border-left-color:var(--green)}.sa-cardrow[data-call=remove]{border-left-color:var(--red);background:#fdf6f5}.sa-cardrow[data-call=maybe]{border-left-color:#c9a227}
@@ -2051,6 +2058,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
     <button class="btn btn-ghost" onclick="saExport()">⬇ CSV</button>
     <button class="btn btn-ghost" onclick="loadSkuAudit(true)">↻</button>
   </div>
+  <div class="sa-draft" id="saDraft"></div>
   <div class="sa-bulk" id="saBulk"></div>
   <div id="saTable"><div class="loading-row" style="height:120px;border-radius:12px"></div></div>
 </div>
@@ -2069,7 +2077,7 @@ const saImg = src => saEsc(src + (String(src).includes('?') ? '&' : '?') + 'widt
 async function loadSkuAudit(force) {
   if (_sa && !force) { saRender(); return; }
   document.getElementById('saTable').innerHTML = '<div class="loading-row" style="height:120px;border-radius:12px"></div>';
-  try { _sa = await api({ action: 'sku_audit' }); saRender(); }
+  try { _sa = await api({ action: 'sku_audit' }); saRender(); saDraftLoad(); }
   catch (e) { document.getElementById('saTable').innerHTML = `<div class="sa-warn">Could not load the audit: ${saEsc(e.message)}</div>`; }
 }
 
@@ -2092,6 +2100,7 @@ function saFiltered() {
 }
 
 function saSummary() {
+  saDraftBox();
   const R = _sa.rows, T = _sa.totals.units3 || 1;
   const sold = R.filter(r => !r.zero);
   const n = (f) => R.filter(f).length;
@@ -2191,6 +2200,44 @@ function saExport() {
   const lines = saFiltered().map(r => [r.handle, r.title, r.status, r.price, ..._sa.full.map(m => r.months[m]), r.months[_sa.cur], r.avg, r.trend, r.share_pct, r.colors.map(([c, k]) => `${c} ${k}`).join('; '), r.colors_unsold.join('; '), r.amazon ? r.amazon.units3 : 0, r.stock ?? '', r.last_sale || '', r.suggestion, r.why, r.decision || '', r.note].map(q).join(','));
   const blob = new Blob([[head.map(q).join(','), ...lines].join('\n')], { type: 'text/csv' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `sku-audit-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+}
+// ── Put the removes to draft (one click, undoable) ──
+let _saDS = null, _saDT = null, _saWasRunning = false;
+async function saDraftLoad() {
+  try { _saDS = await api({ action: 'sku_draft_status' }); } catch (e) { _saDS = { error: e.message }; }
+  saDraftBox();
+  clearTimeout(_saDT);
+  // poll while a run is going; when it ends, reload the table so the statuses show the result
+  if (_saDS && _saDS.running) { _saWasRunning = true; _saDT = setTimeout(saDraftLoad, 3000); }
+  else if (_saWasRunning) { _saWasRunning = false; loadSkuAudit(true); }
+}
+function saDraftBox() {
+  const el = document.getElementById('saDraft'); if (!el || !_sa) return;
+  const live = _sa.rows.filter(r => r.decision === 'remove' && r.status === 'active');
+  const S = _saDS || {}, run = S.running, undo = S.undoable;
+  const fmt = d => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  let html = '';
+  if (run) {
+    const pct = run.total ? Math.round((run.done + run.failed) / run.total * 100) : 0;
+    html = `<div class="box go"><b>${run.action === 'draft' ? 'Putting to draft' : 'Undoing'}…</b> ${run.done + run.failed} of ${run.total}<span class="sa-prog"><i style="width:${pct}%"></i></span><span class="sa-m">Shopify allows about two a second; you can leave this page</span></div>`;
+  } else {
+    if (live.length) html += `<div class="box go"><b>${live.length}</b> design${live.length === 1 ? '' : 's'} you marked Remove ${live.length === 1 ? 'is' : 'are'} still live <button class="btn-red" onclick="saDraftGo(${live.length})">Put ${live.length} to draft</button><span class="sa-m">hidden from the site, kept in Shopify, undo anytime</span></div>`;
+    if (undo) html += `<div class="box">Last draft run: <b>${undo.done}</b> put to draft ${fmt(undo.finished_at || undo.created_at)}${undo.failed ? ` · <b style="color:var(--red)">${undo.failed} failed</b>` : ''} <button class="btn btn-ghost" onclick="saDraftUndo(${undo.id}, ${undo.done})">↶ Undo, put them back</button></div>`;
+    if (S.error) html += `<div class="box sa-m">Draft status unavailable: ${saEsc(S.error)}</div>`;
+  }
+  el.innerHTML = html;
+}
+async function saDraftGo(n) {
+  if (!confirm(`Put ${n} design${n === 1 ? '' : 's'} to draft?\n\nThey disappear from the website straight away. Nothing is deleted: each one stays in Shopify as a draft, and "Undo" puts them back exactly as they were.\n\nOnly designs you marked Remove are touched.`)) return;
+  try { const r = await api({ action: 'sku_draft' }); toast(`Started: ${r.total} to draft`); }
+  catch (e) { toast('Not started: ' + e.message); }
+  saDraftLoad();
+}
+async function saDraftUndo(id, n) {
+  if (!confirm(`Put the ${n} design${n === 1 ? '' : 's'} from that run back on the site?\n\nAny of them you have changed by hand since stay as you left them.`)) return;
+  try { const r = await api({ action: 'sku_draft_undo', run_id: id }); toast(`Undo started: ${r.total}`); }
+  catch (e) { toast('Not started: ' + e.message); }
+  saDraftLoad();
 }
 let _saNarrow = window.innerWidth < 760;
 window.addEventListener('resize', () => { const n = window.innerWidth < 760; if (n !== _saNarrow) { _saNarrow = n; if (_sa && document.getElementById('view-skuaudit').classList.contains('active')) saRender(); } });
