@@ -2154,18 +2154,19 @@ function saRender() {
   if (narrow) {
     document.getElementById('saTable').innerHTML = `<div class="sa-cards">${rows.map(r => `<div class="sa-cardrow" data-call="${r.decision || ''}" data-h="${r.handle}">
       <div class="top"><div style="flex:1;min-width:0"><div style="font-weight:800">${r.rank ? `<span class="sa-m">#${r.rank}</span> ` : ''}${saEsc(r.title)}${draft(r)}</div></div></div>
-      <div class="nums"><span>avg <b>${r.avg}</b>/mo${trend(r)}</span><span>best ${best(r)}</span><span class="sa-cl">${top2(r)}</span></div>
+      <div class="sa-cl" style="margin-top:5px">${top2(r)}</div>
+      <div class="nums"><span>avg <b>${r.avg}</b>/mo${trend(r)}</span><span>best ${best(r)}</span></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sa-m">suggested</span>${sug(r)}<span style="flex:1"></span>${sel(r)}</div></div>`).join('')}</div>`;
     return;
   }
   document.getElementById('saTable').innerHTML = `<div class="sa-wrap"><table class="sa-tbl slim"><thead><tr>
-    <th class="l">#</th><th class="l">Design</th><th>${avgLbl}</th><th>Best month</th><th class="l">Top colours</th><th class="l">Suggestion</th><th class="l">Your call</th>
+    <th class="l">#</th><th class="l">Design</th><th class="l">Top colours</th><th>${avgLbl}</th><th>Best month</th><th class="l">Suggestion</th><th class="l">Your call</th>
     </tr></thead><tbody>${rows.map(r => `<tr data-call="${r.decision || ''}" data-h="${r.handle}">
     <td class="l sa-m">${r.rank || '—'}</td>
     <td class="l"><b>${saEsc(r.title)}</b>${draft(r)}</td>
+    <td class="l"><div class="sa-cl">${top2(r)}</div></td>
     <td style="white-space:nowrap"><b>${r.avg}</b>${trend(r)}</td>
     <td style="white-space:nowrap">${best(r)}</td>
-    <td class="l"><div class="sa-cl">${top2(r)}</div></td>
     <td class="l">${sug(r)}</td>
     <td class="l">${sel(r)}</td></tr>`).join('')}</tbody></table></div>`;
 }
