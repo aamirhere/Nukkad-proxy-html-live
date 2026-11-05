@@ -1356,6 +1356,12 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <option value="counted">Counted</option>
       <option value="zero">Out of stock</option>
     </select>
+    <select id="invCall" onchange="renderInventory()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px" title="your Keep / Remove call from the SKU audit">
+      <option value="all">Every design</option>
+      <option value="remove">🧹 Marked Remove</option>
+      <option value="keep">✅ Marked Keep</option>
+      <option value="open">Not decided yet</option>
+    </select>
     <select id="invSort" onchange="renderInventory()" class="btn btn-ghost" style="font-size:.8rem;padding:7px 10px">
       <option value="orders_desc">Most ordered ↓</option>
       <option value="orders_asc">Least ordered ↑</option>
@@ -2326,7 +2332,7 @@ function switchView(view) {
   document.getElementById(`view-${view}`).classList.add('active');
   const navBtn = document.querySelector(`.nav-btn[onclick^="switchView('${view}')"]`); if (navBtn) navBtn.classList.add('active');
 
-  if (view === 'inventory') loadIncoming();
+  if (view === 'inventory') { loadIncoming(); loadSkuCalls().then(() => { if (allProducts.length) renderInventory(); }); }
   if (view === 'inventory' && allProducts.length) {
     // stock moves on other tabs (dispatch applied, rack picks); re-read it on return
     api({ action: 'load_products' }).then(r => {
@@ -2501,12 +2507,15 @@ async function loadOrderStats() {
 async function init() {
   loadIncoming();
   try {
-    const res = await api({ action: 'load_products' });
+    const [res] = await Promise.all([api({ action: 'load_products' }), loadSkuCalls()]);
     allProducts = res.products || [];
     renderInventory();
   } catch (e) { toast('Failed to load products: ' + e.message); }
   loadOrderStats();
 }
+// Keep / Remove calls from the SKU audit, for the list's filter
+let _skuCalls = {};
+async function loadSkuCalls() { try { _skuCalls = (await api({ action: 'sku_audit_calls' })).calls || {}; } catch {} }
 
 // ── Carton check: applied lists waiting for user 1 to count ──────────────────
 let _incoming = [], _dvList = null;
@@ -2888,9 +2897,12 @@ function renderInventory() {
   const q    = document.getElementById('invSearch').value.toLowerCase().trim();
   const fil  = document.getElementById('invFilter').value;
   const sort = document.getElementById('invSort')?.value || 'orders_desc';
+  const call = document.getElementById('invCall')?.value || 'all';
 
   let visible = allProducts.filter(p => {
-    if (isHiddenProduct(p)) return false;
+    if (call === 'remove' || call === 'keep') { if (_skuCalls[p.handle] !== call) return false; }
+    else if (isHiddenProduct(p)) return false;
+    if (call === 'open' && _skuCalls[p.handle]) return false;
     if (q && !p.title.toLowerCase().includes(q) && !p.handle.includes(q)) return false;
     if (fil === 'na')      return p.stock === null;
     if (fil === 'counted') return p.stock !== null && p.stock > 0;
@@ -2911,6 +2923,12 @@ function renderInventory() {
   const totalStock = allProducts.reduce((s, p) => s + (p.stock || 0), 0);
   document.getElementById('invSubtitle').textContent =
     `${allProducts.length} designs · ${counted} counted · ${na} not yet counted · ${totalStock} units in stock`;
+  if (call === 'remove' || call === 'keep') {
+    const set = allProducts.filter(p => _skuCalls[p.handle] === call);
+    const setNa = set.filter(p => p.stock === null).length, setStock = set.reduce((t, p) => t + (p.stock || 0), 0), setDraft = set.filter(p => p.status && p.status !== 'active').length;
+    document.getElementById('invSubtitle').textContent = `${set.length} marked ${call === 'remove' ? 'Remove' : 'Keep'} · ${set.length - setNa} counted · ${setNa} still to count · ${setStock} pieces in stock${setDraft ? ` · ${setDraft} already in draft` : ''}`;
+    document.getElementById('invSubtitle').hidden = false;
+  } else document.getElementById('invSubtitle').hidden = true;
 
   if (!visible.length) {
     document.getElementById('invList').innerHTML =
