@@ -58,6 +58,16 @@ input.sa-in[type=search]{min-width:200px;flex:1 1 200px}
 .sa-note{font:inherit;font-size:.72rem;padding:4px 7px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:150px;margin-top:4px;background:#fffdf9;display:block}
 .sa-tbl td.call{width:150px}
 .sa-warn{background:#fdecea;color:#8a1c12;border-radius:10px;padding:10px 12px;font-size:.84rem}
+.sa-pills{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+.sa-pills .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.8rem;color:var(--muted)}
+.sa-pills .row>span:first-child{width:86px;font-weight:700}
+.sa-pills button{font:inherit;font-size:.8rem;font-weight:700;padding:5px 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+.sa-pills button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.sa-pills button.keep.on{background:var(--green);border-color:var(--green)}
+.sa-pills button.maybe.on{background:#c9a227;border-color:#c9a227}
+.sa-pills button.remove.on{background:var(--red);border-color:var(--red)}
+.sa-tbl.slim{min-width:0}
+.sa-tbl.slim td{vertical-align:middle}
 .sa-draft{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:.82rem;margin:0 0 10px}
 .sa-draft:empty{display:none}
 .sa-draft .box{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
@@ -2039,25 +2049,21 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 <div class="view" id="view-skuaudit">
   <div class="page-hd">
     <h2>SKU audit</h2>
-    <p id="saSub">Which designs deserve a place on the site. Website sales from real orders, the last three full months and this month so far. The suggestion is a starting point; your call is the dropdown. Nothing changes on the site from here.</p>
+    <p id="saSub">Which designs deserve a place on the site, from real website orders. The suggestion is a starting point; your call is the dropdown.</p>
   </div>
   <div id="saSummary" class="sa-summary"></div>
   <div class="sa-bar">
     <input id="saQ" class="sa-in" type="search" placeholder="Search designs…" oninput="saRender()">
-    <select id="saSug" class="sa-in" onchange="saRender()">
-      <option value="all">All suggestions</option><option value="keep">Suggested keep</option><option value="maybe">Suggested maybe</option><option value="remove">Suggested remove</option>
-    </select>
-    <select id="saCall" class="sa-in" onchange="saRender()">
-      <option value="all">All your calls</option><option value="open">Not decided yet</option><option value="keep">You said keep</option><option value="maybe">You said maybe</option><option value="remove">You said remove</option><option value="differs">Your call differs</option>
-    </select>
     <select id="saSort" class="sa-in" onchange="saRender()">
-      <option value="rank">Most sold first</option><option value="avg_asc">Least sold first</option><option value="pace">Best this month</option><option value="last">Last sold, newest</option><option value="stock">Most in stock</option><option value="name">Name A–Z</option>
+      <option value="rank">Most sold first</option><option value="avg_asc">Least sold first</option><option value="name">Name A–Z</option>
     </select>
+    <input type="hidden" id="saSug" value="all"><input type="hidden" id="saCall" value="all">
     <label class="sa-chk"><input type="checkbox" id="saZero" onchange="saRender()"> <span id="saZeroLbl">designs with no sale</span></label>
     <span style="flex:1"></span>
     <button class="btn btn-ghost" onclick="saExport()">⬇ CSV</button>
     <button class="btn btn-ghost" onclick="loadSkuAudit(true)">↻</button>
   </div>
+  <div class="sa-pills" id="saPills"></div>
   <div class="sa-draft" id="saDraft"></div>
   <div class="sa-bulk" id="saBulk"></div>
   <div id="saTable"><div class="loading-row" style="height:120px;border-radius:12px"></div></div>
@@ -2089,11 +2095,8 @@ function saFiltered() {
     && (sug === 'all' || r.suggestion === sug)
     && (call === 'all' || (call === 'open' ? !r.decision : call === 'differs' ? (r.decision && r.decision !== r.suggestion) : r.decision === call)));
   const by = {
-    rank: (a, b) => b.units3 - a.units3 || b.months[_sa.cur] - a.months[_sa.cur],
-    avg_asc: (a, b) => a.units3 - b.units3 || a.months[_sa.cur] - b.months[_sa.cur],
-    pace: (a, b) => b.months[_sa.cur] - a.months[_sa.cur] || b.units3 - a.units3,
-    last: (a, b) => String(b.last_sale || '').localeCompare(String(a.last_sale || '')),
-    stock: (a, b) => (b.stock ?? -1) - (a.stock ?? -1),
+    rank: (a, b) => b.units4 - a.units4 || a.title.localeCompare(b.title),
+    avg_asc: (a, b) => a.units4 - b.units4 || a.title.localeCompare(b.title),
     name: (a, b) => a.title.localeCompare(b.title),
   };
   return rows.sort(by[sort] || by.rank);
@@ -2101,63 +2104,55 @@ function saFiltered() {
 
 function saSummary() {
   saDraftBox();
-  const R = _sa.rows, T = _sa.totals.units3 || 1;
+  const R = _sa.rows, T = _sa.totals.units4 || _sa.totals.units3 || 1;
   const sold = R.filter(r => !r.zero);
   const n = (f) => R.filter(f).length;
-  const units = f => R.filter(f).reduce((t, r) => t + r.units3, 0);
+  const units = f => R.filter(f).reduce((t, r) => t + (r.units4 ?? r.units3), 0);
   // what the site would keep: your call where made, the suggestion where not; maybe counts as kept until decided
   const kept = r => (r.decision || r.suggestion) !== 'remove';
   const keptN = n(kept), keptU = units(kept);
   const goneN = R.length - keptN;
-  document.getElementById('saSummary').innerHTML = `
-    <div class="sa-card"><b class="big">${sold.length}</b> designs sold on the website over ${_sa.full.map(saMon).join(', ')} · <b>${_sa.totals.zero_active}</b> live design${_sa.totals.zero_active === 1 ? '' : 's'} sold nothing</div>
-    <div class="sa-card">Suggested <span class="sa-pill keep">Keep ${n(r => r.suggestion === 'keep')}</span><span class="sa-pill maybe">Maybe ${n(r => r.suggestion === 'maybe')}</span><span class="sa-pill remove">Remove ${n(r => r.suggestion === 'remove')}</span></div>
-    <div class="sa-card">Your calls <span class="sa-pill keep">Keep ${n(r => r.decision === 'keep')}</span><span class="sa-pill maybe">Maybe ${n(r => r.decision === 'maybe')}</span><span class="sa-pill remove">Remove ${n(r => r.decision === 'remove')}</span> <span>${n(r => !r.decision)} not decided</span></div>
-    <div class="sa-card">As it stands the site keeps <b class="big">${keptN}</b> designs carrying <b>${Math.round(keptU / T * 1000) / 10}%</b> of website units · <b>${goneN}</b> go</div>`;
+  document.getElementById('saSummary').innerHTML = `<div class="sa-card" style="display:block;line-height:1.6"><b class="big">${sold.length}</b> designs sold on the website, ${saEsc(_sa.label || '')} · as it stands the site keeps <b class="big">${keptN}</b> carrying <b>${Math.round(keptU / T * 1000) / 10}%</b> of website units · <b>${goneN}</b> go</div>`;
   document.getElementById('saZeroLbl').textContent = `show the ${_sa.totals.zero_active} live design${_sa.totals.zero_active === 1 ? '' : 's'} with no sale`;
 }
 
+function saPill(key, v, label, cls) { return `<button class="${cls || ''}${saV(key) === v ? ' on' : ''}" onclick="document.getElementById('${key}').value='${v}';saRender()">${label}</button>`; }
 function saRender() {
   if (!_sa) return;
   saSummary();
+  const zero = document.getElementById('saZero').checked;
+  const base = _sa.rows.filter(r => zero || !r.zero);
+  const c = f => base.filter(f).length;
+  document.getElementById('saPills').innerHTML = `
+    <div class="row"><span>Suggested</span>${saPill('saSug', 'all', `All ${base.length}`)}${saPill('saSug', 'keep', `Keep ${c(r => r.suggestion === 'keep')}`, 'keep')}${saPill('saSug', 'maybe', `Maybe ${c(r => r.suggestion === 'maybe')}`, 'maybe')}${saPill('saSug', 'remove', `Remove ${c(r => r.suggestion === 'remove')}`, 'remove')}</div>
+    <div class="row"><span>Your call</span>${saPill('saCall', 'all', 'All')}${saPill('saCall', 'open', `Not decided ${c(r => !r.decision)}`)}${saPill('saCall', 'keep', `Keep ${c(r => r.decision === 'keep')}`, 'keep')}${saPill('saCall', 'maybe', `Maybe ${c(r => r.decision === 'maybe')}`, 'maybe')}${saPill('saCall', 'remove', `Remove ${c(r => r.decision === 'remove')}`, 'remove')}${saPill('saCall', 'differs', `Differs from mine ${c(r => r.decision && r.decision !== r.suggestion)}`)}</div>`;
   const rows = saFiltered(), narrow = window.innerWidth < 760;
-  const full = _sa.full, cur = _sa.cur;
   document.getElementById('saBulk').innerHTML = `${rows.length} shown · set all shown to
     <select id="saBulkSel" class="sa-in"><option value="">choose…</option><option value="suggestion">their suggestion</option><option value="keep">Keep</option><option value="maybe">Maybe</option><option value="remove">Remove</option><option value="clear">clear the call</option></select>
-    <button class="btn btn-ghost" onclick="saBulk()">Apply to ${rows.length}</button>
-    <span style="color:var(--muted)">· data from ${saDay(_sa.data_from)} · this month is ${_sa.day_of_month} of ${_sa.days_in_month} days · keep at ${_sa.rules.keep_at}+ a month, remove under ${_sa.rules.remove_below}</span>`;
+    <button class="btn btn-ghost" onclick="saBulk()">Apply to ${rows.length}</button>`;
   if (!rows.length) { document.getElementById('saTable').innerHTML = '<div class="sa-card">Nothing matches these filters.</div>'; return; }
-  const colours = r => `<div class="sa-cl">${r.colors.slice(0, 6).map(([c, k]) => `<span class="c" style="${colorPillStyle(c)}">${saEsc(c.replace(/\s*\(.*\)$/, ''))} ${k}</span>`).join('')}${r.colors.length > 6 ? `<span class="c">+${r.colors.length - 6}</span>` : ''}</div>${r.colors_unsold.length ? `<div class="sa-never">never sold: ${saEsc(r.colors_unsold.slice(0, 6).join(', '))}${r.colors_unsold.length > 6 ? '…' : ''}</div>` : ''}`;
-  const meta = r => [r.price ? '₹' + r.price : '', r.variants ? `${r.variants} colours` : '', r.age_days != null && r.age_days < 60 ? `<b style="color:var(--accent)">new · ${r.age_days}d</b>` : '', r.status !== 'active' ? `<b>${saEsc(r.status)}</b>` : ''].filter(Boolean).join(' · ');
-  const arrow = r => r.trend === 'up' ? '<b style="color:var(--green)">↑</b>' : r.trend === 'down' ? '<b style="color:var(--red)">↓</b>' : '';
+  const top2 = r => r.colors.length ? r.colors.slice(0, 2).map(([col, k]) => `<span class="c" style="${colorPillStyle(col)}">${saEsc(col.replace(/\s*\(.*\)$/, ''))} ${k}</span>`).join('') : '<span class="sa-z">no sale</span>';
+  const best = r => r.best && r.best.n ? `<b>${r.best.n}</b> <span class="sa-m">${saMon(r.best.ym)}${r.best.partial ? ' so far' : ''}</span>` : '<span class="sa-z">—</span>';
   const sel = r => `<select class="sa-sel" data-v="${r.decision || ''}" onchange="saSet('${r.handle}', this.value, this)"><option value="">— decide —</option>${['keep', 'maybe', 'remove'].map(k => `<option value="${k}"${r.decision === k ? ' selected' : ''}>${SA_LBL[k]}</option>`).join('')}</select>`;
-  const note = r => `<input class="sa-note" value="${saEsc(r.note)}" placeholder="note" onchange="saNote('${r.handle}', this.value)">`;
-  const num = n => n ? n : '<span class="sa-z">0</span>';
-  const amz = r => r.amazon ? `${r.amazon.units3}<div class="sa-m">${r.amazon.avg}/mo</div>` : '<span class="sa-z">—</span>';
+  const draft = r => r.status !== 'active' ? ` <span class="sa-m">· ${saEsc(r.status)}</span>` : '';
+  const avgLbl = `Avg / month<br><span style="text-transform:none;font-weight:400">${saEsc(_sa.label || '')}</span>`;
   if (narrow) {
     document.getElementById('saTable').innerHTML = `<div class="sa-cards">${rows.map(r => `<div class="sa-cardrow" data-call="${r.decision || ''}" data-h="${r.handle}">
-      <div class="top">${r.image ? `<img src="${saImg(r.image)}" loading="lazy" style="width:40px;height:40px;border-radius:8px;object-fit:cover">` : ''}<div style="flex:1;min-width:0"><div style="font-weight:800">${r.rank ? `<span class="sa-m">#${r.rank}</span> ` : ''}${saEsc(r.title)}</div><div class="sa-m">${meta(r)}</div></div>${sel(r)}</div>
-      <div class="nums">${full.map(m => `<span>${saMon(m)} <b>${r.months[m]}</b></span>`).join('')}<span>${saMon(cur)} so far <b>${r.months[cur]}</b></span><span>avg <b>${r.avg}</b>/mo ${arrow(r)}</span><span>stock <b>${r.stock ?? 'N/A'}</b></span><span>last ${saDay(r.last_sale)}</span>${r.amazon ? `<span>Amazon <b>${r.amazon.units3}</b></span>` : ''}</div>
-      ${colours(r)}
-      <div style="margin-top:6px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span><span class="sa-m">${saEsc(r.why)}</span></div>
-      ${note(r)}</div>`).join('')}</div>`;
+      <div class="top"><div style="flex:1;min-width:0"><div style="font-weight:800">${r.rank ? `<span class="sa-m">#${r.rank}</span> ` : ''}${saEsc(r.title)}${draft(r)}</div></div>${sel(r)}</div>
+      <div class="nums"><span>avg <b>${r.avg}</b>/mo</span><span>best ${best(r)}</span><span class="sa-cl">${top2(r)}</span></div>
+      <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span><span class="sa-m">${saEsc(r.why)}</span></div></div>`).join('')}</div>`;
     return;
   }
-  document.getElementById('saTable').innerHTML = `<div class="sa-wrap"><table class="sa-tbl"><thead><tr>
-    <th class="l">#</th><th class="l">Design</th>${full.map(m => `<th>${saMon(m)}</th>`).join('')}<th>${saMon(cur)} so far</th><th>Avg / mo</th><th title="this design's share of website units, and the running total down to it">Share</th><th class="l">Colours sold, high to low</th><th>Amazon<br>${full.length} mo</th><th>Stock</th><th>Last sale</th><th class="l">Suggestion</th><th class="l">Your call</th>
+  document.getElementById('saTable').innerHTML = `<div class="sa-wrap"><table class="sa-tbl slim"><thead><tr>
+    <th class="l">#</th><th class="l">Design</th><th>${avgLbl}</th><th>Best month</th><th class="l">Top colours</th><th class="l">Suggestion</th><th class="l">Your call</th>
     </tr></thead><tbody>${rows.map(r => `<tr data-call="${r.decision || ''}" data-h="${r.handle}">
     <td class="l sa-m">${r.rank || '—'}</td>
-    <td class="l"><div class="sa-d">${r.image ? `<img src="${saImg(r.image)}" loading="lazy">` : '<img alt="">'}<div><div class="t">${saEsc(r.title)}</div><div class="sa-m">${meta(r)}</div></div></div></td>
-    ${full.map(m => `<td>${num(r.months[m])}</td>`).join('')}
-    <td>${num(r.months[cur])}<div class="sa-m">pace ${r.pace}</div></td>
-    <td><b>${r.avg}</b> ${arrow(r)}</td>
-    <td>${r.share_pct ? r.share_pct + '%' : '<span class="sa-z">—</span>'}<div class="sa-m" title="running total of website units from the top seller down to this design">${r.units3 ? 'Σ ' + r.cum_pct + '%' : ''}</div></td>
-    <td class="l">${r.colors.length ? colours(r) : '<span class="sa-z">no sale</span>'}</td>
-    <td>${amz(r)}</td>
-    <td>${r.stock == null ? '<span class="sa-z">N/A</span>' : r.stock}</td>
-    <td style="white-space:nowrap">${saDay(r.last_sale)}</td>
-    <td class="l"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span><div class="sa-why">${saEsc(r.why)}</div></td>
-    <td class="l call">${sel(r)}${note(r)}</td></tr>`).join('')}</tbody></table></div>`;
+    <td class="l"><b>${saEsc(r.title)}</b>${draft(r)}</td>
+    <td><b>${r.avg}</b></td>
+    <td style="white-space:nowrap">${best(r)}</td>
+    <td class="l"><div class="sa-cl">${top2(r)}</div></td>
+    <td class="l"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span> <span class="sa-m">${saEsc(r.why)}</span></td>
+    <td class="l">${sel(r)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function saSet(handle, decision, el) {
@@ -2196,8 +2191,8 @@ async function saBulk() {
 function saExport() {
   if (!_sa) return;
   const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const head = ['handle', 'title', 'status', 'price', ..._sa.full.map(saMon), saMon(_sa.cur) + ' so far', 'avg per month', 'trend', 'share %', 'colours sold', 'colours never sold', `amazon ${_sa.full.length} mo`, 'stock', 'last sale', 'suggestion', 'why', 'your call', 'note'];
-  const lines = saFiltered().map(r => [r.handle, r.title, r.status, r.price, ..._sa.full.map(m => r.months[m]), r.months[_sa.cur], r.avg, r.trend, r.share_pct, r.colors.map(([c, k]) => `${c} ${k}`).join('; '), r.colors_unsold.join('; '), r.amazon ? r.amazon.units3 : 0, r.stock ?? '', r.last_sale || '', r.suggestion, r.why, r.decision || '', r.note].map(q).join(','));
+  const head = ['handle', 'title', 'status', 'price', ..._sa.full.map(saMon), saMon(_sa.cur) + ' so far', 'avg per month ' + (_sa.label || ''), 'best month', 'best month units', 'trend', 'share %', 'colours sold', 'colours never sold', `amazon ${_sa.full.length} mo`, 'stock', 'last sale', 'suggestion', 'why', 'your call', 'note'];
+  const lines = saFiltered().map(r => [r.handle, r.title, r.status, r.price, ..._sa.full.map(m => r.months[m]), r.months[_sa.cur], r.avg, r.best ? saMon(r.best.ym) : '', r.best ? r.best.n : '', r.trend, r.share_pct, r.colors.map(([c, k]) => `${c} ${k}`).join('; '), r.colors_unsold.join('; '), r.amazon ? r.amazon.units3 : 0, r.stock ?? '', r.last_sale || '', r.suggestion, r.why, r.decision || '', r.note].map(q).join(','));
   const blob = new Blob([[head.map(q).join(','), ...lines].join('\n')], { type: 'text/csv' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `sku-audit-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
 }
