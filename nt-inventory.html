@@ -21,6 +21,48 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-height: 100vh; }
+/* SKU audit */
+#view-skuaudit{max-width:1560px}
+.sa-summary{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+.sa-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:.8rem;color:var(--ink2);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.sa-card b.big{font-family:var(--ff);font-size:1.05rem;color:var(--ink)}
+.sa-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.sa-in{font:inherit;font-size:.82rem;padding:7px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+input.sa-in[type=search]{min-width:200px;flex:1 1 200px}
+.sa-chk{font-size:.8rem;color:var(--ink2);display:flex;gap:5px;align-items:center;cursor:pointer}
+.sa-bulk{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.8rem;color:var(--ink2);margin:0 0 8px}
+.sa-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px)}
+.sa-tbl{border-collapse:collapse;width:100%;font-size:.8rem;min-width:1180px}
+.sa-tbl th{position:sticky;top:0;background:#faf3ea;z-index:1;text-align:right;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sa-tbl th.l,.sa-tbl td.l{text-align:left}
+.sa-tbl td{padding:7px 8px;border-top:1px solid #f3ebde;text-align:right;vertical-align:top}
+.sa-tbl tr[data-call=keep] td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+.sa-tbl tr[data-call=remove] td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.sa-tbl tr[data-call=maybe] td:first-child{box-shadow:inset 3px 0 0 #c9a227}
+.sa-tbl tr[data-call=remove]{background:#fdf6f5}
+.sa-d{display:flex;gap:8px;align-items:flex-start;min-width:200px}
+.sa-d img{width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#f3ebde}
+.sa-d .t{font-weight:800;color:var(--ink);line-height:1.2}
+.sa-m{font-size:.7rem;color:var(--muted);margin-top:2px}
+.sa-z{color:#cdbfae}
+.sa-cl{display:flex;flex-wrap:wrap;gap:3px;max-width:300px}
+.sa-cl .c{font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid var(--line);background:#faf6f0;white-space:nowrap}
+.sa-never{font-size:.66rem;color:var(--muted);margin-top:3px;max-width:300px}
+.sa-pill{display:inline-block;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.sa-pill.keep{background:#d8f3dc;color:#1a7f37}.sa-pill.maybe{background:#fff3cd;color:#8a6d00}.sa-pill.remove{background:#fde8e8;color:#b00020}
+.sa-why{font-size:.68rem;color:var(--muted);margin-top:3px;max-width:220px;text-align:left}
+.sa-sel{font:inherit;font-size:.8rem;font-weight:700;padding:5px 8px;border:1.5px solid var(--line);border-radius:9px;background:#fff;cursor:pointer}
+.sa-sel[data-v=keep]{border-color:var(--green);color:var(--green);background:#eef8f1}
+.sa-sel[data-v=maybe]{border-color:#c9a227;color:#8a6d00;background:#fffaea}
+.sa-sel[data-v=remove]{border-color:var(--red);color:var(--red);background:#fdf0ee}
+.sa-note{font:inherit;font-size:.72rem;padding:4px 7px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:150px;margin-top:4px;background:#fffdf9;display:block}
+.sa-tbl td.call{width:150px}
+.sa-warn{background:#fdecea;color:#8a1c12;border-radius:10px;padding:10px 12px;font-size:.84rem}
+.sa-cards{display:flex;flex-direction:column;gap:8px}
+.sa-cardrow{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;border-left-width:4px}
+.sa-cardrow[data-call=keep]{border-left-color:var(--green)}.sa-cardrow[data-call=remove]{border-left-color:var(--red);background:#fdf6f5}.sa-cardrow[data-call=maybe]{border-left-color:#c9a227}
+.sa-cardrow .top{display:flex;gap:8px;align-items:flex-start}
+.sa-cardrow .nums{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78rem;margin:6px 0;color:var(--ink2)}
 
 /* ── header ── */
 .app-header {
@@ -1255,6 +1297,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
       <a class="nav-mobile-only" href="nt-production-prints.html">🖨 Print</a>
       <button onclick="remitFetchNow();closeNavMenu()">💰 Fetch COD remittance</button>
       <button onclick="switchView('recon');closeNavMenu()">⚖️ Weight / Invoice reconciliation</button>
+      <button onclick="switchView('skuaudit');closeNavMenu()">🧹 SKU audit · keep or remove</button>
     </div>
   </div>
 </header>
@@ -1985,6 +2028,174 @@ html, body { max-width: 100vw; overflow-x: hidden; }
   <div class="rc-pane" id="rc-settings"><div id="rcSettings"></div></div>
 </div>
 
+<!-- ── SKU AUDIT ─────────────────────────────────────────────────────────── -->
+<div class="view" id="view-skuaudit">
+  <div class="page-hd">
+    <h2>SKU audit</h2>
+    <p id="saSub">Which designs deserve a place on the site. Website sales from real orders, the last three full months and this month so far. The suggestion is a starting point; your call is the dropdown. Nothing changes on the site from here.</p>
+  </div>
+  <div id="saSummary" class="sa-summary"></div>
+  <div class="sa-bar">
+    <input id="saQ" class="sa-in" type="search" placeholder="Search designs…" oninput="saRender()">
+    <select id="saSug" class="sa-in" onchange="saRender()">
+      <option value="all">All suggestions</option><option value="keep">Suggested keep</option><option value="maybe">Suggested maybe</option><option value="remove">Suggested remove</option>
+    </select>
+    <select id="saCall" class="sa-in" onchange="saRender()">
+      <option value="all">All your calls</option><option value="open">Not decided yet</option><option value="keep">You said keep</option><option value="maybe">You said maybe</option><option value="remove">You said remove</option><option value="differs">Your call differs</option>
+    </select>
+    <select id="saSort" class="sa-in" onchange="saRender()">
+      <option value="rank">Most sold first</option><option value="avg_asc">Least sold first</option><option value="pace">Best this month</option><option value="last">Last sold, newest</option><option value="stock">Most in stock</option><option value="name">Name A–Z</option>
+    </select>
+    <label class="sa-chk"><input type="checkbox" id="saZero" onchange="saRender()"> <span id="saZeroLbl">designs with no sale</span></label>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost" onclick="saExport()">⬇ CSV</button>
+    <button class="btn btn-ghost" onclick="loadSkuAudit(true)">↻</button>
+  </div>
+  <div class="sa-bulk" id="saBulk"></div>
+  <div id="saTable"><div class="loading-row" style="height:120px;border-radius:12px"></div></div>
+</div>
+<script>
+// ── SKU AUDIT ────────────────────────────────────────────────────────────────
+// One row per design: website units per month (real orders only), colours high to low, Amazon, stock, last sale,
+// the suggestion and the owner's call. Calls are saved to nt_sku_audit; drafting products is a later, separate step.
+let _sa = null;
+const saEsc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const saMon = ym => new Date(ym + '-01T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' });
+const saDay = d => d ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : '—';
+const saV = id => document.getElementById(id).value;
+const SA_LBL = { keep: 'Keep', maybe: 'Maybe', remove: 'Remove' };
+const saImg = src => saEsc(src + (String(src).includes('?') ? '&' : '?') + 'width=80');
+
+async function loadSkuAudit(force) {
+  if (_sa && !force) { saRender(); return; }
+  document.getElementById('saTable').innerHTML = '<div class="loading-row" style="height:120px;border-radius:12px"></div>';
+  try { _sa = await api({ action: 'sku_audit' }); saRender(); }
+  catch (e) { document.getElementById('saTable').innerHTML = `<div class="sa-warn">Could not load the audit: ${saEsc(e.message)}</div>`; }
+}
+
+function saFiltered() {
+  const q = (saV('saQ') || '').toLowerCase().trim(), sug = saV('saSug'), call = saV('saCall'), sort = saV('saSort');
+  const zero = document.getElementById('saZero').checked;
+  const rows = _sa.rows.filter(r => (zero || !r.zero)
+    && (!q || r.title.toLowerCase().includes(q) || r.handle.includes(q))
+    && (sug === 'all' || r.suggestion === sug)
+    && (call === 'all' || (call === 'open' ? !r.decision : call === 'differs' ? (r.decision && r.decision !== r.suggestion) : r.decision === call)));
+  const by = {
+    rank: (a, b) => b.units3 - a.units3 || b.months[_sa.cur] - a.months[_sa.cur],
+    avg_asc: (a, b) => a.units3 - b.units3 || a.months[_sa.cur] - b.months[_sa.cur],
+    pace: (a, b) => b.months[_sa.cur] - a.months[_sa.cur] || b.units3 - a.units3,
+    last: (a, b) => String(b.last_sale || '').localeCompare(String(a.last_sale || '')),
+    stock: (a, b) => (b.stock ?? -1) - (a.stock ?? -1),
+    name: (a, b) => a.title.localeCompare(b.title),
+  };
+  return rows.sort(by[sort] || by.rank);
+}
+
+function saSummary() {
+  const R = _sa.rows, T = _sa.totals.units3 || 1;
+  const sold = R.filter(r => !r.zero);
+  const n = (f) => R.filter(f).length;
+  const units = f => R.filter(f).reduce((t, r) => t + r.units3, 0);
+  // what the site would keep: your call where made, the suggestion where not; maybe counts as kept until decided
+  const kept = r => (r.decision || r.suggestion) !== 'remove';
+  const keptN = n(kept), keptU = units(kept);
+  const goneN = R.length - keptN;
+  document.getElementById('saSummary').innerHTML = `
+    <div class="sa-card"><b class="big">${sold.length}</b> designs sold on the website over ${_sa.full.map(saMon).join(', ')} · <b>${_sa.totals.zero_active}</b> live design${_sa.totals.zero_active === 1 ? '' : 's'} sold nothing</div>
+    <div class="sa-card">Suggested <span class="sa-pill keep">Keep ${n(r => r.suggestion === 'keep')}</span><span class="sa-pill maybe">Maybe ${n(r => r.suggestion === 'maybe')}</span><span class="sa-pill remove">Remove ${n(r => r.suggestion === 'remove')}</span></div>
+    <div class="sa-card">Your calls <span class="sa-pill keep">Keep ${n(r => r.decision === 'keep')}</span><span class="sa-pill maybe">Maybe ${n(r => r.decision === 'maybe')}</span><span class="sa-pill remove">Remove ${n(r => r.decision === 'remove')}</span> <span>${n(r => !r.decision)} not decided</span></div>
+    <div class="sa-card">As it stands the site keeps <b class="big">${keptN}</b> designs carrying <b>${Math.round(keptU / T * 1000) / 10}%</b> of website units · <b>${goneN}</b> go</div>`;
+  document.getElementById('saZeroLbl').textContent = `show the ${_sa.totals.zero_active} live design${_sa.totals.zero_active === 1 ? '' : 's'} with no sale`;
+}
+
+function saRender() {
+  if (!_sa) return;
+  saSummary();
+  const rows = saFiltered(), narrow = window.innerWidth < 760;
+  const full = _sa.full, cur = _sa.cur;
+  document.getElementById('saBulk').innerHTML = `${rows.length} shown · set all shown to
+    <select id="saBulkSel" class="sa-in"><option value="">choose…</option><option value="suggestion">their suggestion</option><option value="keep">Keep</option><option value="maybe">Maybe</option><option value="remove">Remove</option><option value="clear">clear the call</option></select>
+    <button class="btn btn-ghost" onclick="saBulk()">Apply to ${rows.length}</button>
+    <span style="color:var(--muted)">· data from ${saDay(_sa.data_from)} · this month is ${_sa.day_of_month} of ${_sa.days_in_month} days · keep at ${_sa.rules.keep_at}+ a month, remove under ${_sa.rules.remove_below}</span>`;
+  if (!rows.length) { document.getElementById('saTable').innerHTML = '<div class="sa-card">Nothing matches these filters.</div>'; return; }
+  const colours = r => `<div class="sa-cl">${r.colors.slice(0, 6).map(([c, k]) => `<span class="c" style="${colorPillStyle(c)}">${saEsc(c.replace(/\s*\(.*\)$/, ''))} ${k}</span>`).join('')}${r.colors.length > 6 ? `<span class="c">+${r.colors.length - 6}</span>` : ''}</div>${r.colors_unsold.length ? `<div class="sa-never">never sold: ${saEsc(r.colors_unsold.slice(0, 6).join(', '))}${r.colors_unsold.length > 6 ? '…' : ''}</div>` : ''}`;
+  const meta = r => [r.price ? '₹' + r.price : '', r.variants ? `${r.variants} colours` : '', r.age_days != null && r.age_days < 60 ? `<b style="color:var(--accent)">new · ${r.age_days}d</b>` : '', r.status !== 'active' ? `<b>${saEsc(r.status)}</b>` : ''].filter(Boolean).join(' · ');
+  const arrow = r => r.trend === 'up' ? '<b style="color:var(--green)">↑</b>' : r.trend === 'down' ? '<b style="color:var(--red)">↓</b>' : '';
+  const sel = r => `<select class="sa-sel" data-v="${r.decision || ''}" onchange="saSet('${r.handle}', this.value, this)"><option value="">— decide —</option>${['keep', 'maybe', 'remove'].map(k => `<option value="${k}"${r.decision === k ? ' selected' : ''}>${SA_LBL[k]}</option>`).join('')}</select>`;
+  const note = r => `<input class="sa-note" value="${saEsc(r.note)}" placeholder="note" onchange="saNote('${r.handle}', this.value)">`;
+  const num = n => n ? n : '<span class="sa-z">0</span>';
+  const amz = r => r.amazon ? `${r.amazon.units3}<div class="sa-m">${r.amazon.avg}/mo</div>` : '<span class="sa-z">—</span>';
+  if (narrow) {
+    document.getElementById('saTable').innerHTML = `<div class="sa-cards">${rows.map(r => `<div class="sa-cardrow" data-call="${r.decision || ''}" data-h="${r.handle}">
+      <div class="top">${r.image ? `<img src="${saImg(r.image)}" loading="lazy" style="width:40px;height:40px;border-radius:8px;object-fit:cover">` : ''}<div style="flex:1;min-width:0"><div style="font-weight:800">${r.rank ? `<span class="sa-m">#${r.rank}</span> ` : ''}${saEsc(r.title)}</div><div class="sa-m">${meta(r)}</div></div>${sel(r)}</div>
+      <div class="nums">${full.map(m => `<span>${saMon(m)} <b>${r.months[m]}</b></span>`).join('')}<span>${saMon(cur)} so far <b>${r.months[cur]}</b></span><span>avg <b>${r.avg}</b>/mo ${arrow(r)}</span><span>stock <b>${r.stock ?? 'N/A'}</b></span><span>last ${saDay(r.last_sale)}</span>${r.amazon ? `<span>Amazon <b>${r.amazon.units3}</b></span>` : ''}</div>
+      ${colours(r)}
+      <div style="margin-top:6px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span><span class="sa-m">${saEsc(r.why)}</span></div>
+      ${note(r)}</div>`).join('')}</div>`;
+    return;
+  }
+  document.getElementById('saTable').innerHTML = `<div class="sa-wrap"><table class="sa-tbl"><thead><tr>
+    <th class="l">#</th><th class="l">Design</th>${full.map(m => `<th>${saMon(m)}</th>`).join('')}<th>${saMon(cur)} so far</th><th>Avg / mo</th><th title="this design's share of website units, and the running total down to it">Share</th><th class="l">Colours sold, high to low</th><th>Amazon<br>${full.length} mo</th><th>Stock</th><th>Last sale</th><th class="l">Suggestion</th><th class="l">Your call</th>
+    </tr></thead><tbody>${rows.map(r => `<tr data-call="${r.decision || ''}" data-h="${r.handle}">
+    <td class="l sa-m">${r.rank || '—'}</td>
+    <td class="l"><div class="sa-d">${r.image ? `<img src="${saImg(r.image)}" loading="lazy">` : '<img alt="">'}<div><div class="t">${saEsc(r.title)}</div><div class="sa-m">${meta(r)}</div></div></div></td>
+    ${full.map(m => `<td>${num(r.months[m])}</td>`).join('')}
+    <td>${num(r.months[cur])}<div class="sa-m">pace ${r.pace}</div></td>
+    <td><b>${r.avg}</b> ${arrow(r)}</td>
+    <td>${r.share_pct ? r.share_pct + '%' : '<span class="sa-z">—</span>'}<div class="sa-m" title="running total of website units from the top seller down to this design">${r.units3 ? 'Σ ' + r.cum_pct + '%' : ''}</div></td>
+    <td class="l">${r.colors.length ? colours(r) : '<span class="sa-z">no sale</span>'}</td>
+    <td>${amz(r)}</td>
+    <td>${r.stock == null ? '<span class="sa-z">N/A</span>' : r.stock}</td>
+    <td style="white-space:nowrap">${saDay(r.last_sale)}</td>
+    <td class="l"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span><div class="sa-why">${saEsc(r.why)}</div></td>
+    <td class="l call">${sel(r)}${note(r)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+async function saSet(handle, decision, el) {
+  const r = _sa.rows.find(x => x.handle === handle); if (!r) return;
+  const prev = r.decision; r.decision = decision || null;
+  if (el) el.dataset.v = decision || '';
+  const holder = el && el.closest('[data-h]'); if (holder) holder.dataset.call = decision || '';
+  saSummary();
+  try { await api({ action: 'sku_audit_set', handle, decision: decision || null, snapshot: { [handle]: { suggestion: r.suggestion, avg: r.avg } } }); }
+  catch (e) { r.decision = prev; if (el) { el.value = prev || ''; el.dataset.v = prev || ''; } if (holder) holder.dataset.call = prev || ''; saSummary(); toast('Not saved: ' + e.message); }
+}
+async function saNote(handle, note) {
+  const r = _sa.rows.find(x => x.handle === handle); if (!r) return;
+  try { await api({ action: 'sku_audit_note', handle, note }); r.note = note; toast('Note saved'); } catch (e) { toast('Note not saved: ' + e.message); }
+}
+async function saBulk() {
+  const v = saV('saBulkSel'); if (!v) { toast('Choose what to set first'); return; }
+  const rows = saFiltered(); if (!rows.length) return;
+  const label = v === 'suggestion' ? 'their own suggestion' : v === 'clear' ? 'no call' : SA_LBL[v];
+  if (!confirm(`Set ${rows.length} design${rows.length === 1 ? '' : 's'} to ${label}?`)) return;
+  const groups = {};
+  for (const r of rows) { const d = v === 'suggestion' ? r.suggestion : v === 'clear' ? '' : v; (groups[d] ||= []).push(r); }
+  try {
+    for (const [d, rs] of Object.entries(groups)) {
+      for (let i = 0; i < rs.length; i += 200) {
+        const part = rs.slice(i, i + 200), snapshot = {};
+        for (const r of part) snapshot[r.handle] = { suggestion: r.suggestion, avg: r.avg };
+        await api({ action: 'sku_audit_set', handles: part.map(r => r.handle), decision: d || null, snapshot });
+        for (const r of part) r.decision = d || null;
+      }
+    }
+    toast(`✓ ${rows.length} set to ${label}`);
+  } catch (e) { toast('Stopped: ' + e.message); }
+  saRender();
+}
+function saExport() {
+  if (!_sa) return;
+  const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const head = ['handle', 'title', 'status', 'price', ..._sa.full.map(saMon), saMon(_sa.cur) + ' so far', 'avg per month', 'trend', 'share %', 'colours sold', 'colours never sold', `amazon ${_sa.full.length} mo`, 'stock', 'last sale', 'suggestion', 'why', 'your call', 'note'];
+  const lines = saFiltered().map(r => [r.handle, r.title, r.status, r.price, ..._sa.full.map(m => r.months[m]), r.months[_sa.cur], r.avg, r.trend, r.share_pct, r.colors.map(([c, k]) => `${c} ${k}`).join('; '), r.colors_unsold.join('; '), r.amazon ? r.amazon.units3 : 0, r.stock ?? '', r.last_sale || '', r.suggestion, r.why, r.decision || '', r.note].map(q).join(','));
+  const blob = new Blob([[head.map(q).join(','), ...lines].join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `sku-audit-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+}
+let _saNarrow = window.innerWidth < 760;
+window.addEventListener('resize', () => { const n = window.innerWidth < 760; if (n !== _saNarrow) { _saNarrow = n; if (_sa && document.getElementById('view-skuaudit').classList.contains('active')) saRender(); } });
+</script>
+
 <div id="toast"></div>
 
 <!-- ── ADD PRODUCT MODAL ────────────────────────────────────────────────────── -->
@@ -2076,6 +2287,7 @@ function switchView(view) {
   if (view === 'fba') loadFba();
   if (view === 'cod' || view === 'returns') loadCod();
   if (view === 'recon') reconInit();
+  if (view === 'skuaudit') loadSkuAudit();
   if (view === 'dispatch') {
     loadDispatchCounters();
     if (!Object.keys(_printLinks).length) loadPrintData();
