@@ -139,7 +139,7 @@ td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-n
 .skel{height:14px;border-radius:6px;background:linear-gradient(90deg,#f3ebdf,#faf5ee,#f3ebdf);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 @media (max-width:600px){.panel{padding:14px}.tile .n{font-size:1.15rem}}
-.sdb td,.sdb th{padding:6px 8px}@media (max-width:760px){.sdb td,.sdb th{padding:5px 4px}.pace #sdBench table{display:table;white-space:normal}}.sdb tr{border-top:1px solid #f0e6d8!important}.sdb tbody tr:hover td{background:#faf3ea}
+.sdb td,.sdb th{padding:6px 8px}@media (max-width:760px){.sdb td,.sdb th{padding:5px 2px}.pace #sdBench table{display:table;white-space:normal}}.sdb tr{border-top:1px solid #f0e6d8!important}.sdb tbody tr:hover td{background:#faf3ea}
 /* phones: a wide table scrolls inside its box instead of pushing the page out of the screen */
 html,body{overflow-x:hidden;max-width:100%}
 .pace,.panel{min-width:0;max-width:100%}
@@ -194,7 +194,7 @@ html,body{overflow-x:hidden;max-width:100%}
       </span>
     </div>
     <div id="sdBench"></div>
-    <div id="sdBody"><div class="skel" style="height:120px"></div></div>
+    <div id="sdBody"></div>
   </section>
   <section id="ledger" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -760,12 +760,12 @@ function renderSaleBench() {
   const ist = new Date(Date.now() + 330 * 60000), nowH = ist.getUTCHours();
   // phones: today and the reference day it is paired with, side by side; the yesterday pair needs a wide screen
   const narrow = window.innerWidth < 760;
-  const all = b.cols || [], ti = all.findIndex(c => c.key === b.today);
-  const cols = narrow && all.length > 2 ? (ti >= 0 ? all.slice(Math.max(0, ti - 1), ti + 1) : all.slice(-2)) : all;
-  const off = all.indexOf(cols[0]) < 0 ? 0 : all.indexOf(cols[0]);
+  const all = b.cols || [], ti = all.findIndex(c => c.key === b.today), yi = all.findIndex(c => c.key === b.yesterday);
+  // phones: yesterday and today; in a sale, today and the sale day it is paired with
+  const cols = narrow && all.length > 2 ? (!b.sale_on && yi >= 0 && ti >= 0 ? [all[yi], all[ti]] : ti >= 0 ? all.slice(Math.max(0, ti - 1), ti + 1) : all.slice(-2)) : all;
   const span = narrow ? 3 : 4;
   // every column is a day the owner can change; stored sale days keep their own label
-  const head = cols.map((c, i) => `<th colspan="${span}" style="text-align:center;padding:4px 6px;border-left:1px solid var(--line);${c.key === b.today ? 'background:#fde8df' : ''}"><div style="display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap"><span>${esc(c.label)}${c.key === b.today && c.at ? ` <small class="note">by ${esc(c.at)}</small>` : ''}${c.error ? ` <small class="note" title="${esc(c.error)}">⚠</small>` : ''}</span><input type="date" value="${c.key}" min="${b.min_day || ''}" max="${b.today}" onchange="sdDay(${off + i}, this.value)" title="change this column's day (live data covers the last 60 days; older sale days are saved)" style="font:inherit;font-size:${narrow ? '.6rem' : '.66rem'};font-weight:400;padding:1px 2px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink2);width:${narrow ? '94px' : '118px'}">${all.length > 1 ? `<span onclick="sdDayRemove(${off + i})" title="remove this column" style="cursor:pointer;color:var(--muted);font-weight:400">✕</span>` : ''}</div></th>`).join('');
+  const head = cols.map((c, i) => `<th colspan="${span}" style="text-align:center;padding:4px 6px;border-left:1px solid var(--line);${c.key === b.today ? 'background:#fde8df' : ''}"><div style="display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap"><span>${esc(c.label)}${c.key === b.today && c.at ? ` <small class="note">by ${esc(c.at)}</small>` : ''}${c.error ? ` <small class="note" title="${esc(c.error)}">⚠</small>` : ''}</span><input type="date" value="${c.key}" min="${b.min_day || ''}" max="${b.today}" onchange="sdDay(${all.indexOf(c)}, this.value)" title="change this column's day (live data covers the last 60 days; older sale days are saved)" style="font:inherit;font-size:${narrow ? '.6rem' : '.66rem'};font-weight:400;padding:1px 2px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink2);width:${narrow ? '94px' : '118px'}">${all.length > 1 ? `<span onclick="sdDayRemove(${all.indexOf(c)})" title="remove this column" style="cursor:pointer;color:var(--muted);font-weight:400">✕</span>` : ''}</div></th>`).join('');
   const sub = cols.map(c => narrow
     ? `<th style="text-align:right;border-left:1px solid var(--line)">spend<br><small style="font-weight:400;text-transform:none">hour</small></th><th style="text-align:right">revenue<br><small style="font-weight:400;text-transform:none">hour · orders</small></th><th style="text-align:right;padding-left:6px">ROAS<br><small style="font-weight:400;text-transform:none">hour</small></th>`
     : `<th style="text-align:right;border-left:1px solid var(--line)">spend so far<br><small style="font-weight:400;text-transform:none">this hour</small></th><th style="text-align:right">revenue so far<br><small style="font-weight:400;text-transform:none">this hour</small></th><th style="text-align:right">orders<br><small style="font-weight:400;text-transform:none">pieces · AOV</small></th><th style="text-align:right">ROAS so far<br><small style="font-weight:400;text-transform:none">this hour</small></th>`).join('');
@@ -791,10 +791,16 @@ function renderSaleBench() {
   }).join('');
   const tot = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; if (n < 0) return `<td style="border-left:1px solid var(--line)"></td><td></td><td></td>${narrow ? '' : '<td></td>'}`; const od = (c.orders || [])[n] || 0, un = (c.units || [])[n] || 0; if (narrow) return `<td style="text-align:right;white-space:nowrap;border-left:1px solid var(--line)"><b>${f(c.spend[n])}</b></td><td style="text-align:right;white-space:nowrap;line-height:1.15"><b>${f(c.rev[n])}</b><br><small class="note">${od} · ${un}</small></td><td style="text-align:right;line-height:1.15"><b>${c.spend[n] ? (c.rev[n] / c.spend[n]).toFixed(2) : '—'}</b><br><small class="note">${od ? f(c.rev[n] / od) : ''}</small></td>`; return `<td style="text-align:right;white-space:nowrap;border-left:1px solid var(--line)"><b>${f(c.spend[n])}</b></td><td style="text-align:right;white-space:nowrap"><b>${f(c.rev[n])}</b></td><td style="text-align:right;white-space:nowrap;line-height:1.15"><b>${od}</b><br><small class="note">${un ? un + ' pcs' : ''}</small></td><td style="text-align:right;line-height:1.15"><b>${c.spend[n] ? (c.rev[n] / c.spend[n]).toFixed(2) : '—'}</b><br><small class="note">${od ? 'AOV ' + f(c.rev[n] / od) : ''}</small></td>`; }).join('');
   const ord = cols.map(c => { const n = c.hours ? c.hours - 1 : -1; const od = n >= 0 ? (c.orders || [])[n] || 0 : 0, un = n >= 0 ? (c.units || [])[n] || 0 : 0; return `<td colspan="${span}" style="text-align:right;border-left:1px solid var(--line)" class="note">${od && un ? (un / od).toFixed(2) + ' pieces per order' : ''}</td>`; }).join('');
-  const tools = `<span style="white-space:nowrap">${all.length < 4 ? `<a href="#" onclick="sdDayAdd();return false" style="color:var(--accent);font-weight:700">+ add a day</a>` : ''}${b.custom ? ` · <a href="#" onclick="sdDayReset();return false" style="color:var(--accent);font-weight:700">back to ${b.sale_on ? 'sale days' : 'yesterday & today'}</a>` : ''}${b.stored && b.stored.length ? ` · saved sale days: ${b.stored.map(d => `<a href="#" onclick="sdDay(${Math.max(0, all.length - 1)}, '${d}');return false" title="put this saved day in the last column">${esc(d)}</a>`).join(', ')}` : ''}</span>`;
+  const tools = `<span style="white-space:nowrap">${all.length < 4 ? `<a href="#" onclick="sdDayAdd();return false" style="color:var(--accent);font-weight:700">+ add a day</a>` : ''}${b.custom ? ` · <a href="#" onclick="sdDayReset();return false" style="color:var(--accent);font-weight:700">back to ${b.sale_on ? 'sale days' : 'the last 3 days'}</a>` : ''}${b.stored && b.stored.length ? ` · saved sale days: ${b.stored.map(d => `<a href="#" onclick="sdDay(${Math.max(0, all.length - 1)}, '${d}');return false" title="put this saved day in the last column">${esc(d)}</a>`).join(', ')}` : ''}</span>`;
   const problems = all.filter(c => c.error).map(c => `<div class="warn" style="margin:0 0 6px">⚠ <b>${esc(c.label)}</b>: ${esc(c.error)}</div>`).join('');
+  // today's whole column gets one outline (column-group borders draw in the collapsed table model)
+  const groups = `<colgroup><col></colgroup>${cols.map(c => `<colgroup span="${span}"${c.key === b.today ? ` style="border:${narrow ? 2 : 2.5}px solid var(--accent)"` : ''}></colgroup>`).join('')}`;
+  // what is left of today's budgets, per live account, each on its own budget day
+  const fr = v => '₹' + Math.round(v || 0).toLocaleString('en-IN');
+  const bl = Array.isArray(b.budgets) ? b.budgets.filter(x => x.budget > 0) : [];
+  const budgetLine = bl.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;margin-top:10px;font-size:.84rem"><b>Budget left today</b>${bl.map(x => `<span title="${x.holders} live budget${x.holders === 1 ? '' : 's'} · ${x.used_pct ?? '—'}% used with ${x.elapsed_pct ?? '—'}% of its day gone">${esc(x.account)} <b>${fr(x.left)}</b> <span class="note">of ${fr(x.budget)}${/^PDT/.test(x.tz || '') ? ' · resets ' + esc(String(x.tz).replace(/^PDT day, flips /, '')) : ''}</span></span>`).join('')}${bl.length > 1 ? `<span class="note">all <b>${fr(bl.reduce((s, x) => s + x.left, 0))}</b> of ${fr(bl.reduce((s, x) => s + x.budget, 0))}</span>` : ''}</div>` : '';
   box.innerHTML = `${problems}<div class="note" style="margin:0 0 4px"><b>Running totals since midnight</b> · Meta spend on every account, Shopify revenue · the running figure on top, that hour on its own underneath · ROAS green at 4+ and red under 3 · the red box is this hour · * the hour is still running · ~ spend Meta may still restate (it settles about two hours after the hour ends) · change any column's day in its header · ${tools}</div>
-    <div style="overflow-x:auto;max-width:100%"><table class="sdb" style="border-collapse:collapse;table-layout:auto;font-size:${narrow ? '.72rem' : '.8rem'};min-width:${narrow ? '0' : '960px'};width:100%"><tr><th></th>${head}</tr><tr style="color:var(--muted);font-size:.66rem;text-transform:uppercase"><th></th>${sub}</tr>${rows}<tr style="border-top:2px solid var(--ink)"><td style="padding:4px 6px;color:var(--muted)">so far</td>${tot}</tr><tr><td></td>${ord}</tr></table></div>`;
+    <div style="overflow-x:auto;max-width:100%"><table class="sdb" style="border-collapse:collapse;table-layout:auto;font-size:${narrow ? '.68rem' : '.8rem'};min-width:${narrow ? '0' : '960px'};width:100%">${groups}<tr><th></th>${head}</tr><tr style="color:var(--muted);font-size:.66rem;text-transform:uppercase"><th></th>${sub}</tr>${rows}<tr style="border-top:2px solid var(--ink)"><td style="padding:4px ${narrow ? 2 : 6}px;color:var(--muted);line-height:1.1">${narrow ? "so<br>far" : "so far"}</td>${tot}</tr><tr><td></td>${ord}</tr></table></div>${budgetLine}`;
 }
 const sdTag = t => ({ scale: ['#d8f3dc', '#1a7f37'], hold: ['#e8f0fe', '#1a3f9c'], watch: ['#fff3cd', '#8a6d00'], pause: ['#fde8e8', '#b00020'], 'too early': ['#eee', '#777'] })[t] || ['#eee', '#777'];
 const sdPill = t => { const [bg, fg] = sdTag(t); return `<span style="background:${bg};color:${fg};font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap">${esc(t)}</span>`; };
@@ -806,33 +812,12 @@ function sdClock(sale) {
 }
 function renderSaleDay() {
   const d = _sd; if (!d) return;
-  const f = v => '₹' + Math.round(v || 0).toLocaleString('en-IN');
-  const T = d.targets, m = d.meta, sh = d.shop, b = d.budgets, p = d.projection;
   const when = `${d.account} account · ${d.day} · by ${d.at}${d.sale ? ` · ${esc(d.sale.name)} · ${sdClock(d.sale)}` : ' · no sale window open'}`;
   document.getElementById('sdWhen').textContent = when; const w2 = document.getElementById('sdWhen2'); if (w2) w2.textContent = when;
   const opts = [...(d.accounts || ['IST', 'IST new', 'PDT']).map(a => [a, a]), ['IST,IST new', 'IST + IST new']];
   document.getElementById('sdAccts').innerHTML = opts.map(([k, l]) => `<span class="pill${(d.account_key || d.account) === k ? ' on' : ''}" onclick="sdAccount('${k}')" title="watch this account for the sale">${esc(l)}</span>`).join('');
-  // campaigns on the chosen accounts: tap to narrow the section to one (or a few); none ticked = all
-  const f0 = v => '₹' + Math.round(v || 0).toLocaleString('en-IN');
-  const camps = (d.campaigns || []).slice().sort((a, b) => b.spend - a.spend || (b.daily_budget || 0) - (a.daily_budget || 0));
-  const chosen = new Set(d.campaign_ids || []);
-  const cRow = camps.length ? `<div class="pills" style="margin:0 0 8px"><span class="note" style="align-self:center">Campaign:</span><span class="pill${chosen.size ? '' : ' on'}" onclick="sdCampaigns([])">All</span>${camps.map(c => `<span class="pill${chosen.has(c.id) ? ' on' : ''}" onclick="sdCampaignToggle('${c.id}')" title="${esc(c.account)}${c.daily_budget ? ` · CBO ${f0(c.daily_budget)}/day` : ''}">${esc(c.name.length > 42 ? c.name.slice(0, 40) + '…' : c.name)} <b>${f0(c.spend)}</b>${(d.account_key || '').includes(',') ? ` <span class="mv">${esc(c.account)}</span>` : ''}</span>`).join('')}</div>` : '';
-  window._sdCampRow = cRow;
-  const tile = (n, l, sub, col) => `<div class="tile"><div class="n"${col ? ` style="color:${col}"` : ''}>${n}</div><div class="l">${l}</div><div class="s">${sub}</div></div>`;
-  const roasCol = m.roas >= T.roas ? '#1a7f37' : m.roas >= T.roas * 0.6 ? '#8a6d00' : '#b00020';
-  const bar = (used, elapsed) => `<div style="position:relative;height:8px;background:#eee;border-radius:4px;margin-top:6px"><div style="height:8px;width:${Math.min(100, used || 0)}%;background:${used != null && elapsed != null && elapsed - used >= 15 ? '#c0392b' : used - elapsed >= 10 ? '#1a3f9c' : '#2e8b57'};border-radius:4px"></div><i style="position:absolute;top:-2px;left:${Math.min(100, elapsed || 0)}%;width:2px;height:12px;background:var(--ink)"></i></div>`;
-  const tiles = `<div class="pt">
-    ${tile(f(m.spend), `Spend so far · ${esc(d.account)}`, `target ${f(T.spend)} · ${d.vs.spend_pct ?? '—'}% · pace ${f(p.spend)} by midnight`)}
-    ${tile(`${b.used_pct ?? '—'}%`, 'Budget spent', `${f(b.spent)} of ${f(b.total)} · ${f(b.left)} left · ${b.holders.length} live budget${b.holders.length === 1 ? '' : 's'}${bar(b.used_pct, b.elapsed_pct)}`)}
-    ${tile(m.roas, `Meta ROAS`, `target ${T.roas} · ${m.purchases} sales · ${f(m.value)}`, roasCol)}
-    ${tile(sh.orders, 'Shop orders today', `target ${T.orders} · ${d.vs.orders_pct ?? '—'}% · pace ${p.orders}${d.vs.orders_on_pace === false ? ' <b class="dn">behind</b>' : d.vs.orders_on_pace ? ' <b class="up">on track</b>' : ''}`)}
-    ${tile(f(sh.revenue), 'Shop revenue today', `AOV ${f(sh.aov)} · ${sh.units_per_order} pieces/order · pace ${f(p.revenue)}`)}
-    ${tile(m.cpa == null ? '—' : f(m.cpa), 'Cost per sale', `CTR ${m.ctr}% · CPC ${m.cpc == null ? '—' : f(m.cpc)} · ${m.clicks} clicks`)}
-  </div>`;
-  const read = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}</div>`;
-  const counts = Object.entries(d.counts).map(([t, n]) => `${sdPill(t)} <b style="margin-right:8px">${n}</b>`).join('');
-  const top = d.ads.slice(0, 6).map(a => `<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line);font-size:.82rem"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.name)} · ${esc(a.adset || '')}">${esc(a.name)}</span><span style="width:70px;text-align:right">${f(a.spend)}</span><span style="width:60px;text-align:right">${a.purchases} sale${a.purchases === 1 ? '' : 's'}</span><span style="width:60px;text-align:right;font-weight:800;color:${a.roas >= T.roas ? '#1a7f37' : a.roas < 1.5 ? '#b00020' : 'inherit'}">${a.roas}</span>${sdPill(a.tag)}</div>`).join('');
-  document.getElementById('sdBody').innerHTML = (window._sdCampRow || '') + read + tiles + (d.ads.length ? `<div class="note" style="margin:4px 0 2px"><b>Ads today</b> · ${counts} · top by spend, open for all ${d.ads.length}</div>${top}` : '');
+  // the section itself is the table and the budget line; the read, tiles and ads live in the popup
+  document.getElementById('sdBody').innerHTML = '';
   if (document.getElementById('sdModal').classList.contains('open')) renderSaleDayFull();
 }
 function openSaleDay() { document.getElementById('sdModal').classList.add('open'); if (_sd) renderSaleDayFull(); else loadSaleDay(true); }
@@ -846,10 +831,9 @@ function renderSaleDayFull() {
   const ads = d.ads.length ? `<div class="note" style="margin:6px 0 2px"><b>Every ad today</b> · sorted by spend · verdicts against a ${T.roas} ROAS target</div><table style="width:100%;border-collapse:collapse;font-size:.8rem"><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase"><th style="text-align:left;padding:4px">Ad</th><th style="text-align:right">Spend</th><th style="text-align:right">Sales</th><th style="text-align:right">Value</th><th style="text-align:right">ROAS</th><th style="text-align:right">CPA</th><th style="text-align:right">CTR</th><th style="text-align:right">Clicks</th><th style="text-align:left;padding-left:8px">Verdict</th></tr>${d.ads.map(a => `<tr style="border-top:1px solid var(--line)"><td style="padding:4px;max-width:320px"><b>${esc(a.name)}</b>${d.account_key && d.account_key.includes(',') ? ` <span class="mv">${esc(a.account || '')}</span>` : ''}<br><small class="note">${esc(a.adset || '')} · ${esc(a.campaign || '')}</small></td><td style="text-align:right">${f(a.spend)}</td><td style="text-align:right">${a.purchases}</td><td style="text-align:right">${f(a.value)}</td><td style="text-align:right;font-weight:800;color:${a.roas >= T.roas ? '#1a7f37' : a.roas < 1.5 && a.spend >= 300 ? '#b00020' : 'inherit'}">${a.roas}</td><td style="text-align:right">${a.cpa == null ? '—' : f(a.cpa)}</td><td style="text-align:right">${a.ctr}%</td><td style="text-align:right">${a.clicks}</td><td style="padding-left:8px">${sdPill(a.tag)}<br><small class="note">${esc(a.why)}</small></td></tr>`).join('')}</table>` : '<div class="note">No ad has delivered yet today.</div>';
   document.getElementById('sdFull').innerHTML = `<div class="read">${d.read.map(x => `<p>${esc(x)}</p>`).join('')}</div>` + targets + budgets + ads;
 }
-async function sdCampaigns(ids) { document.getElementById('sdBody').innerHTML = '<div class="skel" style="height:120px"></div>'; try { await api({ action: 'sale_day_targets', campaigns: ids }); } catch (e) { alert(e.message); } loadSaleDay(true); }
+async function sdCampaigns(ids) { try { await api({ action: 'sale_day_targets', campaigns: ids }); } catch (e) { alert(e.message); } loadSaleDay(true); }
 function sdCampaignToggle(id) { const cur = new Set((_sd && _sd.campaign_ids) || []); if (cur.has(id)) cur.delete(id); else cur.add(id); sdCampaigns([...cur]); }
 async function sdAccount(k) {
-  document.getElementById('sdBody').innerHTML = '<div class="skel" style="height:120px"></div>';
   try { await api({ action: 'sale_day_targets', account: k }); } catch (e) { alert(e.message); }
   loadSaleDay(true);
 }
