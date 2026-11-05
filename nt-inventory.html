@@ -22,7 +22,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--fb); background: var(--bg); color: var(--ink); min-height: 100vh; }
 /* SKU audit */
-#view-skuaudit{max-width:1560px}
+#view-skuaudit{max-width:1120px}
 .sa-summary{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
 .sa-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:.8rem;color:var(--ink2);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
 .sa-card b.big{font-family:var(--ff);font-size:1.05rem;color:var(--ink)}
@@ -66,7 +66,10 @@ input.sa-in[type=search]{min-width:200px;flex:1 1 200px}
 .sa-pills button.keep.on{background:var(--green);border-color:var(--green)}
 .sa-pills button.maybe.on{background:#c9a227;border-color:#c9a227}
 .sa-pills button.remove.on{background:var(--red);border-color:var(--red)}
-.sa-tbl.slim{min-width:0}
+.sa-tbl.slim{min-width:0;width:100%}
+.sa-tbl.slim td,.sa-tbl.slim th{padding:6px 10px}
+.sa-tbl.slim td.nm{width:26%}
+.sa-tbl.slim td.cl{width:22%}
 .sa-calls{display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
 .sa-calls button{font:inherit;font-size:.78rem;font-weight:800;padding:5px 13px;border:none;background:none;color:var(--ink2);cursor:pointer;border-left:1px solid var(--line)}
 .sa-calls button:first-child{border-left:none}
@@ -2163,8 +2166,8 @@ function saRender() {
     <th class="l">#</th><th class="l">Design</th><th class="l">Top colours</th><th>${avgLbl}</th><th>Best month</th><th class="l">Suggestion</th><th class="l">Your call</th>
     </tr></thead><tbody>${rows.map(r => `<tr data-call="${r.decision || ''}" data-h="${r.handle}">
     <td class="l sa-m">${r.rank || '—'}</td>
-    <td class="l"><b>${saEsc(r.title)}</b>${draft(r)}</td>
-    <td class="l"><div class="sa-cl">${top2(r)}</div></td>
+    <td class="l nm"><b>${saEsc(r.title)}</b>${draft(r)}</td>
+    <td class="l cl"><div class="sa-cl">${top2(r)}</div></td>
     <td style="white-space:nowrap"><b>${r.avg}</b>${trend(r)}</td>
     <td style="white-space:nowrap">${best(r)}</td>
     <td class="l">${sug(r)}</td>
