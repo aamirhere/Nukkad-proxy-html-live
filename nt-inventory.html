@@ -67,6 +67,15 @@ input.sa-in[type=search]{min-width:200px;flex:1 1 200px}
 .sa-pills button.maybe.on{background:#c9a227;border-color:#c9a227}
 .sa-pills button.remove.on{background:var(--red);border-color:var(--red)}
 .sa-tbl.slim{min-width:0}
+.sa-calls{display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+.sa-calls button{font:inherit;font-size:.78rem;font-weight:800;padding:5px 13px;border:none;background:none;color:var(--ink2);cursor:pointer;border-left:1px solid var(--line)}
+.sa-calls button:first-child{border-left:none}
+.sa-calls button.sug{box-shadow:inset 0 0 0 2px var(--ink2);border-radius:999px}
+.sa-calls button.on.keep{background:var(--green);color:#fff}
+.sa-calls button.on.maybe{background:#c9a227;color:#fff}
+.sa-calls button.on.remove{background:var(--red);color:#fff}
+.sa-tr{font-size:.7rem;font-weight:700;margin-left:4px;white-space:nowrap}
+.sa-tr.up{color:var(--green)}.sa-tr.down{color:var(--red)}
 .sa-tbl.slim td{vertical-align:middle}
 .sa-draft{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:.82rem;margin:0 0 10px}
 .sa-draft:empty{display:none}
@@ -2049,7 +2058,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 <div class="view" id="view-skuaudit">
   <div class="page-hd">
     <h2>SKU audit</h2>
-    <p id="saSub">Which designs deserve a place on the site, from real website orders. The suggestion is a starting point; your call is the dropdown.</p>
+    <p id="saSub">Which designs deserve a place on the site, from real website orders. The suggestion is a starting point. Tap Keep, Maybe or Remove for your call; the outlined one matches the suggestion.</p>
   </div>
   <div id="saSummary" class="sa-summary"></div>
   <div class="sa-bar">
@@ -2117,15 +2126,18 @@ function saSummary() {
 }
 
 function saPill(key, v, label, cls) { return `<button class="${cls || ''}${saV(key) === v ? ' on' : ''}" onclick="document.getElementById('${key}').value='${v}';saRender()">${label}</button>`; }
-function saRender() {
-  if (!_sa) return;
-  saSummary();
+function saPillsRender() {
   const zero = document.getElementById('saZero').checked;
   const base = _sa.rows.filter(r => zero || !r.zero);
   const c = f => base.filter(f).length;
   document.getElementById('saPills').innerHTML = `
     <div class="row"><span>Suggested</span>${saPill('saSug', 'all', `All ${base.length}`)}${saPill('saSug', 'keep', `Keep ${c(r => r.suggestion === 'keep')}`, 'keep')}${saPill('saSug', 'maybe', `Maybe ${c(r => r.suggestion === 'maybe')}`, 'maybe')}${saPill('saSug', 'remove', `Remove ${c(r => r.suggestion === 'remove')}`, 'remove')}</div>
     <div class="row"><span>Your call</span>${saPill('saCall', 'all', 'All')}${saPill('saCall', 'open', `Not decided ${c(r => !r.decision)}`)}${saPill('saCall', 'keep', `Keep ${c(r => r.decision === 'keep')}`, 'keep')}${saPill('saCall', 'maybe', `Maybe ${c(r => r.decision === 'maybe')}`, 'maybe')}${saPill('saCall', 'remove', `Remove ${c(r => r.decision === 'remove')}`, 'remove')}${saPill('saCall', 'differs', `Differs from mine ${c(r => r.decision && r.decision !== r.suggestion)}`)}</div>`;
+}
+function saRender() {
+  if (!_sa) return;
+  saSummary();
+  saPillsRender();
   const rows = saFiltered(), narrow = window.innerWidth < 760;
   document.getElementById('saBulk').innerHTML = `${rows.length} shown · set all shown to
     <select id="saBulkSel" class="sa-in"><option value="">choose…</option><option value="suggestion">their suggestion</option><option value="keep">Keep</option><option value="maybe">Maybe</option><option value="remove">Remove</option><option value="clear">clear the call</option></select>
@@ -2133,14 +2145,17 @@ function saRender() {
   if (!rows.length) { document.getElementById('saTable').innerHTML = '<div class="sa-card">Nothing matches these filters.</div>'; return; }
   const top2 = r => r.colors.length ? r.colors.slice(0, 2).map(([col, k]) => `<span class="c" style="${colorPillStyle(col)}">${saEsc(col.replace(/\s*\(.*\)$/, ''))} ${k}</span>`).join('') : '<span class="sa-z">no sale</span>';
   const best = r => r.best && r.best.n ? `<b>${r.best.n}</b> <span class="sa-m">${saMon(r.best.ym)}${r.best.partial ? ' so far' : ''}</span>` : '<span class="sa-z">—</span>';
-  const sel = r => `<select class="sa-sel" data-v="${r.decision || ''}" onchange="saSet('${r.handle}', this.value, this)"><option value="">— decide —</option>${['keep', 'maybe', 'remove'].map(k => `<option value="${k}"${r.decision === k ? ' selected' : ''}>${SA_LBL[k]}</option>`).join('')}</select>`;
+  // one tap: the pill matching the suggestion is outlined, tapping the current call again clears it
+  const sel = r => `<span class="sa-calls">${['keep', 'maybe', 'remove'].map(k => `<button class="${k}${r.decision === k ? ' on' : ''}${!r.decision && r.suggestion === k ? ' sug' : ''}" data-k="${k}" onclick="saPick('${r.handle}', '${k}', this)" title="${r.suggestion === k ? 'same as the suggestion' : ''}">${SA_LBL[k]}</button>`).join('')}</span>`;
+  const trend = r => r.trend === 'up' ? '<span class="sa-tr up">↑ rising</span>' : r.trend === 'down' ? '<span class="sa-tr down">↓ slowing</span>' : '';
+  const sug = r => `<span class="sa-pill ${r.suggestion}" title="${saEsc(r.why)}">${SA_LBL[r.suggestion]}</span>`;
   const draft = r => r.status !== 'active' ? ` <span class="sa-m">· ${saEsc(r.status)}</span>` : '';
   const avgLbl = `Avg / month<br><span style="text-transform:none;font-weight:400">${saEsc(_sa.label || '')}</span>`;
   if (narrow) {
     document.getElementById('saTable').innerHTML = `<div class="sa-cards">${rows.map(r => `<div class="sa-cardrow" data-call="${r.decision || ''}" data-h="${r.handle}">
-      <div class="top"><div style="flex:1;min-width:0"><div style="font-weight:800">${r.rank ? `<span class="sa-m">#${r.rank}</span> ` : ''}${saEsc(r.title)}${draft(r)}</div></div>${sel(r)}</div>
-      <div class="nums"><span>avg <b>${r.avg}</b>/mo</span><span>best ${best(r)}</span><span class="sa-cl">${top2(r)}</span></div>
-      <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span><span class="sa-m">${saEsc(r.why)}</span></div></div>`).join('')}</div>`;
+      <div class="top"><div style="flex:1;min-width:0"><div style="font-weight:800">${r.rank ? `<span class="sa-m">#${r.rank}</span> ` : ''}${saEsc(r.title)}${draft(r)}</div></div></div>
+      <div class="nums"><span>avg <b>${r.avg}</b>/mo${trend(r)}</span><span>best ${best(r)}</span><span class="sa-cl">${top2(r)}</span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sa-m">suggested</span>${sug(r)}<span style="flex:1"></span>${sel(r)}</div></div>`).join('')}</div>`;
     return;
   }
   document.getElementById('saTable').innerHTML = `<div class="sa-wrap"><table class="sa-tbl slim"><thead><tr>
@@ -2148,21 +2163,29 @@ function saRender() {
     </tr></thead><tbody>${rows.map(r => `<tr data-call="${r.decision || ''}" data-h="${r.handle}">
     <td class="l sa-m">${r.rank || '—'}</td>
     <td class="l"><b>${saEsc(r.title)}</b>${draft(r)}</td>
-    <td><b>${r.avg}</b></td>
+    <td style="white-space:nowrap"><b>${r.avg}</b>${trend(r)}</td>
     <td style="white-space:nowrap">${best(r)}</td>
     <td class="l"><div class="sa-cl">${top2(r)}</div></td>
-    <td class="l"><span class="sa-pill ${r.suggestion}">${SA_LBL[r.suggestion]}</span> <span class="sa-m">${saEsc(r.why)}</span></td>
+    <td class="l">${sug(r)}</td>
     <td class="l">${sel(r)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-async function saSet(handle, decision, el) {
+function saPick(handle, k, btn) {
+  const r = _sa.rows.find(x => x.handle === handle); if (!r) return;
+  saSet(handle, r.decision === k ? '' : k, btn.closest('.sa-calls'));
+}
+function saPaint(group, r) {
+  if (!group) return;
+  group.querySelectorAll('button').forEach(b => { const k = b.dataset.k; b.classList.toggle('on', r.decision === k); b.classList.toggle('sug', !r.decision && r.suggestion === k); });
+}
+async function saSet(handle, decision, group) {
   const r = _sa.rows.find(x => x.handle === handle); if (!r) return;
   const prev = r.decision; r.decision = decision || null;
-  if (el) el.dataset.v = decision || '';
-  const holder = el && el.closest('[data-h]'); if (holder) holder.dataset.call = decision || '';
-  saSummary();
+  const holder = group && group.closest('[data-h]');
+  const paint = () => { saPaint(group, r); if (holder) holder.dataset.call = r.decision || ''; saSummary(); saPillsRender(); };
+  paint();
   try { await api({ action: 'sku_audit_set', handle, decision: decision || null, snapshot: { [handle]: { suggestion: r.suggestion, avg: r.avg } } }); }
-  catch (e) { r.decision = prev; if (el) { el.value = prev || ''; el.dataset.v = prev || ''; } if (holder) holder.dataset.call = prev || ''; saSummary(); toast('Not saved: ' + e.message); }
+  catch (e) { r.decision = prev; paint(); toast('Not saved: ' + e.message); }
 }
 async function saNote(handle, note) {
   const r = _sa.rows.find(x => x.handle === handle); if (!r) return;
