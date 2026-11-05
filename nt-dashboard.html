@@ -741,12 +741,12 @@ setInterval(sdTick, 30000);
 let _sdNarrow = window.innerWidth < 760; window.addEventListener('resize', () => { const n = window.innerWidth < 760; if (n !== _sdNarrow) { _sdNarrow = n; if (_sdB) renderSaleBench(); } });
 // The comparison table's columns: the server's default (sale days beside yesterday and today while a sale runs, else
 // yesterday and today) unless the owner has picked dates, which this browser remembers
-let _sdDays = null; try { _sdDays = JSON.parse(localStorage.getItem('nt_sd_days') || 'null'); } catch {}
+let _sdDays = null; try { _sdDays = JSON.parse(localStorage.getItem('nt_sd_days2') || 'null'); } catch {}
 function sdBenchLoad() {
   const body = { action: 'sale_bench' }; if (Array.isArray(_sdDays) && _sdDays.length) body.days = _sdDays;
   return api(body).then(b => { _sdB = b; renderSaleBench(); }).catch(e => { document.getElementById('sdBench').innerHTML = `<div class="warn">${esc(e.message)}</div>`; });
 }
-function sdDaysSet(days) { _sdDays = days; try { if (days) localStorage.setItem('nt_sd_days', JSON.stringify(days)); else localStorage.removeItem('nt_sd_days'); } catch {} document.getElementById('sdBench').style.opacity = '.5'; sdBenchLoad().then(() => { document.getElementById('sdBench').style.opacity = ''; }); }
+function sdDaysSet(days) { _sdDays = days; try { if (days) localStorage.setItem('nt_sd_days2', JSON.stringify(days)); else localStorage.removeItem('nt_sd_days2'); } catch {} document.getElementById('sdBench').style.opacity = '.5'; sdBenchLoad().then(() => { document.getElementById('sdBench').style.opacity = ''; }); }
 function sdDay(i, v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return; const days = (_sdB.cols || []).map(c => c.key); days[i] = v; sdDaysSet(days); }
 function sdDayAdd() { const days = (_sdB.cols || []).map(c => c.key); if (days.length >= 4) return; const last = days[days.length - 1] || _sdB.today; const d = new Date(last + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); days.push(d.toISOString().slice(0, 10)); sdDaysSet(days); }
 function sdDayRemove(i) { const days = (_sdB.cols || []).map(c => c.key); if (days.length <= 1) return; days.splice(i, 1); sdDaysSet(days); }
