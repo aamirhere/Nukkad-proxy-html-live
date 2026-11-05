@@ -2058,7 +2058,7 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 <div class="view" id="view-skuaudit">
   <div class="page-hd">
     <h2>SKU audit</h2>
-    <p id="saSub">Which designs deserve a place on the site, from real website orders. The suggestion is a starting point. Tap Keep, Maybe or Remove for your call; the outlined one matches the suggestion.</p>
+    <p id="saSub">Which designs deserve a place on the site, from real website orders. The suggestion is a starting point. Tap Keep or Remove for your call; the outlined one matches the suggestion, and a Maybe suggestion is yours to settle.</p>
   </div>
   <div id="saSummary" class="sa-summary"></div>
   <div class="sa-bar">
@@ -2132,7 +2132,7 @@ function saPillsRender() {
   const c = f => base.filter(f).length;
   document.getElementById('saPills').innerHTML = `
     <div class="row"><span>Suggested</span>${saPill('saSug', 'all', `All ${base.length}`)}${saPill('saSug', 'keep', `Keep ${c(r => r.suggestion === 'keep')}`, 'keep')}${saPill('saSug', 'maybe', `Maybe ${c(r => r.suggestion === 'maybe')}`, 'maybe')}${saPill('saSug', 'remove', `Remove ${c(r => r.suggestion === 'remove')}`, 'remove')}</div>
-    <div class="row"><span>Your call</span>${saPill('saCall', 'all', 'All')}${saPill('saCall', 'open', `Not decided ${c(r => !r.decision)}`)}${saPill('saCall', 'keep', `Keep ${c(r => r.decision === 'keep')}`, 'keep')}${saPill('saCall', 'maybe', `Maybe ${c(r => r.decision === 'maybe')}`, 'maybe')}${saPill('saCall', 'remove', `Remove ${c(r => r.decision === 'remove')}`, 'remove')}${saPill('saCall', 'differs', `Differs from mine ${c(r => r.decision && r.decision !== r.suggestion)}`)}</div>`;
+    <div class="row"><span>Your call</span>${saPill('saCall', 'all', 'All')}${saPill('saCall', 'open', `Not decided ${c(r => !r.decision)}`)}${saPill('saCall', 'keep', `Keep ${c(r => r.decision === 'keep')}`, 'keep')}${saPill('saCall', 'remove', `Remove ${c(r => r.decision === 'remove')}`, 'remove')}${saPill('saCall', 'differs', `Differs from mine ${c(r => r.decision && r.decision !== r.suggestion)}`)}</div>`;
 }
 function saRender() {
   if (!_sa) return;
@@ -2140,13 +2140,13 @@ function saRender() {
   saPillsRender();
   const rows = saFiltered(), narrow = window.innerWidth < 760;
   document.getElementById('saBulk').innerHTML = `${rows.length} shown · set all shown to
-    <select id="saBulkSel" class="sa-in"><option value="">choose…</option><option value="suggestion">their suggestion</option><option value="keep">Keep</option><option value="maybe">Maybe</option><option value="remove">Remove</option><option value="clear">clear the call</option></select>
+    <select id="saBulkSel" class="sa-in"><option value="">choose…</option><option value="suggestion">their suggestion (Maybe stays open)</option><option value="keep">Keep</option><option value="remove">Remove</option><option value="clear">clear the call</option></select>
     <button class="btn btn-ghost" onclick="saBulk()">Apply to ${rows.length}</button>`;
   if (!rows.length) { document.getElementById('saTable').innerHTML = '<div class="sa-card">Nothing matches these filters.</div>'; return; }
   const top2 = r => r.colors.length ? r.colors.slice(0, 2).map(([col, k]) => `<span class="c" style="${colorPillStyle(col)}">${saEsc(col.replace(/\s*\(.*\)$/, ''))} ${k}</span>`).join('') : '<span class="sa-z">no sale</span>';
   const best = r => r.best && r.best.n ? `<b>${r.best.n}</b> <span class="sa-m">${saMon(r.best.ym)}${r.best.partial ? ' so far' : ''}</span>` : '<span class="sa-z">—</span>';
   // one tap: the pill matching the suggestion is outlined, tapping the current call again clears it
-  const sel = r => `<span class="sa-calls">${['keep', 'maybe', 'remove'].map(k => `<button class="${k}${r.decision === k ? ' on' : ''}${!r.decision && r.suggestion === k ? ' sug' : ''}" data-k="${k}" onclick="saPick('${r.handle}', '${k}', this)" title="${r.suggestion === k ? 'same as the suggestion' : ''}">${SA_LBL[k]}</button>`).join('')}</span>`;
+  const sel = r => `<span class="sa-calls">${['keep', 'remove'].map(k => `<button class="${k}${r.decision === k ? ' on' : ''}${!r.decision && r.suggestion === k ? ' sug' : ''}" data-k="${k}" onclick="saPick('${r.handle}', '${k}', this)" title="${r.suggestion === k ? 'same as the suggestion' : ''}">${SA_LBL[k]}</button>`).join('')}</span>`;
   const trend = r => r.trend === 'up' ? '<span class="sa-tr up">↑ rising</span>' : r.trend === 'down' ? '<span class="sa-tr down">↓ slowing</span>' : '';
   const sug = r => `<span class="sa-pill ${r.suggestion}" title="${saEsc(r.why)}">${SA_LBL[r.suggestion]}</span>`;
   const draft = r => r.status !== 'active' ? ` <span class="sa-m">· ${saEsc(r.status)}</span>` : '';
@@ -2198,7 +2198,7 @@ async function saBulk() {
   const label = v === 'suggestion' ? 'their own suggestion' : v === 'clear' ? 'no call' : SA_LBL[v];
   if (!confirm(`Set ${rows.length} design${rows.length === 1 ? '' : 's'} to ${label}?`)) return;
   const groups = {};
-  for (const r of rows) { const d = v === 'suggestion' ? r.suggestion : v === 'clear' ? '' : v; (groups[d] ||= []).push(r); }
+  for (const r of rows) { const d = v === 'suggestion' ? (r.suggestion === 'maybe' ? null : r.suggestion) : v === 'clear' ? '' : v; if (d === null) continue; (groups[d] ||= []).push(r); }
   try {
     for (const [d, rs] of Object.entries(groups)) {
       for (let i = 0; i < rs.length; i += 200) {
