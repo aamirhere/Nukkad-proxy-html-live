@@ -2036,6 +2036,7 @@ async function loadRackStatus() {
     updateSummary();
     if (activeTab === 'list')     { buildDateNav(); renderList(); }
     if (activeTab === 'dispatch') { renderDispatch(); }
+    _rackLoadedAt = Date.now();
     const t = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
     const el = document.getElementById('lastRefreshedAt');
     if (el) el.textContent = t;
@@ -2050,6 +2051,26 @@ async function loadRackStatus() {
     setStatus('Load error: ' + e.message);
   }
 }
+
+// A page left open all day kept listing parcels the courier had already collected: re-read the list once it is
+// 10 minutes old (5 when the tab comes back into view), but never while something is being selected, typed or shown in a popup.
+let _rackLoadedAt = Date.now();
+function _rackBusy() {
+  if (typeof _listSelMode !== 'undefined' && _listSelMode) return true;
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+  return [...document.querySelectorAll('[class*="overlay"],[id*="odal"],[id*="verlay"]')].some(el => {
+    const cs = getComputedStyle(el);
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && el.getClientRects().length > 0;
+  });
+}
+function _rackRefreshIfStale(maxAgeMs) {
+  if (document.visibilityState !== 'visible' || Date.now() - _rackLoadedAt < maxAgeMs || _rackBusy()) return;
+  _rackLoadedAt = Date.now();
+  loadRackStatus();
+}
+document.addEventListener('visibilitychange', () => _rackRefreshIfStale(5 * 60e3));
+setInterval(() => _rackRefreshIfStale(10 * 60e3), 60e3);
 
 // ── DATE NAV ───────────────────────────────────────────────────────────────────
 function isOverdue(dateStr) {
