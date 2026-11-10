@@ -957,12 +957,16 @@ input[type=file]{display:none}
       <input id="packWho" placeholder="Your name" maxlength="40" oninput="try{localStorage.setItem('nt_packer',this.value.trim())}catch(e){}" style="width:140px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-family:var(--fb);font-size:.85rem">
       <span id="packCounts" style="margin-left:auto;font-size:.78rem;color:var(--ink2);white-space:nowrap"></span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <input id="packInp" autocomplete="off" inputmode="numeric" placeholder="Scan AWB barcode, or type AWB / order #" onkeydown="if(event.key==='Enter'){event.preventDefault();packSubmit(this.value)}" onblur="packRefocus()" style="flex:1;min-width:0;width:100%;box-sizing:border-box;padding:14px 14px;border:2px solid var(--accent);border-radius:12px;font-size:1.05rem;font-family:var(--fb);color:var(--ink);background:#fff;outline:none">
-      <button id="packCamBtn" onclick="packCamToggle()" style="flex:none;padding:12px 14px;border:1.5px solid var(--accent);border-radius:12px;background:#fff;font-size:1.1rem;cursor:pointer;white-space:nowrap" title="Scan with the camera">📷 Camera</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="packInp" autocomplete="off" inputmode="numeric" placeholder="Scan AWB barcode, or type AWB / order #" onkeydown="if(event.key==='Enter'){event.preventDefault();packSubmit(this.value)}" onblur="packRefocus()" style="flex:1 1 230px;min-width:0;width:100%;box-sizing:border-box;padding:14px 14px;border:2px solid var(--accent);border-radius:12px;font-size:1.05rem;font-family:var(--fb);color:var(--ink);background:#fff;outline:none">
+      <button id="packCamBtn" onclick="packCamToggle()" style="flex:none;padding:12px 12px;border:1.5px solid var(--accent);border-radius:12px;background:#fff;font-size:1rem;cursor:pointer;white-space:nowrap" title="Live camera scan">📷 Live</button>
+      <label style="flex:none;padding:12px 12px;border:1.5px solid var(--accent);border-radius:12px;background:#fff;font-size:1rem;cursor:pointer;white-space:nowrap" title="Take a photo of the barcode">📸 Photo<input id="packPhoto" type="file" accept="image/*" capture="environment" style="display:none" onchange="packPhotoScan(this)"></label>
     </div>
-    <div id="packCam" style="display:none;width:100%;max-width:480px;margin:10px auto 0;border-radius:12px;overflow:hidden;background:#000"></div>
-    <div id="packCamHint" style="display:none;text-align:center;font-size:.78rem;color:var(--ink2);margin-top:4px">Hold the label's barcode or QR code inside the box</div>
+    <div id="packCamWrap" style="display:none;position:relative;width:100%;max-width:480px;margin:10px auto 0;border-radius:12px;overflow:hidden;background:#000">
+      <video id="packCam" playsinline muted style="display:block;width:100%;max-height:300px;object-fit:cover"></video>
+      <div style="position:absolute;left:4%;right:4%;top:28%;bottom:28%;border:3px solid rgba(255,255,255,.9);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.25);pointer-events:none"></div>
+    </div>
+    <div id="packCamHint" style="display:none;text-align:center;font-size:.78rem;color:var(--ink2);margin-top:4px">Hold the label's barcode inside the box, flat and well lit. If it won't read, use 📸 Photo.</div>
     <div id="packResult" style="margin-top:12px"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 6px">
       <div style="font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase">Today's scans</div>
@@ -2127,7 +2131,7 @@ function packOpen() {
 function packRefocus() {
   setTimeout(() => {
     // on a phone the box would pop the keyboard over the camera: only a laptop (scanner gun) keeps it focused
-    if (_paneOpen !== 'pack' || _packScanner || matchMedia('(pointer:coarse)').matches) return;
+    if (_paneOpen !== 'pack' || _packStream || matchMedia('(pointer:coarse)').matches) return;
     const a = document.activeElement;
     if (a && a.id === 'packWho') return;
     document.getElementById('packInp')?.focus();
@@ -2216,50 +2220,90 @@ async function packUndo(id, orderName) {
   } catch (e) { alert('Undo failed: ' + e.message); }
   packRefocus();
 }
-// Camera scanning on any phone or laptop: html5-qrcode reads 1D barcodes (AWB labels) and QR codes, using the
-// browser's own barcode reader where there is one and its bundled decoder elsewhere (iPhone, most laptops).
-const PACK_H5Q = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
-let _packScanner = null, _packCamBusy = false, _packCamSeen = { code: '', at: 0 };
-function _packLoadLib() {
-  if (window.Html5Qrcode) return Promise.resolve();
-  return window._packLibP ||= new Promise((ok, bad) => {
-    const sc = document.createElement('script'); sc.src = PACK_H5Q; sc.onload = ok;
+// Camera scanning on any phone or laptop. The browser's own barcode reader is used where it has one (Android Chrome);
+// everywhere else (iPhone, most laptops) zxing-cpp compiled to wasm, loaded on first use. The JS port of ZXing missed AWB
+// barcodes in real photos: a dark table beside the label threw off its per-row threshold.
+const PACK_BD = 'https://cdn.jsdelivr.net/npm/barcode-detector@3.2.3/dist/iife/ponyfill.js';
+const PACK_FORMATS = ['code_128', 'code_39', 'code_93', 'codabar', 'itf', 'ean_13', 'qr_code'];
+let _packStream = null, _packTimer = null, _packCamBusy = false, _packCamSeen = { code: '', at: 0 }, _packDet = null;
+async function _packDetector() {
+  if (_packDet) return _packDet;
+  try {
+    if ('BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('code_128')) return _packDet = new BarcodeDetector({ formats: PACK_FORMATS });
+  } catch (e) {}
+  if (!window.BarcodeDetectionAPI) await (window._packLibP ||= new Promise((ok, bad) => {
+    const sc = document.createElement('script'); sc.src = PACK_BD; sc.onload = ok;
     sc.onerror = () => { window._packLibP = null; bad(new Error('could not load the barcode reader — check the internet')); };
     document.head.appendChild(sc);
-  });
+  }));
+  return _packDet = new BarcodeDetectionAPI.BarcodeDetector({ formats: PACK_FORMATS });
 }
-async function packCamToggle() { if (_packScanner) packCamStop(); else packCamStart(); }
+const _packCodeOk = t => /^[0-9A-Za-z#_-]{4,40}$/.test(t);
+async function packCamToggle() { if (_packStream) packCamStop(); else packCamStart(); }
 async function packCamStart() {
   if (_packCamBusy) return; _packCamBusy = true;
   const btn = document.getElementById('packCamBtn'); btn.textContent = '…';
   try {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('this browser has no camera access');
-    await _packLoadLib();
-    const F = Html5QrcodeSupportedFormats;
-    const box = document.getElementById('packCam'); box.style.display = ''; document.getElementById('packCamHint').style.display = '';
-    _packScanner = new Html5Qrcode('packCam', { formatsToSupport: [F.CODE_128, F.CODE_39, F.CODE_93, F.CODABAR, F.ITF, F.EAN_13, F.QR_CODE], experimentalFeatures: { useBarCodeDetectorIfSupported: true }, verbose: false });
-    const w = Math.min(box.clientWidth || 320, 480);
-    await _packScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: Math.round(w * .85), height: Math.round(Math.min(w * .5, 200)) } },
-      text => {
-        const t = String(text || '').trim();
-        if (!/^[0-9A-Za-z#_-]{4,40}$/.test(t) || _packBusy) return;
-        // the label stays in view after it is read: only a new code, or the same one after 8s, counts as another scan
-        if (t === _packCamSeen.code && Date.now() - _packCamSeen.at < 8000) { _packCamSeen.at = Date.now(); return; }
-        _packCamSeen = { code: t, at: Date.now() };
-        packSubmit(t);
-      }, () => {});
+    const det = await _packDetector();
+    const v = document.getElementById('packCam');
+    // AWB barcodes are long and thin: ask for full HD so their bars are several pixels wide
+    _packStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    v.srcObject = _packStream; document.getElementById('packCamWrap').style.display = ''; document.getElementById('packCamHint').style.display = '';
+    await v.play();
     btn.textContent = '✕ Stop';
+    const tick = async () => {
+      if (!_packStream) return;
+      if (!_packBusy && v.readyState >= 2) {
+        try {
+          const codes = await det.detect(v);
+          const hit = codes.map(c => String(c.rawValue || '').trim()).find(_packCodeOk);
+          // the label stays in view after it is read: only a new code, or the same one after 8s, counts as another scan
+          if (hit && !(hit === _packCamSeen.code && Date.now() - _packCamSeen.at < 8000)) { _packCamSeen = { code: hit, at: Date.now() }; packSubmit(hit); }
+          else if (hit) _packCamSeen.at = Date.now();
+        } catch (e) {}
+      }
+      _packTimer = setTimeout(tick, 150);
+    };
+    tick();
   } catch (e) {
-    await packCamStop();
+    packCamStop();
     alert('Camera not available: ' + (e?.message || e));
   } finally { _packCamBusy = false; }
 }
-async function packCamStop() {
-  const sc = _packScanner; _packScanner = null;
-  if (sc) { try { await sc.stop(); } catch (e) {} try { sc.clear(); } catch (e) {} }
-  const box = document.getElementById('packCam'); if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+function packCamStop() {
+  clearTimeout(_packTimer); _packTimer = null;
+  if (_packStream) { _packStream.getTracks().forEach(t => t.stop()); _packStream = null; }
+  const v = document.getElementById('packCam'); if (v) v.srcObject = null;
+  const w = document.getElementById('packCamWrap'); if (w) w.style.display = 'none';
   const h = document.getElementById('packCamHint'); if (h) h.style.display = 'none';
-  const b = document.getElementById('packCamBtn'); if (b) b.textContent = '📷 Camera';
+  const b = document.getElementById('packCamBtn'); if (b) b.textContent = '📷 Live';
+}
+// A still photo is sharp and full-resolution where a live preview is not: the fallback that always works on an iPhone.
+async function packPhotoScan(inp) {
+  const file = inp.files && inp.files[0]; inp.value = '';
+  if (!file) return;
+  const box = document.getElementById('packResult');
+  box.innerHTML = '<div style="padding:14px;border-radius:12px;background:#fafafa;color:var(--ink2)">Reading the barcode…</div>';
+  try {
+    const det = await _packDetector();
+    const full = await createImageBitmap(file);
+    // a 12–48MP photo is slow to search: try it at 2400px on the long side first, then full size
+    let text = null;
+    const big = Math.max(full.width, full.height);
+    for (const k of big > 2400 ? [2400 / big, 1] : [1]) {
+      const src = k === 1 ? full : await createImageBitmap(full, { resizeWidth: Math.round(full.width * k), resizeHeight: Math.round(full.height * k), resizeQuality: 'high' });
+      const codes = await det.detect(src);
+      text = codes.map(c => String(c.rawValue || '').trim()).find(_packCodeOk) || null;
+      if (text) break;
+    }
+    if (!text) throw new Error('no barcode found — take the photo closer and flat, in good light, or type the AWB');
+    _packLast = { code: '', at: 0 };
+    await packSubmit(text);
+  } catch (e) {
+    box.innerHTML = `<div style="padding:14px;border-radius:12px;background:#ffebee;color:#b71c1c;font-weight:700">Couldn't read the photo: ${esc(e.message || String(e))}</div>`;
+    packBeep(false);
+  }
 }
 
 // ── DATE NAV ───────────────────────────────────────────────────────────────────
