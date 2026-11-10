@@ -828,6 +828,7 @@ input[type=file]{display:none}
     <div class="ftab active" onclick="setFilter('all')" data-f="all" data-label="All">All</div>
     <div class="ftab" onclick="setFilter('notmatched')" data-f="notmatched" data-label="Not Matched">Not Matched</div>
     <div class="ftab" onclick="setFilter('matched')" data-f="matched" data-label="Matched ✓">Matched ✓</div>
+    <div class="ftab" onclick="setFilter('packed')" data-f="packed" data-label="📦 Packed">📦 Packed</div>
     <div class="ftab" onclick="setFilter('inpaint')" data-f="inpaint" data-label="🎨 In Paint">🎨 In Paint</div>
     <div class="ftab" onclick="setFilter('emergency')" data-f="emergency" data-label="Emergency">Emergency</div>
     <div class="ftab" onclick="setFilter('amazon')" data-f="amazon" data-label="Amazon">Amazon</div>
@@ -2155,7 +2156,7 @@ async function packSubmit(raw) {
     const r = await apiFetch({ action: 'pack_scan', code, packer: document.getElementById('packWho').value });
     packShow(r);
     packBeep(r.result === 'packed');
-    if (r.result === 'packed' && !r.partial) rackItems = rackItems.map(it => it.order_name === r.order_name && !it.cancelled ? { ...it, packed_at: new Date().toISOString(), packed_awb: r.awb } : it);
+    if (r.result === 'packed' && !r.partial) { rackItems = rackItems.map(it => it.order_name === r.order_name && !it.cancelled ? { ...it, packed_at: new Date().toISOString(), packed_awb: r.awb } : it); updateFilterCounts(); }
     packLoadRecent();
   } catch (e) {
     box.innerHTML = `<div style="padding:14px;border-radius:12px;background:#ffebee;color:#b71c1c;font-weight:700">Couldn't check ${esc(code)}: ${esc(e.message)} — scan again</div>`;
@@ -2209,6 +2210,7 @@ async function packUndo(id, orderName) {
     const r = await apiFetch({ action: 'pack_undo', id, packer: document.getElementById('packWho').value });
     if (!r.ok) throw new Error(r.reason || 'not undone');
     rackItems = rackItems.map(it => it.order_name === r.order_name ? { ...it, packed_at: null, packed_awb: null } : it);
+    updateFilterCounts();
     toast(`${orderName} unpacked`);
     packLoadRecent();
   } catch (e) { alert('Undo failed: ' + e.message); }
@@ -4065,6 +4067,7 @@ function updateFilterCounts() {
     byOrder[it.order_name].found  += it.found;
     if (it.dispatched)   byOrder[it.order_name].dispatched   = true;
     if (it.is_emergency) byOrder[it.order_name].is_emergency = true;
+    if (it.packed_at)    byOrder[it.order_name].packed       = true;
     const inPaint = _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`);
     if (inPaint) byOrder[it.order_name].hasPaint = true;
     if (it.found < it.needed && !inPaint) byOrder[it.order_name].hasUnmatchedNotPaint = true;
@@ -4073,7 +4076,8 @@ function updateFilterCounts() {
   const counts = {
     all:        all.filter(o => !o.dispatched).length,
     notmatched: all.filter(o => !o.dispatched && o.hasUnmatchedNotPaint).length,
-    matched:    all.filter(o => !o.dispatched && o.found >= o.needed).length,
+    matched:    all.filter(o => !o.dispatched && !o.packed && o.found >= o.needed).length,
+    packed:     all.filter(o => !o.dispatched && o.packed).length,
     emergency:  all.filter(o => !o.dispatched && _liveEmgOrders.has(o.order_name)).length,
     amazon:     all.filter(o => !o.dispatched && o.source === 'amazon').length,
     dispatched: all.filter(o => o.dispatched).length,
@@ -4172,7 +4176,9 @@ function renderList() {
     if (activeFilter === 'notmatched') return !complete && !o.dispatched && o.items.some(it => it.found < it.needed && !_paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
     if (activeFilter === 'missing')    return totalF === 0 && !o.dispatched;
     if (activeFilter === 'partial')    return partial && !o.dispatched;
-    if (activeFilter === 'matched')    return complete && !o.dispatched;
+    // matched → packed → dispatched: a packed order moves out of Matched, and out of Packed once the courier has it
+    if (activeFilter === 'matched')    return complete && !o.dispatched && !o.packed_at;
+    if (activeFilter === 'packed')     return !!o.packed_at && !o.dispatched && !o.cancelled;
     if (activeFilter === 'emergency')  return _liveEmgOrders.has(o.order_name) && !o.dispatched;
     if (activeFilter === 'amazon')     return o.source === 'amazon' && !o.dispatched;
     if (activeFilter === 'inpaint')    return o.items.some(it => _paintSet.has(`${it.order_name}|||${it.quote}|||${it.color}`));
