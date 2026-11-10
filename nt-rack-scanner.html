@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+@media (max-width:480px){.pack-who{display:none}}
 :root{
   --accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;
   --line:#e9ddca;--bg:#f6f0e8;--bg2:#fdf5ec;
@@ -945,6 +946,27 @@ input[type=file]{display:none}
 </div>
 
 <!-- ── TRACK TAB ── -->
+<div id="packTab" class="list-wrap" style="display:none">
+  <div style="padding:14px 4px 28px;max-width:720px;margin:0 auto;box-sizing:border-box;width:100%;overflow-x:hidden">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <label style="font-size:.78rem;color:var(--ink2);font-weight:700">Packer</label>
+      <input id="packWho" placeholder="Your name" maxlength="40" oninput="try{localStorage.setItem('nt_packer',this.value.trim())}catch(e){}" style="width:140px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-family:var(--fb);font-size:.85rem">
+      <span id="packCounts" style="margin-left:auto;font-size:.78rem;color:var(--ink2);white-space:nowrap"></span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="packInp" autocomplete="off" inputmode="numeric" placeholder="Scan AWB barcode, or type AWB / order #" onkeydown="if(event.key==='Enter'){event.preventDefault();packSubmit(this.value)}" onblur="packRefocus()" style="flex:1;min-width:0;width:100%;box-sizing:border-box;padding:14px 14px;border:2px solid var(--accent);border-radius:12px;font-size:1.05rem;font-family:var(--fb);color:var(--ink);background:#fff;outline:none">
+      <button id="packCamBtn" onclick="packCamToggle()" style="display:none;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-size:1.1rem;cursor:pointer" title="Scan with the camera">📷</button>
+    </div>
+    <video id="packCam" playsinline muted style="display:none;width:100%;max-height:260px;margin-top:10px;border-radius:12px;background:#000;object-fit:cover"></video>
+    <div id="packResult" style="margin-top:12px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 6px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase">Today's scans</div>
+      <button onclick="packLoadRecent()" style="padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:.75rem;cursor:pointer">↺</button>
+    </div>
+    <div id="packRecent"></div>
+  </div>
+</div>
+
 <div id="trackTab" class="list-wrap" style="display:none">
   <div style="padding:16px 12px 32px">
 
@@ -1264,6 +1286,7 @@ let _lastSuggestVal = ''; // last value typed in search — to refresh dropdown 
 
 async function init() {
   initScanColorBar();
+  if (location.hash === '#pack') paneOpen('pack');
   await loadRackStatus();
   _rebuildPaintFromRack();
   _loadSkips().catch(() => {});
@@ -1608,7 +1631,7 @@ function laptopOpen() {
 }
 function laptopClose() { document.getElementById('laptopZen').style.display = 'none'; }
 // Dispatch, Pending and Track are read-mostly views: they open on demand as popups, not as tabs
-const PANES = { dispatch: ['dispatchTab', '🚚 Dispatch', () => renderDispatch()], pending: ['pendingTab', '⏳ Pending photos', () => renderPending()], track: ['trackTab', '📍 Track', null], book: ['bookTab', '📦 Book courier', () => bkOpen()] };
+const PANES = { dispatch: ['dispatchTab', '🚚 Dispatch', () => renderDispatch()], pending: ['pendingTab', '⏳ Pending photos', () => renderPending()], track: ['trackTab', '📍 Track', null], pack: ['packTab', '📦 Packing desk', () => packOpen()], book: ['bookTab', '📦 Book courier', () => bkOpen()] };
 let _paneOpen = null;
 function paneOpen(name) {
   const def = PANES[name]; if (!def) return;
@@ -1627,6 +1650,7 @@ function paneClose() {
   const pane = document.getElementById(PANES[_paneOpen][0]);
   if (pane) { pane.style.display = 'none'; document.body.appendChild(pane); }
   document.getElementById('paneZen').style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = '';
+  if (_paneOpen === 'pack') packCamStop();
   _paneOpen = null; activeTab = 'scan';
 }
 function homeSubs() {
@@ -2071,6 +2095,144 @@ function _rackRefreshIfStale(maxAgeMs) {
 }
 document.addEventListener('visibilitychange', () => _rackRefreshIfStale(5 * 60e3));
 setInterval(() => _rackRefreshIfStale(10 * 60e3), 60e3);
+
+// ── PACKING DESK ──────────────────────────────────────────────────────────────
+// Each printed label is scanned once as its parcel is sealed. The server decides the result under a per-order lock:
+// a second copy of the same label, a new label for an order already packed, an old label of a re-booked order or a
+// slip for a parcel the courier already has all come back as warnings instead of "packed".
+const PACK_UI = {
+  packed:          { bg: '#e8f5e9', bd: '#2e7d32', fg: '#1b5e20', t: '✓ PACKED' },
+  duplicate:       { bg: '#ffebee', bd: '#c62828', fg: '#b71c1c', t: '✕ DUPLICATE — already packed' },
+  duplicate_order: { bg: '#ffebee', bd: '#c62828', fg: '#b71c1c', t: '✕ DUPLICATE ORDER — packed under another label' },
+  old_label:       { bg: '#fff3e0', bd: '#e65100', fg: '#bf360c', t: '⚠ OLD LABEL — order re-booked' },
+  already_shipped: { bg: '#ffebee', bd: '#c62828', fg: '#b71c1c', t: '✕ ALREADY WITH COURIER — reprinted slip' },
+  cancelled:       { bg: '#ffebee', bd: '#c62828', fg: '#b71c1c', t: '✕ CANCELLED — do not send' },
+  not_found:       { bg: '#f5f5f5', bd: '#9e9e9e', fg: '#424242', t: '? NOT FOUND' },
+};
+let _packLast = { code: '', at: 0 }, _packBusy = false, _packStream = null, _packTimer = null;
+const _packTime = t => t ? new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+
+function packOpen() {
+  const who = document.getElementById('packWho');
+  try { if (!who.value) who.value = localStorage.getItem('nt_packer') || ''; } catch (e) {}
+  document.getElementById('packCamBtn').style.display = ('BarcodeDetector' in window && navigator.mediaDevices) ? '' : 'none';
+  packLoadRecent();
+  setTimeout(() => document.getElementById('packInp')?.focus(), 50);
+}
+// a scanner gun types into whatever has focus: keep the box focused while the desk is open
+function packRefocus() {
+  setTimeout(() => {
+    if (_paneOpen !== 'pack') return;
+    const a = document.activeElement;
+    if (a && a.id === 'packWho') return;
+    document.getElementById('packInp')?.focus();
+  }, 250);
+}
+function packBeep(ok) {
+  try {
+    const ctx = window._packAudio ||= new (window.AudioContext || window.webkitAudioContext)();
+    const tone = (f, start, dur) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = ok ? 'sine' : 'square'; o.frequency.value = f; g.gain.value = .18; o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + dur); };
+    if (ok) tone(1200, 0, .12); else { tone(220, 0, .25); tone(220, .32, .35); }
+  } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate(ok ? 60 : [200, 100, 300]); } catch (e) {}
+}
+async function packSubmit(raw) {
+  const inp = document.getElementById('packInp');
+  const code = String(raw || '').trim();
+  inp.value = '';
+  if (!code || _packBusy) return;
+  // a scanner gun can fire twice on one press: the same code within 1.5s is the same scan
+  if (code === _packLast.code && Date.now() - _packLast.at < 1500) return;
+  _packLast = { code, at: Date.now() };
+  _packBusy = true;
+  const box = document.getElementById('packResult');
+  box.innerHTML = `<div style="padding:14px;border-radius:12px;background:#fafafa;color:var(--ink2)">Checking ${esc(code)}…</div>`;
+  try {
+    const r = await apiFetch({ action: 'pack_scan', code, packer: document.getElementById('packWho').value });
+    packShow(r);
+    packBeep(r.result === 'packed');
+    if (r.result === 'packed' && !r.partial) rackItems = rackItems.map(it => it.order_name === r.order_name && !it.cancelled ? { ...it, packed_at: new Date().toISOString(), packed_awb: r.awb } : it);
+    packLoadRecent();
+  } catch (e) {
+    box.innerHTML = `<div style="padding:14px;border-radius:12px;background:#ffebee;color:#b71c1c;font-weight:700">Couldn't check ${esc(code)}: ${esc(e.message)} — scan again</div>`;
+    _packLast = { code: '', at: 0 };
+    packBeep(false);
+  } finally { _packBusy = false; packRefocus(); }
+}
+function packShow(r) {
+  const ui = PACK_UI[r.result] || PACK_UI.not_found;
+  const prev = r.prev ? `${r.prev.packer ? 'by ' + esc(r.prev.packer) + ' ' : ''}at ${_packTime(r.prev.at)}` : '';
+  const why = {
+    packed: r.partial ? `Advance parcel for ${esc(r.order_name)} (booked separately). The rest of the order still gets its own label.` : '',
+    duplicate: `This label was already scanned ${prev}. Don't send a second parcel.`,
+    duplicate_order: `${esc(r.order_name)} was already packed ${prev} under AWB ${esc(r.prev?.awb || '')}. This label is a reprint or re-booking — keep only one parcel and check with the office.`,
+    old_label: `${esc(r.order_name)} is now booked under AWB <b>${esc(r.current_awb || '')}</b>. Use that label and discard this one.`,
+    already_shipped: `${esc(r.order_name)} is already with the courier (${esc(r.current_awb || 'shipped')}). This slip is a reprint — don't pack it.`,
+    cancelled: `${esc(r.order_name || '')} was cancelled. Put the items back on the rack.`,
+    not_found: `“${esc(r.code || '')}” isn't linked to an order yet. Type the order number, or ask the office to sync.`,
+  }[r.result] || '';
+  const items = (r.items || []).map(i => `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span>${esc(i.quote)}</span><span style="color:var(--ink2)">${esc(i.color || '')} × ${i.qty}</span></div>`).join('');
+  const head = r.order_name ? `<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-top:6px"><b style="font-size:1.15rem">${esc(r.order_name)}</b><span>${esc(r.customer || '')}</span>${r.payment ? `<span style="font-size:.7rem;font-weight:700;padding:1px 8px;border-radius:10px;background:${r.payment === 'cod' ? '#fff3e0' : '#f6f1ea'}">${r.payment === 'cod' ? 'COD' : 'Prepaid'}</span>` : ''}${r.awb ? `<span style="font-family:monospace;font-size:.8rem;color:var(--ink2);overflow-wrap:anywhere">${esc(r.awb)}</span>` : ''}</div>` : '';
+  document.getElementById('packResult').innerHTML = `<div style="padding:14px 16px;border-radius:14px;background:${ui.bg};border:2.5px solid ${ui.bd};color:${ui.fg}">
+    <div style="font-size:1.25rem;font-weight:900;line-height:1.25;overflow-wrap:anywhere">${ui.t}</div>${head}
+    ${why ? `<div style="margin-top:6px;font-size:.88rem;color:var(--ink);overflow-wrap:anywhere">${why}</div>` : ''}
+    ${items && (r.result === 'packed' || r.result === 'cancelled') ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid ${ui.bd}33;font-size:.9rem;color:var(--ink)">${items}</div>` : ''}
+  </div>`;
+}
+async function packLoadRecent() {
+  const el = document.getElementById('packRecent'); if (!el) return;
+  try {
+    const d = await apiFetch({ action: 'pack_recent' });
+    const c = d.counts || {};
+    document.getElementById('packCounts').innerHTML = `<b style="color:#1b5e20">${c.packed || 0} packed</b> · <b style="color:${(c.duplicate || 0) + (c.old_label || 0) + (c.already_shipped || 0) ? '#b71c1c' : 'var(--ink2)'}">${(c.duplicate || 0) + (c.old_label || 0) + (c.already_shipped || 0)} caught</b> today`;
+    el.innerHTML = (d.rows || []).length ? (d.rows || []).map(r => {
+      const ui = PACK_UI[r.result] || PACK_UI.not_found;
+      const undone = !!r.undone_at;
+      return `<div style="display:flex;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--line);font-size:.82rem;${undone ? 'opacity:.45;text-decoration:line-through;' : ''}">
+        <span style="flex:none;width:52px;color:var(--muted);white-space:nowrap">${_packTime(r.scanned_at)}</span>
+        <b style="flex:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.order_name || '—')}</b>
+        <span style="font-family:monospace;color:var(--ink2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.awb || r.code)}</span>
+        <span style="font-size:.68rem;font-weight:800;padding:2px 7px;border-radius:9px;background:${ui.bg};color:${ui.fg};border:1px solid ${ui.bd}55;white-space:nowrap">${esc(ui.t.split(' — ')[0])}</span>
+        <span class="pack-who" style="color:var(--muted);width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.packer || '')}</span>
+        ${r.result === 'packed' && !undone ? `<button onclick="packUndo(${r.id},'${esc(String(r.order_name || '')).replace(/'/g, "\\'")}')" style="padding:2px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:.72rem;cursor:pointer">Undo</button>` : ''}
+      </div>`;
+    }).join('') : '<div class="empty-msg">Nothing scanned yet today.</div>';
+  } catch (e) { el.innerHTML = `<div class="empty-msg">Couldn't load today's scans: ${esc(e.message)}</div>`; }
+}
+async function packUndo(id, orderName) {
+  if (!confirm(`Undo packing of ${orderName}? Its label can then be scanned again.`)) return;
+  try {
+    const r = await apiFetch({ action: 'pack_undo', id, packer: document.getElementById('packWho').value });
+    if (!r.ok) throw new Error(r.reason || 'not undone');
+    rackItems = rackItems.map(it => it.order_name === r.order_name ? { ...it, packed_at: null, packed_awb: null } : it);
+    toast(`${orderName} unpacked`);
+    packLoadRecent();
+  } catch (e) { alert('Undo failed: ' + e.message); }
+  packRefocus();
+}
+// phone/tablet camera, where the browser can read barcodes itself (Chrome on Android)
+async function packCamToggle() { if (_packStream) packCamStop(); else packCamStart(); }
+async function packCamStart() {
+  try {
+    const det = new BarcodeDetector({ formats: ['code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'itf', 'qr_code'] });
+    const v = document.getElementById('packCam');
+    _packStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    v.srcObject = _packStream; v.style.display = ''; await v.play();
+    document.getElementById('packCamBtn').textContent = '✕';
+    const tick = async () => {
+      if (!_packStream) return;
+      try { const codes = await det.detect(v); const hit = codes.find(c => /^[0-9A-Za-z#-]{6,40}$/.test(c.rawValue)); if (hit && !_packBusy) await packSubmit(hit.rawValue); } catch (e) {}
+      _packTimer = setTimeout(tick, 250);
+    };
+    tick();
+  } catch (e) { packCamStop(); alert('Camera not available: ' + e.message); }
+}
+function packCamStop() {
+  clearTimeout(_packTimer); _packTimer = null;
+  if (_packStream) { _packStream.getTracks().forEach(t => t.stop()); _packStream = null; }
+  const v = document.getElementById('packCam'); if (v) { v.srcObject = null; v.style.display = 'none'; }
+  const b = document.getElementById('packCamBtn'); if (b) b.textContent = '📷';
+}
 
 // ── DATE NAV ───────────────────────────────────────────────────────────────────
 function isOverdue(dateStr) {
@@ -3963,6 +4125,7 @@ function renderList() {
     if (it.is_emergency)  byOrder[it.order_name].is_emergency  = true;
     if (it.cancelled)     byOrder[it.order_name].cancelled     = true;
     if (it.print_done)    byOrder[it.order_name].print_done    = true;
+    if (it.packed_at && !byOrder[it.order_name].packed_at) byOrder[it.order_name].packed_at = it.packed_at;
     // take first non-null value for order-level meta
     if (it.notes && !byOrder[it.order_name].notes)                                         byOrder[it.order_name].notes                  = it.notes;
     if (it.rack_location && !byOrder[it.order_name].rack_location)                         byOrder[it.order_name].rack_location          = it.rack_location;
@@ -4057,6 +4220,7 @@ function renderList() {
             ${o.cancelled?'<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a">✕ Cancelled</span>':''}
             ${o.reopen_of ? `<span title="${esc(o.reopen_note || '')}" style="font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:10px;background:#fff3e0;color:#bf360c;border:1px solid #ffb74d">↺ ${esc(_reissueLabel(o.reopen_reason))} · of ${esc(o.reopen_of)}</span>${o.reopen_note ? `<span style="font-size:.66rem;color:#8d6e63;margin-left:4px">${esc(o.reopen_note)}</span>` : ''}` : ''}
             ${!o.cancelled && o.dispatched?'<span class="tag-disp">Dispatched</span>':''}
+            ${!o.cancelled && o.packed_at ? `<span title="Packed ${esc(new Date(o.packed_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}" style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9">📦 Packed</span>` : ''}
 
             ${(!o.cancelled && !o.dispatched && isOverdue(o.order_date))?'<span class="tag-overdue">Overdue</span>':''}
             ${complete && !o.dispatched && !o.cancelled ? (o.painter ? '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80">🎨 Drop-off</span>' : '<span style="font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7">✓ Matched</span>') : ''}
@@ -4278,6 +4442,7 @@ function renderDashboard() {
       <button onclick="paneOpen('pending')">⏳ Pending photos</button>
       <button onclick="paneOpen('track')">📍 Track</button>
       <button onclick="paneOpen('book')">📦 Book courier</button>
+      <button onclick="paneOpen('pack')">📦 Packing desk</button>
       <button onclick="window.open('nt-inventory.html','_blank')">🚨 Emergency page</button>
     </div>
     <div class="dash-sec"><h4>Pending by order date <a onclick="dashList('all')">all →</a></h4>
