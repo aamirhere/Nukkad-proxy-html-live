@@ -1747,11 +1747,25 @@ function bkRenderDay() {
     <div class="bk-sec">📦 Amazon · ${_bkDay.amazon.length}</div><div id="bkDayAmz">${_bkDay.amazon.length ? bkGroupTable(_bkDay.amazon, 'bkDayAmz') : '<div class="empty-msg">No Amazon orders on this date.</div>'}</div>` : '<div class="empty-msg">Pick a date and press Load.</div>'}`;
   bkBindEdits('bkDayWeb', bkRowsFor('bkDayWeb')); bkBindEdits('bkDayAmz', bkRowsFor('bkDayAmz'));
 }
-async function bkLoadDay() {
+async function bkLoadDay(noSync) {
   const date = document.getElementById('bkDayInp').value; if (!date) return;
   _bkBusy = true; document.getElementById('bkDayMsg').textContent = 'loading…';
   try { _bkDay = await apiFetch({ action: 'booking_day', date }, API, 28000); } catch (e) { _bkDay = { date, website: [], amazon: [] }; alert(e.message); }
   _bkBusy = false; bkRenderDay();
+  if (!noSync) bkSyncDay(date);
+}
+async function bkSyncDay(date) {
+  const names = [..._bkDay.website, ..._bkDay.amazon].filter(r => r.awb).map(r => r.order_name);
+  if (!names.length) return;
+  try {
+    const r = await apiFetch({ action: 'booking_sync', order_names: names }, API, 28000);
+    const n = (r.unassigned || []).length + (r.reassigned || []).length;
+    if (!n || !_bkDay || _bkDay.date !== date) return;
+    for (const o of (r.unassigned || [])) for (const it of rackItems) if (it.order_name === o) { it.tracking = null; it.tracking_company = null; it.ship_status = null; }
+    for (const o of (r.reassigned || [])) for (const it of rackItems) if (it.order_name === o.order_name) { it.tracking = o.to; it.tracking_company = o.carrier; }
+    toast(`Shipway: ${(r.unassigned || []).length ? (r.unassigned || []).join(', ') + ' unassigned' : ''}${(r.unassigned || []).length && (r.reassigned || []).length ? ' · ' : ''}${(r.reassigned || []).map(o => `${o.order_name} → ${o.to}`).join(', ')}`);
+    await bkLoadDay(true);
+  } catch (_) {}
 }
 function bkGroupTable(rows, wrapId) {
   const groups = [];
@@ -1801,10 +1815,33 @@ function bkRowHtml(r, i, gi) {
     <td><b>${bkEsc(r.order_name)}</b>${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : done ? ' <span class="bk-tag ok">✓ booked</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !done && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
-    <td>${r.ok || r.soft || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div></td>
+    <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
     <td><div class="bk-m"><b>${r.pieces || 0}</b>${r.pieces_total && r.pieces_total !== r.pieces ? ` of ${r.pieces_total}` : ''} pc</div>${items}</td>
     <td>${boxEd}</td>
-    <td>${bookable ? `<button class="bk-btn" style="padding:5px 10px;font-size:.74rem;margin-bottom:4px" data-book="1">Book</button><br>` : ''}${st}</td></tr>`;
+    <td>${bookable ? `<button class="bk-btn" style="padding:5px 10px;font-size:.74rem;margin-bottom:4px" data-book="1">Book</button><br>` : ''}${done ? bkAwbList(r) : st}</td></tr>`;
+}
+// a booked row lists each AWB (part 1, part 2…) with its courier, label and an Unassign; once unassigned the row is bookable again
+function bkAwbList(r) {
+  let list = (r.bookings || []).map(b => ({ id: b.id, awb: b.awb, carrier: b.carrier, part: b.part }));
+  if (r.result && r.result.ok && r.result.awb && !list.some(b => b.awb === r.result.awb)) list.push({ id: r.result.id, awb: r.result.awb, carrier: r.result.carrier, part: r.result.part, label: r.result.label_url });
+  if (!list.length && r.awb) list = [{ id: null, awb: r.awb, carrier: r.booked_with }];
+  return list.map(b => `<div style="margin-bottom:4px"><span class="bk-ok">✓ ${bkEsc(b.awb)}</span>${list.length > 1 ? ` <span class="bk-m">part ${b.part || 1}</span>` : ''}${b.label ? ` <a href="${bkEsc(b.label)}" target="_blank">label</a>` : ''}<div class="bk-m">${bkEsc(b.carrier || '')}${b.id ? ` · <a href="#" onclick="bkPrintLabels([${+b.id}], null);return false">🖨 label</a>` : ''}</div><button class="ftab" data-unassign="${b.id || ''}" data-awb="${bkEsc(b.awb)}" title="Release this AWB at Shipway and the courier; the order can then be booked again with any courier">Unassign</button></div>`).join('') || st0(r);
+}
+const st0 = r => `<span class="bk-m">${bkEsc(r.why || 'booked')}</span>`;
+async function bkRowUnassign(wrapId, i, btn) {
+  const rows = bkRowsFor(wrapId), r = rows[i]; if (!r) return;
+  if (!confirm(`Unassign AWB ${btn.dataset.awb} for ${r.order_name} on Shipway?\n\nThe courier booking is released and the order goes back to unbooked, so you can pick a courier and book it again.`)) return;
+  btn.disabled = true; btn.textContent = 'unassigning…';
+  try {
+    const res = await apiFetch(btn.dataset.unassign ? { action: 'booking_cancel', id: +btn.dataset.unassign } : { action: 'booking_cancel', order_name: r.order_name, awb: btn.dataset.awb }, API, 40000);
+    for (const it of rackItems) if (it.order_name === r.order_name && it.tracking === btn.dataset.awb) { it.tracking = null; it.tracking_company = null; it.ship_status = null; }
+    _bkLabelIds = _bkLabelIds.filter(x => x !== res.id);
+    const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name] });
+    rows[i] = { ...p.rows[0], group: r.group, triedNote: 'unassigned · pick a courier and Book again' };
+    const tr = document.querySelector(`#${wrapId} tr[data-i="${i}"]`); if (tr) tr.outerHTML = bkRowHtml(rows[i], i, tr.dataset.g);
+    bkBindEdits(wrapId, rows);
+    toast(`${r.order_name}: AWB ${btn.dataset.awb} unassigned`);
+  } catch (e) { btn.disabled = false; btn.textContent = 'Unassign'; alert(e.message); }
 }
 const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
 function bkTable(rows, idBase) {
@@ -1839,6 +1876,7 @@ function bkBindEdits(wrapId, rows) {
   wrap.querySelectorAll('tr[data-i]').forEach(tr => {
     const nx = tr.querySelector('[data-next]'); if (nx) nx.onclick = () => bkUseNext(wrapId, +tr.dataset.i);
     const bk = tr.querySelector('[data-book]'); if (bk) bk.onclick = () => bkBookSelected(wrapId, [+tr.dataset.i]);
+    tr.querySelectorAll('[data-unassign]').forEach(b => { b.onclick = () => bkRowUnassign(wrapId, +tr.dataset.i, b); });
     tr.querySelectorAll('[data-f],[data-it],[data-itq]').forEach(inp => {
       if (inp.dataset.f === 'sel') return;
       inp.addEventListener('change', async () => {
