@@ -1935,13 +1935,18 @@ async function bkRenderLog() {
   el.innerHTML = `<div class="bk-card"><div class="bk-row"><span class="bk-m">All labels booked on</span> <input type="date" id="bkLogDate" value="${today}" style="font-family:var(--fb);font-size:.82rem;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <button class="bk-btn sec" onclick="bkPrintLabels(null, this, document.getElementById('bkLogDate').value)">🖨 Print labels</button></div></div>
   <table class="bk-tbl"><thead><tr><th>When</th><th>Order</th><th>Carrier</th><th>Pay · zone</th><th>Pcs · box</th><th>AWB</th><th></th></tr></thead><tbody>${rows.map(r => `<tr>
     <td class="bk-m">${fmt(r.created_at)}</td><td><b>${bkEsc(r.order_name)}</b>${r.part > 1 ? ` <span class="bk-soft">part ${r.part}</span>` : ''}<div class="bk-m">${bkEsc(r.shipway_id)}</div></td><td>${bkEsc(r.carrier || '#' + r.carrier_id)}</td><td>${bkEsc(r.payment)} · ${bkEsc(r.zone)}</td><td>${r.pieces} · ${bkEsc(r.box)} · ${r.weight_kg} kg${Array.isArray(r.items) && r.items.length ? `<div class="bk-m">${r.items.map(it => `${it.q}× ${bkEsc(it.n)}`).join('<br>')}</div>` : ''}</td>
-    <td>${r.ok ? `<span class="bk-ok">${bkEsc(r.awb)}</span>${r.label_url ? ` <a href="${bkEsc(r.label_url)}" target="_blank">label</a>` : ''}${r.cancelled_at ? '<div class="bk-why">cancelled</div>' : ''}` : `<span class="bk-why">${bkEsc(r.error || 'failed')}</span>`}</td>
-    <td>${r.ok && !r.cancelled_at ? `<button class="ftab" onclick="bkCancel(${r.id}, this)">Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+    <td>${r.ok ? `<span class="bk-ok">${bkEsc(r.awb)}</span>${r.label_url ? ` <a href="${bkEsc(r.label_url)}" target="_blank">label</a>` : ''}${r.cancelled_at ? '<div class="bk-why">unassigned</div>' : ''}` : `<span class="bk-why">${bkEsc(r.error || 'failed')}</span>`}</td>
+    <td>${r.ok && !r.cancelled_at ? `<button class="ftab" onclick="bkCancel(${r.id}, this)" title="Release this AWB at Shipway and the courier; the order can then be booked again">Unassign</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
 }
 async function bkCancel(id, btn) {
-  if (!confirm('Cancel this booking on Shipway? The AWB is released and the order goes back to unbooked.')) return;
-  btn.disabled = true; btn.textContent = 'cancelling…';
-  try { await apiFetch({ action: 'booking_cancel', id }); bkRenderLog(); } catch (e) { btn.disabled = false; btn.textContent = 'Cancel'; alert(e.message); }
+  if (!confirm('Unassign this AWB on Shipway? The courier booking is released and the order goes back to unbooked, so you can book it again with any courier.')) return;
+  btn.disabled = true; btn.textContent = 'unassigning…';
+  try {
+    const r = await apiFetch({ action: 'booking_cancel', id }, API, 40000);
+    if (r.order_name) for (const it of rackItems) if (it.order_name === r.order_name && it.tracking === r.awb) { it.tracking = null; it.tracking_company = null; it.ship_status = null; }
+    _bkRows = []; bkRenderLog();
+    toast(`${r.order_name || 'Order'}: AWB unassigned — book it again from the day list`);
+  } catch (e) { btn.disabled = false; btn.textContent = 'Unassign'; alert(e.message); }
 }
 function bkRenderSettings() {
   const el = document.getElementById('bkSettings'); const c = _bkCfg; if (!c) return;
