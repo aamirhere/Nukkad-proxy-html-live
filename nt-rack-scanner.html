@@ -914,6 +914,7 @@ input[type=file]{display:none}
     .bk-card h4{margin:0 0 6px;font-size:.78rem;color:var(--ink2)}
     .bk-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0}
     .bk-row input[type=text],.bk-row input[type=number]{font-family:var(--fb);font-size:.8rem;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px}
+    .bk-chip{display:inline-flex;align-items:center;gap:4px;background:#f1f8e9;border:1px solid #aed581;color:#33691e;border-radius:12px;padding:1px 4px 1px 9px;margin:2px 3px 2px 0;font-size:.74rem;font-weight:600}.bk-chip b{cursor:pointer;padding:0 4px;color:#7cb342;font-weight:800}.bk-area{flex-wrap:wrap;row-gap:4px}
     .bk-dry{background:#fff3cd;color:#7a5a00;border-radius:8px;padding:6px 10px;font-size:.76rem;font-weight:700;margin-bottom:8px}
     .bk-tbl tr.bk-g td{background:#fbf3e8;border-top:2px solid var(--line);padding:10px 16px}
     .bk-tbl tr.bk-g label{display:flex;gap:8px;align-items:center;flex-wrap:wrap;cursor:pointer;font-size:.8rem}
@@ -1948,13 +1949,16 @@ async function bkCancel(id, btn) {
     toast(`${r.order_name || 'Order'}: AWB unassigned — book it again from the day list`);
   } catch (e) { btn.disabled = false; btn.textContent = 'Unassign'; alert(e.message); }
 }
+let _bkPlaces = null;
 function bkRenderSettings() {
   const el = document.getElementById('bkSettings'); const c = _bkCfg; if (!c) return;
+  if (!_bkPlaces) apiFetch({ action: 'booking_places' }).then(p => { _bkPlaces = p; bkAreaLists(); }).catch(() => {});
   const wh = (_bkCarriers && _bkCarriers.warehouses) || [];
   const whSel = (id, f) => `<select data-s="${f}">${wh.length ? wh.map(w => `<option value="${w.id}"${w.id === +c[f] ? ' selected' : ''}>${w.id} · ${bkEsc(w.title)} ${bkEsc(w.pincode)}</option>`).join('') : `<option value="${+c[f]}">${+c[f]}</option>`}</select>`;
   el.innerHTML = `<div class="bk-card"><h4>Warehouse</h4><div class="bk-row">Pickup ${whSel(c.warehouse_id, 'warehouse_id')} Return ${whSel(c.return_warehouse_id, 'return_warehouse_id')}</div>
 </div>
-    <div class="bk-card"><h4>Carrier rules, in order</h4><div class="bk-m">The first rule whose every condition holds wins. Leave a condition blank for "any". Area is matched by pincode start or city tier (1 Delhi NCR, 2 North, 3 Metro, 4 Rest, 5 Remote); either matching is enough.</div>
+    <div class="bk-card"><h4>Carrier rules, in order</h4><div class="bk-m">The first rule whose every condition holds wins. Leave a condition blank for "any". Area can be set by state, city, exact pincode, pincode start or city tier (1 Delhi NCR, 2 North, 3 Metro, 4 Rest, 5 Remote): any one matching is enough. Type a state and pick it; its cities then show up in the city box.</div>
+    <datalist id="bkDLStates"></datalist>
     <div id="bkRules">${(c.rules || []).map((r, i) => bkRuleRow(r, i)).join('')}</div><div class="bk-row"><button class="ftab" onclick="bkRuleAdd()">+ rule</button></div></div>
     <div class="bk-card"><h4>Surface zone</h4><div class="bk-m">Pincode prefixes (first two digits) that go by surface; everything else is air. Delhi 11, Haryana 12–13, Punjab 14–16, HP 17, J&amp;K 18–19, UP/Uttarakhand 20–28, Rajasthan 30–34, MP 45–48, Chhattisgarh 49, Gujarat 36–39, Maharashtra 40–44.</div>
     <textarea data-s="surface_prefixes" rows="2" style="width:100%;font-family:var(--fb);font-size:.8rem;border:1.5px solid var(--line);border-radius:8px;padding:6px">${(c.surface_prefixes || []).join(' ')}</textarea></div>
@@ -1965,6 +1969,7 @@ function bkRenderSettings() {
     <div class="bk-row"><button class="ftab" onclick="bkBoxAdd()">+ exception</button></div>
     <div class="bk-row"><span class="bk-m">Line items to ignore when counting pieces (regex):</span> <input type="text" data-s="skip_titles" value="${bkEsc(c.skip_titles)}" style="flex:1;min-width:200px"></div></div>
     <div class="bk-row"><button class="bk-btn" onclick="bkSaveSettings(this)">Save rules</button> <button class="bk-btn sec" onclick="bkRefreshCarriers(this)">↻ Reload carriers from Shipway</button> <span id="bkSetMsg" class="bk-m"></span></div>`;
+  if (_bkPlaces) bkAreaLists();
 }
 function bkRuleRow(r, i) {
   const sel = (f, opts, v) => `<select data-r="${f}">${opts.map(([val, lab]) => `<option value="${val}"${val === (v || '') ? ' selected' : ''}>${lab}</option>`).join('')}</select>`;
@@ -1974,16 +1979,49 @@ function bkRuleRow(r, i) {
     <div class="bk-row bk-m">${sel('payment', [['', 'any payment'], ['cod', 'COD'], ['prepaid', 'Prepaid']], r.payment)} ${sel('zone', [['', 'any zone'], ['surface', 'surface'], ['air', 'air']], r.zone)}
       up to <input type="number" step="0.5" data-r="max_kg" value="${r.max_kg || ''}" placeholder="any" style="width:60px"> kg ·
       pincode starts <input type="text" data-r="prefixes" value="${bkEsc((r.prefixes || []).join(' '))}" placeholder="any" style="width:110px"> ·
-      tiers <input type="text" data-r="tiers" value="${bkEsc((r.tiers || []).join(' '))}" placeholder="any" style="width:60px"></div></div></div>`;
+      tiers <input type="text" data-r="tiers" value="${bkEsc((r.tiers || []).join(' '))}" placeholder="any" style="width:60px"></div>
+    ${bkAreaRow(r)}</div></div>`;
 }
-function bkRuleAdd() { document.getElementById('bkRules').insertAdjacentHTML('beforeend', bkRuleRow({ name: '', carrier_id: 0 }, 0)); }
+// Area pickers: states and cities as removable chips (type, then pick from the list or press Enter), exact pincodes as text
+let _bkAreaN = 0;
+const bkChip = v => `<span class="bk-chip" data-v="${bkEsc(v)}">${bkEsc(v)}<b onclick="const r=this.closest('[data-rule]');this.parentElement.remove();bkAreaCities(r)" title="remove">×</b></span>`;
+function bkAreaRow(r) {
+  const id = 'bkDLc' + (++_bkAreaN);
+  return `<div class="bk-row bk-m bk-area">
+      states <span data-chips="states">${(r.states || []).map(bkChip).join('')}</span><input list="bkDLStates" data-add="states" placeholder="type a state…" style="width:140px" onchange="bkAreaAdd(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();bkAreaAdd(this)}"> ·
+      cities <span data-chips="cities">${(r.cities || []).map(c => bkChip(c.replace(/\B\w+/g, w => w.toLowerCase()))).join('')}</span><input list="${id}" data-add="cities" placeholder="type a city…" style="width:140px" onchange="bkAreaAdd(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();bkAreaAdd(this)}"><datalist id="${id}" data-citylist></datalist> ·
+      pincodes <input type="text" data-r="pincodes" value="${bkEsc((r.pincodes || []).join(' '))}" placeholder="110091 400001" style="width:150px"></div>`;
+}
+function bkAreaAdd(inp) {
+  const v = inp.value.trim(); if (!v) return;
+  const kind = inp.dataset.add, row = inp.closest('[data-rule]'), box = row.querySelector(`[data-chips="${kind}"]`);
+  let val = v;
+  if (kind === 'states' && _bkPlaces) { const hit = _bkPlaces.states.find(s => s.state.toLowerCase() === v.toLowerCase()); if (hit) val = hit.state; }
+  if (![...box.querySelectorAll('[data-v]')].some(e => e.dataset.v.toLowerCase() === val.toLowerCase())) box.insertAdjacentHTML('beforeend', bkChip(val));
+  inp.value = '';
+  if (kind === 'states') bkAreaCities(row);
+}
+// the city box offers the picked states' cities (busiest first), or the busiest cities overall when no state is picked
+function bkAreaCities(row) {
+  const dl = row && row.querySelector('[data-citylist]'); if (!dl || !_bkPlaces) return;
+  const picked = [...row.querySelectorAll('[data-chips="states"] [data-v]')].map(e => e.dataset.v.toLowerCase());
+  const from = picked.length ? _bkPlaces.states.filter(s => picked.includes(s.state.toLowerCase())) : _bkPlaces.states;
+  const list = picked.length ? from.flatMap(s => s.cities) : from.flatMap(s => s.cities.slice(0, 15));
+  dl.innerHTML = [...new Set(list)].slice(0, 600).map(c => `<option value="${bkEsc(c)}">`).join('');
+}
+function bkAreaLists() {
+  const dl = document.getElementById('bkDLStates'); if (!dl || !_bkPlaces) return;
+  dl.innerHTML = _bkPlaces.states.map(s => `<option value="${bkEsc(s.state)}">${s.cities.length ? s.cities.length + ' cities' : ''}</option>`).join('');
+  document.querySelectorAll('#bkRules [data-rule]').forEach(bkAreaCities);
+}
+function bkRuleAdd() { document.getElementById('bkRules').insertAdjacentHTML('beforeend', bkRuleRow({ name: '', carrier_id: 0 }, 0)); bkAreaCities(document.querySelector('#bkRules [data-rule]:last-child')); }
 function bkRuleMove(btn, dir) { const row = btn.closest('[data-rule]'); const sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling; if (!sib) return; if (dir < 0) sib.before(row); else sib.after(row); }
 function bkBoxRow(b) { return `<tr><td><input type="number" data-f="pieces" value="${b.pieces}" style="width:60px"></td><td><input type="number" data-f="l" value="${b.l}" style="width:60px"></td><td><input type="number" data-f="b" value="${b.b}" style="width:60px"></td><td><input type="number" data-f="h" value="${b.h}" style="width:60px"></td><td><input type="number" step="0.01" data-f="kg" value="${b.kg}" style="width:70px"></td><td><button class="ftab" onclick="this.closest('tr').remove()">✕</button></td></tr>`; }
 function bkBoxAdd() { document.querySelector('#bkBoxes tbody').insertAdjacentHTML('beforeend', bkBoxRow({ pieces: 1, l: 24, b: 18, h: 5, kg: 0.38 })); }
 async function bkSaveSettings(btn) {
   const el = document.getElementById('bkSettings');
   const g = f => el.querySelector(`[data-s="${f}"]`);
-  const rules = [...el.querySelectorAll('[data-rule]')].map(r => { const q = f => r.querySelector(`[data-r="${f}"]`); const s = r.querySelector('[data-f=carrier_id]'); return { name: q('name').value, payment: q('payment').value, zone: q('zone').value, max_kg: +q('max_kg').value || 0, prefixes: q('prefixes').value.split(/[\s,]+/).filter(Boolean), tiers: q('tiers').value.split(/[\s,]+/).filter(Boolean).map(Number), carrier_id: +s.value, carrier: s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : '' }; });
+  const rules = [...el.querySelectorAll('[data-rule]')].map(r => { const q = f => r.querySelector(`[data-r="${f}"]`); const s = r.querySelector('[data-f=carrier_id]'); return { name: q('name').value, payment: q('payment').value, zone: q('zone').value, max_kg: +q('max_kg').value || 0, prefixes: q('prefixes').value.split(/[\s,]+/).filter(Boolean), tiers: q('tiers').value.split(/[\s,]+/).filter(Boolean).map(Number), states: [...r.querySelectorAll('[data-chips="states"] [data-v]')].map(e => e.dataset.v), cities: [...r.querySelectorAll('[data-chips="cities"] [data-v]')].map(e => e.dataset.v), pincodes: (q('pincodes').value.match(/\d{6}/g) || []), carrier_id: +s.value, carrier: s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : '' }; });
   const boxes = [...el.querySelectorAll('#bkBoxes tbody tr')].map(r => Object.fromEntries(['pieces', 'l', 'b', 'h', 'kg'].map(f => [f, +r.querySelector(`[data-f=${f}]`).value])));
   const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, rules, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), box: { l: +g('box_l').value, b: +g('box_b').value, h_per_piece: +g('box_h').value }, boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value };
   btn.disabled = true;
