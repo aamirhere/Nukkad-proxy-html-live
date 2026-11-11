@@ -898,9 +898,13 @@ input[type=file]{display:none}
 <!-- ── BOOK COURIER (Shipway) ── -->
 <div id="bookTab" class="list-wrap" style="display:none">
   <style>
-    #bookTab{padding:4px 4px 24px;gap:12px}
+    #bookTab{padding:4px 4px 90px;gap:12px}
     .bk-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
     .bk-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+.bk-float{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10050;display:none;align-items:center;gap:14px;background:var(--ink,#3a2b1d);color:#fff;padding:10px 12px 10px 18px;border-radius:999px;box-shadow:0 8px 28px rgba(0,0,0,.28);font-family:var(--fb);font-size:.88rem;max-width:calc(100vw - 32px)}
+.bk-float .bk-btn{margin:0}
+.bk-total{font-size:.78rem;font-weight:700;color:var(--ink,#3a2b1d);background:#fff3e6;border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+.bk-total:empty{display:none}
     .bk-tbl{width:100%;min-width:860px;border-collapse:collapse;font-size:.8rem;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
     .bk-tbl th{background:#f6efe4;color:var(--ink2);font-weight:700;text-align:left;padding:9px 12px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
     .bk-tbl td{padding:12px;border-top:1px solid #f3ece2;vertical-align:top;line-height:1.45}
@@ -1662,6 +1666,7 @@ function paneClose() {
   document.getElementById('paneZen').style.display = 'none'; document.documentElement.style.overflow = ''; document.body.style.overflow = '';
   if (_paneOpen === 'pack') packCamStop();
   _paneOpen = null; activeTab = 'scan';
+  bkUpdateFloat();
 }
 function homeSubs() {
   const a = document.getElementById('homeScanSub'), b = document.getElementById('homePrintSub');
@@ -1724,6 +1729,7 @@ function bkTab(t) {
   document.querySelectorAll('#bookTab .ftab').forEach(el => el.classList.toggle('active', el.dataset.bk === t));
   for (const k of ['Day', 'Ready', 'One', 'Log', 'Settings']) document.getElementById('bk' + k).style.display = k.toLowerCase() === t ? '' : 'none';
   if (t === 'day') bkRenderDay(); if (t === 'ready') bkRenderReady(); if (t === 'one') bkRenderOne(); if (t === 'log') bkRenderLog(); if (t === 'settings') bkRenderSettings();
+  bkUpdateFloat();
 }
 // ── By date: every order of a day, grouped by zone, tier and state, so a group can be booked together ──
 function bkRenderDay() {
@@ -1738,9 +1744,9 @@ function bkRenderDay() {
   el.innerHTML = `<div class="bk-card"><div class="bk-row" style="margin-bottom:6px">${chips || '<span class="bk-m">No unbooked orders on the rack.</span>'}</div><div class="bk-row">
       <input type="date" id="bkDayInp" value="${d}" style="font-family:var(--fb);font-size:.85rem;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="bkLoadDay()">
       <button class="bk-btn sec" onclick="bkLoadDay()" ${_bkBusy ? 'disabled' : ''}>Load</button>
-      <button class="bk-btn" onclick="bkBookSelected('bkDayWeb');bkBookSelected('bkDayAmz')" ${_bkBusy || !n ? 'disabled' : ''}>Book selected</button>
+      <button class="bk-btn" onclick="bkFloatBook()" ${_bkBusy || !n ? 'disabled' : ''}>Book selected</button>
       ${_bkLabelIds.length ? `<button class="bk-btn sec" onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>` : ''}
-      <span id="bkDayMsg" class="bk-m">${_bkDay ? `${n} orders · ${ready} ready` : ''}</span></div>
+      <span id="bkDayMsg" class="bk-m">${_bkDay ? `${n} orders · ${ready} ready` : ''}</span> <span id="bkDayTotal" class="bk-total"></span></div>
       ${_bkDay ? (() => { const all = [..._bkDay.website, ..._bkDay.amazon]; const c = { all: all.length, matched: all.filter(r => bkIsMatched(r) && !bkIsBooked(r)).length, unmatched: all.filter(r => !bkIsMatched(r) && !bkIsBooked(r)).length, booked: all.filter(bkIsBooked).length }; return `<div class="bk-row" style="margin-top:6px">${[['all', 'All'], ['matched', '✓ Matched, to book'], ['unmatched', 'Not yet matched'], ['booked', 'Booked']].map(([k, l]) => `<div class="ftab${_bkFilter === k ? ' active' : ''}" onclick="_bkFilter='${k}';bkRenderDay()">${l} ${c[k]}</div>`).join('')}</div>`; })() : ''}
       <div class="bk-m">Groups run surface zone first, Delhi NCR on top, then each state by city tier. Tick a group header to select all of it; the header shows which courier the rules pick for COD and prepaid in that group.</div></div>
     ${_bkDay ? `<div class="bk-sec">🛒 Website · ${_bkDay.website.length}</div><div id="bkDayWeb">${_bkDay.website.length ? bkGroupTable(_bkDay.website, 'bkDayWeb') : '<div class="empty-msg">No website orders on this date.</div>'}</div>
@@ -1775,7 +1781,7 @@ function bkGroupTable(rows, wrapId) {
     const rs = g.idx.map(i => rows[i]);
     const hint = ['cod', 'prepaid'].map(p => { const cs = [...new Set(rs.filter(r => r.payment === p && r.carrier).map(r => r.carrier))]; return cs.length ? `${p === 'cod' ? 'COD' : 'Prepaid'} → ${cs.join(' / ')}` : ''; }).filter(Boolean).join(' · ');
     const cities = [...new Set(rs.map(r => r.city).filter(Boolean))].slice(0, 6).join(', ');
-    const head = `<tr class="bk-g"><td colspan="8"><label><input type="checkbox" data-g="${gi}" onchange="bkGroupToggle('${wrapId}', ${gi}, this.checked)"><b>${bkEsc(g.key)}</b><span class="bk-z ${g.zone}">${g.zone}</span><span>${rs.length} order${rs.length === 1 ? '' : 's'} · ${rs.filter(r => r.ok).length} ready</span><span class="bk-m">${bkEsc(hint)}</span><span class="bk-m" style="flex-basis:100%">${bkEsc(cities)}</span></label></td></tr>`;
+    const head = `<tr class="bk-g"><td colspan="8"><label><input type="checkbox" data-g="${gi}" onchange="bkGroupToggle('${wrapId}', ${gi}, this.checked)"><b>${bkEsc(g.key)}</b><span class="bk-z ${g.zone}">${g.zone}</span><span>${rs.length} order${rs.length === 1 ? '' : 's'} · ${rs.filter(r => r.ok).length} ready</span><span class="bk-m">${bkEsc(hint)}</span><span class="bk-total" data-gsum="${gi}"></span><span class="bk-m" style="flex-basis:100%">${bkEsc(cities)}</span></label></td></tr>`;
     return head + g.idx.map(i => bkRowHtml(rows[i], i, gi)).join('');
   }).join('');
   return `<div class="bk-wrap"><table class="bk-tbl">${BK_HEAD}<tbody>${body}</tbody></table></div>`;
@@ -1869,6 +1875,7 @@ function bkPaintRates(wrapId, rows) {
     const v = _bkRates[bkRateKey(r)];
     tr.querySelectorAll('[data-f=carrier_id] option[data-name]').forEach(o => { const c = v && v.list && v.list.find(x => x.id === +o.value); o.textContent = o.dataset.name + (c ? ` · ${bkRs(c.total)}` : ''); });
   });
+  bkPaintTotals(); bkUpdateFloat();
 }
 async function bkFetchRates(wrapId, rows) {
   const need = {};
@@ -1883,6 +1890,46 @@ async function bkFetchRates(wrapId, rows) {
     bkPaintRates(wrapId, bkRowsFor(wrapId).length ? bkRowsFor(wrapId) : rows);
   }
 }
+// Price of a row's parcel on its chosen courier (rate card), and what its bookings cost when booked
+const bkRowPrice = r => { const v = _bkRates[bkRateKey(r)]; const c = v && v.list && v.list.find(x => x.id === +r.carrier_id); return c ? c.total : null; };
+function bkRowBooked(r) {
+  const qs = (r.bookings || []).map(b => ({ awb: b.awb, q: b.quote }));
+  if (r.result && r.result.ok && r.result.awb && !qs.some(b => b.awb === r.result.awb)) qs.push({ awb: r.result.awb, q: r.result.quote });
+  return { n: qs.length, sum: qs.reduce((t, b) => t + (b.q ? +b.q.total || 0 : 0), 0), unpriced: qs.filter(b => !b.q).length };
+}
+const bkSumTxt = (n, sum, unpriced, word) => n ? `${n} ${n === 1 ? word.replace(/^parcels/, 'parcel') : word} · ${bkRs(sum)}${unpriced ? ` <span class="bk-m">(${unpriced} without price)</span>` : ''}` : '';
+function bkPicked(wrapId) { return [...document.querySelectorAll(`#${wrapId} tr[data-i]`)].filter(tr => { const c = tr.querySelector('[data-f=sel]'); return c && c.checked && !c.disabled; }).map(tr => +tr.dataset.i); }
+// booked totals per group (state) and for the whole date; refreshed whenever prices or bookings change
+function bkPaintTotals() {
+  let dn = 0, ds = 0, du = 0;
+  for (const wrapId of ['bkDayWeb', 'bkDayAmz']) {
+    const rows = bkRowsFor(wrapId), by = {};
+    document.querySelectorAll(`#${wrapId} tr[data-i]`).forEach(tr => { const r = rows[+tr.dataset.i]; if (!r) return; const g = by[tr.dataset.g] ||= { n: 0, sum: 0, un: 0 }; const b = bkRowBooked(r); g.n += b.n; g.sum += b.sum; g.un += b.unpriced; });
+    for (const r of rows) { const b = bkRowBooked(r); dn += b.n; ds += b.sum; du += b.unpriced; }
+    document.querySelectorAll(`#${wrapId} [data-gsum]`).forEach(el => { const g = by[el.dataset.gsum]; el.innerHTML = g && g.n ? '📦 ' + bkSumTxt(g.n, g.sum, g.un, 'booked') : ''; });
+  }
+  const top = document.getElementById('bkDayTotal'); if (top) top.innerHTML = dn ? '📦 ' + bkSumTxt(dn, ds, du, 'parcels booked') : '';
+}
+const BK_WRAPS = { day: ['bkDayWeb', 'bkDayAmz'], ready: ['bkReadyTbl'], one: ['bkOneTbl'] };
+// a floating bar at the bottom while orders are ticked: how many, what they will cost, and Book
+function bkUpdateFloat() {
+  let el = document.getElementById('bkFloat');
+  if (!el) { el = document.createElement('div'); el.id = 'bkFloat'; el.className = 'bk-float'; document.body.appendChild(el); }
+  const wraps = _paneOpen === 'book' ? (BK_WRAPS[_bkTab] || []) : [];
+  let n = 0, sum = 0, un = 0;
+  for (const w of wraps) { const rows = bkRowsFor(w); for (const i of bkPicked(w)) { n++; const p = bkRowPrice(rows[i]); if (p == null) un++; else sum += p; } }
+  if (!n) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = `<span><b>${n}</b> selected · <b>${bkRs(sum)}</b>${un ? ` <span style="opacity:.75">+ ${un} without price</span>` : ''}</span><button class="bk-btn" onclick="bkFloatBook()" ${_bkBusy ? 'disabled' : ''}>${_bkBusy ? 'booking…' : 'Book selected'}</button>`;
+}
+async function bkFloatBook() {
+  const wraps = BK_WRAPS[_bkTab] || [];
+  const n = wraps.reduce((t, w) => t + bkPicked(w).length, 0); if (!n) return;
+  if (!_bkCfg.dry_run && !confirm(`Book ${n} order${n === 1 ? '' : 's'} on Shipway now?`)) return;
+  for (const w of wraps) await bkBookSelected(w, null, true);
+  bkPaintTotals(); bkUpdateFloat();
+}
+document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#bookTab') && (e.target.matches('[data-f=sel]') || e.target.closest('tr.bk-g'))) bkUpdateFloat(); });
 const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
 function bkTable(rows, idBase) {
   return `<div class="bk-wrap"><table class="bk-tbl">${BK_HEAD}<tbody>${rows.map((r, i) => bkRowHtml(r, i)).join('')}</tbody></table></div>`;
@@ -1937,12 +1984,12 @@ function bkBindEdits(wrapId, rows) {
     });
   });
 }
-async function bkBookSelected(wrapId, only) {
+async function bkBookSelected(wrapId, only, confirmed) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
   const rows = bkRowsFor(wrapId);
-  const picks = only || [...wrap.querySelectorAll('tr[data-i]')].filter(tr => { const c = tr.querySelector('[data-f=sel]'); return c && c.checked && !c.disabled; }).map(tr => +tr.dataset.i);
+  const picks = only || bkPicked(wrapId);
   if (!picks.length) return;
-  if (!_bkCfg.dry_run && !confirm(`Book ${picks.length} order${picks.length === 1 ? '' : 's'} on Shipway now?`)) return;
+  if (!confirmed && !_bkCfg.dry_run && !confirm(`Book ${picks.length} order${picks.length === 1 ? '' : 's'} on Shipway now?`)) return;
   _bkBusy = true;
   for (const i of picks) {
     const r = rows[i]; const tr = wrap.querySelector(`tr[data-i="${i}"]`);
@@ -1956,7 +2003,7 @@ async function bkBookSelected(wrapId, only) {
     // a part shipment leaves the rest of the order bookable: refresh the row from the server
     if (r.result && r.result.ok && !r.result.dry && r.pieces < (r.pieces_total || r.pieces)) { try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name] }); const nr = { ...p.rows[0], result: r.result }; rows[i] = nr; const tr3 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr3) tr3.outerHTML = bkRowHtml(nr, i, tr3.dataset.g); } catch (_) {} }
   }
-  _bkBusy = false; bkBindEdits(wrapId, rows);
+  _bkBusy = false; bkBindEdits(wrapId, rows); bkUpdateFloat();
   if (rows.some(r => r.result && r.result.ok && !r.result.dry)) { for (const r of rows) if (r.result && r.result.ok && !r.result.dry) for (const it of rackItems) if (it.order_name === r.order_name) { it.tracking = r.result.awb; it.tracking_company = r.result.carrier; } }
   // the print-labels button appears once a batch has real bookings
   if (_bkLabelIds.length) { const bar = document.querySelector(`#${wrapId === 'bkReadyTbl' ? 'bkReady' : wrapId === 'bkOneTbl' ? 'bkOne' : 'bkDay'} .bk-row`); if (bar && !bar.querySelector('[data-labels]')) bar.insertAdjacentHTML('beforeend', `<button class="bk-btn sec" data-labels onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>`); else if (bar) bar.querySelector('[data-labels]').textContent = `🖨 Print labels (${_bkLabelIds.length})`; }
