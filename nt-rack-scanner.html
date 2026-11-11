@@ -1908,7 +1908,7 @@ async function bkBookSelected(wrapId, only) {
     if (tr) tr.querySelector('td:last-child').innerHTML = '<span class="bk-m">booking…</span>';
     const ov = r.ov || {};
     const items = (r.items || []).filter(it => it.on > 0).map(it => ({ i: it.i, q: it.on }));
-    try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!r.soft, ...ov }, API, 28000); }
+    try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!r.soft, ...ov }, API, 58000); }
     catch (e) { r.result = { ok: false, error: e.message }; if (!r.altQueue) r.altQueue = (r.alt || []).slice(); }
     if (r.result && r.result.ok && !r.result.dry && r.result.id) _bkLabelIds.push(r.result.id);
     const tr2 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr2) tr2.outerHTML = bkRowHtml(r, i, tr2.dataset.g);
@@ -1945,7 +1945,7 @@ async function bkScanBook(btn) {
   btn.disabled = true; btn.textContent = 'booking…';
   const msg = document.getElementById('scanBookMsg');
   try {
-    const res = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, force: !!r.soft }, API, 28000);
+    const res = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, force: !!r.soft }, API, 58000);
     if (res.dry) { msg.innerHTML = `<span class="bk-ok">dry run ✓</span> would send carrier ${bkEsc(res.payload.carrier_id)} · ${bkEsc(res.payload.order_weight)} g`; btn.disabled = false; btn.textContent = 'Book courier'; return; }
     msg.innerHTML = `<span class="bk-ok">✓ ${bkEsc(res.awb)}</span> · ${bkEsc(res.carrier || '')}${res.label_url ? ` · <a href="${bkEsc(res.label_url)}" target="_blank">label</a>` : ''} <button class="ftab" onclick="bkPrintLabels([${+res.id}], this)">🖨 Print label</button>`;
     btn.textContent = 'Booked';
