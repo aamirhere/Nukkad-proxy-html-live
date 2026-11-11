@@ -1791,10 +1791,17 @@ function bkCandidates() {
   }
   return Object.values(g).filter(o => o.needed && o.found >= o.needed).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
 }
+function bkRowCarrierSel(r) {
+  if (!Array.isArray(r.choices)) return bkCarrierSel(r.carrier_id);
+  const all = (_bkCarriers && _bkCarriers.carriers) || [];
+  const list = r.choices.slice();
+  if (+r.carrier_id && !list.some(c => c.id === +r.carrier_id)) list.unshift({ id: +r.carrier_id, name: ((all.find(c => c.id === +r.carrier_id) || {}).name || '#' + r.carrier_id), extra: 1 });
+  return `<select data-f="carrier_id">${list.map(c => `<option value="${c.id}" data-name="${bkEsc(c.name)}"${+r.carrier_id === c.id ? ' selected' : ''}>${bkEsc(c.name)}${c.extra ? ' (rule)' : ''}</option>`).join('')}</select>`;
+}
 function bkCarrierSel(sel, name) {
   const list = (_bkCarriers && _bkCarriers.carriers) || [];
   const opts = list.map(c => `<option value="${c.id}" data-name="${bkEsc(c.name)}"${+sel === c.id ? ' selected' : ''}>${bkEsc(c.name)}</option>`).join('');
-  return `<select data-f="carrier_id" ${name ? `data-n="${bkEsc(name)}"` : ''}>${+sel && !list.some(c => c.id === +sel) ? `<option value="${+sel}" selected>#${+sel}</option>` : ''}${opts}</select>`;
+  return `<select data-f="carrier_id" ${name ? `data-n="${bkEsc(name)}"` : ''}>${+sel > 0 && !list.some(c => c.id === +sel) ? `<option value="${+sel}" selected>#${+sel}</option>` : ''}${opts}</select>`;
 }
 function bkRowHtml(r, i, gi) {
   const box = r.box ? `${r.box.l}×${r.box.b}×${r.box.h} · ${r.box.kg} kg` : '';
@@ -1815,7 +1822,7 @@ function bkRowHtml(r, i, gi) {
     <td><b>${bkEsc(r.order_name)}</b>${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : done ? ' <span class="bk-tag ok">✓ booked</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !done && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
-    <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div data-rate>${cancelled ? '' : bkRateHtml(r)}</div><div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
+    <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkRowCarrierSel(r) : ''}<div data-rate>${cancelled ? '' : bkRateHtml(r)}</div><div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
     <td><div class="bk-m"><b>${r.pieces || 0}</b>${r.pieces_total && r.pieces_total !== r.pieces ? ` of ${r.pieces_total}` : ''} pc</div>${items}</td>
     <td>${boxEd}</td>
     <td>${bookable ? `<button class="bk-btn" style="padding:5px 10px;font-size:.74rem;margin-bottom:4px" data-book="1">Book</button><br>` : ''}${done ? bkAwbList(r) : st}</td></tr>`;
@@ -2029,6 +2036,8 @@ function bkRenderSettings() {
   const whSel = (id, f) => `<select data-s="${f}">${wh.length ? wh.map(w => `<option value="${w.id}"${w.id === +c[f] ? ' selected' : ''}>${w.id} · ${bkEsc(w.title)} ${bkEsc(w.pincode)}</option>`).join('') : `<option value="${+c[f]}">${+c[f]}</option>`}</select>`;
   el.innerHTML = `<div class="bk-card"><h4>Warehouse</h4><div class="bk-row">Pickup ${whSel(c.warehouse_id, 'warehouse_id')} Return ${whSel(c.return_warehouse_id, 'return_warehouse_id')}</div>
 </div>
+    <div class="bk-card"><h4>Couriers: priority and what shows when booking</h4><div class="bk-m">Top = first choice. Only ticked couriers show in an order's courier list, and only those of the order's zone (surface or air). From couriers sold by weight (0.5 kg, 1 kg, 2 kg…) only the size that fits the parcel shows. A rule set to "⭐ Best by courier priority" books the first one that fits.</div>
+    <div class="bk-wrap"><table class="bk-tbl" id="bkCouriers"><thead><tr><th></th><th>Show</th><th>Courier</th><th>Mode</th><th>Size kg</th></tr></thead><tbody>${(c.courier_list || []).map(bkCourierRow).join('')}</tbody></table></div></div>
     <div class="bk-card"><h4>Carrier rules, in order</h4><div class="bk-m">The first rule whose every condition holds wins. Leave a condition blank for "any". Area can be set by state, city, exact pincode, pincode start or city tier (1 Delhi NCR, 2 North, 3 Metro, 4 Rest, 5 Remote): any one matching is enough. Type a state and pick it; its cities then show up in the city box.</div>
     <datalist id="bkDLStates"></datalist>
     <div id="bkRules">${(c.rules || []).map((r, i) => bkRuleRow(r, i)).join('')}</div><div class="bk-row"><button class="ftab" onclick="bkRuleAdd()">+ rule</button></div></div>
@@ -2047,7 +2056,7 @@ function bkRuleRow(r, i) {
   const sel = (f, opts, v) => `<select data-r="${f}">${opts.map(([val, lab]) => `<option value="${val}"${val === (v || '') ? ' selected' : ''}>${lab}</option>`).join('')}</select>`;
   return `<div class="bk-rule" data-rule>
     <div class="ord"><button onclick="bkRuleMove(this,-1)" title="up">▲</button><button onclick="bkRuleMove(this,1)" title="down">▼</button></div>
-    <div><div class="bk-row"><input type="text" data-r="name" value="${bkEsc(r.name || '')}" placeholder="rule name" style="min-width:180px;flex:1"> → ${bkCarrierSel(r.carrier_id)} <button class="ftab" onclick="this.closest('[data-rule]').remove()">✕</button></div>
+    <div><div class="bk-row"><input type="text" data-r="name" value="${bkEsc(r.name || '')}" placeholder="rule name" style="min-width:180px;flex:1"> → ${bkCarrierSel(r.carrier_id).replace('<select data-f="carrier_id" >', '<select data-f="carrier_id">').replace(/^<select data-f="carrier_id">/, `<select data-f="carrier_id"><option value="-1"${+r.carrier_id === -1 ? ' selected' : ''}>⭐ Best by courier priority</option>`)} <button class="ftab" onclick="this.closest('[data-rule]').remove()">✕</button></div>
     <div class="bk-row bk-m">${sel('payment', [['', 'any payment'], ['cod', 'COD'], ['prepaid', 'Prepaid']], r.payment)} ${sel('zone', [['', 'any zone'], ['surface', 'surface'], ['air', 'air']], r.zone)}
       up to <input type="number" step="0.5" data-r="max_kg" value="${r.max_kg || ''}" placeholder="any" style="width:60px"> kg ·
       pincode starts <input type="text" data-r="prefixes" value="${bkEsc((r.prefixes || []).join(' '))}" placeholder="any" style="width:110px"> ·
@@ -2089,6 +2098,13 @@ function bkAreaLists() {
 }
 function bkRuleAdd() { document.getElementById('bkRules').insertAdjacentHTML('beforeend', bkRuleRow({ name: '', carrier_id: 0 }, 0)); bkAreaCities(document.querySelector('#bkRules [data-rule]:last-child')); }
 function bkRuleMove(btn, dir) { const row = btn.closest('[data-rule]'); const sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling; if (!sib) return; if (dir < 0) sib.before(row); else sib.after(row); }
+function bkCourierRow(c) {
+  return `<tr data-courier="${c.id}"${c.on ? '' : ' style="opacity:.55"'}><td><button class="ftab" onclick="bkCourierMove(this,-1)">▲</button><button class="ftab" onclick="bkCourierMove(this,1)">▼</button></td>
+    <td><input type="checkbox" data-c="on" ${c.on ? 'checked' : ''} onchange="this.closest('tr').style.opacity=this.checked?1:.55"></td><td>${bkEsc(c.name)} <span class="bk-m">#${c.id}</span></td>
+    <td><select data-c="mode">${[['surface', 'Surface'], ['air', 'Air'], ['any', 'Both']].map(([v, l]) => `<option value="${v}"${c.mode === v ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
+    <td><input type="number" step="0.5" data-c="slab" value="${c.slab || ''}" placeholder="any" style="width:60px"></td></tr>`;
+}
+function bkCourierMove(btn, dir) { const row = btn.closest('tr'); const sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling; if (!sib) return; if (dir < 0) sib.before(row); else sib.after(row); }
 function bkBoxRow(b) { return `<tr><td><input type="number" data-f="pieces" value="${b.pieces}" style="width:60px"></td><td><input type="number" data-f="l" value="${b.l}" style="width:60px"></td><td><input type="number" data-f="b" value="${b.b}" style="width:60px"></td><td><input type="number" data-f="h" value="${b.h}" style="width:60px"></td><td><input type="number" step="0.01" data-f="kg" value="${b.kg}" style="width:70px"></td><td><button class="ftab" onclick="this.closest('tr').remove()">✕</button></td></tr>`; }
 function bkBoxAdd() { document.querySelector('#bkBoxes tbody').insertAdjacentHTML('beforeend', bkBoxRow({ pieces: 1, l: 24, b: 18, h: 5, kg: 0.38 })); }
 async function bkSaveSettings(btn) {
@@ -2096,9 +2112,9 @@ async function bkSaveSettings(btn) {
   const g = f => el.querySelector(`[data-s="${f}"]`);
   const rules = [...el.querySelectorAll('[data-rule]')].map(r => { const q = f => r.querySelector(`[data-r="${f}"]`); const s = r.querySelector('[data-f=carrier_id]'); return { name: q('name').value, payment: q('payment').value, zone: q('zone').value, max_kg: +q('max_kg').value || 0, prefixes: q('prefixes').value.split(/[\s,]+/).filter(Boolean), tiers: q('tiers').value.split(/[\s,]+/).filter(Boolean).map(Number), states: [...r.querySelectorAll('[data-chips="states"] [data-v]')].map(e => e.dataset.v), cities: [...r.querySelectorAll('[data-chips="cities"] [data-v]')].map(e => e.dataset.v), pincodes: (q('pincodes').value.match(/\d{6}/g) || []), carrier_id: +s.value, carrier: s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : '' }; });
   const boxes = [...el.querySelectorAll('#bkBoxes tbody tr')].map(r => Object.fromEntries(['pieces', 'l', 'b', 'h', 'kg'].map(f => [f, +r.querySelector(`[data-f=${f}]`).value])));
-  const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, rules, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), box: { l: +g('box_l').value, b: +g('box_b').value, h_per_piece: +g('box_h').value }, boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value };
+  const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, rules, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), box: { l: +g('box_l').value, b: +g('box_b').value, h_per_piece: +g('box_h').value }, boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value, couriers: [...el.querySelectorAll('#bkCouriers tr[data-courier]')].map(tr => ({ id: +tr.dataset.courier, on: tr.querySelector('[data-c=on]').checked, mode: tr.querySelector('[data-c=mode]').value, slab: +tr.querySelector('[data-c=slab]').value || null })) };
   btn.disabled = true;
-  try { _bkCfg = await apiFetch(body); document.getElementById('bkSetMsg').textContent = 'Saved'; document.getElementById('bkDry').style.display = _bkCfg.dry_run ? '' : 'none'; _bkRows = []; }
+  try { _bkCfg = await apiFetch(body); document.getElementById('bkSetMsg').textContent = 'Saved · reload the day list to see the new courier lists'; document.getElementById('bkDry').style.display = _bkCfg.dry_run ? '' : 'none'; _bkRows = []; }
   catch (e) { document.getElementById('bkSetMsg').textContent = e.message; }
   btn.disabled = false;
 }
