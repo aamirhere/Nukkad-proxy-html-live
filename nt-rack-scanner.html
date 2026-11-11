@@ -2028,7 +2028,8 @@ function bkAreaRow(r) {
   return `<div class="bk-row bk-m bk-area">
       states <span data-chips="states">${(r.states || []).map(bkChip).join('')}</span><input list="bkDLStates" data-add="states" placeholder="type a state…" style="width:140px" onchange="bkAreaAdd(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();bkAreaAdd(this)}"> ·
       cities <span data-chips="cities">${(r.cities || []).map(c => bkChip(c.replace(/\B\w+/g, w => w.toLowerCase()))).join('')}</span><input list="${id}" data-add="cities" placeholder="type a city…" style="width:140px" onchange="bkAreaAdd(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();bkAreaAdd(this)}"><datalist id="${id}" data-citylist></datalist> ·
-      pincodes <input type="text" data-r="pincodes" value="${bkEsc((r.pincodes || []).join(' '))}" placeholder="110091 400001" style="width:150px"></div>`;
+      pincodes <input type="text" data-r="pincodes" value="${bkEsc((r.pincodes || []).join(' '))}" placeholder="110091 400001" style="width:150px">
+      <div style="flex-basis:100%;opacity:.75">A state with some of its cities picked means only those cities (Uttar Pradesh + Noida = Noida and Greater Noida, not all of UP). A state with no cities picked means the whole state.</div></div>`;
 }
 function bkAreaAdd(inp) {
   const v = inp.value.trim(); if (!v) return;
