@@ -1971,8 +1971,8 @@ function bkAgeChip(r) {
   const d = bkOrderDate(r); if (!d) return '';
   if (_bkTab === 'day' && _bkDay && d === _bkDay.date) return '';
   const a = bkAgeDays(d), cls = a >= 6 ? 'late' : a >= 4 ? 'warn' : '';
-  const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  return ` <span class="bk-age ${cls}" title="ordered ${day}">📅 ${day} · ${a <= 0 ? 'today' : a === 1 ? '1 day' : a + ' days'}${a >= 6 && r.zone === 'surface' && !bkIsBooked(r) ? ' · late, Air?' : ''}</span>`;
+  const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  return ` <span class="bk-age ${cls}" title="${a <= 0 ? 'ordered today' : `ordered ${a} day${a === 1 ? '' : 's'} ago`}">${day}</span>`;
 }
 const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
 function bkTable(rows, idBase) {
@@ -1988,7 +1988,7 @@ function bkRenderReady() {
     <button class="bk-btn" onclick="bkFloatBook()" ${_bkBusy || !_bkRows.length ? 'disabled' : ''}>Book selected</button>
     <button class="bk-btn sec" onclick="bkPrintView(['bkReadyTbl'], this)" ${_bkRows.length ? '' : 'disabled'}>🖨 Print labels</button>
     <span id="bkReadyMsg" class="bk-m"></span></div>
-    <div class="bk-m">Oldest first in each group. 📅 <span class="bk-age warn">4–5 days</span> getting old · <span class="bk-age late">6+ days</span> late: switch Zone to Air to make the 7–10 day promise. Booked orders stay here with a ✓ until you reload, so their labels can be printed together.</div></div>`
+    <div class="bk-m">Oldest first in each group · order date <span class="bk-age warn">4–5 days old</span> <span class="bk-age late">6+ days old</span></div></div>`
     + (_bkRows.length ? `<div id="bkReadyTbl">${bkGroupTable(_bkRows, 'bkReadyTbl', true)}</div>` : `<div class="empty-msg">${cands.length ? 'Loading carrier, box and price for each order…' : 'Nothing matched and unbooked right now.'}</div>`);
   bkBindEdits('bkReadyTbl', _bkRows);
   if (!_bkRows.length && cands.length && !_bkBusy) bkPreview();
