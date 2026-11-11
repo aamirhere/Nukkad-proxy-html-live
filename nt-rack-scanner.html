@@ -848,6 +848,7 @@ input[type=file]{display:none}
   <div class="print-btn-row no-print">
     <button class="hbtn" onclick="openPrintDialog()">🖨 Print</button>
     <button id="listSelModeBtn" class="hbtn" onclick="toggleListSelMode()">☑ Select</button>
+    <button id="listBookMatched" class="hbtn" style="display:none;border-color:#f3b38f;color:#a3390f;background:#fff1e8" onclick="bkOpenMatched()">🚚 Book matched</button>
     <button id="listSlipSelBtn" class="hbtn" onclick="toggleSlipSelMode()">🖨 Slips</button>
     <button id="listSlipAllBtn" class="hbtn" onclick="slipSelectAllOpen()" style="display:none;border-color:#1b5e20;color:#1b5e20" title="Select every open (not dispatched) order shown">☑ All open</button>
   </div>
@@ -907,6 +908,9 @@ input[type=file]{display:none}
 .bk-float .bk-btn{margin:0}
 .bk-total{font-size:.78rem;font-weight:700;color:var(--ink,#3a2b1d);background:#fff3e6;border:1px solid var(--line);border-radius:999px;padding:2px 9px}
 .bk-total:empty{display:none}
+.bk-age{display:inline-block;font-size:.66rem;font-weight:700;padding:1px 7px;border-radius:999px;background:#f1ece4;color:#6f5b46;border:1px solid #e3d8c6;margin-left:4px;white-space:nowrap}
+.bk-age.warn{background:#fff4dc;color:#9a6200;border-color:#f5cf80}
+.bk-age.late{background:#fde7e4;color:#b3261e;border-color:#f2a69e}
     .bk-tbl{width:100%;min-width:860px;border-collapse:collapse;font-size:.8rem;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
     .bk-tbl th{background:#f6efe4;color:var(--ink2);font-weight:700;text-align:left;padding:9px 12px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
     .bk-tbl td{padding:12px;border-top:1px solid #f3ece2;vertical-align:top;line-height:1.45}
@@ -943,7 +947,7 @@ input[type=file]{display:none}
   </div>
   <div class="bk-tabs">
     <div class="ftab active" data-bk="day" onclick="bkTab('day')">By date</div>
-    <div class="ftab" data-bk="ready" onclick="bkTab('ready')">Ready to book</div>
+    <div class="ftab" data-bk="ready" onclick="bkTab('ready')">✓ Book matched</div>
     <div class="ftab" data-bk="one" onclick="bkTab('one')">Search result</div>
     <div class="ftab" data-bk="log" onclick="bkTab('log')">Bookings log</div>
     <div class="ftab" data-bk="settings" onclick="bkTab('settings')">Rules</div>
@@ -1702,6 +1706,7 @@ async function bkSearch() {
 async function bkEnsureCfg() { if (!_bkCfg) [_bkCfg, _bkCarriers] = await Promise.all([apiFetch({ action: 'booking_config' }), apiFetch({ action: 'booking_carriers' }).catch(() => ({ carriers: [], warehouses: [] }))]); return _bkCfg; }
 // All labels of the given bookings as one PDF, in that order, opened for printing; non-PDF labels open as links
 async function bkPrintLabels(ids, btn, date) {
+  const label = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'fetching labels…'; }
   try {
     const r = await apiFetch(ids && ids.length ? { action: 'booking_labels', ids } : { action: 'booking_labels', date }, API, 28000);
@@ -1710,7 +1715,22 @@ async function bkPrintLabels(ids, btn, date) {
     if (!r.pdf && !(r.links || []).length) alert('No labels found' + (r.missing && r.missing.length ? ':\n' + r.missing.join('\n') : ''));
     else if (r.missing && r.missing.length) alert('Some labels could not be fetched:\n' + r.missing.join('\n'));
   } catch (e) { alert(e.message); }
-  if (btn) { btn.disabled = false; btn.textContent = `🖨 Print labels${ids && ids.length ? ` (${ids.length})` : ''}`; }
+  if (btn) { btn.disabled = false; btn.textContent = label; }
+}
+// every live booking shown in these tables (all parts), in the order they appear: one PDF to print
+function bkViewLabelIds(wraps) {
+  const ids = [];
+  for (const w of wraps) for (const r of bkRowsFor(w)) {
+    for (const b of (r.bookings || [])) if (b.id && !ids.includes(b.id)) ids.push(b.id);
+    if (r.result && r.result.ok && !r.result.dry && r.result.id && !ids.includes(r.result.id)) ids.push(r.result.id);
+  }
+  return ids;
+}
+function bkPrintView(wraps, btn) {
+  const ids = bkViewLabelIds(wraps);
+  if (!ids.length) { alert('Nothing booked here yet, so there are no labels to print.'); return; }
+  bkPrintLabels(ids.slice(0, 60), btn);
+  if (ids.length > 60) alert(`Printing the first 60 of ${ids.length} labels; press Print labels again for the rest after this one.`);
 }
 // After a failed booking, the next rule that also matched is offered; nothing is retried on its own
 async function bkUseNext(wrapId, i) {
@@ -1749,7 +1769,7 @@ function bkRenderDay() {
       <input type="date" id="bkDayInp" value="${d}" style="font-family:var(--fb);font-size:.85rem;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px" onchange="bkLoadDay()">
       <button class="bk-btn sec" onclick="bkLoadDay()" ${_bkBusy ? 'disabled' : ''}>Load</button>
       <button class="bk-btn" onclick="bkFloatBook()" ${_bkBusy || !n ? 'disabled' : ''}>Book selected</button>
-      ${_bkLabelIds.length ? `<button class="bk-btn sec" onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>` : ''}
+      ${_bkDay ? `<button class="bk-btn sec" onclick="bkPrintView(['bkDayWeb','bkDayAmz'], this)">🖨 Print labels</button>` : ''}
       <span id="bkDayMsg" class="bk-m">${_bkDay ? `${n} orders · ${ready} ready` : ''}</span> <span id="bkDayTotal" class="bk-total"></span></div>
       ${_bkDay ? (() => { const all = [..._bkDay.website, ..._bkDay.amazon]; const c = { all: all.length, matched: all.filter(r => bkIsMatched(r) && !bkIsBooked(r)).length, unmatched: all.filter(r => !bkIsMatched(r) && !bkIsBooked(r)).length, booked: all.filter(bkIsBooked).length }; return `<div class="bk-row" style="margin-top:6px">${[['all', 'All'], ['matched', '✓ Matched, to book'], ['unmatched', 'Not yet matched'], ['booked', 'Booked']].map(([k, l]) => `<div class="ftab${_bkFilter === k ? ' active' : ''}" onclick="_bkFilter='${k}';bkRenderDay()">${l} ${c[k]}</div>`).join('')}</div>`; })() : ''}
       <div class="bk-m">Groups run surface zone first, Delhi NCR on top, then each state by city tier. Tick a group header to select all of it; the header shows which courier the rules pick for COD and prepaid in that group.</div></div>
@@ -1777,15 +1797,15 @@ async function bkSyncDay(date) {
     await bkLoadDay(true);
   } catch (_) {}
 }
-function bkGroupTable(rows, wrapId) {
+function bkGroupTable(rows, wrapId, all) {
   const groups = [];
-  rows.forEach((r, i) => { if (!bkPasses(r)) return; const key = r.group || 'Other'; let g = groups.find(x => x.key === key); if (!g) { g = { key, zone: r.zone, idx: [] }; groups.push(g); } g.idx.push(i); });
+  rows.forEach((r, i) => { if (!all && !bkPasses(r)) return; const key = r.group || 'Other'; let g = groups.find(x => x.key === key); if (!g) { g = { key, zone: r.zone, idx: [] }; groups.push(g); } g.idx.push(i); });
   if (!groups.length) return '<div class="empty-msg">Nothing in this filter.</div>';
   const body = groups.map((g, gi) => {
     const rs = g.idx.map(i => rows[i]);
     const hint = ['cod', 'prepaid'].map(p => { const cs = [...new Set(rs.filter(r => r.payment === p && r.carrier).map(r => r.carrier))]; return cs.length ? `${p === 'cod' ? 'COD' : 'Prepaid'} → ${cs.join(' / ')}` : ''; }).filter(Boolean).join(' · ');
     const cities = [...new Set(rs.map(r => r.city).filter(Boolean))].slice(0, 6).join(', ');
-    const head = `<tr class="bk-g"><td colspan="8"><label><input type="checkbox" data-g="${gi}" onchange="bkGroupToggle('${wrapId}', ${gi}, this.checked)"><b>${bkEsc(g.key)}</b><span class="bk-z ${g.zone}">${g.zone}</span><span>${rs.length} order${rs.length === 1 ? '' : 's'} · ${rs.filter(r => r.ok).length} ready</span><span class="bk-m">${bkEsc(hint)}</span><span class="bk-total" data-gsum="${gi}"></span><span class="bk-m" style="flex-basis:100%">${bkEsc(cities)}</span></label></td></tr>`;
+    const head = `<tr class="bk-g"><td colspan="8"><label><input type="checkbox" data-g="${gi}" onchange="bkGroupToggle('${wrapId}', ${gi}, this.checked)"><b>${bkEsc(g.key)}</b><span class="bk-z ${g.zone}">${g.zone}</span><span>${rs.length} order${rs.length === 1 ? '' : 's'} · ${rs.filter(r => r.ok).length} ready</span>${(() => { const n = rs.filter(r => !bkIsBooked(r) && (bkAgeDays(bkOrderDate(r)) || 0) >= 6).length; return n ? `<span class="bk-age late">${n} late</span>` : ''; })()}<span class="bk-m">${bkEsc(hint)}</span><span class="bk-total" data-gsum="${gi}"></span><span class="bk-m" style="flex-basis:100%">${bkEsc(cities)}</span></label></td></tr>`;
     return head + g.idx.map(i => bkRowHtml(rows[i], i, gi)).join('');
   }).join('');
   return `<div class="bk-wrap"><table class="bk-tbl">${BK_HEAD}<tbody>${body}</tbody></table></div>`;
@@ -1829,7 +1849,7 @@ function bkRowHtml(r, i, gi) {
   const sel = done ? '<span class="bk-done" title="booked">✓</span>' : cancelled ? '<span class="bk-done bad">✕</span>' : `<input type="checkbox" data-f="sel" ${bookable ? (r.ok ? 'checked' : '') : 'disabled'}>`;
   return `<tr data-i="${i}"${gi != null ? ` data-g="${gi}"` : ''}${cancelled ? ' class="bk-cancelled"' : done ? ' class="bk-booked"' : ''}>
     <td>${sel}</td>
-    <td><b>${bkEsc(r.order_name)}</b>${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : done ? ' <span class="bk-tag ok">✓ booked</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !done && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
+    <td><b>${bkEsc(r.order_name)}</b>${bkAgeChip(r)}${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : done ? ' <span class="bk-tag ok">✓ booked</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !done && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
     <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkRowCarrierSel(r) : ''}<div data-rate>${cancelled ? '' : bkRateHtml(r)}</div><div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
@@ -1944,33 +1964,59 @@ async function bkFloatBook() {
   }
 }
 document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#bookTab') && (e.target.matches('[data-f=sel]') || e.target.closest('tr.bk-g'))) bkUpdateFloat(); });
+// How old an order is: delivery is promised in 7–10 days, so an order a week old on surface is cutting it close
+const bkOrderDate = r => r.order_date || ((Array.isArray(rackItems) ? rackItems.find(it => it.order_name === r.order_name) : null) || {}).order_date || null;
+const bkAgeDays = d => { if (!d) return null; const t = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10); return Math.round((new Date(t + 'T00:00:00Z') - new Date(d + 'T00:00:00Z')) / 864e5); };
+function bkAgeChip(r) {
+  const d = bkOrderDate(r); if (!d) return '';
+  if (_bkTab === 'day' && _bkDay && d === _bkDay.date) return '';
+  const a = bkAgeDays(d), cls = a >= 6 ? 'late' : a >= 4 ? 'warn' : '';
+  const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return ` <span class="bk-age ${cls}" title="ordered ${day}">📅 ${day} · ${a <= 0 ? 'today' : a === 1 ? '1 day' : a + ' days'}${a >= 6 && r.zone === 'surface' && !bkIsBooked(r) ? ' · late, Air?' : ''}</span>`;
+}
 const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
 function bkTable(rows, idBase) {
   return `<div class="bk-wrap"><table class="bk-tbl">${BK_HEAD}<tbody>${rows.map((r, i) => bkRowHtml(r, i)).join('')}</tbody></table></div>`;
 }
+// Every order matched on the rack (any date) with no AWB yet, grouped by state and tier like the date list
 function bkRenderReady() {
   const el = document.getElementById('bkReady');
   const cands = bkCandidates();
-  const head = `<div class="bk-card"><div class="bk-row"><b>${cands.length} order${cands.length === 1 ? '' : 's'}</b> <span class="bk-m">complete on the rack, no AWB yet</span>
-    <button class="bk-btn sec" onclick="bkPreview()" ${_bkBusy || !cands.length ? 'disabled' : ''}>Preview rules</button>
-    <button class="bk-btn" onclick="bkBookSelected('bkReadyTbl')" ${_bkBusy || !_bkRows.length ? 'disabled' : ''}>Book selected</button>
+  const dates = new Set(cands.map(o => o.date)).size;
+  el.innerHTML = `<div class="bk-card"><div class="bk-row"><b>${cands.length} matched order${cands.length === 1 ? '' : 's'}</b> <span class="bk-m">every piece found on the rack, no AWB yet${dates > 1 ? ` · from ${dates} dates` : ''}</span>
+    <button class="bk-btn sec" onclick="bkPreview()" ${_bkBusy || !cands.length ? 'disabled' : ''}>↻ Refresh</button>
+    <button class="bk-btn" onclick="bkFloatBook()" ${_bkBusy || !_bkRows.length ? 'disabled' : ''}>Book selected</button>
+    <button class="bk-btn sec" onclick="bkPrintView(['bkReadyTbl'], this)" ${_bkRows.length ? '' : 'disabled'}>🖨 Print labels</button>
     <span id="bkReadyMsg" class="bk-m"></span></div>
-    <div class="bk-m">Warehouse ${_bkCfg ? _bkCfg.warehouse_id : ''} · ${_bkCfg && _bkCfg.rules ? _bkCfg.rules.length + ' carrier rules' : ''} · box ${_bkCfg && _bkCfg.box ? `${_bkCfg.box.l}×${_bkCfg.box.b}×${_bkCfg.box.h_per_piece} cm per piece` : ''}</div></div>`;
-  el.innerHTML = head + (_bkRows.length ? `<div id="bkReadyTbl">${bkTable(_bkRows)}</div>` : (cands.length ? `<div class="empty-msg">Press Preview rules to see carrier, box and weight for each order.</div>` : '<div class="empty-msg">Nothing complete and unbooked right now.</div>'));
+    <div class="bk-m">Oldest first in each group. 📅 <span class="bk-age warn">4–5 days</span> getting old · <span class="bk-age late">6+ days</span> late: switch Zone to Air to make the 7–10 day promise. Booked orders stay here with a ✓ until you reload, so their labels can be printed together.</div></div>`
+    + (_bkRows.length ? `<div id="bkReadyTbl">${bkGroupTable(_bkRows, 'bkReadyTbl', true)}</div>` : `<div class="empty-msg">${cands.length ? 'Loading carrier, box and price for each order…' : 'Nothing matched and unbooked right now.'}</div>`);
   bkBindEdits('bkReadyTbl', _bkRows);
+  if (!_bkRows.length && cands.length && !_bkBusy) bkPreview();
 }
 async function bkPreview() {
   const names = bkCandidates().map(o => o.name);
+  if (!names.length) return;
   _bkBusy = true; _bkRows = []; bkRenderReady();
   const msg = document.getElementById('bkReadyMsg');
   const out = [];
   for (let i = 0; i < names.length; i += 10) {
-    msg.textContent = `checking ${Math.min(i + 10, names.length)} / ${names.length}…`;
+    if (msg) msg.textContent = `checking ${Math.min(i + 10, names.length)} / ${names.length}…`;
     try { const r = await apiFetch({ action: 'booking_preview', order_names: names.slice(i, i + 10) }, API, 28000); out.push(...r.rows); }
-    catch (e) { out.push(...names.slice(i, i + 10).map(n => ({ order_name: n, ok: false, why: e.message }))); }
+    catch (e) { out.push(...names.slice(i, i + 10).map(n => ({ order_name: n, ok: false, why: e.message, group: 'Could not check' }))); }
   }
-  _bkRows = out; _bkBusy = false; bkRenderReady();
+  out.sort((a, b) => (a.zone === b.zone ? 0 : a.zone === 'surface' ? -1 : 1) || (a.tier || 9) - (b.tier || 9) || (a.state || '').localeCompare(b.state || '') || String(bkOrderDate(a) || '').localeCompare(String(bkOrderDate(b) || '')) || a.order_name.localeCompare(b.order_name));
+  _bkRows = out; _bkBusy = false;
+  if (_bkTab === 'ready') bkRenderReady();
 }
+// From the List: open the booking popup on one order, or on every matched unbooked order
+async function bkOpenOrder(name) {
+  _bkTab = 'one'; _bkOneRows = [{ order_name: name, ok: false, why: 'looking up…' }];
+  paneOpen('book');
+  try { await bkEnsureCfg(); const p = await apiFetch({ action: 'booking_preview', order_names: [name] }); _bkOneRows = p.rows; }
+  catch (e) { _bkOneRows = [{ order_name: name, ok: false, why: e.message }]; }
+  if (_bkTab === 'one') bkRenderOne();
+}
+function bkOpenMatched() { _bkTab = 'ready'; _bkRows = []; paneOpen('book'); }
 // edits in a row (pay, zone, pieces, carrier) re-run the preview for that order so the box and carrier follow
 function bkBindEdits(wrapId, rows) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
@@ -2022,7 +2068,7 @@ async function bkBookSelected(wrapId, only, confirmed) {
   _bkBusy = false; bkBindEdits(wrapId, rows); bkUpdateFloat();
   if (rows.some(r => r.result && r.result.ok && !r.result.dry)) { for (const r of rows) if (r.result && r.result.ok && !r.result.dry) for (const it of rackItems) if (it.order_name === r.order_name) { it.tracking = r.result.awb; it.tracking_company = r.result.carrier; } }
   // the print-labels button appears once a batch has real bookings
-  if (_bkLabelIds.length) { const bar = document.querySelector(`#${wrapId === 'bkReadyTbl' ? 'bkReady' : wrapId === 'bkOneTbl' ? 'bkOne' : 'bkDay'} .bk-row`); if (bar && !bar.querySelector('[data-labels]')) bar.insertAdjacentHTML('beforeend', `<button class="bk-btn sec" data-labels onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>`); else if (bar) bar.querySelector('[data-labels]').textContent = `🖨 Print labels (${_bkLabelIds.length})`; }
+  if (_bkLabelIds.length && wrapId === 'bkOneTbl') { const bar = document.querySelector(`#${wrapId === 'bkReadyTbl' ? 'bkReady' : wrapId === 'bkOneTbl' ? 'bkOne' : 'bkDay'} .bk-row`); if (bar && !bar.querySelector('[data-labels]')) bar.insertAdjacentHTML('beforeend', `<button class="bk-btn sec" data-labels onclick="bkPrintLabels(_bkLabelIds, this)">🖨 Print labels (${_bkLabelIds.length})</button>`); else if (bar) bar.querySelector('[data-labels]').textContent = `🖨 Print labels (${_bkLabelIds.length})`; }
 }
 // On the scan screen: once an order is complete, the carrier and box the rules pick, and a one-tap Book
 async function bkScanCard(orderName) {
@@ -4332,6 +4378,8 @@ function updateFilterCounts() {
 
 function renderList() {
   const exchangeView = selectedDate === 'exchange';
+  const bm = document.getElementById('listBookMatched');
+  if (bm) { const n = typeof bkCandidates === 'function' ? bkCandidates().length : 0; bm.style.display = activeFilter === 'matched' && n ? '' : 'none'; bm.textContent = `🚚 Book matched (${n})`; }
   document.querySelectorAll('#listTab .filter-row').forEach(r => r.style.display = exchangeView ? 'none' : (r.id === 'trackFilterRow' && activeFilter !== 'dispatched') ? 'none' : '');
   if (exchangeView) { renderReissue(); return; }
   // Determine items to show based on selectedDate; exchanges have their own chip
@@ -4505,6 +4553,7 @@ function renderList() {
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             ${_slipSelMode ? `<input type="checkbox" class="slip-sel-chk" style="width:18px;height:18px;accent-color:#1b5e20;pointer-events:none" ${isSlipSel?'checked':''}>` : `<div class="ord-prog ${progCls}">${o.cancelled?'✕':o.dispatched?'🚚':`${totalF}/${totalN}`}</div>`}
             ${_slipSelMode ? '' : o.cancelled?'':o.dispatched?'':o.fulfilled?'<span class="status-tag fulfilled">Fulf.</span>':'<span class="status-tag unfulfilled">●</span>'}
+            ${!_slipSelMode && complete && !o.dispatched && !o.cancelled && !o.tracking ? `<button class="hbtn no-print" style="padding:3px 10px;font-size:.7rem;border-color:#f3b38f;color:#a3390f;background:#fff1e8" onclick="event.stopPropagation();bkOpenOrder('${safeOn}')">🚚 Book</button>` : ''}
           </div>
         </div>
         <div class="ord-items">
