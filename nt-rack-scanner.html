@@ -1916,9 +1916,11 @@ function bkPaintTotals() {
 }
 const BK_WRAPS = { day: ['bkDayWeb', 'bkDayAmz'], ready: ['bkReadyTbl'], one: ['bkOneTbl'] };
 // a floating bar at the bottom while orders are ticked: how many, what they will cost, and Book
+let _bkRun = null;
 function bkUpdateFloat() {
   let el = document.getElementById('bkFloat');
   if (!el) { el = document.createElement('div'); el.id = 'bkFloat'; el.className = 'bk-float'; document.body.appendChild(el); }
+  if (_bkRun) { el.style.display = 'flex'; el.innerHTML = `<span>Booking <b>${_bkRun.done + 1 > _bkRun.total ? _bkRun.total : _bkRun.done + 1}</b> of <b>${_bkRun.total}</b>… · ✓ ${_bkRun.ok}${_bkRun.fail.length ? ` · ✕ ${_bkRun.fail.length}` : ''}</span><span style="opacity:.75;font-size:.75rem">keep this page open</span>`; return; }
   const wraps = _paneOpen === 'book' ? (BK_WRAPS[_bkTab] || []) : [];
   let n = 0, sum = 0, un = 0;
   for (const w of wraps) { const rows = bkRowsFor(w); for (const i of bkPicked(w)) { n++; const p = bkRowPrice(rows[i]); if (p == null) un++; else sum += p; } }
@@ -1926,12 +1928,20 @@ function bkUpdateFloat() {
   el.style.display = 'flex';
   el.innerHTML = `<span><b>${n}</b> selected · <b>${bkRs(sum)}</b>${un ? ` <span style="opacity:.75">+ ${un} without price</span>` : ''}</span><button class="bk-btn" onclick="bkFloatBook()" ${_bkBusy ? 'disabled' : ''}>${_bkBusy ? 'booking…' : 'Book selected'}</button>`;
 }
+// one order after another, so each gets Shipway's full answer; a failure only stops that order, the rest carry on
 async function bkFloatBook() {
+  if (_bkRun) return;
   const wraps = BK_WRAPS[_bkTab] || [];
   const n = wraps.reduce((t, w) => t + bkPicked(w).length, 0); if (!n) return;
-  if (!_bkCfg.dry_run && !confirm(`Book ${n} order${n === 1 ? '' : 's'} on Shipway now?`)) return;
-  for (const w of wraps) await bkBookSelected(w, null, true);
-  bkPaintTotals(); bkUpdateFloat();
+  if (!_bkCfg.dry_run && !confirm(`Book ${n} order${n === 1 ? '' : 's'} on Shipway now?\n\nThey go one by one (a few seconds each). Keep this page open until it finishes.`)) return;
+  _bkRun = { total: n, done: 0, ok: 0, fail: [] }; bkUpdateFloat();
+  try { for (const w of wraps) await bkBookSelected(w, null, true); }
+  finally {
+    const r = _bkRun; _bkRun = null;
+    bkPaintTotals(); bkUpdateFloat();
+    if (r.fail.length) alert(`${r.ok} booked, ${r.fail.length} not booked:\n${r.fail.join(', ')}\n\nEach shows the reason in its row, with "Use next →" to try the next courier.`);
+    else toast(`${r.ok} order${r.ok === 1 ? '' : 's'} booked`);
+  }
 }
 document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#bookTab') && (e.target.matches('[data-f=sel]') || e.target.closest('tr.bk-g'))) bkUpdateFloat(); });
 const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
@@ -1993,6 +2003,7 @@ async function bkBookSelected(wrapId, only, confirmed) {
   const rows = bkRowsFor(wrapId);
   const picks = only || bkPicked(wrapId);
   if (!picks.length) return;
+  if (_bkRun && !confirmed) { toast('A booking run is still going — wait for it to finish'); return; }
   if (!confirmed && !_bkCfg.dry_run && !confirm(`Book ${picks.length} order${picks.length === 1 ? '' : 's'} on Shipway now?`)) return;
   _bkBusy = true;
   for (const i of picks) {
@@ -2003,6 +2014,7 @@ async function bkBookSelected(wrapId, only, confirmed) {
     try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!r.soft, ...ov }, API, 58000); }
     catch (e) { r.result = { ok: false, error: e.message }; if (!r.altQueue) r.altQueue = (r.alt || []).slice(); }
     if (r.result && r.result.ok && !r.result.dry && r.result.id) _bkLabelIds.push(r.result.id);
+    if (_bkRun) { _bkRun.done++; if (r.result && r.result.ok) _bkRun.ok++; else _bkRun.fail.push(r.order_name); bkUpdateFloat(); }
     const tr2 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr2) tr2.outerHTML = bkRowHtml(r, i, tr2.dataset.g);
     // a part shipment leaves the rest of the order bookable: refresh the row from the server
     if (r.result && r.result.ok && !r.result.dry && r.pieces < (r.pieces_total || r.pieces)) { try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name] }); const nr = { ...p.rows[0], result: r.result }; rows[i] = nr; const tr3 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr3) tr3.outerHTML = bkRowHtml(nr, i, tr3.dataset.g); } catch (_) {} }
