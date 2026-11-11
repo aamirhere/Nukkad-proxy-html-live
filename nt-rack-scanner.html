@@ -1793,7 +1793,7 @@ function bkCandidates() {
 }
 function bkCarrierSel(sel, name) {
   const list = (_bkCarriers && _bkCarriers.carriers) || [];
-  const opts = list.map(c => `<option value="${c.id}"${+sel === c.id ? ' selected' : ''}>${bkEsc(c.name)}</option>`).join('');
+  const opts = list.map(c => `<option value="${c.id}" data-name="${bkEsc(c.name)}"${+sel === c.id ? ' selected' : ''}>${bkEsc(c.name)}</option>`).join('');
   return `<select data-f="carrier_id" ${name ? `data-n="${bkEsc(name)}"` : ''}>${+sel && !list.some(c => c.id === +sel) ? `<option value="${+sel}" selected>#${+sel}</option>` : ''}${opts}</select>`;
 }
 function bkRowHtml(r, i, gi) {
@@ -1815,17 +1815,17 @@ function bkRowHtml(r, i, gi) {
     <td><b>${bkEsc(r.order_name)}</b>${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : done ? ' <span class="bk-tag ok">✓ booked</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !done && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
-    <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
+    <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkCarrierSel(r.carrier_id) : ''}<div data-rate>${cancelled ? '' : bkRateHtml(r)}</div><div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
     <td><div class="bk-m"><b>${r.pieces || 0}</b>${r.pieces_total && r.pieces_total !== r.pieces ? ` of ${r.pieces_total}` : ''} pc</div>${items}</td>
     <td>${boxEd}</td>
     <td>${bookable ? `<button class="bk-btn" style="padding:5px 10px;font-size:.74rem;margin-bottom:4px" data-book="1">Book</button><br>` : ''}${done ? bkAwbList(r) : st}</td></tr>`;
 }
 // a booked row lists each AWB (part 1, part 2…) with its courier, label and an Unassign; once unassigned the row is bookable again
 function bkAwbList(r) {
-  let list = (r.bookings || []).map(b => ({ id: b.id, awb: b.awb, carrier: b.carrier, part: b.part }));
-  if (r.result && r.result.ok && r.result.awb && !list.some(b => b.awb === r.result.awb)) list.push({ id: r.result.id, awb: r.result.awb, carrier: r.result.carrier, part: r.result.part, label: r.result.label_url });
+  let list = (r.bookings || []).map(b => ({ id: b.id, awb: b.awb, carrier: b.carrier, part: b.part, quote: b.quote }));
+  if (r.result && r.result.ok && r.result.awb && !list.some(b => b.awb === r.result.awb)) list.push({ id: r.result.id, awb: r.result.awb, carrier: r.result.carrier, part: r.result.part, label: r.result.label_url, quote: r.result.quote });
   if (!list.length && r.awb) list = [{ id: null, awb: r.awb, carrier: r.booked_with }];
-  return list.map(b => `<div style="margin-bottom:4px"><span class="bk-ok">✓ ${bkEsc(b.awb)}</span>${list.length > 1 ? ` <span class="bk-m">part ${b.part || 1}</span>` : ''}${b.label ? ` <a href="${bkEsc(b.label)}" target="_blank">label</a>` : ''}<div class="bk-m">${bkEsc(b.carrier || '')}${b.id ? ` · <a href="#" onclick="bkPrintLabels([${+b.id}], null);return false">🖨 label</a>` : ''}</div><button class="ftab" data-unassign="${b.id || ''}" data-awb="${bkEsc(b.awb)}" title="Release this AWB at Shipway and the courier; the order can then be booked again with any courier">Unassign</button></div>`).join('') || st0(r);
+  return list.map(b => `<div style="margin-bottom:4px"><span class="bk-ok">✓ ${bkEsc(b.awb)}</span>${list.length > 1 ? ` <span class="bk-m">part ${b.part || 1}</span>` : ''}${b.label ? ` <a href="${bkEsc(b.label)}" target="_blank">label</a>` : ''}<div class="bk-m">${bkEsc(b.carrier || '')}${b.quote ? ` · <b>${bkRs(b.quote.total)}</b>` : ''}${b.id ? ` · <a href="#" onclick="bkPrintLabels([${+b.id}], null);return false">🖨 label</a>` : ''}</div><button class="ftab" data-unassign="${b.id || ''}" data-awb="${bkEsc(b.awb)}" title="Release this AWB at Shipway and the courier; the order can then be booked again with any courier">Unassign</button></div>`).join('') || st0(r);
 }
 const st0 = r => `<span class="bk-m">${bkEsc(r.why || 'booked')}</span>`;
 async function bkRowUnassign(wrapId, i, btn) {
@@ -1842,6 +1842,39 @@ async function bkRowUnassign(wrapId, i, btn) {
     bkBindEdits(wrapId, rows);
     toast(`${r.order_name}: AWB ${btn.dataset.awb} unassigned`);
   } catch (e) { btn.disabled = false; btn.textContent = 'Unassign'; alert(e.message); }
+}
+// Courier prices from Shipway's rate card for this exact parcel (pickup pincode, delivery pincode, payment, box, weight)
+const _bkRates = {}, _bkRatePending = new Set();
+const bkRateKey = r => r.box && /^\d{6}$/.test(String(r.zip || '')) ? [r.zip, r.payment, r.box.kg, r.box.l, r.box.b, r.box.h, r.payment === 'cod' ? Math.round(r.total || 0) : 0].join('|') : null;
+const bkRs = n => '₹' + (Math.round(n * 10) / 10).toLocaleString('en-IN');
+function bkRateHtml(r) {
+  const k = bkRateKey(r); if (!k) return '';
+  const v = _bkRates[k]; if (!v) return '<span class="bk-m">price…</span>';
+  if (v.error || !v.list.length) return `<span class="bk-m">no price${v.error ? ': ' + bkEsc(v.error) : ''}</span>`;
+  const cur = v.list.find(c => c.id === +r.carrier_id), best = v.list[0];
+  return (cur ? `<b style="font-size:.82rem">${bkRs(cur.total)}</b> <span class="bk-m">${cur.cod ? `${bkRs(cur.freight)} + ${bkRs(cur.cod)} COD` : 'freight'}${cur.wt ? ` · billed ${cur.wt} kg` : ''}</span>` : '<span class="bk-m">no Shipway rate for this courier</span>')
+    + (best && (!cur || best.total < cur.total - 0.5) ? `<div class="bk-soft">cheapest: ${bkEsc(best.name)} ${bkRs(best.total)}</div>` : '');
+}
+function bkPaintRates(wrapId, rows) {
+  document.querySelectorAll(`#${wrapId} tr[data-i]`).forEach(tr => {
+    const r = rows[+tr.dataset.i]; if (!r) return;
+    const box = tr.querySelector('[data-rate]'); if (box) box.innerHTML = bkRateHtml(r);
+    const v = _bkRates[bkRateKey(r)];
+    tr.querySelectorAll('[data-f=carrier_id] option[data-name]').forEach(o => { const c = v && v.list && v.list.find(x => x.id === +o.value); o.textContent = o.dataset.name + (c ? ` · ${bkRs(c.total)}` : ''); });
+  });
+}
+async function bkFetchRates(wrapId, rows) {
+  const need = {};
+  for (const r of rows) { if (/^cancelled/.test(r.why || '') || (bkIsBooked(r) && !r.ok && !r.soft)) continue; const k = bkRateKey(r); if (k && !_bkRates[k] && !_bkRatePending.has(k)) need[k] = { k, zip: r.zip, payment: r.payment, kg: r.box.kg, l: r.box.l, b: r.box.b, h: r.box.h, total: r.total }; }
+  const items = Object.values(need);
+  bkPaintRates(wrapId, rows);
+  for (let i = 0; i < items.length; i += 40) {
+    const part = items.slice(i, i + 40); part.forEach(it => _bkRatePending.add(it.k));
+    try { const res = await apiFetch({ action: 'booking_rates', items: part }, API, 45000); Object.assign(_bkRates, res.rates || {}); }
+    catch (e) { for (const it of part) _bkRates[it.k] = { error: e.message }; }
+    part.forEach(it => _bkRatePending.delete(it.k));
+    bkPaintRates(wrapId, bkRowsFor(wrapId).length ? bkRowsFor(wrapId) : rows);
+  }
 }
 const BK_HEAD = '<thead><tr><th></th><th>Order</th><th>Pay</th><th>Zone</th><th>Carrier</th><th>Pcs</th><th>Box · weight</th><th>Status</th></tr></thead>';
 function bkTable(rows, idBase) {
@@ -1873,6 +1906,7 @@ async function bkPreview() {
 // edits in a row (pay, zone, pieces, carrier) re-run the preview for that order so the box and carrier follow
 function bkBindEdits(wrapId, rows) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
+  bkFetchRates(wrapId, rows);
   wrap.querySelectorAll('tr[data-i]').forEach(tr => {
     const nx = tr.querySelector('[data-next]'); if (nx) nx.onclick = () => bkUseNext(wrapId, +tr.dataset.i);
     const bk = tr.querySelector('[data-book]'); if (bk) bk.onclick = () => bkBookSelected(wrapId, [+tr.dataset.i]);
@@ -1973,7 +2007,7 @@ async function bkRenderLog() {
   const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
   el.innerHTML = `<div class="bk-card"><div class="bk-row"><span class="bk-m">All labels booked on</span> <input type="date" id="bkLogDate" value="${today}" style="font-family:var(--fb);font-size:.82rem;padding:5px 8px;border:1.5px solid var(--line);border-radius:8px"> <button class="bk-btn sec" onclick="bkPrintLabels(null, this, document.getElementById('bkLogDate').value)">🖨 Print labels</button></div></div>
   <table class="bk-tbl"><thead><tr><th>When</th><th>Order</th><th>Carrier</th><th>Pay · zone</th><th>Pcs · box</th><th>AWB</th><th></th></tr></thead><tbody>${rows.map(r => `<tr>
-    <td class="bk-m">${fmt(r.created_at)}</td><td><b>${bkEsc(r.order_name)}</b>${r.part > 1 ? ` <span class="bk-soft">part ${r.part}</span>` : ''}<div class="bk-m">${bkEsc(r.shipway_id)}</div></td><td>${bkEsc(r.carrier || '#' + r.carrier_id)}</td><td>${bkEsc(r.payment)} · ${bkEsc(r.zone)}</td><td>${r.pieces} · ${bkEsc(r.box)} · ${r.weight_kg} kg${Array.isArray(r.items) && r.items.length ? `<div class="bk-m">${r.items.map(it => `${it.q}× ${bkEsc(it.n)}`).join('<br>')}</div>` : ''}</td>
+    <td class="bk-m">${fmt(r.created_at)}</td><td><b>${bkEsc(r.order_name)}</b>${r.part > 1 ? ` <span class="bk-soft">part ${r.part}</span>` : ''}<div class="bk-m">${bkEsc(r.shipway_id)}</div></td><td>${bkEsc(r.carrier || '#' + r.carrier_id)}${r.quote ? `<div><b>${bkRs(r.quote.total)}</b> <span class="bk-m">${r.quote.cod ? `${bkRs(r.quote.freight)} + ${bkRs(r.quote.cod)} COD` : 'freight'}</span></div>` : ''}</td><td>${bkEsc(r.payment)} · ${bkEsc(r.zone)}</td><td>${r.pieces} · ${bkEsc(r.box)} · ${r.weight_kg} kg${Array.isArray(r.items) && r.items.length ? `<div class="bk-m">${r.items.map(it => `${it.q}× ${bkEsc(it.n)}`).join('<br>')}</div>` : ''}</td>
     <td>${r.ok ? `<span class="bk-ok">${bkEsc(r.awb)}</span>${r.label_url ? ` <a href="${bkEsc(r.label_url)}" target="_blank">label</a>` : ''}${r.cancelled_at ? '<div class="bk-why">unassigned</div>' : ''}` : `<span class="bk-why">${bkEsc(r.error || 'failed')}</span>`}</td>
     <td>${r.ok && !r.cancelled_at ? `<button class="ftab" onclick="bkCancel(${r.id}, this)" title="Release this AWB at Shipway and the courier; the order can then be booked again">Unassign</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
 }
