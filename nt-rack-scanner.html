@@ -1948,7 +1948,7 @@ function bkRenderSettings() {
   const wh = (_bkCarriers && _bkCarriers.warehouses) || [];
   const whSel = (id, f) => `<select data-s="${f}">${wh.length ? wh.map(w => `<option value="${w.id}"${w.id === +c[f] ? ' selected' : ''}>${w.id} · ${bkEsc(w.title)} ${bkEsc(w.pincode)}</option>`).join('') : `<option value="${+c[f]}">${+c[f]}</option>`}</select>`;
   el.innerHTML = `<div class="bk-card"><h4>Warehouse</h4><div class="bk-row">Pickup ${whSel(c.warehouse_id, 'warehouse_id')} Return ${whSel(c.return_warehouse_id, 'return_warehouse_id')}</div>
-    <div class="bk-row"><label><input type="checkbox" data-s="dry_run" ${c.dry_run ? 'checked' : ''}> Dry run (show the payload, book nothing)</label></div></div>
+</div>
     <div class="bk-card"><h4>Carrier rules, in order</h4><div class="bk-m">The first rule whose every condition holds wins. Leave a condition blank for "any". Area is matched by pincode start or city tier (1 Delhi NCR, 2 North, 3 Metro, 4 Rest, 5 Remote); either matching is enough.</div>
     <div id="bkRules">${(c.rules || []).map((r, i) => bkRuleRow(r, i)).join('')}</div><div class="bk-row"><button class="ftab" onclick="bkRuleAdd()">+ rule</button></div></div>
     <div class="bk-card"><h4>Surface zone</h4><div class="bk-m">Pincode prefixes (first two digits) that go by surface; everything else is air. Delhi 11, Haryana 12–13, Punjab 14–16, HP 17, J&amp;K 18–19, UP/Uttarakhand 20–28, Rajasthan 30–34, MP 45–48, Chhattisgarh 49, Gujarat 36–39, Maharashtra 40–44.</div>
@@ -1980,7 +1980,7 @@ async function bkSaveSettings(btn) {
   const g = f => el.querySelector(`[data-s="${f}"]`);
   const rules = [...el.querySelectorAll('[data-rule]')].map(r => { const q = f => r.querySelector(`[data-r="${f}"]`); const s = r.querySelector('[data-f=carrier_id]'); return { name: q('name').value, payment: q('payment').value, zone: q('zone').value, max_kg: +q('max_kg').value || 0, prefixes: q('prefixes').value.split(/[\s,]+/).filter(Boolean), tiers: q('tiers').value.split(/[\s,]+/).filter(Boolean).map(Number), carrier_id: +s.value, carrier: s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : '' }; });
   const boxes = [...el.querySelectorAll('#bkBoxes tbody tr')].map(r => Object.fromEntries(['pieces', 'l', 'b', 'h', 'kg'].map(f => [f, +r.querySelector(`[data-f=${f}]`).value])));
-  const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, dry_run: g('dry_run').checked, rules, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), box: { l: +g('box_l').value, b: +g('box_b').value, h_per_piece: +g('box_h').value }, boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value };
+  const body = { action: 'booking_config_save', warehouse_id: +g('warehouse_id').value, return_warehouse_id: +g('return_warehouse_id').value, rules, surface_prefixes: g('surface_prefixes').value.split(/[\s,]+/).filter(Boolean), box: { l: +g('box_l').value, b: +g('box_b').value, h_per_piece: +g('box_h').value }, boxes, piece_kg: +g('piece_kg').value, skip_titles: g('skip_titles').value };
   btn.disabled = true;
   try { _bkCfg = await apiFetch(body); document.getElementById('bkSetMsg').textContent = 'Saved'; document.getElementById('bkDry').style.display = _bkCfg.dry_run ? '' : 'none'; _bkRows = []; }
   catch (e) { document.getElementById('bkSetMsg').textContent = e.message; }
