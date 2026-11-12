@@ -1861,7 +1861,11 @@ function bkRowCarrierSel(r) {
   const all = (_bkCarriers && _bkCarriers.carriers) || [];
   const list = r.choices.slice();
   if (+r.carrier_id && !list.some(c => c.id === +r.carrier_id)) list.unshift({ id: +r.carrier_id, name: ((all.find(c => c.id === +r.carrier_id) || {}).name || '#' + r.carrier_id), extra: 1 });
-  return `<select data-f="carrier_id">${list.map(c => `<option value="${c.id}" data-name="${bkEsc(c.name)}"${+r.carrier_id === c.id ? ' selected' : ''}>${bkEsc(c.name)}${c.extra ? ' (rule)' : ''}</option>`).join('')}</select>`;
+  // the rest of the account's couriers show only when the usual ones cannot take this parcel (or one just failed)
+  const failed = r.result && r.result.ok === false;
+  const more = (r.more || []).filter(c => !list.some(x => x.id === c.id));
+  const showMore = more.length && (!r.choices.length || (r.blocked && r.blocked.length) || failed);
+  return `<select data-f="carrier_id">${list.map(c => `<option value="${c.id}" data-name="${bkEsc(c.name)}"${+r.carrier_id === c.id ? ' selected' : ''}>${bkEsc(c.name)}${c.extra ? ' (rule)' : ''}</option>`).join('')}${showMore ? `<optgroup label="Other couriers">${more.map(c => `<option value="${c.id}" data-name="${bkEsc(c.name)}"${+r.carrier_id === c.id ? ' selected' : ''}>${bkEsc(c.name)}</option>`).join('')}</optgroup>` : ''}</select>`;
 }
 function bkCarrierSel(sel, name) {
   const list = (_bkCarriers && _bkCarriers.carriers) || [];
@@ -1887,7 +1891,7 @@ function bkRowHtml(r, i, gi) {
     <td><b>${bkEsc(r.order_name)}</b>${bkAgeChip(r)}${cancelled ? ' <span class="bk-tag bad">✕ CANCELLED</span>' : done ? ' <span class="bk-tag ok">✓ booked</span>' : ''}${bkIsMatched(r) ? ' <span class="bk-tag ok">matched</span>' : (r.rack ? ` <span class="bk-tag">${bkEsc(r.rack)} on rack</span>` : '')}${!r.ok && r.why && !cancelled && !done && !/^rack:/.test(r.why) ? ` <span class="bk-tag ${r.soft ? 'warn' : 'bad'}">${bkEsc(r.why.split(' · ')[0])}</span>` : ''}<div class="bk-m">${bkEsc(r.customer)}</div><div class="bk-city">${bkEsc(r.city || r.zip)}${tierTag}</div><div class="bk-m">${r.state ? bkEsc(r.state) + ' · ' : ''}${bkEsc(r.zip)}</div>${partNote}</td>
     <td><select data-f="payment"><option value="cod"${r.payment === 'cod' ? ' selected' : ''}>COD</option><option value="prepaid"${r.payment === 'prepaid' ? ' selected' : ''}>Prepaid</option></select><div class="bk-m">₹${Math.round(r.total || 0)}</div></td>
     <td><select data-f="zone"><option value="surface"${r.zone === 'surface' ? ' selected' : ''}>Surface</option><option value="air"${r.zone === 'air' ? ' selected' : ''}>Air</option></select></td>
-    <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkRowCarrierSel(r) : ''}<div data-rate>${cancelled ? '' : bkRateHtml(r)}</div><div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
+    <td>${done ? `<b style="font-size:.8rem">📦 ${bkEsc(r.booked_with || (r.result && r.result.carrier) || '—')}</b><div class="bk-m">booked with</div>` : `${r.ok || r.soft || r.carrier_id ? bkRowCarrierSel(r) : ''}<div data-rate>${cancelled ? '' : bkRateHtml(r)}</div>${r.blocked && r.blocked.length && !done ? `<div class="bk-why" style="font-size:.68rem">✕ refused ${bkEsc(r.zip)}: ${bkEsc([...new Set(r.blocked.map(n => n.replace(/\s*\([^)]*\)\s*$/, '')))].join(', '))}</div>` : ''}<div class="bk-m">${bkEsc(r.carrier || '')}${r.rule ? `<br><span style="opacity:.7">${bkEsc(r.rule)}</span>` : ''}</div>`}</td>
     <td><div class="bk-m"><b>${r.pieces || 0}</b>${r.pieces_total && r.pieces_total !== r.pieces ? ` of ${r.pieces_total}` : ''} pc</div>${items}</td>
     <td>${boxEd}</td>
     <td>${bookable ? `<button class="bk-btn" style="padding:5px 10px;font-size:.74rem;margin-bottom:4px" data-book="1">Book</button><br>` : ''}${done ? bkAwbList(r) : st}</td></tr>`;
@@ -2108,7 +2112,13 @@ async function bkBookSelected(wrapId, only, confirmed) {
     const ov = r.ov || {};
     const items = (r.items || []).filter(it => it.on > 0).map(it => ({ i: it.i, q: it.on }));
     try { r.result = await apiFetch({ action: 'booking_book', order_name: r.order_name, carrier_id: r.carrier_id, payment: r.payment, zone: r.zone, items, l: r.box && r.box.l, b: r.box && r.box.b, h: r.box && r.box.h, kg: r.box && r.box.kg, force: !!r.soft, ...ov }, API, 58000); }
-    catch (e) { r.result = { ok: false, error: e.message }; if (!r.altQueue) r.altQueue = (r.alt || []).slice(); }
+    catch (e) {
+      r.result = { ok: false, error: e.message };
+      if (/not serviceable|non.?serviceable/i.test(e.message)) {
+        try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name] }); Object.assign(r, p.rows[0], { result: r.result, ov: null }); r.altQueue = null; } catch (_) {}
+      }
+      if (!r.altQueue) r.altQueue = (r.alt || []).slice();
+    }
     if (r.result && r.result.ok && !r.result.dry && r.result.id) _bkLabelIds.push(r.result.id);
     if (_bkRun) { _bkRun.done++; if (r.result && r.result.ok) _bkRun.ok++; else _bkRun.fail.push(r.order_name); bkUpdateFloat(); }
     const tr2 = wrap.querySelector(`tr[data-i="${i}"]`); if (tr2) tr2.outerHTML = bkRowHtml(r, i, tr2.dataset.g);
