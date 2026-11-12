@@ -1429,6 +1429,7 @@ async function apiFetch(payload, url = API, timeoutMs = 25000) {
     const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: ctrl.signal });
     const d = await r.json();
     if (d.error) throw new Error(d.error);
+    if (d.errorMessage || d.errorType) throw new Error('Server hiccup — try again' + (d.errorMessage ? ` (${String(d.errorMessage).slice(0, 80)})` : ''));
     return d;
   } catch(e) {
     if (e.name === 'AbortError') throw new Error('Request timed out — tap Retry');
@@ -1769,7 +1770,7 @@ async function bkUseNext(wrapId, i) {
   const rows = bkRowsFor(wrapId), r = rows[i]; if (!r || !r.altQueue || !r.altQueue.length) return;
   const next = r.altQueue.shift();
   const ov = { ...(r.ov || {}), carrier_id: next.carrier_id };
-  try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name], overrides: { [r.order_name]: ov } }); Object.assign(r, p.rows[0], { ov, altQueue: r.altQueue, result: null, triedNote: `${next.name} · ${r.altQueue.length} more to try` }); r.carrier = next.name; }
+  try { const row = await bkPreviewOne(r.order_name, ov); Object.assign(r, row, { ov, altQueue: r.altQueue, result: null, triedNote: `${next.name} · ${r.altQueue.length} more to try` }); r.carrier = next.name; }
   catch (e) { r.result = { ok: false, error: e.message }; }
   const wrap = document.getElementById(wrapId); const tr = wrap && wrap.querySelector(`tr[data-i="${i}"]`); if (tr) { tr.outerHTML = bkRowHtml(r, i, tr.dataset.g); bkBindEdits(wrapId, rows); }
 }
@@ -1918,6 +1919,12 @@ async function bkRowUnassign(wrapId, i, btn) {
     bkBindEdits(wrapId, rows);
     toast(`${r.order_name}: AWB ${btn.dataset.awb} unassigned`);
   } catch (e) { btn.disabled = false; btn.textContent = 'Unassign'; alert(e.message); }
+}
+async function bkPreviewOne(name, ov) {
+  const p = await apiFetch(ov ? { action: 'booking_preview', order_names: [name], overrides: { [name]: ov } } : { action: 'booking_preview', order_names: [name] });
+  const row = p && Array.isArray(p.rows) ? p.rows[0] : null;
+  if (!row) throw new Error('could not recheck this order (server busy) — try the change again');
+  return row;
 }
 // Courier prices from Shipway's rate card for this exact parcel (pickup pincode, delivery pincode, payment, box, weight)
 const _bkRates = {}, _bkRatePending = new Set();
@@ -2092,7 +2099,8 @@ function bkBindEdits(wrapId, rows) {
         const f = inp.dataset.f;
         if (['l', 'b', 'h', 'kg'].includes(f) || (r.ov && r.ov.kg && !inp.dataset.it && !inp.dataset.itq)) { ov.l = +tr.querySelector('[data-f=l]').value; ov.b = +tr.querySelector('[data-f=b]').value; ov.h = +tr.querySelector('[data-f=h]').value; ov.kg = +tr.querySelector('[data-f=kg]').value; }
         r.ov = ov;
-        try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name], overrides: { [r.order_name]: ov } }); Object.assign(r, p.rows[0], { ov }); } catch (e) { r.why = e.message; r.ok = false; }
+        // a failed recheck leaves the row as it was (the select goes back to its value) and says so
+        try { Object.assign(r, await bkPreviewOne(r.order_name, ov), { ov }); } catch (e) { toast(`${r.order_name}: ${e.message}`); }
         tr.outerHTML = bkRowHtml(r, +tr.dataset.i, tr.dataset.g); bkBindEdits(wrapId, rows);
       });
     });
@@ -2115,7 +2123,7 @@ async function bkBookSelected(wrapId, only, confirmed) {
     catch (e) {
       r.result = { ok: false, error: e.message };
       if (/not serviceable|non.?serviceable/i.test(e.message)) {
-        try { const p = await apiFetch({ action: 'booking_preview', order_names: [r.order_name] }); Object.assign(r, p.rows[0], { result: r.result, ov: null }); r.altQueue = null; } catch (_) {}
+        try { Object.assign(r, await bkPreviewOne(r.order_name), { result: r.result, ov: null }); r.altQueue = null; } catch (_) {}
       }
       if (!r.altQueue) r.altQueue = (r.alt || []).slice();
     }
