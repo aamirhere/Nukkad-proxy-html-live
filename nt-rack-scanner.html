@@ -1836,9 +1836,10 @@ function bkGroupTable(rows, wrapId, all) {
 function bkGroupToggle(wrapId, gi, on) { document.querySelectorAll(`#${wrapId} tr[data-g="${gi}"] [data-f=sel]`).forEach(c => { if (!c.disabled) c.checked = on; }); }
 // Orders the rack says are complete and that have no AWB yet
 function bkCandidates() {
-  const g = {};
+  const g = {}, hasAwb = new Set();
+  for (const it of rackItems) if (it.tracking) hasAwb.add(it.order_name);
   for (const it of rackItems) {
-    if (it.cancelled || it.dispatched || it.tracking) continue;
+    if (it.cancelled || it.dispatched || it.tracking || hasAwb.has(it.order_name)) continue;
     const o = g[it.order_name] ||= { name: it.order_name, date: it.order_date, customer: it.customer, needed: 0, found: 0, src: it.source, payment: it.payment };
     o.needed += +it.needed || 0; o.found += +it.found || 0;
   }
@@ -2039,6 +2040,9 @@ async function bkPreview() {
     try { const r = await apiFetch({ action: 'booking_preview', order_names: names.slice(i, i + 10) }, API, 28000); out.push(...r.rows); }
     catch (e) { out.push(...names.slice(i, i + 10).map(n => ({ order_name: n, ok: false, why: e.message, group: 'Could not check' }))); }
   }
+  const skipped = out.filter(r => bkIsBooked(r)).map(r => r.order_name);
+  out.splice(0, out.length, ...out.filter(r => !bkIsBooked(r)));
+  if (skipped.length) toast(`${skipped.length} already booked in Shipway, left out: ${skipped.slice(0, 6).join(', ')}${skipped.length > 6 ? '…' : ''}`);
   out.sort((a, b) => (a.zone === b.zone ? 0 : a.zone === 'surface' ? -1 : 1) || (a.tier || 9) - (b.tier || 9) || (a.state || '').localeCompare(b.state || '') || String(bkOrderDate(a) || '').localeCompare(String(bkOrderDate(b) || '')) || a.order_name.localeCompare(b.order_name));
   _bkRows = out; _bkBusy = false;
   if (_bkTab === 'ready') bkRenderReady();
@@ -4412,6 +4416,9 @@ function updateFilterCounts() {
   });
 }
 
+// "Shipway Delhivery", "Delhivery" and "Delhivery Surface (2kg)" are one courier: only a different company is a change
+const courierKey = c => String(c || '').toLowerCase().replace(/^shipway\s+/, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+(surface|express|air|new)\b.*$/, '').trim();
+const courierChanged = (a, b) => courierKey(a) !== courierKey(b);
 function renderList() {
   const exchangeView = selectedDate === 'exchange';
   const bm = document.getElementById('listBookMatched');
@@ -4513,7 +4520,7 @@ function renderList() {
     if (activeTrackFilter === 'delhivery') return co.includes('delhivery');
     if (activeTrackFilter === 'bluedart')  return co.includes('blue') || co.includes('dart');
     if (activeTrackFilter === 'noawb')     return o.fulfilled && !o.tracking;
-    if (activeTrackFilter === 'changed')   return o.prev_tracking_company && o.prev_tracking_company !== o.tracking_company;
+    if (activeTrackFilter === 'changed')   return o.prev_tracking_company && courierChanged(o.prev_tracking_company, o.tracking_company);
     return true;
   });
 
@@ -4583,7 +4590,7 @@ function renderList() {
             ${o.painter ? `<span class="painter-badge">${esc(o.painter)}</span>` : ''}
             <div class="ord-cust">${esc(o.customer||'')}${o.rack_location ? ` · 📍 ${esc(o.rack_location)}` : ''}${searchQuery && o.order_date ? ` · <span style="color:var(--muted)">${fmtDate(o.order_date)}</span>` : ''}</div>
             ${_getCarrierTag(o.order_name, o)}
-            ${o.prev_tracking_company && o.tracking_company && o.prev_tracking_company !== o.tracking_company && !/^amazon$/i.test(o.prev_tracking_company) ? `<span class="no-print" style="display:inline-flex;align-items:center;gap:3px;margin-top:2px"><span style="font-size:.58rem;font-weight:600;padding:1px 6px;border-radius:8px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80;white-space:nowrap">was ${esc(o.prev_tracking_company)}</span></span>` : ''}
+            ${o.prev_tracking_company && o.tracking_company && courierChanged(o.prev_tracking_company, o.tracking_company) && !/^amazon$/i.test(o.prev_tracking_company) ? `<span class="no-print" style="display:inline-flex;align-items:center;gap:3px;margin-top:2px"><span style="font-size:.58rem;font-weight:600;padding:1px 6px;border-radius:8px;background:#fff3e0;color:#e65100;border:1px solid #ffcc80;white-space:nowrap">was ${esc(o.prev_tracking_company)}</span></span>` : ''}
             ${o.notes ? `<div style="font-size:.7rem;color:var(--muted);margin-top:2px">📝 ${esc(o.notes)}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
