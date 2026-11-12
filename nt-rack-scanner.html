@@ -1658,6 +1658,8 @@ function paneOpen(name) {
   const def = PANES[name]; if (!def) return;
   if (_paneOpen) paneClose();
   const pane = document.getElementById(def[0]); if (!pane) return;
+  // the popup sits in the Scan screen's markup; lifted to the page so it also opens over List and Production
+  const zen = document.getElementById('paneZen'); if (zen.parentElement !== document.body) document.body.appendChild(zen);
   // the booking table needs the room: that pane takes the whole viewport
   const panel = document.querySelector('#paneZen .zen-panel'); panel.classList.toggle('zen-wide', name === 'book'); panel.style.maxWidth = name === 'book' ? 'none' : '900px';
   document.getElementById('paneZenTitle').textContent = def[1];
@@ -2020,13 +2022,15 @@ function bkRenderReady() {
     <button class="bk-btn sec" data-newlabels onclick="bkNewLabels(this)" style="display:none">🖨 New labels</button>
     <span id="bkReadyMsg" class="bk-m"></span></div>
     <div class="bk-m">Tick the orders to book (or a state's header for all of it), check each courier, then use the bar at the bottom. Oldest first in each group · order date <span class="bk-age warn">4–5 days old</span> <span class="bk-age late">6+ days old</span></div></div>`
-    + (_bkRows.length ? `<div id="bkReadyTbl">${bkGroupTable(_bkRows, 'bkReadyTbl', true)}</div>` : `<div class="empty-msg">${cands.length ? 'Loading carrier, box and price for each order…' : 'Nothing matched and unbooked right now.'}</div>`);
+    + (_bkRows.length ? `<div id="bkReadyTbl">${bkGroupTable(_bkRows, 'bkReadyTbl', true)}</div>` : `<div class="empty-msg">${!cands.length ? 'Nothing matched and unbooked right now.' : _bkReadyTried && !_bkBusy ? 'Shipway details did not come back for these orders. Press ↻ Refresh to try again.' : 'Loading carrier, box and price for each order…'}</div>`);
   bkBindEdits('bkReadyTbl', _bkRows); bkPaintUnprinted();
-  if (!_bkRows.length && cands.length && !_bkBusy) bkPreview();
+  if (!_bkRows.length && cands.length && !_bkBusy && !_bkReadyTried) bkPreview();
 }
+let _bkReadyTried = false;
 async function bkPreview() {
   const names = bkCandidates().map(o => o.name);
   if (!names.length) return;
+  _bkReadyTried = true;
   _bkBusy = true; _bkRows = []; bkRenderReady();
   const msg = document.getElementById('bkReadyMsg');
   const out = [];
@@ -2047,7 +2051,7 @@ async function bkOpenOrder(name) {
   catch (e) { _bkOneRows = [{ order_name: name, ok: false, why: e.message }]; }
   if (_bkTab === 'one') bkRenderOne();
 }
-function bkOpenMatched() { _bkTab = 'ready'; _bkRows = []; paneOpen('book'); }
+function bkOpenMatched() { _bkTab = 'ready'; _bkRows = []; _bkReadyTried = false; paneOpen('book'); }
 // edits in a row (pay, zone, pieces, carrier) re-run the preview for that order so the box and carrier follow
 function bkBindEdits(wrapId, rows) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
