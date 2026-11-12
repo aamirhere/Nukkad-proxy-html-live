@@ -1708,17 +1708,28 @@ async function bkSearch() {
 }
 async function bkEnsureCfg() { if (!_bkCfg) [_bkCfg, _bkCarriers] = await Promise.all([apiFetch({ action: 'booking_config' }), apiFetch({ action: 'booking_carriers' }).catch(() => ({ carriers: [], warehouses: [] }))]); return _bkCfg; }
 // All labels of the given bookings as one PDF, in that order, opened for printing; non-PDF labels open as links
+// Labels = the laptop slips (logo, colour on every piece, AWB barcode) of the booked orders, in booking order.
+// ids: booking ids, or 'unprinted' for everything booked here and not printed yet; date: a booking day.
 async function bkPrintLabels(ids, btn, date) {
   const label = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'fetching labels…'; }
+  const done = () => { if (btn) { btn.disabled = false; btn.textContent = label; } };
+  if (btn) { btn.disabled = true; btn.textContent = 'fetching slips…'; }
   try {
-    const r = await apiFetch(ids === 'unprinted' ? { action: 'booking_labels', unprinted: true } : ids && ids.length ? { action: 'booking_labels', ids } : { action: 'booking_labels', date }, API, 28000);
-    if (r.pdf) { const bytes = Uint8Array.from(atob(r.pdf), c => c.charCodeAt(0)); const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); window.open(url, '_blank'); }
-    for (const l of (r.links || [])) window.open(l.url, '_blank');
-    if (!r.pdf && !(r.links || []).length) alert('No labels found' + (r.missing && r.missing.length ? ':\n' + r.missing.join('\n') : ''));
-    else if (r.missing && r.missing.length) alert('Some labels could not be fetched:\n' + r.missing.join('\n'));
-  } catch (e) { alert(e.message); }
-  if (btn) { btn.disabled = false; btn.textContent = label; }
+    const set = await apiFetch(ids === 'unprinted' ? { action: 'booking_print_set', unprinted: true } : ids && ids.length ? { action: 'booking_print_set', ids } : { action: 'booking_print_set', date });
+    if (!set.orders.length) { done(); return alert('Nothing booked to print.'); }
+    const { slips, failed } = await fetchSlipsFor(set.orders, n => { if (btn) btn.textContent = `fetching ${n}/${set.orders.length}…`; });
+    if (failed.length) alert(`${failed.length} slip${failed.length === 1 ? '' : 's'} could not be fetched and will be left out:\n${failed.map(f => `${f.order_name}: ${f.error}`).join('\n')}`);
+    if (!slips.length) { done(); return; }
+    const got = new Set(slips.map(x => x.order_name));
+    const printedIds = set.rows.filter(r => got.has(r.order_name)).map(r => r.id);
+    slips.sort((x, y) => set.orders.indexOf(x.order_name) - set.orders.indexOf(y.order_name));
+    printSlipDocs(slips, () => {
+      done();
+      apiFetch({ action: 'booking_mark_printed', ids: printedIds }).then(() => bkRefreshUnprinted(true)).catch(() => {});
+      apiFetch({ action: 'mark_print_done', order_names: [...got] }).catch(() => {});
+      rackItems.forEach(it => { if (got.has(it.order_name)) it.print_done = true; });
+    });
+  } catch (e) { done(); alert(e.message); }
 }
 // every live booking shown in these tables (all parts), in the order they appear: one PDF to print
 // Labels booked here and not yet printed: one PDF, oldest booking first; printing marks them done
@@ -3575,6 +3586,20 @@ async function printListSlips() {
     if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
     return alert('No printable slips found.');
   }
+  printSlipDocs(slips, () => {
+    if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
+    // mark all selected orders as print_done
+    apiFetch({ action: 'mark_print_done', order_names: orderNames }).catch(() => {});
+    // update local rackItems so the badge shows immediately
+    rackItems.forEach(it => { if (orderNames.includes(it.order_name)) it.print_done = true; });
+    _slipSel.clear();
+    updateSlipSelBar();
+    renderList();
+    loadPrintQueue().catch(() => {});
+  });
+}
+// The laptop slips of several orders as one print job (4×6 pages); `after` runs once the print dialog has closed
+async function printSlipDocs(slips, after) {
   const slipHtmls = await Promise.all(slips.map(slip => buildSlipHtml(slip)));
   const allHtml = slipHtmls.map((html, idx) =>
     `<div class="bulk-slip-page" style="width:101.6mm;height:152.4mm;overflow:hidden;padding:2mm 3mm;box-sizing:border-box;${idx > 0 ? 'break-before:page;page-break-before:always;' : ''}">${html}</div>`
@@ -3596,15 +3621,7 @@ async function printListSlips() {
   setTimeout(() => {
     document.body.classList.remove('printing-slip','bulk-print');
     ov.style.display = 'none'; sc.innerHTML = '';
-    if (btn) { btn.disabled = false; btn.textContent = '🖨 Print Slips'; }
-    // mark all selected orders as print_done
-    apiFetch({ action: 'mark_print_done', order_names: orderNames }).catch(() => {});
-    // update local rackItems so the badge shows immediately
-    rackItems.forEach(it => { if (orderNames.includes(it.order_name)) it.print_done = true; });
-    _slipSel.clear();
-    updateSlipSelBar();
-    renderList();
-    loadPrintQueue().catch(() => {});
+    if (after) after();
   }, 1500);
 }
 
