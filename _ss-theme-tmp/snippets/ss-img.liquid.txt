@@ -1,7 +1,0 @@
-{%- comment -%} An image picked in the editor, or the design photo shipped with the theme when none is picked {%- endcomment -%}
-{%- assign ss_ld = loading | default: 'lazy' -%}
-{%- if img -%}
-  {{ img | image_url: width: 1600 | image_tag: alt: alt, loading: ss_ld, sizes: '(max-width: 900px) 100vw, 50vw' }}
-{%- elsif fallback != blank -%}
-  <img src="{{ fallback | asset_url }}" alt="{{ alt | escape }}" loading="{{ ss_ld }}" width="1100" height="1300">
-{%- endif -%}

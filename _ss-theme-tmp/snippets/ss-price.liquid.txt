@@ -1,3 +1,0 @@
-{%- comment -%} A piece's price, or "Coming soon" while it is a draft or has no price. The price can arrive as text, so it is made a number first. {%- endcomment -%}
-{%- assign ss_cents = p.price | plus: 0 -%}
-{%- if p.id and ss_cents > 0 -%}{{ ss_cents | money_without_trailing_zeros }}{%- else -%}Coming soon{%- endif -%}
