@@ -1,0 +1,385 @@
+{%- comment -%}
+  sabr · shukr collection page. Prices, images and add-to-cart come from the real products once they are active;
+  while a product is a draft its card shows the design photo and "Coming soon".
+{%- endcomment -%}
+{%- assign ss_keys = 'diary,roti-box,serving-tray,coaster,masala-box,chopping-board,valet-tray,keepsake-box,watch-box,sukoon,sabr,shukr' | split: ',' -%}
+{%- assign ss_handles = 'sabr-shukr-diary,sabr-shukr-roti-box,sabr-shukr-serving-tray,sabr-shukr-coasters,sabr-shukr-masala-box,sabr-shukr-chopping-board,sabr-shukr-valet-tray,sabr-shukr-keepsake-box,sabr-shukr-watch-box,sabr-shukr-sukoon-metal-piece,sabr-shukr-sabr-metal-piece,sabr-shukr-shukr-metal-piece' | split: ',' -%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+.ss{--cream:#f4ede0;--paper:#faf6ee;--green:#1f3a2b;--green2:#2b4a38;--gold:#b8893a;--gold-l:#d9b26a;--walnut:#5a3a24;--ink:#2a231c;--muted:#6b5e50;--line:#e2d6c2;background:var(--paper);color:var(--ink);font-family:"Hanken Grotesk",system-ui,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:clip}
+.ss *,.ss *:before,.ss *:after{box-sizing:border-box}
+.ss h1,.ss h2,.ss h3,.ss h4,.ss h5,.ss p,.ss ul{margin:0;padding:0;letter-spacing:normal}
+.ss a{color:var(--green);text-decoration:none}.ss a:hover{color:var(--gold)}
+.ss img{display:block;width:100%;height:100%;object-fit:cover;max-width:none}
+.ss .eyebrow{font-size:11px;letter-spacing:.32em;text-transform:uppercase;font-weight:500;color:var(--gold)}
+.ss .wrap{max-width:1240px;margin:0 auto;padding:0 clamp(20px,4vw,48px)}
+.ss .btn{display:inline-flex;align-items:center;gap:10px;padding:15px 28px;border-radius:2px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;transition:all .25s;border:0;cursor:pointer;font-family:inherit}
+.ss .btn-g{background:var(--green);color:var(--cream)}.ss .btn-g:hover{background:var(--green2);color:var(--gold-l)}
+.ss .btn-o{border:1px solid currentColor;color:var(--green);background:transparent}.ss .btn-o:hover{background:var(--green);color:var(--cream)}
+.ss .sun{display:block;width:56px;aspect-ratio:1;background:var(--gold);-webkit-mask:url({{ 'sabr-shukr-sun.png' | asset_url }}) center/contain no-repeat;mask:url({{ 'sabr-shukr-sun.png' | asset_url }}) center/contain no-repeat;flex:none}.ss .sun.l{background:var(--gold-l)}
+.ss .ss-bar{background:var(--paper);border-bottom:1px solid var(--line)}
+.ss .ss-bar .wrap{display:flex;align-items:center;justify-content:center;gap:clamp(16px,3vw,36px);min-height:48px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.ss .ss-bar .wrap::-webkit-scrollbar{display:none}
+.ss .ss-bar a{color:var(--muted)}.ss .ss-bar a:hover{color:var(--green)}
+.ss .hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);min-height:min(calc(100vh - 120px),860px);background:var(--cream)}
+.ss .hero-text{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:28px;padding:clamp(48px,7vw,110px) clamp(24px,6vw,96px)}
+.ss .hero-text .sun+.eyebrow{margin-top:-14px}
+.ss .hero h1{font-family:"Cormorant Garamond",serif;font-weight:500;font-size:clamp(56px,8.4vw,124px);line-height:.92;color:var(--green);letter-spacing:.02em}
+.ss .hero h1 .dot{color:var(--gold)}
+.ss .hero .sub{font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:var(--green);font-weight:500;margin-top:-8px}
+.ss .hero .lines{font-family:"Cormorant Garamond",serif;font-size:clamp(20px,1.9vw,26px);line-height:1.45;color:var(--ink);border-left:1px solid var(--gold);padding-left:20px}
+.ss .hero .lines em{color:var(--green);font-weight:500}
+.ss .hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:6px}
+.ss .hero-img{position:relative;overflow:hidden}
+.ss .hero-img img{object-position:center 40%;position:absolute;inset:0}
+.ss .hero-tag{position:absolute;left:24px;bottom:24px;background:rgba(250,246,238,.94);padding:10px 16px;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--walnut);font-weight:500}
+.ss .meaning{background:var(--green);color:var(--cream);padding:clamp(72px,10vw,140px) 0;text-align:center}
+.ss .meaning .wrap{display:flex;flex-direction:column;align-items:center;gap:36px}
+.ss .pair{display:grid;grid-template-columns:1fr auto 1fr;gap:clamp(24px,5vw,72px);align-items:start;max-width:960px;width:100%}
+.ss .pair .col{display:flex;flex-direction:column;gap:10px;align-items:center}
+.ss .pair .word{font-family:"Cormorant Garamond",serif;font-size:clamp(48px,6vw,80px);line-height:1;color:var(--gold-l);font-weight:500}
+.ss .pair .tr{font-size:11px;letter-spacing:.36em;text-transform:uppercase;color:#c9bfa9}
+.ss .pair .def{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:clamp(20px,2vw,26px);line-height:1.35;max-width:300px}
+.ss .pair .div{align-self:center;display:flex}.ss .pair .div .sun{width:64px}
+.ss .meaning p.note{max-width:620px;color:#d8cfbd;font-size:17px}
+.ss .mark{padding:clamp(72px,9vw,120px) 0 0}
+.ss .mark-in{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(28px,6vw,96px);align-items:center}
+.ss .mark-ph{aspect-ratio:4/5;overflow:hidden}.ss .mark-ph img{object-position:center 55%}
+.ss .mark-text{display:flex;flex-direction:column;gap:18px;max-width:440px}
+.ss .mark-text h2,.ss .section-head h2,.ss .film-head h2{font-family:"Cormorant Garamond",serif;font-weight:500;font-size:clamp(38px,4.6vw,60px);line-height:1.05;color:var(--green)}
+.ss .mark-text .q{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:22px;color:var(--walnut)}
+.ss .mark-text p{color:var(--muted)}
+.ss .film{padding-top:clamp(72px,9vw,120px)}.ss .film-head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;margin-bottom:clamp(28px,4vw,48px)}.ss .film-head p{max-width:480px;color:var(--muted)}
+.ss .film-v{position:relative;aspect-ratio:16/9;overflow:hidden;background:#1b140e}.ss .film-v video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ss .section-head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:clamp(72px,9vw,120px) 0 clamp(40px,5vw,64px)}
+.ss .section-head p{max-width:520px;color:var(--muted)}
+.ss .moment{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(28px,5vw,80px);align-items:center;padding:clamp(28px,4vw,48px) 0}
+.ss .moment.flip .m-imgs{order:2}
+.ss .m-imgs{display:grid;gap:14px}
+.ss .m-imgs.two{grid-template-columns:1fr 1fr}
+.ss .m-imgs .ph{aspect-ratio:941/1300;overflow:hidden;background:var(--cream)}
+.ss .m-imgs.one .ph{aspect-ratio:4/5}
+.ss .m-imgs.two .ph:nth-child(2){margin-top:56px}
+.ss .ph img{transition:transform 1.2s cubic-bezier(.2,.7,.2,1)}
+.ss .ph:hover img{transform:scale(1.04)}
+.ss .m-text{display:flex;flex-direction:column;gap:18px;max-width:440px}
+.ss .m-time{display:flex;align-items:center;gap:14px}
+.ss .m-time .n{font-family:"Cormorant Garamond",serif;font-size:15px;color:var(--gold);font-style:italic}
+.ss .m-time .ln{flex:0 0 40px;height:1px;background:var(--gold)}
+.ss .m-text h3{font-family:"Cormorant Garamond",serif;font-weight:500;font-size:clamp(32px,3.4vw,46px);line-height:1.08;color:var(--green)}
+.ss .m-text .q{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:21px;color:var(--walnut);line-height:1.4}
+.ss .m-text p{color:var(--muted)}
+.ss .uses{display:flex;flex-wrap:wrap;gap:8px}.ss .uses span{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);border:1px solid var(--line);background:var(--cream);padding:6px 12px;border-radius:30px}
+.ss .m-pieces{display:flex;flex-direction:column;border-top:1px solid var(--line);margin-top:6px}
+.ss .m-pieces a{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);color:var(--ink);font-weight:500;gap:12px}
+.ss .m-pieces a span:last-child{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.ss .m-pieces a:hover{color:var(--green);padding-left:6px;transition:padding .2s}
+.ss .shop{padding-bottom:clamp(60px,8vw,110px)}
+.ss .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(14px,2vw,28px)}
+.ss .card{display:flex;flex-direction:column;gap:14px;color:var(--ink)}
+.ss .card .ph{aspect-ratio:4/5;overflow:hidden;background:var(--cream);position:relative}
+.ss .card .tagw{position:absolute;top:12px;left:12px;background:var(--paper);font-size:10px;letter-spacing:.24em;text-transform:uppercase;padding:5px 10px;color:var(--green);font-weight:600;z-index:1}
+.ss .card.feat{grid-column:span 2;grid-row:span 2}.ss .card.feat .ph{aspect-ratio:auto;flex:1;min-height:0}.ss .card.feat .ph img{position:absolute;inset:0}.ss .card.feat h5{font-size:32px}
+.ss .card .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ss .card h5{font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:500;line-height:1.1;color:var(--green)}
+.ss .card .price,.ss .wp-row span{font-size:14px;font-weight:600;color:var(--walnut);white-space:nowrap}
+.ss .card .d{font-size:14px;color:var(--muted);margin-top:-8px}
+.ss .card h5 a,.ss .wp-row h5 a{color:inherit;cursor:pointer}.ss .card h5 a:hover,.ss .wp-row h5 a:hover{color:var(--gold)}
+.ss .card.gift{background:var(--green);color:var(--cream);padding:clamp(22px,3vw,40px);grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 40px}
+.ss .card.gift p{flex:1 1 320px;color:#d8cfbd;font-size:15px}
+.ss .card.gift h5{color:var(--gold-l);font-size:32px}
+.ss .card.gift .btn{background:var(--cream);color:var(--green)}
+.ss .soon{font-size:12px;letter-spacing:.06em;color:var(--muted);text-align:center;margin-top:-28px;padding-bottom:28px}
+.ss .q-hero{position:relative;height:min(88vh,820px);min-height:520px;overflow:hidden;background:#1b140e}
+.ss .q-hero img{object-position:center 72%}
+.ss .q-hero:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(27,20,14,.75) 0%,rgba(27,20,14,.35) 30%,rgba(27,20,14,0) 52%);pointer-events:none}
+.ss .q-over{position:absolute;z-index:1;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:clamp(48px,7vw,96px) 24px 0}
+.ss .q-over h2{font-family:"Cormorant Garamond",serif;font-weight:500;font-size:clamp(40px,5.4vw,72px);line-height:1.02;color:var(--cream);text-shadow:0 2px 24px rgba(0,0,0,.35)}
+.ss .q-over p{color:#f1e8d8;max-width:440px;text-shadow:0 1px 12px rgba(0,0,0,.5)}
+.ss .q-over .eyebrow{color:var(--gold-l);text-shadow:0 1px 10px rgba(0,0,0,.6)}
+.ss .q-cards{padding:clamp(40px,5vw,64px) 0 clamp(64px,8vw,100px)}
+.ss .wp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));max-width:900px;margin:0 auto;gap:clamp(14px,2vw,28px)}
+.ss .wp{display:flex;flex-direction:column;gap:8px}
+.ss .wp-ph{position:relative;aspect-ratio:4/5;overflow:hidden;background:var(--cream)}
+.ss .wp-word{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 60%,#6b4429 0%,#3d2716 70%);font-family:"Cormorant Garamond",serif;font-weight:500;font-size:clamp(34px,4vw,54px);color:var(--gold-l);text-shadow:0 2px 0 #7a5a24,0 6px 18px rgba(0,0,0,.45)}
+.ss .wp-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:4px}
+.ss .wp-row h5{font-family:"Cormorant Garamond",serif;font-size:28px;font-weight:500;color:var(--green);line-height:1}
+.ss .wp-d{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+.ss .wp-add,.ss .qv-add{background:transparent;border:1px solid var(--green);color:var(--green);font:600 11px/1 "Hanken Grotesk",sans-serif;letter-spacing:.16em;text-transform:uppercase;padding:12px 8px;cursor:pointer;transition:all .2s}
+.ss .wp-add{margin-top:6px}
+.ss .wp-add:hover:not(:disabled),.ss .wp-add.added{background:var(--green);color:var(--cream)}
+.ss .wp-add:disabled,.ss .qv-add:disabled{opacity:.5;cursor:default}
+.ss .more{background:var(--cream);padding:clamp(56px,7vw,90px) 0;display:flex;flex-direction:column;align-items:center;gap:32px;overflow:hidden}
+.ss .more-head{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:0 24px}.ss .more-head p{color:var(--muted);font-family:"Cormorant Garamond",serif;font-style:italic;font-size:20px}
+.ss .marquee{width:100%;mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent)}
+.ss .track{display:flex;align-items:center;gap:clamp(24px,3vw,44px);width:max-content;animation:ss-drift 60s linear infinite}
+.ss .marquee:hover .track{animation-play-state:paused}
+.ss .track a{font-family:"Cormorant Garamond",serif;font-style:italic;font-weight:500;font-size:clamp(30px,3.6vw,48px);color:var(--green);white-space:nowrap;line-height:1.2}.ss .track a:hover{color:var(--gold)}
+.ss .track i{width:6px;height:6px;border-radius:50%;background:var(--gold);flex:none}
+@keyframes ss-drift{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.ss .track{animation:none;flex-wrap:wrap;justify-content:center;width:auto;padding:0 24px}}
+.ss .more-link{font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--gold);padding-bottom:4px}
+.ss .ss-end{background:var(--paper);padding:56px 0 40px;border-top:1px solid var(--line)}
+.ss .ss-end .wrap{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.ss .ss-end .tl{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:22px;color:var(--green)}
+.ss .ss-end small{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted)}
+.ss .reveal{opacity:0;transform:translateY(24px);transition:opacity 1s ease,transform 1s cubic-bezier(.2,.7,.2,1)}
+.ss .reveal.in{opacity:1;transform:none}
+.ss .qv-btn{position:absolute;left:12px;right:12px;bottom:12px;z-index:2;background:rgba(250,246,238,.95);border:0;color:var(--green);font:600 11px/1 "Hanken Grotesk",sans-serif;letter-spacing:.18em;text-transform:uppercase;padding:13px;cursor:pointer;opacity:0;transform:translateY(8px);transition:all .25s}
+.ss .ph:hover .qv-btn,.ss .wp-ph:hover .qv-btn,.ss .qv-btn:focus-visible{opacity:1;transform:none}.ss .qv-btn:hover{background:var(--green);color:var(--cream)}
+@media (hover:none){.ss .qv-btn{opacity:1;transform:none;left:auto;right:10px;bottom:10px;padding:10px 12px;font-size:10px}}
+.ss-pill{display:none}
+.ss-qv{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(27,20,14,.55);opacity:0;pointer-events:none;transition:opacity .3s}.ss-qv.open{opacity:1;pointer-events:auto}
+.ss-qv .qv-box{position:relative;background:var(--paper);width:min(1040px,100%);max-height:calc(100vh - 32px);overflow:auto;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);border-radius:16px;transform:translateY(16px);transition:transform .35s cubic-bezier(.2,.7,.2,1)}.ss-qv.open .qv-box{transform:none}
+.ss-qv .qv-x{position:absolute;top:12px;right:12px;z-index:3;width:40px;height:40px;border:0;border-radius:50%;background:var(--paper);color:var(--green);font-size:22px;line-height:1;cursor:pointer}.ss-qv .qv-x:hover{background:var(--green);color:var(--cream)}
+.ss-qv .qv-gal{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;padding:20px;background:var(--cream)}
+.ss-qv .qv-gal.single{grid-template-columns:minmax(0,1fr)}.ss-qv .qv-gal.single .qv-thumbs{display:none}
+.ss-qv .qv-thumbs{display:flex;flex-direction:column;gap:10px}
+.ss-qv .qv-thumbs button{aspect-ratio:4/5;border:1px solid transparent;background:var(--paper);padding:0;cursor:pointer;overflow:hidden}.ss-qv .qv-thumbs button.on{border-color:var(--green)}
+.ss-qv .qv-main{aspect-ratio:4/5;overflow:hidden;background:var(--paper);position:relative}
+.ss-qv .qv-info{display:flex;flex-direction:column;gap:18px;padding:clamp(24px,4vw,52px)}
+.ss-qv .qv-tag{align-self:flex-start;font-size:10px;letter-spacing:.24em;text-transform:uppercase;font-weight:600;color:var(--green);border:1px solid var(--line);background:var(--cream);padding:6px 12px}
+.ss-qv h3{font-family:"Cormorant Garamond",serif;font-weight:500;font-size:clamp(32px,3.6vw,46px);line-height:1.02;color:var(--green);margin:0}
+.ss-qv .qv-price{font-size:18px;font-weight:600;color:var(--walnut)}
+.ss-qv .qv-batch{font-size:11px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:var(--gold);margin-top:-10px}
+.ss-qv .qv-q{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:21px;color:var(--walnut);line-height:1.4}
+.ss-qv .qv-s{color:var(--muted)}
+.ss-qv .qv-dl{display:flex;flex-direction:column;border-top:1px solid var(--line);margin:0;padding:0}.ss-qv .qv-dl li{list-style:none;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;display:flex;gap:10px;align-items:center}.ss-qv .qv-dl li:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold);flex:none}
+.ss-qv .qv-buy{display:flex;gap:10px;margin-top:4px}
+.ss-qv .qty{display:flex;align-items:center;border:1px solid var(--line);background:var(--paper)}.ss-qv .qty button{width:40px;height:100%;border:0;background:none;font-size:18px;color:var(--green);cursor:pointer}.ss-qv .qty span{min-width:26px;text-align:center;font-weight:600}
+.ss-qv .qv-add{flex:1;background:var(--green);color:var(--cream);padding:15px 16px;font-size:12px}
+.ss-qv .qv-more{align-self:flex-start;font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--gold);padding-bottom:4px;color:var(--green);text-decoration:none}
+@media (max-width:900px){
+.ss .hero{grid-template-columns:1fr;min-height:0}
+.ss .hero-img{order:-1;aspect-ratio:1145/1100}
+.ss .hero-text{align-items:center;text-align:center;padding:48px 24px 64px}
+.ss .hero .lines{border-left:0;padding-left:0;border-top:1px solid var(--gold);padding-top:20px}
+.ss .hero-cta{justify-content:center}
+.ss .pair{grid-template-columns:1fr;gap:40px}.ss .pair .div{justify-self:center}
+.ss .mark-in{grid-template-columns:1fr}.ss .mark-text{max-width:none}
+.ss .film-v{aspect-ratio:4/5}
+.ss .moment{grid-template-columns:1fr}.ss .moment.flip .m-imgs{order:0}
+.ss .m-text{max-width:none}
+.ss .grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ss .card.feat{grid-row:auto}.ss .card.feat .ph{aspect-ratio:1/1;flex:none}
+.ss .q-hero{height:auto;min-height:0;aspect-ratio:941/1500}.ss .q-hero img{object-position:center 60%}
+.ss-pill{display:flex;position:fixed;left:50%;bottom:18px;transform:translate(-50%,0);z-index:30;background:#1f3a2b;color:#f4ede0;padding:13px 24px;border-radius:40px;font:600 12px/1 "Hanken Grotesk",sans-serif;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 10px 28px rgba(31,58,43,.3);transition:opacity .3s,transform .3s;text-decoration:none}.ss-pill.hide{opacity:0;transform:translate(-50%,20px);pointer-events:none}
+.ss-qv .qv-box{grid-template-columns:1fr;max-height:calc(100vh - 32px)}.ss-qv .qv-gal{grid-template-columns:1fr;padding:12px}.ss-qv .qv-thumbs{flex-direction:row;order:2}.ss-qv .qv-thumbs button{width:56px}.ss-qv .qv-main{aspect-ratio:1/1}.ss-qv .qv-info{padding:22px 20px 28px;gap:14px}
+}
+@media (max-width:520px){.ss .m-imgs.two .ph:nth-child(2){margin-top:32px}.ss .card h5{font-size:20px}.ss .card.gift h5{font-size:26px}.ss .wp-grid{gap:10px}.ss .wp-row{flex-direction:column;gap:4px}.ss .wp-row h5{font-size:22px}.ss .wp-add{font-size:10px;letter-spacing:.1em;padding:11px 4px}}
+</style>
+
+<div class="ss">
+<nav class="ss-bar" aria-label="sabr · shukr"><div class="wrap"><a href="#ss-meaning">The meaning</a><a href="#ss-day">A day with it</a><a href="#ss-shop">Shop the collection</a><a href="#ss-words">sukoon · sabr · shukr</a></div></nav>
+
+<header class="hero">
+<div class="hero-text">
+<span class="sun" aria-hidden="true"></span>
+<span class="eyebrow">The new collection</span>
+<h1>sabr <span class="dot">·</span> shukr</h1>
+<span class="sub">Patience · Gratitude</span>
+<p class="lines"><em>sabr</em> — for what has not arrived yet.<br><em>shukr</em> — for what has already arrived.</p>
+<div class="hero-cta"><a class="btn btn-g" href="#ss-shop">Shop the collection →</a><a class="btn btn-o" href="#ss-day">See it at home</a></div>
+</div>
+<div class="hero-img"><img src="{{ 'sabr-shukr-hero.jpg' | asset_url }}" alt="sabr · shukr diary in its cream and green gift box" loading="eager" fetchpriority="high" width="1100" height="1300"><span class="hero-tag">Handmade in India</span></div>
+</header>
+
+<section class="meaning" id="ss-meaning"><div class="wrap">
+<span class="eyebrow">Two words, one home</span>
+<div class="pair reveal">
+<div class="col"><span class="word">sabr</span><span class="tr">Patience</span><span class="def">The roti kept warm. The keys waiting by the door.</span></div>
+<span class="div"><span class="sun l" aria-hidden="true"></span></span>
+<div class="col"><span class="word">shukr</span><span class="tr">Gratitude</span><span class="def">The cup of chai. The family around the table.</span></div>
+</div>
+<p class="note reveal">Walnut wood, deep green velvet and warm brass — pieces for the small, everyday moments that make a house feel like home.</p>
+</div></section>
+
+<section class="mark"><div class="wrap mark-in">
+<div class="mark-ph reveal"><img src="{{ 'sabr-shukr-mark-tray.jpg' | asset_url }}" alt="Walnut tray with the sabr shukr mark and brass handles" loading="lazy" width="1100" height="1300"></div>
+<div class="mark-text reveal"><span class="eyebrow">The signature</span><h2>Every piece<br>carries the words</h2><p class="q">sabr, a rising sun, shukr.</p><p>A quiet mark on every tray, box and board in the collection — so each time you reach for it, you're reminded of both.</p></div>
+</div></section>
+
+{%- if section.settings.film_url != blank -%}
+<section class="film"><div class="wrap"><div class="film-head reveal"><span class="eyebrow">Made by hand</span><h2>From walnut plank<br>to the mark</h2><p>Cut, sanded, oiled and engraved — watch a piece come together in the workshop.</p></div><div class="film-v reveal"><video src="{{ section.settings.film_url }}" poster="{{ 'sabr-shukr-mark-tray.jpg' | asset_url }}" muted loop playsinline autoplay preload="metadata"></video></div></div></section>
+{%- endif -%}
+
+<section class="wrap" id="ss-day">
+<div class="section-head reveal"><span class="eyebrow">A day with sabr · shukr</span><h2>From the first chai<br>to the last roti</h2></div>
+
+<article class="moment reveal">
+<div class="m-imgs two"><div class="ph"><img src="{{ 'sabr-shukr-coaster.jpg' | asset_url }}" alt="Walnut coaster with chai cup" loading="lazy" width="1100" height="1300"></div><div class="ph"><img src="{{ 'sabr-shukr-serving-tray.jpg' | asset_url }}" alt="Walnut serving tray with brass handles" loading="lazy" width="1100" height="1300"></div></div>
+<div class="m-text"><div class="m-time"><span class="n">Morning</span><span class="ln"></span></div><h3>Chai, slowly</h3><p class="q">The first cup, before the day begins.</p><p>A walnut tray with brass handles to carry it, and a coaster to set it down.</p><div class="m-pieces"><a href="#" data-p="serving-tray"><span>Serving tray</span><span>View →</span></a><a href="#" data-p="coaster"><span>Coasters</span><span>View →</span></a></div></div>
+</article>
+
+<article class="moment flip reveal">
+<div class="m-imgs two"><div class="ph"><img src="{{ 'sabr-shukr-masala-box.jpg' | asset_url }}" alt="Walnut masala box with eight compartments" loading="lazy" width="1100" height="1300"></div><div class="ph"><img src="{{ 'sabr-shukr-chopping-board.jpg' | asset_url }}" alt="Walnut chopping board with tomatoes" loading="lazy" width="1100" height="1300"></div></div>
+<div class="m-text"><div class="m-time"><span class="n">Afternoon</span><span class="ln"></span></div><h3>In the kitchen</h3><p class="q">Haldi, mirchi, jeera — a pinch of each.</p><p>A walnut masala box with eight open compartments, and a board that stays on the counter because it belongs there.</p><div class="m-pieces"><a href="#" data-p="masala-box"><span>Masala box</span><span>View →</span></a><a href="#" data-p="chopping-board"><span>Chopping board</span><span>View →</span></a></div></div>
+</article>
+
+<article class="moment reveal">
+<div class="m-imgs one"><div class="ph"><img src="{{ 'sabr-shukr-roti-box.jpg' | asset_url }}" alt="Walnut roti box on the dinner table" loading="lazy" width="1100" height="1300"></div></div>
+<div class="m-text"><div class="m-time"><span class="n">Dinner</span><span class="ln"></span></div><h3>Garam roti,<br>for whoever comes last</h3><p class="q">sabr, in its most delicious form.</p><p>A round walnut roti box that keeps them soft and warm through the meal.</p><div class="m-pieces"><a href="#" data-p="roti-box"><span>Roti box</span><span>View →</span></a></div></div>
+</article>
+
+<article class="moment flip reveal">
+<div class="m-imgs one"><div class="ph"><img src="{{ 'sabr-shukr-valet-tray.jpg' | asset_url }}" alt="Walnut valet tray with keys and wallet" loading="lazy" width="1100" height="1300"></div></div>
+<div class="m-text"><div class="m-time"><span class="n">All day</span><span class="ln"></span></div><h3>Wherever the<br>small things gather</h3><p class="q">Keys down. Phone down. You're back.</p><div class="uses"><span>By the door</span><span>Office desk</span><span>Bedside</span><span>Dressing table</span></div><p>A velvet-lined tray for everything you carry through the day. By the door, on the office desk, at the bedside — wherever the small things gather.</p><div class="m-pieces"><a href="#" data-p="valet-tray"><span>Valet tray</span><span>View →</span></a></div></div>
+</article>
+
+<article class="moment reveal">
+<div class="m-imgs two"><div class="ph"><img src="{{ 'sabr-shukr-keepsake-box.jpg' | asset_url }}" alt="Walnut keepsake box lined in green velvet" loading="lazy" width="1100" height="1300"></div><div class="ph"><img src="{{ 'sabr-shukr-watch-box.jpg' | asset_url }}" alt="Walnut watch box lined in green velvet" loading="lazy" width="1100" height="1300"></div></div>
+<div class="m-text"><div class="m-time"><span class="n">Keepsakes</span><span class="ln"></span></div><h3>An empty box,<br>yours to fill</h3><div class="uses"><span>Jewellery</span><span>Letters</span><span>Photos</span><span>Keepsakes</span></div><p class="q">Jewellery, letters, old photos. Papa's first watch.</p><p>A plain walnut box lined in deep green velvet — yours to fill with whatever matters. And a watch box for the collection.</p><div class="m-pieces"><a href="#" data-p="keepsake-box"><span>Keepsake box</span><span>View →</span></a><a href="#" data-p="watch-box"><span>Watch box</span><span>View →</span></a></div></div>
+</article>
+</section>
+
+<section class="wrap shop" id="ss-shop">
+<div class="section-head reveal"><span class="eyebrow">Shop the collection</span><h2>The pieces</h2><p>Walnut, velvet, brass and paper — for every corner of the home.</p></div>
+<p class="soon">Handmade to order · delivered across India in 7–10 days</p>
+<div class="grid">
+<div class="card feat reveal"><div class="ph"><img src="{{ 'sabr-shukr-hero.jpg' | asset_url }}" alt="The sabr · shukr diary" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="diary">Quick view</button><span class="tagw">sabr · shukr</span></div><div class="row"><h5><a href="#" data-p="diary">The sabr · shukr diary</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-diary' %}</span></div><span class="d">Green hardbound · gold foil · gift box</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-roti-box.jpg' | asset_url }}" alt="Roti box" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="roti-box">Quick view</button><span class="tagw">sabr</span></div><div class="row"><h5><a href="#" data-p="roti-box">Roti box</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-roti-box' %}</span></div><span class="d">Walnut</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-serving-tray.jpg' | asset_url }}" alt="Serving tray" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="serving-tray">Quick view</button><span class="tagw">shukr</span></div><div class="row"><h5><a href="#" data-p="serving-tray">Serving tray</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-serving-tray' %}</span></div><span class="d">Walnut · brass handles</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-coaster.jpg' | asset_url }}" alt="Coasters" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="coaster">Quick view</button><span class="tagw">shukr</span></div><div class="row"><h5><a href="#" data-p="coaster">Coasters</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-coasters' %}</span></div><span class="d">Walnut</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-masala-box.jpg' | asset_url }}" alt="Masala box" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="masala-box">Quick view</button><span class="tagw">shukr</span></div><div class="row"><h5><a href="#" data-p="masala-box">Masala box</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-masala-box' %}</span></div><span class="d">Walnut · 8 compartments</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-chopping-board.jpg' | asset_url }}" alt="Chopping board" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="chopping-board">Quick view</button><span class="tagw">shukr</span></div><div class="row"><h5><a href="#" data-p="chopping-board">Chopping board</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-chopping-board' %}</span></div><span class="d">Walnut</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-valet-tray.jpg' | asset_url }}" alt="Valet tray" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="valet-tray">Quick view</button><span class="tagw">sabr</span></div><div class="row"><h5><a href="#" data-p="valet-tray">Valet tray</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-valet-tray' %}</span></div><span class="d">For keys, desk or bedside</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-keepsake-box.jpg' | asset_url }}" alt="Keepsake box" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="keepsake-box">Quick view</button><span class="tagw">sabr</span></div><div class="row"><h5><a href="#" data-p="keepsake-box">Keepsake box</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-keepsake-box' %}</span></div><span class="d">For jewellery, letters, anything</span></div>
+<div class="card reveal"><div class="ph"><img src="{{ 'sabr-shukr-watch-box.jpg' | asset_url }}" alt="Watch box" loading="lazy" width="1100" height="1300"><button class="qv-btn" type="button" data-p="watch-box">Quick view</button><span class="tagw">sabr</span></div><div class="row"><h5><a href="#" data-p="watch-box">Watch box</a></h5><span class="price">{% render 'sabr-shukr-price', handle: 'sabr-shukr-watch-box' %}</span></div><span class="d">Walnut · green velvet</span></div>
+<div class="card gift reveal"><h5>Gifting the whole home?</h5><p>Pick any pieces for a wedding, griha pravesh or Maa and Papa's anniversary — packed together.</p><a class="btn" href="{{ section.settings.gift_url | default: '/pages/contact' }}">Build a gift →</a></div>
+</div>
+</section>
+
+<section class="quotes" id="ss-words">
+<div class="q-hero"><img src="{{ 'sabr-shukr-sukoon.jpg' | asset_url }}" alt="Sukoon brass word piece on a walnut sideboard during family dinner" loading="lazy" width="1100" height="1300"><div class="q-over"><span class="eyebrow">Also in the collection</span><h2>Sukoon,<br>at the end of the day</h2><p>sabr, shukr and sukoon — the words themselves, in polished metal on a walnut base.</p></div></div>
+<div class="q-cards"><div class="wrap"><div class="wp-grid">
+{%- for w in (9..11) -%}
+{%- assign k = ss_keys[w] -%}{%- assign h = ss_handles[w] -%}
+{%- case k -%}{%- when 'sukoon' -%}{%- assign meaning = 'Peace' -%}{%- when 'sabr' -%}{%- assign meaning = 'Patience' -%}{%- else -%}{%- assign meaning = 'Gratitude' -%}{%- endcase -%}
+<div class="wp"><div class="wp-ph">{%- if k == 'sukoon' -%}<img src="{{ 'sabr-shukr-sukoon.jpg' | asset_url }}" alt="sukoon brass word piece" loading="lazy" width="1100" height="1300">{%- else -%}{%- assign wp_p = all_products[h] -%}{%- if wp_p.featured_image -%}{{ wp_p.featured_image | image_url: width: 700 | image_tag: alt: wp_p.title, loading: 'lazy' }}{%- else -%}<span class="wp-word">{{ k }}</span>{%- endif -%}{%- endif -%}<button class="qv-btn" type="button" data-p="{{ k }}">Quick view</button></div><div class="wp-row"><h5><a href="#" data-p="{{ k }}">{{ k }}</a></h5><span>{% render 'sabr-shukr-price', handle: h %}</span></div><span class="wp-d">{{ meaning }}</span><button class="wp-add" type="button" data-add="{{ k }}">Add to cart</button></div>
+{%- endfor -%}
+</div></div></div>
+</section>
+
+<section class="more">
+<div class="more-head"><span class="eyebrow">More words from NukkadTales</span><p>Little reminders, for every corner and every person.</p></div>
+<div class="marquee" aria-label="Quote pieces"><div class="track">
+{%- capture ss_words -%}<a href="/collections/the-grateful-club">Thankful · Grateful · Blessed</a><i></i><a href="/collections/good-times">Good vibes only</a><i></i><a href="/collections/self-love-collection">Self love club</a><i></i><a href="/collections/for-family">माँ, you are the best</a><i></i><a href="/collections/chardi-kala-collection">ਚੜ੍ਹਦੀ ਕਲਾ</a><i></i><a href="/collections/just-one-more-chapter-collection">Books and coffee</a><i></i>{%- endcapture -%}
+{{ ss_words }}<span aria-hidden="true" style="display:contents">{{ ss_words | replace: '<a ', '<a tabindex="-1" ' }}</span>
+</div></div>
+<a class="more-link" href="{{ section.settings.quotes_url | default: '/collections/table-top-quotes' }}">See all quote pieces →</a>
+</section>
+
+<section class="ss-end"><div class="wrap"><span class="sun" aria-hidden="true" style="width:48px"></span><span class="tl">sabr — for what has not arrived yet. shukr — for what has already arrived.</span><small>Handmade in India</small></div></section>
+</div>
+
+<a class="ss-pill" href="#ss-shop">Shop the collection</a>
+
+<div class="ss ss-qv" role="dialog" aria-modal="true" aria-label="Quick view"><div class="qv-box"><button class="qv-x" type="button" aria-label="Close">×</button><div class="qv-gal"><div class="qv-thumbs"></div><div class="qv-main"></div></div><div class="qv-info"><span class="qv-tag"></span><h3></h3><span class="qv-price"></span><span class="qv-batch">Handmade to order · 7–10 days</span><p class="qv-q"></p><p class="qv-s"></p><ul class="qv-dl"></ul><div class="qv-buy"><div class="qty"><button type="button" data-d="-1" aria-label="Less">−</button><span>1</span><button type="button" data-d="1" aria-label="More">+</button></div><button class="qv-add" type="button">Add to cart</button></div><a class="qv-more" href="#">See full details →</a></div></div></div>
+
+<script>
+(function(){
+  // the story of each piece (design copy); price, variant and photos come from the live product when it is active
+  var A = {
+    'diary': {{ 'sabr-shukr-hero.jpg' | asset_url | json }}, 'roti-box': {{ 'sabr-shukr-roti-box.jpg' | asset_url | json }},
+    'serving-tray': {{ 'sabr-shukr-serving-tray.jpg' | asset_url | json }}, 'coaster': {{ 'sabr-shukr-coaster.jpg' | asset_url | json }},
+    'masala-box': {{ 'sabr-shukr-masala-box.jpg' | asset_url | json }}, 'chopping-board': {{ 'sabr-shukr-chopping-board.jpg' | asset_url | json }},
+    'valet-tray': {{ 'sabr-shukr-valet-tray.jpg' | asset_url | json }}, 'keepsake-box': {{ 'sabr-shukr-keepsake-box.jpg' | asset_url | json }},
+    'watch-box': {{ 'sabr-shukr-watch-box.jpg' | asset_url | json }}, 'sukoon': {{ 'sabr-shukr-sukoon.jpg' | asset_url | json }}
+  };
+  var WORDS = { 'sabr': 'Patience', 'shukr': 'Gratitude', 'sukoon': 'Peace', 'sabr · shukr': 'Patience · Gratitude' };
+  var P = {
+    'diary': { name: 'The sabr · shukr diary', word: 'sabr · shukr', story: 'A green hardbound diary with the words in gold foil, packed in its own gift box. For the things you are waiting for, and the things you are already thankful for.', details: ['Green hardbound cover', 'Gold foil sabr · shukr mark', 'Comes in a gift box'], use: 'Write down the wait. Write down the thanks.' },
+    'roti-box': { name: 'Roti box', word: 'sabr', story: 'A round walnut roti box that keeps them soft and warm through the meal — for whoever comes to the table last.', details: ['Walnut wood', 'Round, with lid', 'Engraved sabr · shukr mark'], use: 'sabr, in its most delicious form.' },
+    'serving-tray': { name: 'Serving tray', word: 'shukr', story: 'A walnut tray with brass handles — for the first chai of the morning, and every guest after that.', details: ['Walnut wood', 'Brass handles', 'Engraved sabr · shukr mark'], use: 'The first cup, before the day begins.' },
+    'coaster': { name: 'Coasters', word: 'shukr', story: 'Walnut coasters for the cup you finally sit down with.', details: ['Walnut wood', 'Engraved sabr · shukr mark'], use: 'Set it down. Take a breath.' },
+    'masala-box': { name: 'Masala box', word: 'shukr', story: 'A walnut masala box with eight open compartments — haldi, mirchi, jeera, a pinch of each, always within reach.', details: ['Walnut wood', '8 open compartments', 'Engraved sabr · shukr mark'], use: 'Haldi, mirchi, jeera — a pinch of each.' },
+    'chopping-board': { name: 'Chopping board', word: 'shukr', story: 'A walnut board that stays on the counter because it belongs there.', details: ['Walnut wood', 'Engraved sabr · shukr mark'], use: 'The board that never goes back in the drawer.' },
+    'valet-tray': { name: 'Valet tray', word: 'sabr', story: 'A velvet-lined tray for everything you carry through the day. By the door, on the office desk, at the bedside — wherever the small things gather.', details: ['Walnut wood', 'Deep green velvet lining', 'Engraved sabr · shukr mark'], use: "Keys down. Phone down. You're back." },
+    'keepsake-box': { name: 'Keepsake box', word: 'sabr', story: "A plain walnut box lined in deep green velvet — yours to fill with whatever matters. Jewellery, letters, old photos. Papa's first watch.", details: ['Walnut wood', 'Deep green velvet lining', 'Engraved sabr · shukr mark'], use: 'An empty box, yours to fill.' },
+    'watch-box': { name: 'Watch box', word: 'sabr', story: 'A walnut watch box lined in green velvet, for the collection — and the one watch that started it.', details: ['Walnut wood', 'Deep green velvet lining', 'Engraved sabr · shukr mark'], use: 'For the watch that started it all.' },
+    'sukoon': { name: 'sukoon', word: 'sukoon', story: 'The word itself, in polished metal on a walnut base. For the sideboard, the entryway — wherever the day ends.', details: ['Polished brass lettering', 'Walnut base'], use: 'Sukoon, at the end of the day.' },
+    'sabr': { name: 'sabr', word: 'sabr', story: 'The word itself, in polished metal on a walnut base — for what has not arrived yet.', details: ['Polished brass lettering', 'Walnut base'], use: 'For what has not arrived yet.' },
+    'shukr': { name: 'shukr', word: 'shukr', story: 'The word itself, in polished metal on a walnut base — for what has already arrived.', details: ['Polished brass lettering', 'Walnut base'], use: 'For what has already arrived.' }
+  };
+  var LIVE = {
+    {%- for k in ss_keys -%}
+      {%- assign p = all_products[ss_handles[forloop.index0]] -%}
+      {{ k | json }}: {%- if p.id -%}{ "url": {{ p.url | json }}, "price": {{ p.price | money_without_trailing_zeros | json }}, "cents": {{ p.price | json }}, "variant": {{ p.selected_or_first_available_variant.id | json }}, "available": {{ p.available | json }}, "imgs": [{%- for im in p.images limit: 6 -%}{{ im | image_url: width: 1000 | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endfor -%}] }{%- else -%}null{%- endif -%}{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  };
+  var buyable = function (k) { var l = LIVE[k]; return !!(l && l.available && l.cents > 0 && l.variant); };
+
+  var root = document.querySelector('.ss');
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .12 });
+  root.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+
+  // the "Shop the collection" pill on phones hides over the hero and the shop itself
+  var pill = document.querySelector('.ss-pill'), seen = new Set();
+  [root.querySelector('.hero'), document.getElementById('ss-shop'), root.querySelector('.q-cards')].forEach(function (el) {
+    new IntersectionObserver(function (es) { es.forEach(function (e) { e.isIntersecting ? seen.add(e.target) : seen.delete(e.target); }); pill.classList.toggle('hide', seen.size > 0); }).observe(el);
+  });
+
+  function cartCount(n) {
+    document.querySelectorAll('.cart-count-bubble span[aria-hidden="true"], .flo-cart-icon-bubble span[aria-hidden="true"]').forEach(function (s) { s.textContent = n; });
+  }
+  function addToCart(k, qty, btn) {
+    if (!buyable(k)) return;
+    btn.disabled = true; btn.textContent = 'Adding…';
+    fetch('/cart/add.js', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ items: [{ id: LIVE[k].variant, quantity: qty }] }) })
+      .then(function (r) { if (!r.ok) throw new Error('add'); return fetch('/cart.js'); })
+      .then(function (r) { return r.json(); })
+      .then(function (c) { cartCount(c.item_count); btn.classList.add('added'); btn.textContent = 'Added ✓ · view cart'; btn.disabled = false; btn.onclick = function () { if (window.handleFloCartBtn) window.handleFloCartBtn(); else location.href = '/cart'; }; })
+      .catch(function () { btn.disabled = false; btn.textContent = 'Try again'; });
+  }
+  root.querySelectorAll('.wp-add').forEach(function (b) {
+    var k = b.dataset.add;
+    if (!buyable(k)) { b.disabled = true; b.textContent = 'Coming soon'; return; }
+    b.addEventListener('click', function () { if (!b.classList.contains('added')) addToCart(k, 1, b); });
+  });
+
+  // quick view: a centred popup with the piece's photos, story and add to cart
+  var qv = document.querySelector('.ss-qv'), $ = function (s) { return qv.querySelector(s); }, cur = null, qty = 1;
+  document.body.appendChild(qv); document.body.appendChild(pill);
+  function show(src, i) {
+    $('.qv-main').innerHTML = '<img src="' + src + '" alt="">';
+    qv.querySelectorAll('.qv-thumbs button').forEach(function (b, j) { b.classList.toggle('on', i === j); });
+  }
+  function open(k) {
+    var p = P[k]; if (!p) return; cur = k; qty = 1; $('.qty span').textContent = 1;
+    var l = LIVE[k], imgs = (l && l.imgs && l.imgs.length) ? l.imgs : (A[k] ? [A[k]] : []);
+    $('.qv-tag').textContent = p.word + ' — ' + WORDS[p.word];
+    $('h3').textContent = p.name; $('.qv-q').textContent = p.use; $('.qv-s').textContent = p.story;
+    $('.qv-dl').innerHTML = p.details.map(function (d) { return '<li>' + d + '</li>'; }).join('');
+    $('.qv-price').textContent = l && l.cents > 0 ? l.price : 'Coming soon';
+    var add = $('.qv-add'); add.classList.remove('added'); add.onclick = null;
+    if (buyable(k)) { add.disabled = false; add.textContent = 'Add to cart'; add.onclick = function () { addToCart(k, qty, add); }; }
+    else { add.disabled = true; add.textContent = 'Coming soon'; }
+    $('.qty').style.display = buyable(k) ? '' : 'none';
+    var more = $('.qv-more'); if (l && l.url) { more.href = l.url; more.style.display = ''; } else { more.style.display = 'none'; }
+    $('.qv-gal').classList.toggle('single', imgs.length < 2);
+    $('.qv-thumbs').innerHTML = imgs.map(function (s) { return '<button type="button" aria-label="Photo"><img src="' + s + '" alt=""></button>'; }).join('');
+    qv.querySelectorAll('.qv-thumbs button').forEach(function (b, i) { b.onclick = function () { show(imgs[i], i); }; });
+    if (imgs.length) show(imgs[0], 0);
+    else $('.qv-main').innerHTML = '<span class="wp-word" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 60%,#6b4429 0%,#3d2716 70%);font-family:Cormorant Garamond,serif;font-size:64px;color:#d9b26a">' + p.name + '</span>';
+    qv.classList.add('open'); document.documentElement.style.overflow = 'hidden'; $('.qv-x').focus();
+  }
+  function close() { qv.classList.remove('open'); $('.qv-main').innerHTML = ''; document.documentElement.style.overflow = ''; }
+  $('.qv-x').onclick = close;
+  qv.addEventListener('click', function (e) { if (e.target === qv) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && qv.classList.contains('open')) close(); });
+  qv.querySelectorAll('.qty button').forEach(function (b) { b.onclick = function () { qty = Math.max(1, qty + (+b.dataset.d)); $('.qty span').textContent = qty; }; });
+  root.addEventListener('click', function (e) { var t = e.target.closest('[data-p]'); if (!t) return; e.preventDefault(); open(t.dataset.p); });
+})();
+</script>
+
+{% schema %}
+{
+  "name": "sabr · shukr page",
+  "settings": [
+    { "type": "text", "id": "film_url", "label": "Making film (mp4 link)", "info": "Leave empty to hide the film section" },
+    { "type": "url", "id": "gift_url", "label": "Build a gift link" },
+    { "type": "url", "id": "quotes_url", "label": "See all quote pieces link" }
+  ],
+  "presets": [{ "name": "sabr · shukr page" }]
+}
+{% endschema %}

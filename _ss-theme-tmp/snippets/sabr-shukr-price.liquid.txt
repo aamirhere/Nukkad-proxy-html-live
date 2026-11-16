@@ -1,0 +1,3 @@
+{%- comment -%} The live price of a sabr · shukr piece, or "Coming soon" while the product is a draft or has no price {%- endcomment -%}
+{%- assign ss_p = all_products[handle] -%}
+{%- if ss_p.id and ss_p.price > 0 -%}{{ ss_p.price | money_without_trailing_zeros }}{%- else -%}Coming soon{%- endif -%}
