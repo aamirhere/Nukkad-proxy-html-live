@@ -1,0 +1,62 @@
+{% render 'ss-head' %}
+{%- assign s = section.settings -%}
+<div class="ss"><section class="more" data-ss-mc>
+  <div class="more-head">
+    {%- if s.eyebrow != blank -%}<span class="eyebrow">{{ s.eyebrow }}</span>{%- endif -%}
+    {%- if s.heading != blank -%}<h2>{{ s.heading }}</h2>{%- endif -%}
+    {%- if s.text != blank -%}<p>{{ s.text }}</p>{%- endif -%}
+  </div>
+  {%- if section.blocks.size > 1 -%}
+    <div class="mc-tabs" role="tablist">
+      {%- for block in section.blocks -%}
+        {%- assign c = block.settings.collection -%}
+        <button type="button" role="tab" data-mc-tab="{{ forloop.index0 }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}" {{ block.shopify_attributes }}>{{ block.settings.label | default: c.title | default: 'Pick a collection' }}</button>
+      {%- endfor -%}
+    </div>
+  {%- endif -%}
+  <div class="mc-wrap">
+    <button type="button" class="mc-arrow prev" data-mc-step="-1" aria-label="Previous">←</button>
+    {%- for block in section.blocks -%}
+      {%- assign c = block.settings.collection -%}
+      {%- assign label = block.settings.label | default: c.title -%}
+      <div class="mc-track" data-mc-panel="{{ forloop.index0 }}"{% unless forloop.first %} hidden{% endunless %}>
+        {%- if c.products_count > 0 -%}
+          {%- for p in c.products limit: s.limit -%}
+            <a class="mc-card" href="{{ p.url }}">
+              <span class="mc-ph">
+                {%- if p.featured_image -%}{{ p.featured_image | image_url: width: 600 | image_tag: alt: p.title, loading: 'lazy', sizes: '(max-width: 700px) 62vw, 280px' }}{%- endif -%}
+                {%- if p.images.size > 1 -%}{{ p.images[1] | image_url: width: 600 | image_tag: alt: '', loading: 'lazy', class: 'alt', sizes: '(max-width: 700px) 62vw, 280px' }}{%- endif -%}
+              </span>
+              <span class="mc-t">{{ p.title }}</span>
+              <span class="mc-p">{% if p.price_varies %}From {% endif %}{{ p.price | money_without_trailing_zeros }}</span>
+            </a>
+          {%- endfor -%}
+          <a class="mc-card mc-all" href="{{ c.url }}"><span>See all<br><em>{{ label }}</em></span><b>→</b></a>
+        {%- else -%}
+          <p class="mc-empty">Pick a collection for this tab in the theme editor.</p>
+        {%- endif -%}
+      </div>
+    {%- endfor -%}
+    <button type="button" class="mc-arrow next" data-mc-step="1" aria-label="Next">→</button>
+  </div>
+  {%- if s.link_text != blank -%}<a class="more-link" href="{{ s.link_url | default: '/collections/all' }}">{{ s.link_text }}</a>{%- endif -%}
+</section></div>
+
+{% schema %}
+{
+  "name": "sabr · shukr — carousel",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Small heading", "default": "More words from NukkadTales" },
+    { "type": "text", "id": "heading", "label": "Heading" },
+    { "type": "text", "id": "text", "label": "Text", "default": "Little reminders, for every corner and every person." },
+    { "type": "range", "id": "limit", "label": "Products per collection", "min": 4, "max": 20, "step": 1, "default": 12 },
+    { "type": "text", "id": "link_text", "label": "Link under the carousel", "default": "See all quote pieces →" },
+    { "type": "url", "id": "link_url", "label": "Link" }
+  ],
+  "blocks": [{ "type": "collection", "name": "Collection", "settings": [
+    { "type": "collection", "id": "collection", "label": "Collection" },
+    { "type": "text", "id": "label", "label": "Tab name", "info": "Empty uses the collection's name" }
+  ] }],
+  "presets": [{ "name": "sabr · shukr — carousel" }]
+}
+{% endschema %}
