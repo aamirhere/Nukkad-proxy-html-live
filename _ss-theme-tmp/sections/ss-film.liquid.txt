@@ -1,0 +1,33 @@
+{%- assign s = section.settings -%}
+{%- if s.video != blank or s.video_url != blank -%}
+{% render 'ss-head' %}
+<div class="ss"><section class="film"><div class="wrap">
+  <div class="film-head reveal">
+    {%- if s.eyebrow != blank -%}<span class="eyebrow">{{ s.eyebrow }}</span>{%- endif -%}
+    <h2>{{ s.heading | newline_to_br }}</h2>
+    {%- if s.text != blank -%}<p>{{ s.text }}</p>{%- endif -%}
+  </div>
+  <div class="film-v reveal">
+    {%- if s.video != blank -%}
+      {{ s.video | video_tag: autoplay: true, loop: true, muted: true, playsinline: true, controls: false }}
+    {%- else -%}
+      <video src="{{ s.video_url }}" muted loop playsinline autoplay preload="metadata"></video>
+    {%- endif -%}
+  </div>
+</div></section></div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "sabr · shukr — making film",
+  "settings": [
+    { "type": "paragraph", "content": "Shows only once a video is added." },
+    { "type": "video", "id": "video", "label": "Video" },
+    { "type": "text", "id": "video_url", "label": "…or an mp4 link" },
+    { "type": "text", "id": "eyebrow", "label": "Small heading", "default": "Made by hand" },
+    { "type": "textarea", "id": "heading", "label": "Heading", "default": "From acacia plank\nto the mark" },
+    { "type": "textarea", "id": "text", "label": "Text", "default": "Cut, sanded, oiled and finished — watch a piece come together in the workshop." }
+  ],
+  "presets": [{ "name": "sabr · shukr — making film" }]
+}
+{% endschema %}

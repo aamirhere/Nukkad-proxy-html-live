@@ -1,0 +1,37 @@
+{% render 'ss-head' %}
+{%- assign s = section.settings -%}
+<div class="ss"><header class="hero" data-ss-hide-pill>
+  <div class="hero-text">
+    <span class="sun" aria-hidden="true"></span>
+    {%- if s.eyebrow != blank -%}<span class="eyebrow">{{ s.eyebrow }}</span>{%- endif -%}
+    <h1>{{ s.word_1 }}{% if s.word_2 != blank %} <span class="dot">·</span> {{ s.word_2 }}{% endif %}</h1>
+    {%- if s.sub != blank -%}<span class="sub">{{ s.sub }}</span>{%- endif -%}
+    {%- if s.lines != blank -%}<div class="lines">{{ s.lines }}</div>{%- endif -%}
+    <div class="hero-cta">
+      {%- if s.btn_1 != blank -%}<a class="btn btn-g" href="{{ s.btn_1_url }}">{{ s.btn_1 }}</a>{%- endif -%}
+      {%- if s.btn_2 != blank -%}<a class="btn btn-o" href="{{ s.btn_2_url }}">{{ s.btn_2 }}</a>{%- endif -%}
+    </div>
+  </div>
+  <div class="hero-img">{% render 'ss-img', img: s.image, fallback: 'sabr-shukr-hero.jpg', alt: s.image_alt, loading: 'eager' %}{%- if s.tag != blank -%}<span class="hero-tag">{{ s.tag }}</span>{%- endif -%}</div>
+</header></div>
+
+{% schema %}
+{
+  "name": "sabr · shukr — hero",
+  "settings": [
+    { "type": "image_picker", "id": "image", "label": "Photo", "info": "Empty = the diary box photo" },
+    { "type": "text", "id": "image_alt", "label": "Photo description", "default": "sabr · shukr diary in its cream and green gift box" },
+    { "type": "text", "id": "tag", "label": "Label on the photo", "default": "Handmade in India" },
+    { "type": "text", "id": "eyebrow", "label": "Small heading", "default": "The new collection" },
+    { "type": "text", "id": "word_1", "label": "First word", "default": "sabr" },
+    { "type": "text", "id": "word_2", "label": "Second word", "default": "shukr" },
+    { "type": "text", "id": "sub", "label": "Under the words", "default": "Patience · Gratitude" },
+    { "type": "richtext", "id": "lines", "label": "Lines", "default": "<p><em>sabr</em> — for what has not arrived yet.<br><em>shukr</em> — for what has already arrived.</p>" },
+    { "type": "text", "id": "btn_1", "label": "Button 1", "default": "Shop the collection →" },
+    { "type": "url", "id": "btn_1_url", "label": "Button 1 link", "default": "#shop" },
+    { "type": "text", "id": "btn_2", "label": "Button 2", "default": "See it at home" },
+    { "type": "url", "id": "btn_2_url", "label": "Button 2 link", "default": "#day" }
+  ],
+  "presets": [{ "name": "sabr · shukr — hero" }]
+}
+{% endschema %}

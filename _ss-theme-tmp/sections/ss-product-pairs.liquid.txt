@@ -1,0 +1,21 @@
+{% render 'ss-head' %}
+{%- assign pairs = product.metafields.sabr_shukr.pairs.value -%}
+{%- if pairs == blank or pairs.size == 0 -%}{%- assign pairs = section.settings.products -%}{%- endif -%}
+{%- if pairs.size > 0 -%}
+<div class="ss"><section class="pairs wrap">
+  <h2>{{ section.settings.heading }}</h2>
+  <div class="p-grid">{%- for p in pairs limit: 3 -%}{% render 'ss-card', p: p, link: true %}{%- endfor -%}</div>
+</section></div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "sabr · shukr — pairs well with",
+  "settings": [
+    { "type": "paragraph", "content": "Shows the product's 'pairs well with' field; the pieces below are used when that is empty." },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Pairs well with" },
+    { "type": "product_list", "id": "products", "label": "Pieces (fallback)", "limit": 3 }
+  ],
+  "presets": [{ "name": "sabr · shukr — pairs well with" }]
+}
+{% endschema %}

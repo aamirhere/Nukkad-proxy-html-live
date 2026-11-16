@@ -1,0 +1,17 @@
+{% render 'ss-head' %}
+<div class="ss"><section class="ss-end"><div class="wrap">
+  <span class="sun" aria-hidden="true" style="width:48px"></span>
+  {%- if section.settings.line != blank -%}<span class="tl">{{ section.settings.line }}</span>{%- endif -%}
+  {%- if section.settings.small != blank -%}<small>{{ section.settings.small }}</small>{%- endif -%}
+</div></section></div>
+
+{% schema %}
+{
+  "name": "sabr · shukr — closing line",
+  "settings": [
+    { "type": "text", "id": "line", "label": "Line", "default": "sabr — for what has not arrived yet. shukr — for what has already arrived." },
+    { "type": "text", "id": "small", "label": "Small text", "default": "Handmade in India" }
+  ],
+  "presets": [{ "name": "sabr · shukr — closing line" }]
+}
+{% endschema %}
