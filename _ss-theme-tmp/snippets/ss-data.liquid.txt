@@ -1,0 +1,27 @@
+{%- comment -%} Everything the quick view and add-to-cart need about one piece, read by assets/sabr-shukr.js. p: product · h: handle {%- endcomment -%}
+{%- assign ss_h = p.handle | default: h | strip -%}
+{%- if p.id or ss_h != blank -%}
+{%- assign ss_full = false -%}{%- if p.title != blank -%}{%- assign ss_full = true -%}{%- endif -%}
+{%- capture ss_fbn -%}{% render 'ss-fb', h: ss_h, f: 'name' %}{%- endcapture -%}
+{%- capture ss_fbw -%}{% render 'ss-fb', h: ss_h, f: 'word' %}{%- endcapture -%}
+{%- capture ss_fbl -%}{% render 'ss-fb', h: ss_h, f: 'line' %}{%- endcapture -%}
+{%- capture ss_fbu -%}{% render 'ss-fb', h: ss_h, f: 'use' %}{%- endcapture -%}
+{%- capture ss_fbi -%}{% render 'ss-fb', h: ss_h, f: 'img' %}{%- endcapture -%}
+{%- assign ss_cents = p.price | plus: 0 -%}
+{%- assign ss_word = p.metafields.sabr_shukr.word.value | default: ss_fbw -%}
+{%- case ss_word -%}{%- when 'sabr' -%}{%- assign ss_mean = 'Patience' -%}{%- when 'shukr' -%}{%- assign ss_mean = 'Gratitude' -%}{%- when 'sukoon' -%}{%- assign ss_mean = 'Peace' -%}{%- when 'sabr · shukr' -%}{%- assign ss_mean = 'Patience · Gratitude' -%}{%- else -%}{%- assign ss_mean = '' -%}{%- endcase -%}
+<script type="application/json" data-ss-p>{
+  "handle": {{ ss_h | json }},
+  "name": {{ p.metafields.sabr_shukr.name.value | default: p.title | default: ss_fbn | json }},
+  "word": {{ ss_word | json }}, "meaning": {{ ss_mean | json }},
+  "line": {{ p.metafields.sabr_shukr.line.value | default: ss_fbl | json }},
+  "use": {{ p.metafields.sabr_shukr.use.value | default: ss_fbu | json }},
+  "story": {{ p.description | strip_html | strip | json }},
+  "details": {{ p.metafields.sabr_shukr.details.value | default: '' | json }},
+  "price": {% if ss_full and ss_cents > 0 %}{{ ss_cents | money_without_trailing_zeros | json }}{% else %}"Coming soon"{% endif %},
+  "variant": {{ p.selected_or_first_available_variant.id | json }},
+  "buyable": {% if ss_full and p.available and ss_cents > 0 %}true{% else %}false{% endif %},
+  "url": {% if p.url != blank %}{{ p.url | json }}{% else %}{{ '/products/' | append: ss_h | json }}{% endif %},
+  "imgs": [{%- if ss_full and p.images.size > 0 -%}{%- for im in p.images limit: 6 -%}{{ im | image_url: width: 1100 | json }}{%- unless forloop.last -%},{%- endunless -%}{%- endfor -%}{%- elsif ss_fbi != blank -%}{{ ss_fbi | asset_url | json }}{%- endif -%}]
+}</script>
+{%- endif -%}

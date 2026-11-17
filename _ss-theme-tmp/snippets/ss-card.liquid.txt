@@ -1,0 +1,31 @@
+{%- comment -%}
+  One piece as a card. p: the product · h: its handle (for drafts) · feat: the large first card · link: open the product page instead of the quick view
+{%- endcomment -%}
+{%- assign ss_h = p.handle | default: h | strip -%}
+{%- if p.id or ss_h != blank -%}
+{%- assign ss_full = false -%}{%- if p.title != blank -%}{%- assign ss_full = true -%}{%- endif -%}
+{%- capture ss_fbn -%}{% render 'ss-fb', h: ss_h, f: 'name' %}{%- endcapture -%}
+{%- capture ss_fbw -%}{% render 'ss-fb', h: ss_h, f: 'word' %}{%- endcapture -%}
+{%- capture ss_fbl -%}{% render 'ss-fb', h: ss_h, f: 'line' %}{%- endcapture -%}
+{%- capture ss_fbi -%}{% render 'ss-fb', h: ss_h, f: 'img' %}{%- endcapture -%}
+{%- assign ss_name = p.metafields.sabr_shukr.name.value | default: p.title | default: ss_fbn -%}
+{%- assign ss_word = p.metafields.sabr_shukr.word.value | default: ss_fbw -%}
+{%- assign ss_line = p.metafields.sabr_shukr.line.value | default: ss_fbl -%}
+{%- assign ss_url = p.url -%}{%- if ss_url == blank -%}{%- assign ss_url = '/products/' | append: ss_h -%}{%- endif -%}
+<div class="card{% if feat %} feat{% endif %} reveal">
+  <div class="ph">
+    {%- if ss_full and p.featured_image -%}
+      {{ p.featured_image | image_url: width: 900 | image_tag: alt: ss_name, loading: 'lazy', sizes: '(max-width: 900px) 50vw, 25vw' }}
+    {%- elsif ss_fbi != blank -%}
+      <img src="{{ ss_fbi | asset_url }}" alt="{{ ss_name | escape }}" loading="lazy" width="1100" height="1300">
+    {%- else -%}
+      <span class="ss-word-tile">{{ ss_word | default: ss_name }}</span>
+    {%- endif -%}
+    {%- unless link -%}<button class="qv-btn" type="button" data-ss-qv="{{ ss_h }}">Quick view</button>{%- endunless -%}
+    {%- if ss_word != blank -%}<span class="tagw">{{ ss_word }}</span>{%- endif -%}
+  </div>
+  <div class="row"><h5><a href="{{ ss_url }}"{% unless link %} data-ss-qv="{{ ss_h }}"{% endunless %}>{{ ss_name }}</a></h5><span class="price">{% render 'ss-price', p: p %}</span></div>
+  {%- if ss_line != blank -%}<span class="d">{{ ss_line }}</span>{%- endif -%}
+  {% render 'ss-data', p: p, h: ss_h %}
+</div>
+{%- endif -%}
