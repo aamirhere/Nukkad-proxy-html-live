@@ -1,0 +1,18 @@
+{%- comment -%} One word piece card. item: a product, or a handle while the piece is a draft {%- endcomment -%}
+      {%- if item.title != blank -%}{%- assign p = item -%}{%- assign hh = item.handle -%}{%- else -%}{%- assign hh = item | strip -%}{%- assign p = all_products[hh] -%}{%- endif -%}
+      {%- if hh != blank -%}
+      {%- capture fbn -%}{% render 'ss-fb', h: hh, f: 'name' %}{%- endcapture -%}{%- capture fbw -%}{% render 'ss-fb', h: hh, f: 'word' %}{%- endcapture -%}{%- capture fbi -%}{% render 'ss-fb', h: hh, f: 'img' %}{%- endcapture -%}
+      {%- assign nm = p.metafields.sabr_shukr.name.value | default: p.title | default: fbn -%}
+      {%- assign wd = p.metafields.sabr_shukr.word.value | default: fbw -%}
+      {%- case wd -%}{%- when 'sabr' -%}{%- assign mean = 'Patience' -%}{%- when 'shukr' -%}{%- assign mean = 'Gratitude' -%}{%- when 'sukoon' -%}{%- assign mean = 'Peace' -%}{%- else -%}{%- assign mean = p.metafields.sabr_shukr.line.value -%}{%- endcase -%}
+      <div class="wp">
+        <div class="wp-ph">
+          {%- if p.title != blank and p.featured_image -%}{{ p.featured_image | image_url: width: 700 | image_tag: alt: nm, loading: 'lazy', sizes: '(max-width: 900px) 33vw, 300px' }}{%- elsif fbi != blank -%}<img src="{{ fbi | asset_url }}" alt="{{ nm | escape }}" loading="lazy" width="1100" height="1300">{%- else -%}<span class="ss-word-tile">{{ wd | default: nm }}</span>{%- endif -%}
+          <button class="qv-btn" type="button" data-ss-qv="{{ hh }}">Quick view</button>
+        </div>
+        <div class="wp-row"><h5><a href="{% if p.url != blank %}{{ p.url }}{% else %}/products/{{ hh }}{% endif %}" data-ss-qv="{{ hh }}">{{ nm }}</a></h5><span>{% render 'ss-price', p: p %}</span></div>
+        {%- if mean != blank -%}<span class="wp-d">{{ mean }}</span>{%- endif -%}
+        <button class="wp-add" type="button" data-ss-add="{{ hh }}">Add to cart</button>
+        {% render 'ss-data', p: p, h: hh %}
+      </div>
+      {%- endif -%}
