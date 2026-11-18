@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Haider turns 4 · Ayeza turns 8 — You're invited</title>
+<meta name="description" content="Join us for Haider's 4th and Ayeza's 8th birthday at the Community Centre, Maharani Bagh.">
+<meta property="og:title" content="Haider turns 4 · Ayeza turns 8">
+<meta property="og:description" content="Two birthdays, one party. Tap to open your invitation and RSVP.">
+<meta property="og:image" content="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_175152_6fe34a98-0efe-41eb-85cb-5dd3edf1e0c8.png">
+<meta name="theme-color" content="#f4ece0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cream:#f4ece0; --paper:#fbf7f0; --ink:#3b322c; --ink2:#7a6c60; --line:#e6dccd;
+  --sage:#8ea489; --sage-d:#5f7a5c; --blush:#e7b8ae; --blush-d:#c98577; --butter:#f1dc9c; --sky:#b9cfe0;
+  --ff:"Fraunces",Georgia,serif; --fb:"DM Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--cream);-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);color:var(--ink);background:var(--cream);overflow-x:hidden}
+button,input{font:inherit;color:inherit}
+
+/* Loader */
+#loader{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:var(--cream);transition:opacity .8s ease, visibility .8s}
+#loader.done{opacity:0;visibility:hidden}
+.ld{display:flex;flex-direction:column;align-items:center;gap:18px}
+.ld-box{width:64px;height:56px;position:relative;animation:bob 2.2s ease-in-out infinite}
+.ld-box i{position:absolute;left:4px;right:4px;bottom:0;height:38px;border-radius:6px;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line)}
+.ld-box b{position:absolute;left:0;right:0;top:6px;height:14px;border-radius:5px;background:var(--sage);animation:lid 2.2s ease-in-out infinite}
+.ld-box s{position:absolute;left:50%;top:6px;bottom:0;width:8px;margin-left:-4px;background:var(--blush);opacity:.9}
+.ld p{font-family:var(--ff);font-style:italic;font-size:17px;color:var(--ink2)}
+.ld-bar{width:140px;height:2px;background:var(--line);border-radius:2px;overflow:hidden}
+.ld-bar span{display:block;height:100%;width:0;background:var(--sage-d);transition:width .3s}
+@keyframes bob{50%{transform:translateY(-6px)}}
+@keyframes lid{40%,60%{transform:translateY(-10px) rotate(-8deg)}}
+
+/* Scroll film */
+#film{position:relative;height:460vh}
+.stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;perspective:1200px}
+.stage-in{position:absolute;inset:-3%;transform-style:preserve-3d;will-change:transform;transition:transform .25s ease-out}
+#cv{width:100%;height:100%;display:block}
+#fallback-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+.vignette{position:absolute;inset:0;pointer-events:none;background:
+  linear-gradient(to bottom, rgba(244,236,224,.55) 0%, rgba(244,236,224,0) 28%, rgba(244,236,224,0) 70%, rgba(244,236,224,.7) 100%)}
+.cap{position:absolute;left:0;right:0;text-align:center;padding:0 28px;pointer-events:none;opacity:0;will-change:transform,opacity}
+.cap.top{top:11vh}
+.cap.bot{bottom:9vh}
+.eyebrow{font-family:var(--fb);font-weight:600;letter-spacing:.32em;text-transform:uppercase;font-size:11px;color:var(--sage-d)}
+.big{font-family:var(--ff);font-weight:350;font-size:clamp(38px,10vw,76px);line-height:1;letter-spacing:-.02em;margin-top:12px}
+.big em{font-style:italic;font-weight:300;color:var(--blush-d)}
+.mid{font-family:var(--ff);font-weight:350;font-size:clamp(26px,6.6vw,46px);line-height:1.08;letter-spacing:-.01em}
+.mid em{font-style:italic;color:var(--sage-d)}
+.hint{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink2);transition:opacity .4s}
+.hint i{width:1px;height:34px;background:linear-gradient(var(--ink2),transparent);animation:drip 1.8s ease-in-out infinite}
+@keyframes drip{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+/* Card */
+#card-sec{position:relative;padding:12vh 20px 8vh;display:flex;justify-content:center;perspective:1400px;
+  background:radial-gradient(ellipse 90% 50% at 50% 0%, rgba(231,184,174,.28), transparent 70%), var(--cream)}
+.card{position:relative;width:min(420px,100%);border-radius:22px;background:var(--paper);padding:44px 30px 34px;text-align:center;
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 30px 60px -28px rgba(91,70,52,.35), 0 8px 20px -10px rgba(91,70,52,.18);
+  transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .2s ease-out;
+  opacity:0;translate:0 40px;}
+.card.in{opacity:1;translate:0 0;transition:transform .2s ease-out, opacity 1s ease, translate 1s cubic-bezier(.2,.8,.2,1)}
+.card::before{content:"";position:absolute;inset:10px;border-radius:15px;border:1px solid var(--line);pointer-events:none}
+.card .sheen{position:absolute;inset:0;border-radius:22px;pointer-events:none;mix-blend-mode:soft-light;
+  background:radial-gradient(circle at var(--mx,50%) var(--my,30%), rgba(255,255,255,.9), transparent 45%)}
+.c-pop{transform:translateZ(40px)}
+.c-pop2{transform:translateZ(24px)}
+.kids{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:22px 0 6px}
+.kid .age{font-family:var(--ff);font-weight:300;font-size:84px;line-height:.9;letter-spacing:-.04em}
+.kid:first-child .age{color:var(--sage-d)}
+.kid:last-child .age{color:var(--blush-d)}
+.kid .nm{font-family:var(--ff);font-size:22px;margin-top:8px}
+.kid .sub{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin-top:4px}
+.amp{font-family:var(--ff);font-style:italic;font-size:30px;color:var(--ink2)}
+.rule{height:1px;background:var(--line);margin:24px 10px}
+.det{display:grid;gap:14px}
+.det div{display:flex;flex-direction:column;gap:3px}
+.det small{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink2)}
+.det strong{font-family:var(--ff);font-weight:450;font-size:19px}
+.map{display:inline-flex;align-items:center;gap:8px;margin-top:20px;padding:11px 18px;border-radius:999px;border:1px solid var(--line);
+  text-decoration:none;color:var(--ink);font-size:13.5px;font-weight:500;background:#fff;transition:transform .2s, box-shadow .2s}
+.map:hover{transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(0,0,0,.25)}
+.sample{position:absolute;top:16px;right:18px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--blush-d);background:#fbe9e5;padding:4px 8px;border-radius:999px}
+
+/* RSVP */
+#rsvp{padding:6vh 20px 14vh;display:flex;justify-content:center}
+.rs{width:min(420px,100%)}
+.rs h2{font-family:var(--ff);font-weight:350;font-size:clamp(30px,8vw,44px);text-align:center;letter-spacing:-.01em}
+.rs h2 em{font-style:italic;color:var(--sage-d)}
+.rs .lede{text-align:center;color:var(--ink2);font-size:14.5px;margin:8px 0 26px}
+.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ch{position:relative;padding:16px 8px 14px;border-radius:16px;border:1.5px solid var(--line);background:var(--paper);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:6px;transition:transform .25s cubic-bezier(.2,.8,.2,1), border-color .2s, background .2s, box-shadow .25s}
+.ch:hover{transform:translateY(-3px)}
+.ch .e{font-size:24px;line-height:1;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
+.ch span{font-size:13px;font-weight:600}
+.ch[aria-pressed="true"]{transform:translateY(-4px) scale(1.03);box-shadow:0 14px 26px -16px rgba(60,40,30,.45)}
+.ch[aria-pressed="true"] .e{transform:scale(1.25) rotate(-8deg)}
+.ch.yes[aria-pressed="true"]{border-color:var(--sage-d);background:#eef3ec}
+.ch.maybe[aria-pressed="true"]{border-color:#c9a64b;background:#fbf4de}
+.ch.no[aria-pressed="true"]{border-color:var(--blush-d);background:#fbeeeb}
+form{display:grid;gap:12px;margin-top:18px;overflow:hidden;max-height:0;opacity:0;transition:max-height .6s ease, opacity .5s ease}
+form.open{max-height:640px;opacity:1}
+.f{display:flex;flex-direction:column;gap:6px}
+.f label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink2)}
+.f input{padding:14px 16px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:16px;outline:none;transition:border-color .2s}
+.f input:focus{border-color:var(--sage)}
+.cnt{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.step{display:flex;align-items:center;justify-content:space-between;padding:8px 8px 8px 16px;border-radius:12px;border:1.5px solid var(--line);background:#fff}
+.step b{font-weight:600;font-size:17px;min-width:22px;text-align:center}
+.step button{width:36px;height:36px;border-radius:10px;border:0;background:var(--cream);font-size:18px;cursor:pointer}
+.step button:active{transform:scale(.92)}
+.hp{position:absolute;left:-9999px}
+.send{margin-top:6px;padding:16px;border-radius:14px;border:0;background:var(--ink);color:#fff;font-weight:600;font-size:15.5px;cursor:pointer;transition:transform .2s, opacity .2s}
+.send:active{transform:scale(.98)}
+.send[disabled]{opacity:.55}
+.err{color:var(--blush-d);font-size:13.5px;text-align:center;min-height:18px}
+.thanks{display:none;text-align:center;padding:30px 10px 10px}
+.thanks.show{display:block;animation:rise .7s cubic-bezier(.2,.8,.2,1)}
+.thanks .t{font-family:var(--ff);font-size:30px;font-weight:350}
+.thanks p{color:var(--ink2);margin-top:8px;font-size:14.5px}
+.thanks button{margin-top:16px;background:none;border:0;text-decoration:underline;color:var(--ink2);cursor:pointer;font-size:13px}
+.tally{text-align:center;color:var(--ink2);font-size:13px;margin-top:22px;min-height:18px}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}}
+footer{text-align:center;padding:0 20px 40px;font-family:var(--ff);font-style:italic;color:var(--ink2);font-size:15px}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:40}
+@media (prefers-reduced-motion:reduce){.stage-in,.card{transition:none}}
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="ld">
+  <div class="ld-box"><i></i><s></s><b></b></div>
+  <p>Wrapping your invitation…</p>
+  <div class="ld-bar"><span id="ldp"></span></div>
+</div></div>
+
+<section id="film" aria-label="Invitation">
+  <div class="stage">
+    <div class="stage-in" id="stageIn">
+      <canvas id="cv"></canvas>
+      <img id="fallback-img" alt="">
+    </div>
+    <div class="vignette"></div>
+
+    <div class="cap top" data-in="0" data-out=".2">
+      <div class="eyebrow">You're invited</div>
+      <div class="big">Something<br><em>sweet</em> is inside</div>
+    </div>
+    <div class="cap top" data-in=".26" data-out=".52">
+      <div class="mid">Two birthdays.<br><em>One</em> big party.</div>
+    </div>
+    <div class="cap top" data-in=".6" data-out="1.01">
+      <div class="eyebrow">Celebrating</div>
+      <div class="big">Haider <em>&amp;</em> Ayeza</div>
+    </div>
+    <div class="cap bot" data-in=".72" data-out="1.01">
+      <div class="mid" style="font-size:clamp(20px,5vw,30px)">turning <em>4</em> &nbsp;·&nbsp; turning <em>8</em></div>
+    </div>
+    <div class="hint" id="hint"><span>Scroll to open</span><i></i></div>
+  </div>
+</section>
+
+<section id="card-sec">
+  <article class="card" id="card">
+    <div class="sheen"></div>
+    <span class="sample">Sample</span>
+    <div class="eyebrow c-pop2">Please join us for</div>
+    <div class="kids c-pop">
+      <div class="kid"><div class="age">4</div><div class="nm">Haider Raza</div><div class="sub">turns four</div></div>
+      <div class="amp">&amp;</div>
+      <div class="kid"><div class="age">8</div><div class="nm">Ayeza</div><div class="sub">turns eight</div></div>
+    </div>
+    <div class="rule"></div>
+    <div class="det c-pop2">
+      <div><small>When</small><strong id="when">Sunday, 7 December · 5:00 pm</strong></div>
+      <div><small>Where</small><strong>Community Centre, Maharani Bagh</strong></div>
+    </div>
+    <a class="map c-pop2" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=Community+Centre+Maharani+Bagh+New+Delhi">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+      Open in Maps
+    </a>
+  </article>
+</section>
+
+<section id="rsvp">
+  <div class="rs">
+    <h2>Will you <em>come?</em></h2>
+    <p class="lede">Let us know so we save you a slice.</p>
+
+    <div id="ask">
+      <div class="choices" role="group" aria-label="RSVP">
+        <button class="ch yes" data-s="yes" aria-pressed="false"><span class="e">🎈</span><span>Joining</span></button>
+        <button class="ch maybe" data-s="maybe" aria-pressed="false"><span class="e">🤞</span><span>Maybe</span></button>
+        <button class="ch no" data-s="no" aria-pressed="false"><span class="e">💌</span><span>Can't make it</span></button>
+      </div>
+
+      <form id="f" novalidate>
+        <div class="f"><label for="nm">Your name / family</label><input id="nm" autocomplete="name" placeholder="e.g. The Khans" required></div>
+        <div class="f"><label for="ph">WhatsApp number</label><input id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91"></div>
+        <div class="cnt" id="cnt">
+          <div class="f"><label>Adults</label><div class="step" data-k="adults"><b>2</b><span><button type="button" data-d="-1" aria-label="fewer adults">−</button> <button type="button" data-d="1" aria-label="more adults">+</button></span></div></div>
+          <div class="f"><label>Kids</label><div class="step" data-k="kids"><b>1</b><span><button type="button" data-d="-1" aria-label="fewer kids">−</button> <button type="button" data-d="1" aria-label="more kids">+</button></span></div></div>
+        </div>
+        <div class="f"><label for="msg">A note for the birthday kids (optional)</label><input id="msg" maxlength="200" placeholder="Happy birthday!"></div>
+        <input class="hp" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button class="send" id="send" type="submit">Send RSVP</button>
+        <div class="err" id="err"></div>
+      </form>
+    </div>
+
+    <div class="thanks" id="thanks">
+      <div class="t" id="tt">See you there!</div>
+      <p id="tp">Haider and Ayeza can't wait.</p>
+      <button id="again">Change my answer</button>
+    </div>
+    <div class="tally" id="tally"></div>
+  </div>
+</section>
+
+<footer>With love, the Raza family</footer>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+  const VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_175256_a998603c-fda4-4014-9f3e-460605c5169a.mp4';
+  const START_IMG = 'https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_175001_741e0a1c-559c-4b06-af3c-6fabe12d8ea1.png';
+  const END_IMG = 'https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_175152_6fe34a98-0efe-41eb-85cb-5dd3edf1e0c8.png';
+  const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-rsvp';
+  const EVENT = 'haider-ayeza-2026';
+  const FRAME_W = 450, FRAME_H = 800, MAX_FRAMES = 72;
+
+  const $ = s => document.querySelector(s);
+  const cv = $('#cv'), ctx = cv.getContext('2d');
+  const film = $('#film'), stageIn = $('#stageIn');
+  const caps = [...document.querySelectorAll('.cap')];
+  const loader = $('#loader'), ldp = $('#ldp');
+  let frames = [], mode = 'frames', video = null;
+  let target = 0, shown = 0;
+
+  function sizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(cv.clientWidth * dpr);
+    cv.height = Math.round(cv.clientHeight * dpr);
+    draw(true);
+  }
+  function cover(src, sw, sh) {
+    const s = Math.max(cv.width / sw, cv.height / sh);
+    const w = sw * s, h = sh * s;
+    ctx.drawImage(src, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+  }
+  let lastIdx = -1;
+  function draw(force) {
+    if (mode === 'frames' && frames.length) {
+      const i = Math.min(frames.length - 1, Math.round(shown * (frames.length - 1)));
+      if (i !== lastIdx || force) { cover(frames[i], frames[i].width, frames[i].height); lastIdx = i; }
+    } else if (mode === 'video' && video && video.readyState >= 2) {
+      cover(video, video.videoWidth, video.videoHeight);
+    }
+  }
+
+  function progress() {
+    const r = film.getBoundingClientRect();
+    const total = film.offsetHeight - innerHeight;
+    return Math.min(1, Math.max(0, -r.top / total));
+  }
+  function captions(p) {
+    for (const c of caps) {
+      const a = +c.dataset.in, b = +c.dataset.out, fade = .07;
+      let o = 0;
+      if (p >= a && p <= b) o = Math.min(1, (p - a) / fade, (b - p) / fade);
+      const local = (p - a) / (b - a);
+      c.style.opacity = o.toFixed(3);
+      c.style.transform = `translateY(${(1 - Math.min(1, local * 3)) * 24 - Math.max(0, local - .7) * 30}px)`;
+    }
+    $('#hint').style.opacity = p > .03 ? 0 : 1;
+  }
+  function tick() {
+    target = progress();
+    shown += (target - shown) * 0.14;
+    if (Math.abs(target - shown) < 0.0005) shown = target;
+    if (mode === 'video' && video && video.duration) {
+      const t = shown * (video.duration - 0.05);
+      if (Math.abs(video.currentTime - t) > 0.03 && !video.seeking) video.currentTime = t;
+    }
+    if (mode === 'still') {
+      $('#fallback-img').style.transform = `scale(${1 + shown * 0.12})`;
+      $('#fallback-img').src = shown > .5 ? END_IMG : START_IMG;
+    }
+    draw();
+    captions(shown);
+    requestAnimationFrame(tick);
+  }
+
+  function finishLoading() {
+    loader.classList.add('done');
+    sizeCanvas();
+    requestAnimationFrame(tick);
+  }
+
+  // Frames are pulled from the AI clip once at load, so scrolling paints decoded bitmaps instead of seeking an mp4 —
+  // seeking is choppy on Android Chrome because generated clips carry very few keyframes.
+  function captureFrames() {
+    return new Promise((resolve, reject) => {
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = VIDEO;
+      v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+      v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+      document.body.appendChild(v);
+      video = v;
+      const got = [], pending = [];
+      let n = 0;
+      let lastT = -1, step = 0;
+      const timer = setTimeout(() => reject(new Error('timeout')), 25000);
+      const finish = () => { clearTimeout(timer); Promise.all(pending).then(() => { const list = got.filter(Boolean); list.length > 8 ? resolve(list) : reject(new Error('few frames')); }); };
+      v.addEventListener('error', () => { clearTimeout(timer); reject(new Error('video error')); });
+      v.addEventListener('loadedmetadata', () => { step = v.duration / MAX_FRAMES; });
+      v.addEventListener('ended', finish);
+      if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) { clearTimeout(timer); return reject(new Error('no rVFC')); }
+      const onFrame = (now, meta) => {
+        if (meta.mediaTime - lastT >= step * 0.9) {
+          lastT = meta.mediaTime;
+          const k = n++;
+          pending.push(createImageBitmap(v, { resizeWidth: FRAME_W, resizeHeight: FRAME_H, resizeQuality: 'medium' })
+            .then(b => { got[k] = b; ldp.style.width = Math.min(100, k / MAX_FRAMES * 100) + '%'; })
+            .catch(() => {}));
+        }
+        if (!v.ended) v.requestVideoFrameCallback(onFrame);
+      };
+      v.requestVideoFrameCallback(onFrame);
+      v.play().catch(e => { clearTimeout(timer); reject(e); });
+    });
+  }
+
+  captureFrames().then(f => { frames = f; mode = 'frames'; finishLoading(); })
+    .catch(() => {
+      if (video && video.readyState >= 1) { mode = 'video'; video.pause(); finishLoading(); }
+      else { mode = 'still'; cv.style.display = 'none'; const im = $('#fallback-img'); im.style.display = 'block'; im.src = START_IMG; finishLoading(); }
+    });
+  addEventListener('resize', sizeCanvas);
+
+  // Depth: the scene and the card lean toward the pointer, or the phone's tilt
+  const card = $('#card');
+  function lean(x, y) {
+    stageIn.style.transform = `rotateY(${x * 4}deg) rotateX(${-y * 3}deg) translate3d(${-x * 10}px, ${-y * 8}px, 0)`;
+    card.style.setProperty('--ry', (x * 10).toFixed(2) + 'deg');
+    card.style.setProperty('--rx', (-y * 8).toFixed(2) + 'deg');
+    card.style.setProperty('--mx', (50 + x * 40) + '%');
+    card.style.setProperty('--my', (30 + y * 40) + '%');
+  }
+  addEventListener('pointermove', e => lean(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1));
+  let gyroOn = false;
+  function gyro(e) { if (e.gamma == null) return; gyroOn = true; lean(Math.max(-1, Math.min(1, e.gamma / 25)), Math.max(-1, Math.min(1, (e.beta - 45) / 25))); }
+  addEventListener('deviceorientation', gyro);
+  // iOS asks for motion permission; the first tap anywhere grants it
+  addEventListener('touchend', function ask() {
+    removeEventListener('touchend', ask);
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().catch(() => {});
+  }, { once: true });
+  // Without a gyro, the card sways gently on its own while it's on screen
+  (function idle(t) { if (!gyroOn && matchMedia('(hover: none)').matches) lean(Math.sin(t / 2200) * .5, Math.cos(t / 2900) * .35); requestAnimationFrame(idle); })(0);
+
+  new IntersectionObserver(([en]) => { if (en.isIntersecting) card.classList.add('in'); }, { threshold: .25 }).observe(card);
+
+  // RSVP
+  let status = null;
+  const counts = { adults: 2, kids: 1 };
+  const form = $('#f'), err = $('#err'), send = $('#send');
+  document.querySelectorAll('.ch').forEach(b => b.addEventListener('click', () => {
+    status = b.dataset.s;
+    document.querySelectorAll('.ch').forEach(x => x.setAttribute('aria-pressed', x === b));
+    form.classList.add('open');
+    $('#cnt').style.display = status === 'no' ? 'none' : '';
+    send.textContent = status === 'no' ? 'Send my wishes' : 'Send RSVP';
+    if (status === 'yes') burst(b);
+    setTimeout(() => $('#nm').focus({ preventScroll: true }), 350);
+  }));
+  document.querySelectorAll('.step').forEach(s => s.addEventListener('click', e => {
+    const d = +e.target.dataset.d; if (!d) return;
+    const k = s.dataset.k, min = k === 'adults' ? 1 : 0;
+    counts[k] = Math.max(min, Math.min(20, counts[k] + d));
+    s.querySelector('b').textContent = counts[k];
+  }));
+
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('rsvp-' + EVENT) || 'null'); } catch { return null; } })();
+  if (saved) { $('#nm').value = saved.name || ''; $('#ph').value = saved.phone || ''; }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    err.textContent = '';
+    const name = $('#nm').value.trim();
+    if (!status) return err.textContent = 'Pick Joining, Maybe or Can\'t make it.';
+    if (name.length < 2) { $('#nm').focus(); return err.textContent = 'Please add your name.'; }
+    send.disabled = true; send.textContent = 'Sending…';
+    const body = { event: EVENT, name, phone: $('#ph').value.trim(), status, adults: counts.adults, kids: counts.kids, message: $('#msg').value.trim(), website: $('#website').value };
+    try {
+      const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || 'Could not send');
+      try { localStorage.setItem('rsvp-' + EVENT, JSON.stringify({ name, phone: body.phone, status })); } catch {}
+      showThanks(status, name);
+      loadTally();
+    } catch (x) {
+      err.textContent = 'Couldn\'t send that — please try again.';
+    } finally { send.disabled = false; send.textContent = status === 'no' ? 'Send my wishes' : 'Send RSVP'; }
+  });
+  function showThanks(s, name) {
+    $('#ask').style.display = 'none';
+    const first = name.split(' ')[0];
+    $('#tt').textContent = s === 'yes' ? `See you there, ${first}!` : s === 'maybe' ? `Fingers crossed, ${first}!` : `We'll miss you, ${first}`;
+    $('#tp').textContent = s === 'yes' ? 'Haider and Ayeza can\'t wait.' : s === 'maybe' ? 'Let us know when you\'re sure — you can change your answer here.' : 'Thank you for the wishes. We\'ll save you a slice anyway.';
+    $('#thanks').classList.add('show');
+    if (s === 'yes') { burst($('#thanks')); setTimeout(() => burst($('#thanks')), 350); }
+  }
+  $('#again').addEventListener('click', () => { $('#thanks').classList.remove('show'); $('#ask').style.display = ''; });
+
+  async function loadTally() {
+    try {
+      const d = await (await fetch(`${API}?event=${EVENT}`)).json();
+      const y = d.counts && d.counts.yes;
+      if (y && y.families) $('#tally').textContent = `${y.families} ${y.families === 1 ? 'family' : 'families'} joining so far 🎈`;
+    } catch {}
+  }
+  loadTally();
+
+  // Confetti
+  const cc = $('#confetti'), cx = cc.getContext('2d'); let bits = [], raf = 0;
+  const COLORS = ['#8ea489', '#e7b8ae', '#f1dc9c', '#b9cfe0', '#c98577'];
+  function burst(el) {
+    const r = el.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+    cc.width = innerWidth * dpr; cc.height = innerHeight * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (let i = 0; i < 70; i++) bits.push({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: (Math.random() - .5) * 11, vy: -Math.random() * 11 - 3, r: Math.random() * 6.28, vr: (Math.random() - .5) * .3, w: 6 + Math.random() * 6, h: 3 + Math.random() * 4, c: COLORS[i % 5], life: 1 });
+    if (!raf) raf = requestAnimationFrame(fly);
+  }
+  function fly() {
+    cx.clearRect(0, 0, innerWidth, innerHeight);
+    bits = bits.filter(b => b.life > 0);
+    for (const b of bits) {
+      b.vy += .32; b.vx *= .985; b.x += b.vx; b.y += b.vy; b.r += b.vr; b.life -= .009;
+      cx.save(); cx.globalAlpha = Math.max(0, Math.min(1, b.life * 1.5)); cx.translate(b.x, b.y); cx.rotate(b.r); cx.fillStyle = b.c; cx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); cx.restore();
+    }
+    raf = bits.length ? requestAnimationFrame(fly) : 0;
+  }
+})();
+</script>
+</body>
+</html>
