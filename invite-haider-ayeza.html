@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="locked">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,24 +7,32 @@
 <meta name="description" content="Join us for Haider's 4th and Ayeza's 8th birthday at the Community Centre, Maharani Bagh.">
 <meta property="og:title" content="Haider turns 4 · Ayeza turns 8">
 <meta property="og:description" content="Two birthdays, one party. Tap to open your invitation and RSVP.">
-<meta property="og:image" content="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_175152_6fe34a98-0efe-41eb-85cb-5dd3edf1e0c8.png">
+<meta property="og:image" content="https://enzmxaswpluncupzrtfb.supabase.co/storage/v1/object/public/invite-frames/haider-ayeza/f071.jpg">
 <meta name="theme-color" content="#f4ece0">
+<link rel="preconnect" href="https://enzmxaswpluncupzrtfb.supabase.co" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=DM+Sans:wght@400;500;600&family=Pinyon+Script&display=swap" rel="stylesheet">
 <style>
 :root{
   --cream:#f4ece0; --paper:#fbf7f0; --ink:#3b322c; --ink2:#7a6c60; --line:#e6dccd;
-  --sage:#8ea489; --sage-d:#5f7a5c; --blush:#e7b8ae; --blush-d:#c98577; --butter:#f1dc9c; --sky:#b9cfe0;
+  --sage:#8ea489; --sage-d:#5f7a5c; --blush:#e7b8ae; --blush-d:#c98577;
   --ff:"Fraunces",Georgia,serif; --fb:"DM Sans",system-ui,sans-serif; --fs:"Pinyon Script",cursive;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{background:var(--cream);-webkit-text-size-adjust:100%}
+html{background:var(--cream);-webkit-text-size-adjust:100%;scroll-snap-type:y mandatory;scroll-behavior:smooth}
+html.locked,html.locked body{overflow:hidden;height:100%}
 body{font-family:var(--fb);color:var(--ink);background:var(--cream);overflow-x:hidden}
 button,input{font:inherit;color:inherit}
+.screen{position:relative;min-height:100vh;min-height:100svh;scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden}
+.eyebrow{font-weight:600;letter-spacing:.3em;text-transform:uppercase;font-size:10.5px;color:var(--sage-d)}
+.big{font-family:var(--ff);font-weight:350;font-size:clamp(38px,10vw,72px);line-height:1;letter-spacing:-.02em;margin-top:10px}
+.big em{font-style:italic;font-weight:300;color:var(--blush-d)}
+.mid{font-family:var(--ff);font-weight:350;font-size:clamp(26px,6.6vw,44px);line-height:1.1}
+.mid em{font-style:italic;color:var(--sage-d)}
 
 /* Loader */
-#loader{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#f4ece0;transition:opacity .9s ease, visibility .9s, transform .9s cubic-bezier(.6,0,.2,1)}
+#loader{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#f4ece0;transition:opacity .8s ease, visibility .8s, transform .8s cubic-bezier(.6,0,.2,1)}
 #loader.done{opacity:0;visibility:hidden;transform:scale(1.08)}
 .ld{display:flex;flex-direction:column;align-items:center;gap:10px}
 .ld img{width:min(70vw,290px);height:auto;mix-blend-mode:multiply;-webkit-mask-image:radial-gradient(circle at 50% 50%, #000 42%, transparent 70%);mask-image:radial-gradient(circle at 50% 50%, #000 42%, transparent 70%)}
@@ -32,127 +40,85 @@ button,input{font:inherit;color:inherit}
 .ld p b{display:block;font-family:var(--fs);font-style:normal;font-weight:400;font-size:34px;color:var(--ink);margin-bottom:2px}
 .ld-bar{width:120px;height:2px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:6px}
 .ld-bar span{display:block;height:100%;width:0;background:var(--sage-d);transition:width .3s}
-/* Scroll film */
-#film{position:relative;height:250vh}
-.stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;perspective:1200px}
-.stage-in{position:absolute;inset:-3%;transform-style:preserve-3d;will-change:transform;transition:transform .25s ease-out}
-#cv{width:100%;height:100%;display:block}
-#fallback-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
-.vignette{position:absolute;inset:0;pointer-events:none;background:
-  linear-gradient(to bottom, rgba(244,236,224,.55) 0%, rgba(244,236,224,0) 28%, rgba(244,236,224,0) 70%, rgba(244,236,224,.7) 100%)}
-.cap{position:absolute;left:0;right:0;text-align:center;padding:0 28px;pointer-events:none;opacity:0;will-change:transform,opacity}
-.cap.top{top:11vh}
-.cap.bot{bottom:9vh}
-.eyebrow{font-family:var(--fb);font-weight:600;letter-spacing:.32em;text-transform:uppercase;font-size:11px;color:var(--sage-d)}
-.big{font-family:var(--ff);font-weight:350;font-size:clamp(38px,10vw,76px);line-height:1;letter-spacing:-.02em;margin-top:12px}
-.big em{font-style:italic;font-weight:300;color:var(--blush-d)}
-.mid{font-family:var(--ff);font-weight:350;font-size:clamp(26px,6.6vw,46px);line-height:1.08;letter-spacing:-.01em}
-.mid em{font-style:italic;color:var(--sage-d)}
-.hint{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink2);transition:opacity .4s}
-.hint i{width:1px;height:34px;background:linear-gradient(var(--ink2),transparent);animation:drip 1.8s ease-in-out infinite}
-@keyframes drip{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
 
-/* Card: lies flat on the table, then lifts up to face you as you scroll */
-#card-sec{position:relative;height:150vh;background:var(--cream)}
-.cstage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;display:grid;place-items:center;perspective:1100px;
-  background:radial-gradient(ellipse 80% 55% at 50% 45%, rgba(255,255,255,.75), transparent 70%), radial-gradient(ellipse 90% 40% at 50% 0%, rgba(231,184,174,.25), transparent 70%), var(--cream)}
-.cluster{position:absolute;width:min(46vw,230px);opacity:.9;filter:blur(1.2px) saturate(.95);will-change:transform;pointer-events:none}
-.cluster.l{left:-8vw;top:6vh}
-.cluster.r{right:-10vw;bottom:4vh;transform:scaleX(-1)}
-.scene{position:relative;width:min(380px,84vw);transform-style:preserve-3d;will-change:transform}
+/* Screen 1: the gift opens on a tap and plays at its own pace */
+#open{height:100vh;height:100svh;perspective:1200px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.stage-in{position:absolute;inset:-3%;will-change:transform;transition:transform .25s ease-out}
+#cv,#fallback-img{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
+#fallback-img{display:none}
+.vignette{position:absolute;inset:0;pointer-events:none;background:linear-gradient(to bottom, rgba(244,236,224,.7) 0%, rgba(244,236,224,0) 32%, rgba(244,236,224,0) 72%, rgba(244,236,224,.75) 100%)}
+.cap{position:absolute;left:0;right:0;top:9vh;text-align:center;padding:0 26px;pointer-events:none;opacity:0;transform:translateY(14px);transition:opacity .7s ease, transform .7s ease}
+#open[data-state="intro"] .c-intro,#open[data-state="mid"] .c-mid,#open[data-state="done"] .c-done{opacity:1;transform:none}
+.c-done .sub{font-family:var(--ff);font-size:clamp(19px,5vw,28px);margin-top:10px}
+.c-done .sub em{font-style:italic;color:var(--sage-d)}
+.tofrom{display:inline-grid;grid-template-columns:auto auto;gap:4px 12px;align-items:baseline;text-align:left;margin-bottom:6px}
+.tofrom small{font-size:9.5px;letter-spacing:.28em;text-transform:uppercase;color:var(--sage-d);text-align:right}
+.tofrom span{font-family:var(--fs);font-size:27px;line-height:1.1}
+.cta{position:absolute;left:0;right:0;bottom:calc(6vh + env(safe-area-inset-bottom));display:flex;justify-content:center;opacity:0;pointer-events:none;transition:opacity .5s}
+#open[data-state="intro"] .cta.tap,#open[data-state="done"] .cta.swipe{opacity:1;pointer-events:auto}
+.tapbtn{padding:15px 28px;border-radius:999px;border:0;background:var(--ink);color:#fff;font-weight:600;font-size:15px;box-shadow:0 14px 30px -14px rgba(0,0,0,.55);animation:pulse 2.2s ease-in-out infinite;cursor:pointer}
+@keyframes pulse{50%{transform:scale(1.05)}}
+.swipebtn{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink);cursor:pointer}
+.swipebtn svg{animation:nudge 1.4s ease-in-out infinite}
+@keyframes nudge{50%{transform:translateY(-7px)}}
+
+/* Screen 2: the card */
+#card-sec{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:64px 0 22px;perspective:1100px;
+  background:radial-gradient(ellipse 80% 55% at 50% 42%, rgba(255,255,255,.8), transparent 70%), radial-gradient(ellipse 90% 40% at 50% 0%, rgba(231,184,174,.25), transparent 70%), var(--cream)}
+.cluster{position:absolute;width:min(44vw,220px);opacity:.85;filter:blur(1.2px);pointer-events:none;animation:drift 9s ease-in-out infinite}
+.cluster.l{left:-9vw;top:4vh}
+.cluster.r{right:-11vw;bottom:3vh;animation-delay:-4s}
+@keyframes drift{50%{transform:translateY(-18px) rotate(2deg)}}
+.scene{position:relative;width:min(84vw,360px,calc((100svh - 270px) * .6667));transform-style:preserve-3d;
+  opacity:0;transform:translateY(16vh) rotateX(58deg) rotateZ(-7deg) scale(.84);transition:transform 1.3s cubic-bezier(.2,.8,.2,1), opacity .6s}
+#card-sec.in .scene{opacity:1;transform:none}
 .card{position:relative;aspect-ratio:2/3;border-radius:6px;background:#fbf7f0 center/cover no-repeat;
   box-shadow:0 2px 3px rgba(91,70,52,.08), 0 40px 70px -30px rgba(91,70,52,.45), 0 12px 24px -12px rgba(91,70,52,.2);
   transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .2s ease-out}
-.card .sheen{position:absolute;inset:0;border-radius:6px;pointer-events:none;mix-blend-mode:soft-light;
-  background:radial-gradient(circle at var(--mx,50%) var(--my,30%), rgba(255,255,255,.85), transparent 50%)}
+.sheen{position:absolute;inset:0;border-radius:6px;pointer-events:none;mix-blend-mode:soft-light;background:radial-gradient(circle at var(--mx,50%) var(--my,30%), rgba(255,255,255,.85), transparent 50%)}
 .ctext{position:absolute;inset:25% 17% 15%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transform:translateZ(18px)}
-.ctext .eyebrow{font-size:9.5px;letter-spacing:.3em}
-.nm{font-family:var(--fs);font-size:clamp(40px,11.5vw,56px);line-height:1;color:var(--ink);margin-top:4px}
-.nm.ay{color:#a5665a}
+.ctext .eyebrow{font-size:8.5px;letter-spacing:.26em}
+.nm{font-family:var(--fs);font-size:clamp(34px,10.5vw,52px);line-height:1;margin-top:4px;clip-path:inset(-10% 100% -20% 0);transition:clip-path 1.5s cubic-bezier(.6,.1,.3,1) 1s}
 .nm.hd{color:#4f6b4c}
-.turn{font-size:9.5px;letter-spacing:.28em;text-transform:uppercase;color:var(--ink2);margin-top:2px}
-.and{font-family:var(--ff);font-style:italic;font-size:18px;color:var(--ink2);margin:6px 0 2px}
-.cdiv{width:46px;height:1px;background:#d9cbb6;margin:14px 0 12px}
-.when{font-family:var(--ff);font-size:15.5px;line-height:1.35}
-.where{font-family:var(--ff);font-style:italic;font-size:14px;color:var(--ink2);margin-top:3px;line-height:1.35}
-.foil{position:absolute;width:38%;pointer-events:none;filter:drop-shadow(0 18px 18px rgba(91,70,52,.25));will-change:transform}
-.foil.f4{left:-11%;top:-15%}
-.foil.f8{right:-11%;top:-10%}
+.nm.ay{color:#a5665a;transition-delay:1.8s}
+#card-sec.in .nm{clip-path:inset(-10% -5% -20% 0)}
+.turn{font-size:9px;letter-spacing:.26em;text-transform:uppercase;color:var(--ink2);margin-top:2px}
+.and{font-family:var(--ff);font-style:italic;font-size:17px;color:var(--ink2);margin:5px 0 1px}
+.cdiv{width:46px;height:1px;background:#d9cbb6;margin:12px 0 10px}
+.when{font-family:var(--ff);font-size:15px;line-height:1.35}
+.where{font-family:var(--ff);font-style:italic;font-size:13.5px;color:var(--ink2);margin-top:3px;line-height:1.35}
+.foil{position:absolute;width:36%;pointer-events:none;filter:drop-shadow(0 18px 18px rgba(91,70,52,.25));opacity:0;transform:translateY(180px) scale(.6);
+  transition:transform 1.3s cubic-bezier(.2,.9,.3,1.15) .5s, opacity .5s .5s}
+.foil.f4{left:-10%;top:-15%}
+.foil.f8{right:-10%;top:-10%;transition-delay:.75s}
+#card-sec.in .foil{opacity:1;transform:translateZ(50px)}
 .foil img{width:100%;display:block;animation:sway 5s ease-in-out infinite}
 .foil.f8 img{animation-duration:6s;animation-delay:-2s}
 @keyframes sway{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
-.sample{position:absolute;top:-34px;left:50%;transform:translateX(-50%);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--blush-d);background:#fbe9e5;padding:4px 9px;border-radius:999px}
-.after{position:absolute;left:0;right:0;bottom:5vh;display:flex;flex-direction:column;align-items:center;gap:12px;opacity:0;transform:translateY(16px);transition:opacity .6s, transform .6s}
-.after.on{opacity:1;transform:none}
-.count{display:flex;gap:16px;font-family:var(--ff)}
-.count div{display:flex;flex-direction:column;align-items:center;min-width:40px}
-.count b{font-weight:400;font-size:26px;line-height:1}
-.count small{font-family:var(--fb);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin-top:4px}
-.btns{display:flex;gap:10px}
-.pill{display:inline-flex;align-items:center;gap:7px;padding:11px 16px;border-radius:999px;border:1px solid var(--line);
-  text-decoration:none;color:var(--ink);font-size:13px;font-weight:500;background:#fff;cursor:pointer;transition:transform .2s, box-shadow .2s}
-.pill:hover{transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(0,0,0,.25)}
-/* To / From */
-.tofrom{display:inline-grid;grid-template-columns:auto auto;gap:4px 12px;align-items:baseline;text-align:left;margin-bottom:6px}
-.tofrom small{font-size:9.5px;letter-spacing:.28em;text-transform:uppercase;color:var(--sage-d);text-align:right}
-.tofrom span{font-family:var(--fs);font-size:26px;line-height:1.1;color:var(--ink)}
-.tag{position:absolute;top:-40px;left:50%;transform:translateX(-50%) rotate(-2deg);white-space:nowrap;font-family:var(--fs);font-size:24px;color:var(--ink);
+.tag{position:absolute;top:-40px;left:50%;transform:translateX(-50%) rotate(-2deg);white-space:nowrap;font-family:var(--fs);font-size:23px;
   background:#fffaf2;padding:2px 16px 4px;border-radius:4px;box-shadow:0 6px 14px -8px rgba(91,70,52,.4)}
 .tag small{font-family:var(--fb);font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink2);margin-right:8px}
+.after{display:flex;flex-direction:column;align-items:center;gap:12px;opacity:0;transform:translateY(14px);transition:opacity .7s 1.5s, transform .7s 1.5s;position:relative;z-index:2}
+#card-sec.in .after{opacity:1;transform:none}
+.count{display:flex;gap:16px;font-family:var(--ff)}
+.count div{display:flex;flex-direction:column;align-items:center;min-width:40px}
+.count b{font-weight:400;font-size:24px;line-height:1}
+.count small{font-family:var(--fb);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin-top:4px}
+.btns{display:flex;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:11px 14px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;font-weight:500;background:#fff;cursor:pointer}
+.pill.go{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:600}
 
-/* Host: make a personal link per guest */
-#hostbox{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(59,50,44,.35);padding:20px}
-#hostbox.on{display:flex}
-.hb-p{width:min(400px,100%);background:var(--paper);border-radius:16px;padding:22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.4)}
-.hb-p h3{font-family:var(--ff);font-weight:400;font-size:22px;margin-bottom:4px}
-.hb-p p{font-size:13px;color:var(--ink2);margin-bottom:14px}
-.hb-p input{width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);font-size:16px;background:#fff}
-.hb-row{display:flex;gap:8px;margin-top:10px}
-.hb-row button,.hb-row a{flex:1;text-align:center;padding:12px;border-radius:12px;border:0;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
-.wa{background:#1f8f4e;color:#fff}.cp{background:var(--cream);color:var(--ink)}
-.hb-link{margin-top:10px;font-size:12px;color:var(--ink2);word-break:break-all;min-height:16px}
-.hb-x{margin-top:12px;background:none;border:0;color:var(--ink2);font-size:13px;text-decoration:underline;cursor:pointer;width:100%}
-
-/* Handwritten names */
-.nm{clip-path:inset(-10% 100% -20% 0);transition:clip-path 1.6s cubic-bezier(.6,.1,.3,1)}
-.card.write .nm.hd{clip-path:inset(-10% -5% -20% 0)}
-.card.write .nm.ay{clip-path:inset(-10% -5% -20% 0);transition-delay:.9s}
-
-/* Make a wish */
-#wish{position:relative;height:100vh;height:100svh;overflow:hidden;background:#f3ebe0}
-#wish img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity 1.2s ease}
-#cakeLit{animation:flick 3.2s ease-in-out infinite}
-@keyframes flick{0%,100%{filter:brightness(1)}40%{filter:brightness(1.025)}60%{filter:brightness(.99)}}
-#cakeOut{opacity:0}
-#wish.out #cakeLit{opacity:0}
-#wish.out #cakeOut{opacity:1}
-.wtxt{position:absolute;left:0;right:0;top:10vh;text-align:center;padding:0 24px}
-.wtxt .mid{transition:opacity .6s, transform .6s}
-.wbtns{position:absolute;left:0;right:0;bottom:7vh;display:flex;flex-direction:column;align-items:center;gap:10px;transition:opacity .5s}
-#wish.out .wbtns{opacity:0;pointer-events:none}
-.blow{padding:15px 26px;border-radius:999px;border:0;background:var(--ink);color:#fff;font-weight:600;font-size:15px;cursor:pointer;box-shadow:0 14px 30px -14px rgba(0,0,0,.5);animation:pulse 2.4s ease-in-out infinite}
-@keyframes pulse{50%{transform:scale(1.04)}}
-.mic{background:rgba(255,255,255,.75);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid var(--line);padding:9px 16px;border-radius:999px;font-size:12.5px;cursor:pointer}
-.mic.on{background:#eef3ec;border-color:var(--sage)}
-.hb{position:absolute;left:0;right:0;top:9vh;text-align:center;padding:0 20px;opacity:0;pointer-events:none}
-#wish.out .hb{opacity:1}
-#wish.out .wtxt{opacity:0}
-.hb .big span{display:inline-block;opacity:0;transform:translateY(30px) rotate(8deg)}
-#wish.out .hb .big span{animation:pop .7s cubic-bezier(.3,1.6,.5,1) forwards}
-@keyframes pop{to{opacity:1;transform:none}}
-
-/* RSVP */
-#rsvp{padding:6vh 20px 14vh;display:flex;justify-content:center}
+/* Screen 3: RSVP */
+#rsvp{padding:7vh 20px 40px;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .rs{width:min(420px,100%)}
-.env{display:block;width:min(210px,52vw);margin:0 auto 6px;filter:drop-shadow(0 22px 22px rgba(91,70,52,.2));transition:transform .9s cubic-bezier(.5,-.4,.3,1.4), opacity .9s}
+.env{display:block;width:min(180px,44vw);margin:0 auto 4px;filter:drop-shadow(0 22px 22px rgba(91,70,52,.2));transition:transform .9s cubic-bezier(.5,-.4,.3,1.4), opacity .9s}
 .env.sent{transform:translateY(-60px) rotate(-8deg) scale(.85);opacity:0}
-.rs h2{font-family:var(--ff);font-weight:350;font-size:clamp(30px,8vw,44px);text-align:center;letter-spacing:-.01em}
+.rs h2{font-family:var(--ff);font-weight:350;font-size:clamp(30px,8vw,44px);text-align:center}
 .rs h2 em{font-style:italic;color:var(--sage-d)}
-.rs .lede{text-align:center;color:var(--ink2);font-size:14.5px;margin:8px 0 26px}
+.rs .lede{text-align:center;color:var(--ink2);font-size:14.5px;margin:8px 0 22px}
 .choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.ch{position:relative;padding:16px 8px 14px;border-radius:16px;border:1.5px solid var(--line);background:var(--paper);cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:6px;transition:transform .25s cubic-bezier(.2,.8,.2,1), border-color .2s, background .2s, box-shadow .25s}
-.ch:hover{transform:translateY(-3px)}
+.ch{padding:16px 8px 14px;border-radius:16px;border:1.5px solid var(--line);background:var(--paper);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1), border-color .2s, background .2s, box-shadow .25s}
 .ch .e{font-size:24px;line-height:1;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
 .ch span{font-size:13px;font-weight:600}
 .ch[aria-pressed="true"]{transform:translateY(-4px) scale(1.03);box-shadow:0 14px 26px -16px rgba(60,40,30,.45)}
@@ -164,28 +130,38 @@ form{display:grid;gap:12px;margin-top:18px;overflow:hidden;max-height:0;opacity:
 form.open{max-height:640px;opacity:1}
 .f{display:flex;flex-direction:column;gap:6px}
 .f label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink2)}
-.f input{padding:14px 16px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:16px;outline:none;transition:border-color .2s}
+.f input{padding:14px 16px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:16px;outline:none}
 .f input:focus{border-color:var(--sage)}
 .cnt{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .step{display:flex;align-items:center;justify-content:space-between;padding:8px 8px 8px 16px;border-radius:12px;border:1.5px solid var(--line);background:#fff}
 .step b{font-weight:600;font-size:17px;min-width:22px;text-align:center}
 .step button{width:36px;height:36px;border-radius:10px;border:0;background:var(--cream);font-size:18px;cursor:pointer}
-.step button:active{transform:scale(.92)}
 .hp{position:absolute;left:-9999px}
-.send{margin-top:6px;padding:16px;border-radius:14px;border:0;background:var(--ink);color:#fff;font-weight:600;font-size:15.5px;cursor:pointer;transition:transform .2s, opacity .2s}
-.send:active{transform:scale(.98)}
+.send{margin-top:6px;padding:16px;border-radius:14px;border:0;background:var(--ink);color:#fff;font-weight:600;font-size:15.5px;cursor:pointer}
 .send[disabled]{opacity:.55}
 .err{color:var(--blush-d);font-size:13.5px;text-align:center;min-height:18px}
-.thanks{display:none;text-align:center;padding:30px 10px 10px}
+.thanks{display:none;text-align:center;padding:24px 10px 10px}
 .thanks.show{display:block;animation:rise .7s cubic-bezier(.2,.8,.2,1)}
 .thanks .t{font-family:var(--ff);font-size:30px;font-weight:350}
 .thanks p{color:var(--ink2);margin-top:8px;font-size:14.5px}
 .thanks button{margin-top:16px;background:none;border:0;text-decoration:underline;color:var(--ink2);cursor:pointer;font-size:13px}
-.tally{text-align:center;color:var(--ink2);font-size:13px;margin-top:22px;min-height:18px}
+.tally{text-align:center;color:var(--ink2);font-size:13px;margin-top:20px;min-height:18px}
 @keyframes rise{from{opacity:0;transform:translateY(16px)}}
-footer{text-align:center;padding:0 20px 40px;font-family:var(--ff);font-style:italic;color:var(--ink2);font-size:15px}
+footer{text-align:center;margin-top:26px;font-family:var(--ff);font-style:italic;color:var(--ink2);font-size:15px}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:40}
-@media (prefers-reduced-motion:reduce){.stage-in,.card{transition:none}}
+
+/* Hosts: make a personal link per guest */
+#hostbox{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(59,50,44,.35);padding:20px}
+#hostbox.on{display:flex}
+.hb-p{width:min(400px,100%);background:var(--paper);border-radius:16px;padding:22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.4)}
+.hb-p h3{font-family:var(--ff);font-weight:400;font-size:22px;margin-bottom:4px}
+.hb-p p{font-size:13px;color:var(--ink2);margin-bottom:14px}
+.hb-p input{width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);font-size:16px;background:#fff}
+.hb-row{display:flex;gap:8px;margin-top:10px}
+.hb-row button,.hb-row a{flex:1;text-align:center;padding:12px;border-radius:12px;border:0;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none}
+.wa{background:#1f8f4e;color:#fff}.cp{background:var(--cream);color:var(--ink)}
+.hb-link{margin-top:10px;font-size:12px;color:var(--ink2);word-break:break-all;min-height:16px}
+.hb-x{margin-top:12px;background:none;border:0;color:var(--ink2);font-size:13px;text-decoration:underline;cursor:pointer;width:100%}
 </style>
 </head>
 <body>
@@ -196,91 +172,69 @@ footer{text-align:center;padding:0 20px 40px;font-family:var(--ff);font-style:it
   <div class="ld-bar"><span id="ldp"></span></div>
 </div></div>
 
-<section id="film" aria-label="Invitation">
-  <div class="stage">
-    <div class="stage-in" id="stageIn">
-      <canvas id="cv"></canvas>
-      <img id="fallback-img" alt="">
-    </div>
-    <div class="vignette"></div>
-
-    <div class="cap top" data-in="0" data-out=".2">
-      <div class="tofrom" id="tofrom"></div>
-      <div class="big">Something<br><em>sweet</em> is inside</div>
-    </div>
-    <div class="cap top" data-in=".26" data-out=".52">
-      <div class="mid">Two birthdays.<br><em>One</em> big party.</div>
-    </div>
-    <div class="cap top" data-in=".6" data-out="1.01">
-      <div class="eyebrow">Celebrating</div>
-      <div class="big">Haider <em>&amp;</em> Ayeza</div>
-    </div>
-    <div class="cap bot" data-in=".72" data-out="1.01">
-      <div class="mid" style="font-size:clamp(20px,5vw,30px)">turning <em>4</em> &nbsp;·&nbsp; turning <em>8</em></div>
-    </div>
-    <div class="hint" id="hint"><span>Scroll to open</span><i></i></div>
+<section class="screen" id="open" data-state="intro" aria-label="Open your invitation">
+  <div class="stage-in" id="stageIn"><canvas id="cv"></canvas><img id="fallback-img" alt=""></div>
+  <div class="vignette"></div>
+  <div class="cap c-intro">
+    <div class="tofrom" id="tofrom"></div>
+    <div class="big">Something<br><em>sweet</em> is inside</div>
   </div>
+  <div class="cap c-mid"><div class="mid">Two birthdays.<br><em>One</em> big party.</div></div>
+  <div class="cap c-done">
+    <div class="eyebrow">Come celebrate</div>
+    <div class="big">Haider <em>&amp;</em> Ayeza</div>
+    <div class="sub">turning <em>4</em> &nbsp;·&nbsp; turning <em>8</em></div>
+  </div>
+  <div class="cta tap"><button class="tapbtn" id="tapbtn">Tap to open 🎁</button></div>
+  <div class="cta swipe"><button class="swipebtn" id="swipebtn">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 14l6-6 6 6"/></svg>See the invitation</button></div>
 </section>
 
-<section id="card-sec">
-  <div class="cstage">
-    <img class="cluster l" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180321_7cc057d0-c559-414c-8baf-913d99ee8fb2.png" alt="">
-    <img class="cluster r" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180321_7cc057d0-c559-414c-8baf-913d99ee8fb2.png" alt="">
-    <div class="scene" id="scene">
-      <div class="tag" id="tag"><small>for</small><span id="tagname">you</span></div>
-      <article class="card" id="card" style="background-image:url('https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180321_611eca37-5d42-4c1b-b69f-5caecfb67cdb.png')">
-        <div class="sheen"></div>
-        <div class="ctext">
-          <div class="eyebrow">Join us to celebrate</div>
-          <div class="nm hd">Haider Raza</div>
-          <div class="turn">turns four</div>
-          <div class="and">&amp;</div>
-          <div class="nm ay">Ayeza</div>
-          <div class="turn">turns eight</div>
-          <div class="cdiv"></div>
-          <div class="when" id="when">Sunday, 7 December · 5 pm</div>
-          <div class="where">Community Centre<br>Maharani Bagh</div>
-        </div>
-      </article>
-      <div class="foil f4" id="f4"><img src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180320_9023d849-9c04-45a7-8e73-1bad6f3833e9.png" alt="4"></div>
-      <div class="foil f8" id="f8"><img src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180320_c1ecb422-6d55-48d5-b62d-84efbe703ac4.png" alt="8"></div>
-    </div>
-    <div class="after" id="after">
-      <div class="count" id="count"></div>
-      <div class="btns">
-        <a class="pill" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=Community+Centre+Maharani+Bagh+New+Delhi">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Directions</a>
-        <a class="pill" id="cal" target="_blank" rel="noopener">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Add to calendar</a>
+<section class="screen" id="card-sec">
+  <img class="cluster l" data-a="cluster.webp" alt="">
+  <img class="cluster r" data-a="cluster.webp" alt="">
+  <div class="scene" id="scene">
+    <div class="tag" id="tag"><small>for</small><span id="tagname">you</span></div>
+    <article class="card" id="card">
+      <div class="sheen"></div>
+      <div class="ctext">
+        <div class="eyebrow">Join us to celebrate</div>
+        <div class="nm hd">Haider Raza</div>
+        <div class="turn">turns four</div>
+        <div class="and">&amp;</div>
+        <div class="nm ay">Ayeza</div>
+        <div class="turn">turns eight</div>
+        <div class="cdiv"></div>
+        <div class="when">Sunday, 7 December · 5 pm</div>
+        <div class="where">Community Centre<br>Maharani Bagh</div>
       </div>
+    </article>
+    <div class="foil f4"><img data-a="f4.webp" alt="4"></div>
+    <div class="foil f8"><img data-a="f8.webp" alt="8"></div>
+  </div>
+  <div class="after">
+    <div class="count" id="count"></div>
+    <div class="btns">
+      <a class="pill" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=Community+Centre+Maharani+Bagh+New+Delhi">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Map</a>
+      <a class="pill" id="cal" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendar</a>
+      <button class="pill go" id="gorsvp">RSVP →</button>
     </div>
   </div>
 </section>
 
-<section id="wish">
-  <img id="cakeLit" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180502_516f777e-e4b7-470c-ad21-3e02ac7c390e.png" alt="Two birthday cakes with lit 4 and 8 candles">
-  <img id="cakeOut" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180539_5369643d-02cf-43f3-b530-28525b02a388.png" alt="">
-  <div class="wtxt"><div class="eyebrow">Before you RSVP</div><div class="mid" style="margin-top:10px">Make a wish<br><em>for them</em></div></div>
-  <div class="hb"><div class="big" id="hbt"></div><p style="margin-top:12px;color:var(--ink2);font-size:14px">Your wish is on its way to Haider &amp; Ayeza</p></div>
-  <div class="wbtns">
-    <button class="blow" id="blow">Tap to blow the candles</button>
-    <button class="mic" id="mic">🎤 Or blow into your phone</button>
-  </div>
-</section>
-
-<section id="rsvp">
+<section class="screen" id="rsvp">
   <div class="rs">
-    <img class="env" id="env" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_180322_b1136411-854f-401e-aef5-4ccd69aa5a09.png" alt="">
+    <img class="env" id="env" data-a="env.webp" alt="">
     <h2>Will you <em>come?</em></h2>
     <p class="lede">Let us know so we save you a slice.</p>
-
     <div id="ask">
       <div class="choices" role="group" aria-label="RSVP">
         <button class="ch yes" data-s="yes" aria-pressed="false"><span class="e">🎈</span><span>Joining</span></button>
         <button class="ch maybe" data-s="maybe" aria-pressed="false"><span class="e">🤞</span><span>Maybe</span></button>
         <button class="ch no" data-s="no" aria-pressed="false"><span class="e">💌</span><span>Can't make it</span></button>
       </div>
-
       <form id="f" novalidate>
         <div class="f"><label for="nm">Your name / family</label><input id="nm" autocomplete="name" placeholder="e.g. The Khans" required></div>
         <div class="f"><label for="ph">WhatsApp number</label><input id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91"></div>
@@ -294,17 +248,16 @@ footer{text-align:center;padding:0 20px 40px;font-family:var(--ff);font-style:it
         <div class="err" id="err"></div>
       </form>
     </div>
-
     <div class="thanks" id="thanks">
       <div class="t" id="tt">See you there!</div>
       <p id="tp">Haider and Ayeza can't wait.</p>
       <button id="again">Change my answer</button>
     </div>
     <div class="tally" id="tally"></div>
+    <footer>With love, the Raza family</footer>
   </div>
 </section>
 
-<footer id="foot">With love, the Raza family</footer>
 <div id="hostbox"><div class="hb-p">
   <h3>Send an invitation</h3>
   <p>Type who it's for. They'll see their name on the invitation, and it opens “from the Raza family”.</p>
@@ -315,221 +268,127 @@ footer{text-align:center;padding:0 20px 40px;font-family:var(--ff);font-style:it
 </div></div>
 <canvas id="confetti"></canvas>
 
-<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
 <script>
 (() => {
-  const FRAME_BASE = 'https://enzmxaswpluncupzrtfb.supabase.co/storage/v1/object/public/invite-frames/haider-ayeza/';
-  const HOST = 'the Raza family';
-  const START_IMG = 'https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_175001_741e0a1c-559c-4b06-af3c-6fabe12d8ea1.png';
-  const END_IMG = 'https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261118_175152_6fe34a98-0efe-41eb-85cb-5dd3edf1e0c8.png';
+  const A = 'https://enzmxaswpluncupzrtfb.supabase.co/storage/v1/object/public/invite-frames/haider-ayeza/';
   const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-rsvp';
   const EVENT = 'haider-ayeza-2026';
-  
+  const HOST = 'the Raza family';
+  const PARTY = new Date('2026-12-07T17:00:00+05:30');
+  const N = 72, PLAY_MS = 3800;
 
   const $ = s => document.querySelector(s);
-  const cv = $('#cv'), ctx = cv.getContext('2d');
-  const film = $('#film'), stageIn = $('#stageIn');
-  const caps = [...document.querySelectorAll('.cap')];
-  const loader = $('#loader'), ldp = $('#ldp');
+  const root = document.documentElement;
+  const open = $('#open'), cv = $('#cv'), ctx = cv.getContext('2d'), stageIn = $('#stageIn'), ldp = $('#ldp');
+  document.querySelectorAll('[data-a]').forEach(im => im.src = A + im.dataset.a);
+  $('#card').style.backgroundImage = `url('${A}card.jpg')`;
+
   // Personal links: ...?to=Khan%20Family greets that guest by name and says who it's from
   const q = new URLSearchParams(location.search);
   const guest = (q.get('to') || '').trim().slice(0, 40);
   const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   $('#tofrom').innerHTML = (guest ? `<small>To</small><span>${esc(guest)}</span>` : '') + `<small>From</small><span>${esc(HOST.replace(/^the /, 'The '))}</span>`;
   $('#ldt').innerHTML = guest ? `<b>Dear ${esc(guest)},</b>an invitation from ${esc(HOST)}…` : `An invitation from ${esc(HOST)}…`;
-  if (guest) { $('#tagname').textContent = guest; $('#nm').value = guest; }
-  else $('#tag').style.display = 'none';
+  if (guest) { $('#tagname').textContent = guest; $('#nm').value = guest; } else $('#tag').style.display = 'none';
 
-  // ...?host=1 opens a link maker for the hosts: type a guest's name, send it on WhatsApp
+  // ...?host=1 opens a link maker for the hosts
   if (q.get('host') === '1') {
     const box = $('#hostbox'); box.classList.add('on');
     const base = location.origin + location.pathname;
     const upd = () => {
-      const n = $('#hbName').value.trim();
-      const url = n ? `${base}?to=${encodeURIComponent(n)}` : base;
+      const n = $('#hbName').value.trim(), url = n ? `${base}?to=${encodeURIComponent(n)}` : base;
       $('#hbLink').textContent = url;
-      const msg = `${n ? `Dear ${n}, ` : ''}Haider is turning 4 and Ayeza is turning 8, and we'd love you to celebrate with us! Open your invitation and RSVP here: ${url}`;
-      $('#hbWa').href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+      $('#hbWa').href = 'https://wa.me/?text=' + encodeURIComponent(`${n ? `Dear ${n}, ` : ''}Haider is turning 4 and Ayeza is turning 8, and we'd love you to celebrate with us! Open your invitation and RSVP here: ${url}`);
     };
     $('#hbName').addEventListener('input', upd); upd();
     $('#hbCp').addEventListener('click', () => { navigator.clipboard && navigator.clipboard.writeText($('#hbLink').textContent); $('#hbCp').textContent = 'Copied ✓'; setTimeout(() => $('#hbCp').textContent = 'Copy link', 1500); });
     $('#hbX').addEventListener('click', () => box.classList.remove('on'));
   }
-  let frames = [], mode = 'frames';
-  let target = 0, shown = 0;
 
+  // Frames: every 8th loads first so the page opens fast; the rest fill in behind the "Tap to open" screen
+  let frames = new Array(N), still = false, lastIdx = -1;
   function sizeCanvas() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = Math.round(cv.clientWidth * dpr);
-    cv.height = Math.round(cv.clientHeight * dpr);
-    draw(true);
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientHeight * dpr);
+    const i = lastIdx < 0 ? 0 : lastIdx; lastIdx = -1; drawFrame(i);
   }
-  function cover(src, sw, sh) {
-    const s = Math.max(cv.width / sw, cv.height / sh);
-    const w = sw * s, h = sh * s;
-    ctx.drawImage(src, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+  function drawFrame(i) {
+    let j = i;
+    for (let d = 0; d < N && !frames[j]; d++) { if (frames[i - d]) { j = i - d; break; } if (frames[i + d]) { j = i + d; break; } }
+    const im = frames[j]; if (!im || j === lastIdx) return;
+    const s = Math.max(cv.width / im.naturalWidth, cv.height / im.naturalHeight), w = im.naturalWidth * s, h = im.naturalHeight * s;
+    ctx.drawImage(im, (cv.width - w) / 2, (cv.height - h) / 2, w, h); lastIdx = j;
   }
-  let lastIdx = -1;
-  function draw(force) {
-    if (mode === 'frames' && frames.length) {
-      let i = Math.min(frames.length - 1, Math.round(shown * (frames.length - 1)));
-      let j = i;
-      for (let d = 0; d < frames.length && !frames[j]; d++) { if (frames[i - d]) { j = i - d; break; } if (frames[i + d]) { j = i + d; break; } }
-      if (frames[j] && (j !== lastIdx || force)) { cover(frames[j], frames[j].naturalWidth, frames[j].naturalHeight); lastIdx = j; }
-    }
-  }
-
-  function progress() {
-    const r = film.getBoundingClientRect();
-    const total = film.offsetHeight - innerHeight;
-    return Math.min(1, Math.max(0, -r.top / total));
-  }
-  function captions(p) {
-    for (const c of caps) {
-      const a = +c.dataset.in, b = +c.dataset.out, fade = .07;
-      let o = 0;
-      if (p >= a && p <= b) o = Math.min(1, (p - a) / fade, (b - p) / fade);
-      const local = (p - a) / (b - a);
-      c.style.opacity = o.toFixed(3);
-      c.style.transform = `translateY(${(1 - Math.min(1, local * 3)) * 24 - Math.max(0, local - .7) * 30}px)`;
-    }
-    $('#hint').style.opacity = p > .03 ? 0 : 1;
-  }
-  function tick() {
-    target = progress();
-    shown += (target - shown) * 0.14;
-    if (Math.abs(target - shown) < 0.0005) shown = target;
-    if (mode === 'still') {
-      $('#fallback-img').style.transform = `scale(${1 + shown * 0.12})`;
-      $('#fallback-img').src = shown > .5 ? END_IMG : START_IMG;
-    }
-    draw();
-    captions(shown);
-    requestAnimationFrame(tick);
-  }
-
-  function finishLoading() {
-    loader.classList.add('done');
-    if (window.Lenis && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      const lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
-      (function raf(t) { lenis.raf(t); requestAnimationFrame(raf); })(0);
-    }
-    sizeCanvas();
-    requestAnimationFrame(tick);
-  }
-
-  // The clip was cut into JPG frames once and hosted, so every phone (iPhone included) scrubs ready pictures
-  const FRAMES = Array.from({ length: 72 }, (_, i) => `${FRAME_BASE}f${String(i).padStart(3, '0')}.jpg`);
-  // Every 8th frame loads first so the page can open fast; the frames between fill in while the guest scrolls
   function loadFrames() {
-    frames = new Array(FRAMES.length);
     const order = [];
-    for (let i = 0; i < FRAMES.length; i += 8) order.push(i);
-    order.push(FRAMES.length - 1);
-    for (let i = 0; i < FRAMES.length; i++) if (!order.includes(i)) order.push(i);
-    const keyCount = Math.ceil(FRAMES.length / 8) + 1;
+    for (let i = 0; i < N; i += 8) order.push(i);
+    order.push(N - 1);
+    for (let i = 0; i < N; i++) if (!order.includes(i)) order.push(i);
+    const keyCount = Math.ceil(N / 8) + 1;
     let keysIn = 0, next = 0;
     return new Promise(resolve => {
       const give = setTimeout(resolve, 4000);
       const one = () => {
         if (next >= order.length) return;
         const pos = next++, i = order[pos], im = new Image();
-        im.decoding = 'async';
-        im.onload = () => { frames[i] = im; if (pos < keyCount && ++keysIn >= keyCount) { clearTimeout(give); resolve(); } ldp.style.width = Math.min(100, keysIn / keyCount * 100) + '%'; one(); };
+        im.onload = () => { frames[i] = im; if (pos < keyCount) { keysIn++; ldp.style.width = (keysIn / keyCount * 100) + '%'; if (keysIn >= keyCount) { clearTimeout(give); resolve(); } } one(); };
         im.onerror = one;
-        im.src = FRAMES[i];
+        im.src = `${A}f${String(i).padStart(3, '0')}.jpg`;
       };
       for (let k = 0; k < 6; k++) one();
     });
   }
-  const minShow = new Promise(r => setTimeout(r, 1200));
-  Promise.all([loadFrames(), minShow]).then(() => {
-    if (!frames.some(Boolean)) { mode = 'still'; cv.style.display = 'none'; const im = $('#fallback-img'); im.style.display = 'block'; im.src = START_IMG; }
-    finishLoading();
+  Promise.all([loadFrames(), new Promise(r => setTimeout(r, 1200))]).then(() => {
+    if (!frames.some(Boolean)) { still = true; cv.style.display = 'none'; const im = $('#fallback-img'); im.style.display = 'block'; im.src = A + 'f000.jpg'; }
+    sizeCanvas();
+    $('#loader').classList.add('done');
   });
   addEventListener('resize', sizeCanvas);
 
-  const PARTY = new Date('2026-12-07T17:00:00+05:30');
-  const cal = $('#cal');
-  const gd = d => d.toISOString().replace(/[-:]|\.\d{3}/g, '');
-  cal.href = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent("Haider & Ayeza's birthday party") +
-    '&dates=' + gd(PARTY) + '/' + gd(new Date(PARTY.getTime() + 3 * 3600e3)) + '&location=' + encodeURIComponent('Community Centre, Maharani Bagh, New Delhi');
-  function countdown() {
-    const ms = PARTY - Date.now();
-    if (ms <= 0) { $('#count').innerHTML = '<div><b>🎉</b><small>It\'s party day</small></div>'; return; }
-    const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60, sec = Math.floor(ms / 1e3) % 60;
-    $('#count').innerHTML = [[d, 'days'], [h, 'hrs'], [m, 'min'], [sec, 'sec']].map(([v, l]) => `<div><b>${String(v).padStart(2, '0')}</b><small>${l}</small></div>`).join('');
+  // The gift opens at its own pace, so nothing can be scrolled past: one tap, then the captions hold
+  let state = 'intro';
+  function play() {
+    if (state !== 'intro') return;
+    state = 'play'; open.dataset.state = 'play';
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().catch(() => {});
+    if (still) $('#fallback-img').src = A + 'f071.jpg';
+    const t0 = performance.now();
+    (function step(now) {
+      const t = Math.min(1, (now - t0) / PLAY_MS);
+      drawFrame(Math.round((t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2) * (N - 1)));
+      if (t > .15 && t < .72) open.dataset.state = 'mid';
+      if (t >= .72 && open.dataset.state !== 'done') { open.dataset.state = 'done'; burst($('#tapbtn')); }
+      if (t < 1) requestAnimationFrame(step);
+      else { state = 'done'; root.classList.remove('locked'); if (navigator.vibrate) navigator.vibrate(30); }
+    })(t0);
   }
-  countdown(); setInterval(countdown, 1000);
+  open.addEventListener('click', () => state === 'intro' ? play() : state === 'done' && $('#card-sec').scrollIntoView());
+  $('#gorsvp').addEventListener('click', () => $('#rsvp').scrollIntoView());
+  new IntersectionObserver(([en]) => { if (en.isIntersecting) en.target.classList.add('in'); }, { threshold: .5 }).observe($('#card-sec'));
 
-  // The card starts lying on the table and lifts to face the guest; the foil 4 and 8 rise in front of it
-  const card = $('#card'), scene = $('#scene'), csec = $('#card-sec'), f4 = $('#f4'), f8 = $('#f8'), after = $('#after');
-  const clusters = [...document.querySelectorAll('.cluster')];
-  const ease = t => 1 - Math.pow(1 - t, 3);
-  function cardScroll() {
-    const r = csec.getBoundingClientRect();
-    const p = Math.min(1, Math.max(0, (innerHeight - r.top) / (innerHeight + (csec.offsetHeight - innerHeight) * .55)));
-    const e = ease(p);
-    scene.style.transform = `translateY(${(1 - e) * 22}vh) rotateX(${(1 - e) * 62}deg) rotateZ(${(1 - e) * -8}deg) scale(${.82 + e * .18})`;
-    const b = ease(Math.min(1, Math.max(0, (p - .45) / .45)));
-    f4.style.transform = `translate3d(${(1 - b) * 30}px, ${(1 - b) * 220}px, ${60 * b}px) scale(${.6 + b * .4})`;
-    f8.style.transform = `translate3d(${(1 - b) * -30}px, ${(1 - b) * 260}px, ${50 * b}px) scale(${.6 + b * .4})`;
-    f4.style.opacity = f8.style.opacity = b;
-    clusters[0].style.transform = `translateY(${-p * 60}px)`;
-    clusters[1].style.transform = `scaleX(-1) translateY(${p * 50}px)`;
-    after.classList.toggle('on', p > .92);
-    if (p > .6) card.classList.add('write');
-  }
-  addEventListener('scroll', cardScroll, { passive: true });
-  cardScroll();
-
+  // Depth: the scene and card lean toward the pointer or the phone's tilt
+  const card = $('#card');
   function lean(x, y) {
     stageIn.style.transform = `rotateY(${x * 4}deg) rotateX(${-y * 3}deg) translate3d(${-x * 10}px, ${-y * 8}px, 0)`;
-    card.style.setProperty('--ry', (x * 9).toFixed(2) + 'deg');
-    card.style.setProperty('--rx', (-y * 7).toFixed(2) + 'deg');
-    card.style.setProperty('--mx', (50 + x * 45) + '%');
-    card.style.setProperty('--my', (30 + y * 45) + '%');
+    card.style.setProperty('--ry', (x * 9).toFixed(2) + 'deg'); card.style.setProperty('--rx', (-y * 7).toFixed(2) + 'deg');
+    card.style.setProperty('--mx', (50 + x * 45) + '%'); card.style.setProperty('--my', (30 + y * 45) + '%');
   }
   addEventListener('pointermove', e => lean(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1));
   let gyroOn = false;
-  function gyro(e) { if (e.gamma == null) return; gyroOn = true; lean(Math.max(-1, Math.min(1, e.gamma / 25)), Math.max(-1, Math.min(1, (e.beta - 45) / 25))); }
-  addEventListener('deviceorientation', gyro);
-  // iOS asks for motion permission; the first tap anywhere grants it
-  addEventListener('touchend', function ask() {
-    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().catch(() => {});
-  }, { once: true });
+  addEventListener('deviceorientation', e => { if (e.gamma == null) return; gyroOn = true; lean(Math.max(-1, Math.min(1, e.gamma / 25)), Math.max(-1, Math.min(1, (e.beta - 45) / 25))); });
   (function idle(t) { if (!gyroOn && matchMedia('(hover: none)').matches) lean(Math.sin(t / 2200) * .5, Math.cos(t / 2900) * .35); requestAnimationFrame(idle); })(0);
 
-  // Make a wish: tap, or blow into the mic, to put the candles out
-  const wish = $('#wish');
-  'Happy Birthday!'.split('').forEach((ch, i) => { const sp = document.createElement('span'); sp.textContent = ch === ' ' ? '\u00a0' : ch; sp.style.animationDelay = (i * 45) + 'ms'; $('#hbt').appendChild(sp); });
-  let blown = false, micStream = null;
-  function blowOut() {
-    if (blown) return; blown = true;
-    wish.classList.add('out');
-    if (micStream) micStream.getTracks().forEach(t => t.stop());
-    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
-    setTimeout(() => { burst($('#hbt')); setTimeout(() => burst($('#hbt')), 300); setTimeout(() => burst($('#hbt')), 650); }, 500);
+  // Countdown and calendar
+  const gd = d => d.toISOString().replace(/[-:]|\.\d{3}/g, '');
+  $('#cal').href = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent("Haider & Ayeza's birthday party") +
+    '&dates=' + gd(PARTY) + '/' + gd(new Date(PARTY.getTime() + 3 * 3600e3)) + '&location=' + encodeURIComponent('Community Centre, Maharani Bagh, New Delhi');
+  function countdown() {
+    const ms = PARTY - Date.now();
+    if (ms <= 0) { $('#count').innerHTML = "<div><b>🎉</b><small>It's party day</small></div>"; return; }
+    const v = [[Math.floor(ms / 864e5), 'days'], [Math.floor(ms / 36e5) % 24, 'hrs'], [Math.floor(ms / 6e4) % 60, 'min'], [Math.floor(ms / 1e3) % 60, 'sec']];
+    $('#count').innerHTML = v.map(([n, l]) => `<div><b>${String(n).padStart(2, '0')}</b><small>${l}</small></div>`).join('');
   }
-  $('#blow').addEventListener('click', blowOut);
-  $('#mic').addEventListener('click', async () => {
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      $('#mic').classList.add('on'); $('#mic').textContent = '🎤 Listening… blow now!';
-      const ac = new (window.AudioContext || window.webkitAudioContext)();
-      const an = ac.createAnalyser(); an.fftSize = 512;
-      ac.createMediaStreamSource(micStream).connect(an);
-      const buf = new Uint8Array(an.fftSize); let loud = 0;
-      (function listen() {
-        if (blown) return ac.close();
-        an.getByteTimeDomainData(buf);
-        let sum = 0; for (const x of buf) sum += (x - 128) ** 2;
-        loud = Math.sqrt(sum / buf.length) > 22 ? loud + 1 : 0;
-        if (loud > 8) return blowOut();
-        requestAnimationFrame(listen);
-      })();
-    } catch { $('#mic').textContent = 'Mic not available — just tap above'; }
-  });
+  countdown(); setInterval(countdown, 1000);
 
   // RSVP
   let status = null;
@@ -538,27 +397,27 @@ footer{text-align:center;padding:0 20px 40px;font-family:var(--ff);font-style:it
   document.querySelectorAll('.ch').forEach(b => b.addEventListener('click', () => {
     status = b.dataset.s;
     document.querySelectorAll('.ch').forEach(x => x.setAttribute('aria-pressed', x === b));
+    // Snapping fights the keyboard once the form is open
+    root.style.scrollSnapType = 'none';
     form.classList.add('open');
     $('#cnt').style.display = status === 'no' ? 'none' : '';
     send.textContent = status === 'no' ? 'Send my wishes' : 'Send RSVP';
     if (status === 'yes') burst(b);
-    setTimeout(() => $('#nm').focus({ preventScroll: true }), 350);
   }));
   document.querySelectorAll('.step').forEach(s => s.addEventListener('click', e => {
     const d = +e.target.dataset.d; if (!d) return;
-    const k = s.dataset.k, min = k === 'adults' ? 1 : 0;
-    counts[k] = Math.max(min, Math.min(20, counts[k] + d));
+    const k = s.dataset.k;
+    counts[k] = Math.max(k === 'adults' ? 1 : 0, Math.min(20, counts[k] + d));
     s.querySelector('b').textContent = counts[k];
   }));
-
   const saved = (() => { try { return JSON.parse(localStorage.getItem('rsvp-' + EVENT) || 'null'); } catch { return null; } })();
-  if (saved) { $('#nm').value = saved.name || ''; $('#ph').value = saved.phone || ''; }
+  if (saved) { if (!$('#nm').value) $('#nm').value = saved.name || ''; $('#ph').value = saved.phone || ''; }
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
     err.textContent = '';
     const name = $('#nm').value.trim();
-    if (!status) return err.textContent = 'Pick Joining, Maybe or Can\'t make it.';
+    if (!status) return err.textContent = "Pick Joining, Maybe or Can't make it.";
     if (name.length < 2) { $('#nm').focus(); return err.textContent = 'Please add your name.'; }
     send.disabled = true; send.textContent = 'Sending…';
     const body = { event: EVENT, name, phone: $('#ph').value.trim(), status, adults: counts.adults, kids: counts.kids, message: $('#msg').value.trim(), website: $('#website').value };
@@ -571,20 +430,19 @@ footer{text-align:center;padding:0 20px 40px;font-family:var(--ff);font-style:it
       await new Promise(r => setTimeout(r, 650));
       showThanks(status, name);
       loadTally();
-    } catch (x) {
-      err.textContent = 'Couldn\'t send that — please try again.';
+    } catch {
+      err.textContent = "Couldn't send that — please try again.";
     } finally { send.disabled = false; send.textContent = status === 'no' ? 'Send my wishes' : 'Send RSVP'; }
   });
   function showThanks(s, name) {
     $('#ask').style.display = 'none';
     const first = name.split(' ')[0];
     $('#tt').textContent = s === 'yes' ? `See you there, ${first}!` : s === 'maybe' ? `Fingers crossed, ${first}!` : `We'll miss you, ${first}`;
-    $('#tp').textContent = s === 'yes' ? 'Haider and Ayeza can\'t wait.' : s === 'maybe' ? 'Let us know when you\'re sure — you can change your answer here.' : 'Thank you for the wishes. We\'ll save you a slice anyway.';
+    $('#tp').textContent = s === 'yes' ? "Haider and Ayeza can't wait." : s === 'maybe' ? "Let us know when you're sure — you can change your answer here." : "Thank you for the wishes. We'll save you a slice anyway.";
     $('#thanks').classList.add('show');
     if (s === 'yes') { burst($('#thanks')); setTimeout(() => burst($('#thanks')), 350); }
   }
   $('#again').addEventListener('click', () => { $('#thanks').classList.remove('show'); $('#ask').style.display = ''; $('#env').classList.remove('sent'); });
-
   async function loadTally() {
     try {
       const d = await (await fetch(`${API}?event=${EVENT}`)).json();
