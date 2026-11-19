@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Ready Stock</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{--accent:#d4541f;--ink:#3a2b1d;--ink2:#6f5b46;--muted:#9c8a76;--line:#e9ddca;--paper:#fbf6ee;--ok:#2e8b57;--okbg:#e6f4ea;--bad:#c62828;--badbg:#fdecea;--warn:#b7791f;--warnbg:#fff4d6}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--paper);color:var(--ink);font-family:Nunito,"Helvetica Neue",Arial,sans-serif;font-size:15px;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font-weight:700}
+button.p{background:var(--ink);color:#fff;border-color:var(--ink)}button.a{background:var(--accent);color:#fff;border-color:var(--accent)}button.g{background:var(--ok);color:#fff;border-color:var(--ok)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;min-width:0}
+header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap}
+header h1{font-family:Georgia,serif;font-size:18px;margin:0 auto 0 0;font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.seg button{border:0;border-radius:0;padding:9px 14px}.seg button.on{background:var(--ink);color:#fff}
+main{max-width:1180px;margin:0 auto;padding:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sp{flex:1}
+.m{color:var(--muted);font-size:13px}.b{font-weight:800}
+.chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:800;background:#f1e7d9;color:var(--ink2);white-space:nowrap}
+.chip.ok{background:var(--okbg);color:var(--ok)}.chip.bad{background:var(--badbg);color:var(--bad)}.chip.warn{background:var(--warnbg);color:var(--warn)}.chip.dk{background:var(--ink);color:#fff}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px}th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tw{overflow-x:auto}
+.hide{display:none!important}
+/* packing station */
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.modes button{padding:14px 6px;font-size:16px;border-radius:14px}.modes button.on{background:var(--ink);color:#fff}
+.scanbox{display:flex;gap:8px}.scanbox input{flex:1;font-size:18px;padding:12px 14px;border-width:2px;border-color:var(--ink)}
+.prompt{font-size:22px;font-weight:800;text-align:center;padding:26px 10px;color:var(--ink2)}
+.ln{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--line);border-radius:12px;margin:8px 0;background:#fff}
+.ln.done{border-color:var(--ok);background:var(--okbg)}.ln .nm{flex:1;min-width:0}.ln .nm b{display:block;font-size:16px}
+.ct{font-size:24px;font-weight:900;min-width:64px;text-align:center}
+.stp{display:flex;gap:4px}.stp button{width:44px;height:44px;padding:0;font-size:22px;border-radius:10px}
+.tick{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;margin:8px 0;font-weight:800;border:2px solid var(--line);background:#fff}
+.tick input{width:26px;height:26px}.tick.gift{background:var(--warnbg);border-color:#f0c96b}
+.flash{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;font-size:28px;font-weight:900;color:#fff;pointer-events:none}
+.flash.bad{background:rgba(198,40,40,.94)}.flash.ok{background:rgba(46,139,87,.94)}.flash small{font-size:16px;font-weight:600;margin-top:8px}
+.big{font-size:18px;padding:14px 18px;border-radius:12px}
+.ph img{max-width:160px;border-radius:10px;display:block}
+/* modal: always a centred popup */
+.mb{position:fixed;inset:0;z-index:80;background:rgba(40,25,12,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.md{background:#fff;border-radius:16px;width:min(760px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:18px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.md h3{margin:0 0 10px;font-family:Georgia,serif;font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}.grid2 label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:700}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;scrollbar-width:none}.tabs button{white-space:nowrap}.tabs button.on{background:var(--ink);color:#fff}
+.stat{display:inline-flex;flex-direction:column;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;min-width:110px}.stat b{font-size:22px}
+#cam{position:fixed;inset:0;z-index:85;background:#000;display:flex;flex-direction:column}#cam video{flex:1;width:100%;object-fit:cover}#cam button{margin:12px}
+@media print{body>*:not(#printArea){display:none!important}#printArea{display:block!important}@page{margin:0}}
+#printArea{display:none}
+</style>
+</head><body>
+<header>
+  <h1>📦 Ready stock</h1>
+  <div class="seg"><button id="doorPack" class="on">Packing station</button><button id="doorAdmin">Admin 🔒</button></div>
+</header>
+
+<main id="packDoor">
+  <div class="card row">
+    <span class="m">Packer</span>
+    <select id="packer"></select>
+    <span class="sp"></span>
+    <span class="m" id="todayCount"></span>
+  </div>
+  <div class="modes"><button data-mode="pack" class="on">📦 Pack order</button><button data-mode="rto">↩️ RTO</button><button data-mode="hand">🚚 Hand-over</button></div>
+  <div class="card">
+    <div class="scanbox"><input id="scan" placeholder="Scan here…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text"><button id="camBtn" title="Scan with camera">📷</button></div>
+    <div class="m" id="scanHint" style="margin-top:6px">Scan the AWB on the packing slip to open the order.</div>
+  </div>
+  <div id="packView"></div>
+  <div class="card"><div class="row"><b>Packed today</b><span class="sp"></span><button id="refreshToday">↻</button></div><div class="tw"><table id="todayTbl"></table></div></div>
+</main>
+
+<main id="adminDoor" class="hide">
+  <div class="tabs" id="aTabs">
+    <button data-t="orders" class="on">Orders</button><button data-t="items">Items &amp; labels</button><button data-t="stock">Stock</button><button data-t="pos">Vendor POs</button><button data-t="plan">Planning</button><button data-t="close">Day close</button><button data-t="settings">Settings</button>
+  </div>
+  <div id="aView"></div>
+</main>
+
+<div id="printArea"></div>
+
+<script src="assets/nt-slip.js"></script>
+<script>
+const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-inventory';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
+const ss = { get: k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} } };
+async function apiFetch(payload, url = API, timeoutMs = 30000) {
+  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: ctrl.signal });
+    const d = await r.json().catch(() => ({}));
+    if (d.error) { const e = new Error(d.error); e.status = r.status; throw e; }
+    if (d.errorMessage) throw new Error('Server hiccup — try again');
+    return d;
+  } catch (e) { if (e.name === 'AbortError') throw new Error('Timed out — try again'); throw e; } finally { clearTimeout(t); }
+}
+const api = (action, body = {}) => apiFetch({ action, ...body });
+const adm = (action, body = {}) => apiFetch({ action, pin: ss.get('rs_pin') || '', ...body }).catch(e => { if (e.status === 401) { ss.set('rs_pin', ''); askPin(); } throw e; });
+const fmtD = t => t ? new Date(t).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
+const dayOnly = t => t ? new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
+const rs = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
+
+// ── sound and flash: green ding for right, red buzz for wrong ──
+let AC = null;
+function tone(freq, ms, type = 'sine', vol = .2) { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = freq; g.gain.value = vol; o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + ms / 1000); } catch (e) {} }
+const ding = () => { tone(880, 90); setTimeout(() => tone(1320, 120), 90); };
+const buzz = () => { tone(140, 380, 'square', .25); if (navigator.vibrate) navigator.vibrate([200, 80, 200]); };
+function flash(kind, msg, sub, ms = 1400) { const d = document.createElement('div'); d.className = 'flash ' + kind; d.innerHTML = esc(msg) + (sub ? `<small>${esc(sub)}</small>` : ''); document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
+
+// ── doors ──
+let door = 'pack';
+function openDoor(d) {
+  door = d; $('doorPack').classList.toggle('on', d === 'pack'); $('doorAdmin').classList.toggle('on', d === 'admin');
+  $('packDoor').classList.toggle('hide', d !== 'pack'); $('adminDoor').classList.toggle('hide', d !== 'admin');
+  if (d === 'admin') { if (!ss.get('rs_pin')) askPin(); else aTab(curTab); } else focusScan();
+}
+$('doorPack').onclick = () => openDoor('pack');
+$('doorAdmin').onclick = () => openDoor('admin');
+function modal(html, onReady) {
+  const mb = document.createElement('div'); mb.className = 'mb'; mb.innerHTML = `<div class="md">${html}</div>`;
+  mb.addEventListener('click', e => { if (e.target === mb) mb.remove(); });
+  document.body.appendChild(mb); if (onReady) onReady(mb.firstChild, () => mb.remove()); return mb;
+}
+function askPin() {
+  modal(`<h3>Admin PIN</h3><p class="m">The admin area changes stock and orders. Ask the owner for the PIN.</p><div class="row"><input id="pinIn" type="password" inputmode="numeric" placeholder="PIN" style="flex:1;font-size:20px"><button class="p" id="pinGo">Open</button></div><p class="m" id="pinErr"></p>`, (m, close) => {
+    const go = async () => { const p = m.querySelector('#pinIn').value.trim(); try { await apiFetch({ action: 'rs_login', pin: p }); ss.set('rs_pin', p); close(); aTab(curTab); } catch (e) { m.querySelector('#pinErr').textContent = e.message; } };
+    m.querySelector('#pinGo').onclick = go; m.querySelector('#pinIn').onkeydown = e => { if (e.key === 'Enter') go(); }; setTimeout(() => m.querySelector('#pinIn').focus(), 50);
+  });
+}
+
+// ═════════════════════════ PACKING STATION ═════════════════════════
+let mode = 'pack', P = null, RTO = null, HAND = { courier: '', list: [] }, ITEMS = [], packers = [], couriers = [];
+function focusScan() { if (door === 'pack' && !document.querySelector('.mb') && document.activeElement && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) $('scan').focus(); }
+document.addEventListener('click', () => setTimeout(focusScan, 0));
+$('packer').onchange = () => ls.set('rs_packer', $('packer').value);
+document.querySelectorAll('.modes button').forEach(b => b.onclick = () => { mode = b.dataset.mode; document.querySelectorAll('.modes button').forEach(x => x.classList.toggle('on', x === b)); P = null; RTO = null; renderPack(); });
+const packerName = () => $('packer').value || '';
+let lastCode = '', lastAt = 0;
+$('scan').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const code = $('scan').value.trim(); $('scan').value = ''; if (!code) return;
+  // a gun can read one sticker twice in a blink: the same code within 0.6 s counts once
+  if (code === lastCode && Date.now() - lastAt < 600) return; lastCode = code; lastAt = Date.now();
+  onScan(code);
+});
+async function onScan(code) {
+  if (!packerName()) { buzz(); flash('bad', 'Pick your name first', 'Packer, at the top'); return; }
+  try {
+    if (mode === 'pack') await packScan(code);
+    else if (mode === 'rto') await rtoScan(code);
+    else await handScan(code);
+  } catch (e) { buzz(); flash('bad', e.message, '', 2200); }
+}
+
+const itemBy = code => { const c = String(code).trim().toUpperCase(); return ITEMS.find(i => i.ean === c || String(i.sku).toUpperCase() === c) || null; };
+// what the order needs from the shelf, by SKU (a gift set counts as its pieces)
+function needOf(o) { const n = {}; for (const l of o.lines || []) if (l.kind === 'ready') for (const p of (l.parts && l.parts.length ? l.parts.map(x => ({ sku: x.sku, qty: x.qty * l.qty, name: x.name })) : [{ sku: l.sku, qty: l.qty, name: l.name }])) { n[p.sku] = n[p.sku] || { qty: 0, name: p.name }; n[p.sku].qty += p.qty; } return n; }
+
+async function packScan(code) {
+  if (P && P.order) {
+    const it = itemBy(code);
+    if (it) {
+      const need = P.need[it.sku];
+      if (!need) { buzz(); flash('bad', 'Not in this order', [it.name, it.variant].filter(Boolean).join(' · ')); return; }
+      if ((P.got[it.sku] || 0) >= need.qty) { buzz(); flash('bad', `Already ${need.qty} of ${need.qty}`, need.name); return; }
+      P.got[it.sku] = (P.got[it.sku] || 0) + 1; ding(); renderPack(); return;
+    }
+    if (code.replace(/^#/, '') === String(P.order.order_name).replace(/^#/, '') || code === P.order.awb) { ding(); return; }
+    // not a piece of this order: is it another order's slip? only then offer to switch
+    let other; try { other = await api('rs_pack_open', { code }); } catch (e) { buzz(); flash('bad', 'Not in this order', code); return; }
+    if (!confirm(`That is ${other.order.order_name}'s slip. Leave ${P.order.order_name} unfinished and open it?`)) return;
+    return openPack(other);
+  }
+  return openPack(await api('rs_pack_open', { code }));
+}
+function openPack(d) {
+  ITEMS = d.items || ITEMS;
+  const o = d.order;
+  if (o.status === 'cancelled') { buzz(); flash('bad', 'CANCELLED', `${o.order_name} — do not pack`, 3000); P = null; renderPack(); return; }
+  if (o.packed_at) { buzz(); flash('bad', 'Already packed', `${o.order_name} by ${o.packed_by || '—'}`, 2600); P = null; renderPack(); return; }
+  if (o.status === 'waiting') { buzz(); flash('bad', 'Waiting for quote', `${o.order_name}: ${o.quotes.found} of ${o.quotes.need} painted`, 2600); P = null; renderPack(); return; }
+  P = { order: o, need: needOf(o), got: {}, multi: {}, quotes: false, gift: false, photo: null };
+  ding(); renderPack();
+}
+function allDone() {
+  if (!P) return false;
+  const o = P.order;
+  for (const s in P.need) { if ((P.got[s] || 0) !== P.need[s].qty) return false; if (P.need[s].qty > 1 && !P.multi[s]) return false; }
+  if (o.lines.some(l => l.kind === 'quote') && !P.quotes) return false;
+  if (o.gift_wrap && !P.gift) return false;
+  return !!P.photo;
+}
+function renderPack() {
+  const v = $('packView');
+  if (mode === 'rto') return renderRto();
+  if (mode === 'hand') return renderHand();
+  $('scanHint').textContent = P ? 'Scan each piece. Wrong piece = red buzz.' : 'Scan the AWB on the packing slip to open the order.';
+  if (!P) { v.innerHTML = `<div class="card prompt">Scan a packing slip 📄</div>`; return; }
+  const o = P.order, item = s => ITEMS.find(i => i.sku === s) || {};
+  const edited = (o.edits || []).filter(e => /^\+|→|removed/.test(e.what)).map(e => `${e.by}: ${e.what}`);
+  let h = `<div class="card"><div class="row"><b style="font-size:20px">${esc(o.order_name)}</b><span class="chip">${esc(o.payment === 'cod' ? 'COD' : 'Prepaid')}</span>${o.awb ? `<span class="chip dk">${esc(o.carrier || '')} ${esc(o.awb)}</span>` : '<span class="chip warn">no AWB yet</span>'}<span class="sp"></span><button id="probBtn">⚠️ Problem</button></div>
+    <div class="m">${esc(o.customer || '')} · ${esc(o.city || '')}</div>${edited.length ? `<div class="chip warn" style="margin-top:6px">Edited — ${esc(edited.join(' · '))}</div>` : ''}</div>`;
+  for (const s in P.need) {
+    const n = P.need[s], g = P.got[s] || 0, it = item(s), done = g === n.qty;
+    h += `<div class="ln ${done ? 'done' : ''}"><div class="nm"><b>${esc(n.name)}</b><span class="m">${esc(it.shelf ? '📍 ' + it.shelf + ' · ' : '')}${esc(s)}</span></div>
+      <div class="stp"><button data-dec="${esc(s)}">−</button></div><div class="ct">${g}/${n.qty}</div><div class="stp"><button data-inc="${esc(s)}">+</button></div></div>`;
+    if (n.qty > 1 && done) h += `<label class="tick"><input type="checkbox" data-multi="${esc(s)}" ${P.multi[s] ? 'checked' : ''}> ×${n.qty} — all ${n.qty} pieces are in the box</label>`;
+  }
+  for (const l of o.lines.filter(l => l.kind === 'quote')) h += `<div class="ln"><div class="nm"><b>${esc(l.name)}${l.color ? ' · ' + esc(l.color) : ''}</b><span class="m">Quote from the rack · ${l.found || 0}/${l.need || l.qty} painted</span></div><div class="ct">×${l.qty}</div></div>`;
+  if (o.lines.some(l => l.kind === 'quote')) h += `<label class="tick"><input type="checkbox" id="qTick" ${P.quotes ? 'checked' : ''}> The quote(s) from the rack are in the box</label>`;
+  if (o.gift_wrap) h += `<label class="tick gift"><input type="checkbox" id="gTick" ${P.gift ? 'checked' : ''}> 🎁 Gift wrapped${o.gift_note ? ` + card: “${esc(o.gift_note)}”` : ''}</label>`;
+  h += `<div class="card row"><label class="big" style="border:2px dashed var(--line);border-radius:12px;cursor:pointer">📷 ${P.photo ? 'Retake box photo' : 'Take box photo'}<input type="file" accept="image/*" capture="environment" id="photoIn" style="display:none"></label>${P.photo ? `<span class="ph"><img src="${P.photo}"></span>` : '<span class="m">Photo of the open box before sealing</span>'}</div>`;
+  h += `<button class="g big" id="doneBtn" style="width:100%;font-size:20px" ${allDone() ? '' : 'disabled'}>✓ Complete — bag it</button>`;
+  v.innerHTML = h;
+  v.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => { const s = b.dataset.inc; if ((P.got[s] || 0) < P.need[s].qty) { P.got[s] = (P.got[s] || 0) + 1; ding(); } else buzz(); renderPack(); });
+  v.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => { const s = b.dataset.dec; P.got[s] = Math.max(0, (P.got[s] || 0) - 1); P.multi[s] = false; renderPack(); });
+  v.querySelectorAll('[data-multi]').forEach(c => c.onchange = () => { P.multi[c.dataset.multi] = c.checked; renderPack(); });
+  if ($('qTick')) $('qTick').onchange = e => { P.quotes = e.target.checked; renderPack(); };
+  if ($('gTick')) $('gTick').onchange = e => { P.gift = e.target.checked; renderPack(); };
+  $('photoIn').onchange = e => { const f = e.target.files[0]; if (f) shrink(f).then(d => { P.photo = d; renderPack(); }); };
+  $('doneBtn').onclick = packDone;
+  $('probBtn').onclick = packProblem;
+}
+// a phone photo is several MB: 1100 px JPEG is plenty to see what went in the box
+function shrink(file) { return new Promise(res => { const img = new Image(); img.onload = () => { const k = Math.min(1, 1100 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = img.width * k; c.height = img.height * k; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', .72)); URL.revokeObjectURL(img.src); }; img.src = URL.createObjectURL(file); }); }
+async function packDone() {
+  const b = $('doneBtn'); b.disabled = true; b.textContent = 'Saving…';
+  try {
+    await api('rs_pack_done', { order_name: P.order.order_name, packer: packerName(), lines: Object.keys(P.got).map(s => ({ sku: s, qty: P.got[s] })), quotes_done: P.quotes, gift_done: P.gift, photo: P.photo });
+    ding(); flash('ok', '✓ Bag it', P.order.order_name, 1800); P = null; renderPack(); loadToday();
+  } catch (e) { buzz(); flash('bad', e.message, '', 2600); b.disabled = false; b.textContent = '✓ Complete — bag it'; }
+}
+function packProblem() {
+  const reasons = ['Piece damaged', 'Not on the shelf', 'Wrong colour / finish', 'Quote not with the order', 'Other'];
+  modal(`<h3>Problem with ${esc(P.order.order_name)}</h3><div class="row" style="flex-direction:column;align-items:stretch">${reasons.map(r => `<button data-r="${esc(r)}" class="big">${esc(r)}</button>`).join('')}</div><input id="probNote" placeholder="Note (optional)" style="width:100%;margin-top:10px">`, (m, close) => {
+    m.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => { try { await api('rs_problem', { order_name: P.order.order_name, problem: b.dataset.r + (m.querySelector('#probNote').value ? ' — ' + m.querySelector('#probNote').value : ''), packer: packerName() }); close(); flash('ok', 'Sent to the admin team', P.order.order_name); P = null; renderPack(); } catch (e) { alert(e.message); } });
+  });
+}
+
+// RTO: the returned parcel's AWB, then each piece Good (back on the shelf) or Damaged
+async function rtoScan(code) {
+  if (RTO) { const it = itemBy(code); if (it) { const l = RTO.lines.find(x => x.sku === it.sku); if (!l) { buzz(); flash('bad', 'Not in this parcel', it.name); return; } if (l.good + l.damaged >= l.qty) { buzz(); return; } l.good++; ding(); renderRto(); return; } }
+  const d = await api('rs_rto_open', { code }); ITEMS = d.items || ITEMS;
+  if (d.already) { buzz(); flash('bad', 'Return already logged', `${d.order.order_name} on ${dayOnly(d.already.at)}`, 2600); return; }
+  RTO = { order: d.order, lines: d.lines.map(l => ({ sku: l.sku, qty: l.qty, good: 0, damaged: 0, name: (ITEMS.find(i => i.sku === l.sku) || {}).name || l.sku })) };
+  ding(); renderRto();
+}
+function renderRto() {
+  $('scanHint').textContent = RTO ? 'Scan each returned piece (counts as Good), or use the buttons.' : 'Scan the AWB of the returned parcel.';
+  const v = $('packView');
+  if (!RTO) { v.innerHTML = `<div class="card prompt">Scan the returned parcel's AWB ↩️</div>`; return; }
+  let h = `<div class="card"><b style="font-size:20px">${esc(RTO.order.order_name)}</b> <span class="m">${esc(RTO.order.customer || '')}</span></div>`;
+  RTO.lines.forEach((l, i) => { h += `<div class="ln"><div class="nm"><b>${esc(l.name)}</b><span class="m">${l.qty} sent</span></div><div><div class="m">Good</div><div class="stp"><button data-g="${i}" data-d="-1">−</button><span class="ct">${l.good}</span><button data-g="${i}" data-d="1">+</button></div></div><div><div class="m">Damaged</div><div class="stp"><button data-x="${i}" data-d="-1">−</button><span class="ct">${l.damaged}</span><button data-x="${i}" data-d="1">+</button></div></div></div>`; });
+  h += `<button class="g big" id="rtoSave" style="width:100%">Save return</button>`;
+  v.innerHTML = h;
+  const step = (l, k, d) => { const nv = l[k] + d; if (nv < 0 || (d > 0 && l.good + l.damaged >= l.qty)) return; l[k] = nv; renderRto(); };
+  v.querySelectorAll('[data-g]').forEach(b => b.onclick = () => step(RTO.lines[+b.dataset.g], 'good', +b.dataset.d));
+  v.querySelectorAll('[data-x]').forEach(b => b.onclick = () => step(RTO.lines[+b.dataset.x], 'damaged', +b.dataset.d));
+  $('rtoSave').onclick = async () => { try { await api('rs_rto_save', { order_name: RTO.order.order_name, lines: RTO.lines, packer: packerName() }); ding(); flash('ok', 'Return saved', RTO.lines.filter(l => l.good).map(l => `${l.good} back on the shelf`).join(', ') || 'damaged only'); RTO = null; renderRto(); } catch (e) { buzz(); flash('bad', e.message); } };
+}
+
+// Hand-over: pick the courier, scan each parcel going into their bag, then finish
+async function handScan(code) {
+  if (!HAND.courier) { buzz(); flash('bad', 'Pick the courier first'); return; }
+  const d = await api('rs_handover_check', { code });
+  if (HAND.list.some(x => x.order_name === d.order_name)) { buzz(); flash('bad', 'Already scanned', d.order_name); return; }
+  HAND.list.unshift(d); ding(); renderHand();
+}
+function renderHand() {
+  $('scanHint').textContent = 'Scan each parcel as it goes into the courier bag.';
+  const v = $('packView');
+  v.innerHTML = `<div class="card row"><b>Courier</b><select id="hCour"><option value="">— pick —</option>${couriers.map(c => `<option ${c === HAND.courier ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select><span class="sp"></span><span class="chip dk">${HAND.list.length} parcels</span></div>
+    <div class="card">${HAND.list.length ? `<table>${HAND.list.map(x => `<tr><td><b>${esc(x.order_name)}</b></td><td>${esc(x.awb || '')}</td><td class="m">${esc(x.carrier || '')}</td></tr>`).join('')}</table>` : '<div class="prompt">Scan parcels 🚚</div>'}</div>
+    <button class="g big" id="hDone" style="width:100%" ${HAND.list.length && HAND.courier ? '' : 'disabled'}>Finish hand-over</button>`;
+  $('hCour').onchange = e => { HAND.courier = e.target.value; renderHand(); };
+  $('hDone').onclick = async () => {
+    try {
+      const r = await api('rs_handover', { courier: HAND.courier, order_names: HAND.list.map(x => x.order_name), packer: packerName() });
+      HAND.list = [];
+      modal(`<h3>✓ ${r.handed} parcels handed to ${esc(HAND.courier)}</h3>${r.missing.length ? `<p class="b" style="color:var(--bad)">⚠️ ${r.missing.length} packed parcel(s) not scanned for this courier:</p><table>${r.missing.map(m => `<tr><td>${esc(m.order_name)}</td><td>${esc(m.awb || '')}</td></tr>`).join('')}</table>` : '<p>Nothing left behind.</p>'}<button class="p" onclick="this.closest('.mb').remove()">OK</button>`);
+      renderHand();
+    } catch (e) { buzz(); flash('bad', e.message); }
+  };
+}
+
+async function loadToday() {
+  try {
+    const d = await api('rs_pack_today');
+    packers = d.packers || []; couriers = d.couriers || [];
+    const cur = ls.get('rs_packer') || '';
+    $('packer').innerHTML = `<option value="">— your name —</option>` + packers.map(p => `<option ${p === cur ? 'selected' : ''}>${esc(p)}</option>`).join('');
+    const live = d.packs.filter(p => !p.undone_at);
+    $('todayCount').textContent = `${live.length} packed today`;
+    $('todayTbl').innerHTML = d.packs.length ? d.packs.map(p => `<tr style="${p.undone_at ? 'opacity:.4' : ''}"><td><b>${esc(p.order_name)}</b></td><td>${esc(p.awb || '')}</td><td>${esc(p.packer || '')}</td><td class="m">${fmtD(p.at)}</td><td>${p.undone_at ? 'undone' : `<button data-undo="${p.id}">Undo</button>`}</td></tr>`).join('') : '<tr><td class="m">Nothing packed yet today.</td></tr>';
+    $('todayTbl').querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => { if (!confirm('Undo this pack? The pieces go back to stock and the order can be packed again.')) return; try { await api('rs_pack_undo', { id: +b.dataset.undo, by: packerName() }); loadToday(); } catch (e) { alert(e.message); } });
+    if (mode === 'hand') renderHand();
+  } catch (e) { $('todayTbl').innerHTML = `<tr><td class="m">${esc(e.message)}</td></tr>`; }
+}
+$('refreshToday').onclick = loadToday;
+
+// Camera scanning: the browser's own barcode reader where it exists, else a small library loaded on demand
+$('camBtn').onclick = async () => {
+  const box = document.createElement('div'); box.id = 'cam'; box.innerHTML = '<video playsinline muted></video><button class="big">Close</button>'; document.body.appendChild(box);
+  const video = box.querySelector('video'); let stream = null, stop = false, lib = null;
+  const close = () => { stop = true; if (stream) stream.getTracks().forEach(t => t.stop()); if (lib) lib.stop().catch(() => {}); box.remove(); focusScan(); };
+  box.querySelector('button').onclick = close;
+  const got = code => { close(); onScan(code); };
+  if ('BarcodeDetector' in window) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); video.srcObject = stream; await video.play();
+      const det = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'code_128', 'code_39', 'ean_8'] });
+      const loop = async () => { if (stop) return; try { const r = await det.detect(video); if (r[0]) return got(r[0].rawValue); } catch (e) {} requestAnimationFrame(loop); }; loop(); return;
+    } catch (e) { if (stream) stream.getTracks().forEach(t => t.stop()); }
+  }
+  video.remove(); const div = document.createElement('div'); div.id = 'camLib'; div.style.cssText = 'flex:1;background:#000'; box.insertBefore(div, box.firstChild);
+  if (!window.Html5Qrcode) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }).catch(() => {});
+  if (!window.Html5Qrcode) { alert('Camera scanning is not available on this browser'); return close(); }
+  lib = new Html5Qrcode('camLib'); lib.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 }, t => got(t)).catch(e => { alert('Camera: ' + e); close(); });
+};
+
+// ═════════════════════════ ADMIN ═════════════════════════
+let curTab = 'orders', A = { orders: [], items: [], filter: 'open', sel: new Set() };
+document.querySelectorAll('#aTabs button').forEach(b => b.onclick = () => aTab(b.dataset.t));
+function aTab(t) { curTab = t; document.querySelectorAll('#aTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); ({ orders: tOrders, items: tItems, stock: tStock, pos: tPos, plan: tPlan, close: tClose, settings: tSettings })[t](); }
+const view = () => $('aView');
+const loading = () => { view().innerHTML = '<div class="card m">Loading…</div>'; };
+const fail = e => { view().innerHTML = `<div class="card" style="color:var(--bad)">${esc(e.message)}</div>`; };
+async function loadItems() { A.items = (await adm('rs_items')).items; return A.items; }
+const itemName = s => { const i = A.items.find(x => x.sku === s); return i ? [i.name, i.variant].filter(Boolean).join(' · ') : s; };
+const STATUS = { to_book: ['To book', 'warn'], waiting: ['Waiting for quote', ''], ready: ['Ready to pack', 'ok'], packed: ['Packed', 'dk'], handed: ['Handed over', 'dk'], problem: ['Problem', 'bad'], cancelled: ['Cancelled', 'bad'] };
+
+// ── Orders ──
+async function tOrders(sync) {
+  if (!A.orders.length || sync) loading();
+  try { const d = await adm('rs_orders', { sync: sync !== false }); A.orders = d.orders; if (!A.items.length) await loadItems(); } catch (e) { return fail(e); }
+  renderOrders();
+}
+function renderOrders() {
+  const F = { open: o => !['handed', 'cancelled'].includes(o.status), to_book: o => o.status === 'to_book', waiting: o => o.status === 'waiting', ready: o => o.status === 'ready', packed: o => o.status === 'packed', problem: o => o.status === 'problem', mixed: o => o.mixed && !['handed', 'cancelled'].includes(o.status), all: () => true };
+  const cnt = k => A.orders.filter(F[k]).length;
+  const list = A.orders.filter(F[A.filter]);
+  A.sel = new Set([...A.sel].filter(n => list.some(o => o.order_name === n)));
+  const lineTxt = o => o.lines.map(l => l.kind === 'ready' ? `${l.qty}× ${l.name}` : `<span class="m">${l.qty}× quote “${esc(l.name)}” ${l.found || 0}/${l.need || l.qty}</span>`).join('<br>');
+  view().innerHTML = `<div class="card row">${['open', 'to_book', 'waiting', 'ready', 'packed', 'problem', 'mixed', 'all'].map(k => `<button data-f="${k}" class="${A.filter === k ? 'p' : ''}">${({ open: 'Open', to_book: 'To book', waiting: 'Waiting', ready: 'Ready', packed: 'Packed', problem: 'Problems', mixed: 'Mixed', all: 'All' })[k]} ${cnt(k)}</button>`).join('')}<span class="sp"></span><button id="oSync">↻ Sync orders</button></div>
+    <div class="card row"><span class="m">${A.sel.size} selected</span><button id="oBook" ${A.sel.size ? '' : 'disabled'}>🚚 Book courier</button><button id="oPick" ${A.sel.size ? '' : 'disabled'}>🧾 Pick list</button><button id="oSlips" ${A.sel.size ? '' : 'disabled'}>🖨️ Packing slips</button></div>
+    <div class="card tw"><table><tr><th><input type="checkbox" id="oAll"></th><th>Order</th><th>Pieces</th><th>Status</th><th>AWB</th><th></th></tr>
+    ${list.map(o => { const [t, c] = STATUS[o.status] || [o.status, '']; return `<tr><td><input type="checkbox" data-sel="${esc(o.order_name)}" ${A.sel.has(o.order_name) ? 'checked' : ''}></td>
+      <td><b>${esc(o.order_name)}</b><div class="m">${dayOnly(o.created_at)} · ${esc(o.customer || '')} · ${esc(o.city || '')}</div><div class="m">${o.payment === 'cod' ? 'COD' : 'Prepaid'} · ${rs(o.total)}${o.gift_wrap ? ' · 🎁 gift' : ''}${o.split ? ' · split' : ''}</div></td>
+      <td>${lineTxt(o)}</td>
+      <td><span class="chip ${c}">${t}</span>${o.status === 'waiting' && o.age_days >= 5 ? `<div class="chip bad" style="margin-top:4px">${o.age_days} days</div>` : ''}${o.problem ? `<div class="m" style="color:var(--bad)">${esc(o.problem)}</div>` : ''}${o.packed_by ? `<div class="m">by ${esc(o.packed_by)}</div>` : ''}</td>
+      <td>${o.awb ? `${esc(o.awb)}<div class="m">${esc(o.carrier || '')}</div>` : '—'}</td>
+      <td class="row">${!o.packed_at && !o.cancelled ? `<button data-edit="${esc(o.order_name)}">Edit</button>` : ''}${o.pack_id ? `<button data-photo="${o.pack_id}">📷</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="6" class="m">No orders here.</td></tr>'}</table></div>`;
+  view().querySelectorAll('[data-f]').forEach(b => b.onclick = () => { A.filter = b.dataset.f; renderOrders(); });
+  $('oSync').onclick = () => tOrders(true);
+  view().querySelectorAll('[data-sel]').forEach(c => c.onchange = () => { c.checked ? A.sel.add(c.dataset.sel) : A.sel.delete(c.dataset.sel); renderOrders(); });
+  $('oAll').onchange = e => { list.forEach(o => e.target.checked ? A.sel.add(o.order_name) : A.sel.delete(o.order_name)); renderOrders(); };
+  view().querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editOrder(A.orders.find(o => o.order_name === b.dataset.edit)));
+  view().querySelectorAll('[data-photo]').forEach(b => b.onclick = async () => { try { const d = await adm('rs_photo', { pack_id: +b.dataset.photo }); modal(`<img src="${esc(d.url)}" style="width:100%;border-radius:12px">`); } catch (e) { alert(e.message); } });
+  $('oBook').onclick = () => bookOrders([...A.sel]);
+  $('oPick').onclick = () => pickList([...A.sel]);
+  $('oSlips').onclick = () => printSlips([...A.sel]);
+}
+
+function editOrder(o) {
+  const ready = A.items.filter(i => i.active);
+  modal(`<h3>Edit ${esc(o.order_name)}</h3>
+    <table>${o.lines.map(l => `<tr><td>${l.kind === 'ready' ? esc(l.name) : `<span class="m">Quote: ${esc(l.name)}</span>`}</td><td style="width:110px">${l.kind === 'ready' ? `<input type="number" min="0" value="${l.qty}" data-q="${esc(l.key)}" style="width:70px">` : '×' + l.qty}</td><td>${l.kind === 'ready' ? `<button data-rm="${esc(l.key)}">Remove</button>` : ''}</td></tr>`).join('')}</table>
+    <div class="row" style="margin:10px 0"><select id="eAdd" style="flex:1"><option value="">+ Add a piece…</option>${ready.map(i => `<option value="${esc(i.sku)}">${esc([i.name, i.variant].filter(Boolean).join(' · '))} (${i.stock - i.reserved} free)</option>`).join('')}</select><input id="eAddQ" type="number" min="1" value="1" style="width:70px"></div>
+    <label class="tick gift"><input type="checkbox" id="eGift" ${o.gift_wrap ? 'checked' : ''}> 🎁 Gift wrap</label><input id="eNote" placeholder="Gift card message" value="${esc(o.gift_note || '')}" style="width:100%">
+    ${o.mixed ? `<label class="tick"><input type="checkbox" id="eSplit" ${o.split ? 'checked' : ''}> Ship ready pieces now (split — quote follows as a second parcel)</label>` : ''}
+    ${o.problem ? `<div class="tick" style="border-color:var(--bad)">⚠️ ${esc(o.problem)} <span class="sp"></span><label><input type="checkbox" id="eClear"> clear</label></div>` : ''}
+    <input id="eWhy" placeholder="Reason (e.g. customer called, swapped colour)" style="width:100%;margin-top:8px">
+    <div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Cancel</button><button class="p" id="eSave">Save</button></div>
+    ${(o.edits || []).length ? `<p class="m" style="margin-top:12px"><b>History</b><br>${o.edits.map(e => `${fmtD(e.at)} · ${esc(e.by)}: ${esc(e.what)}${e.why ? ' — ' + esc(e.why) : ''}`).join('<br>')}</p>` : ''}`, (m, close) => {
+    const removed = new Set();
+    m.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { removed.add(b.dataset.rm); b.closest('tr').style.opacity = .35; });
+    m.querySelector('#eSave').onclick = async () => {
+      const why = m.querySelector('#eWhy').value.trim(), by = 'admin', ops = [];
+      for (const k of removed) ops.push({ op: 'remove', key: k });
+      m.querySelectorAll('[data-q]').forEach(inp => { const l = o.lines.find(x => x.key === inp.dataset.q); if (!removed.has(l.key) && +inp.value !== l.qty) ops.push({ op: 'qty', key: l.key, qty: +inp.value }); });
+      if (m.querySelector('#eAdd').value) ops.push({ op: 'add', sku: m.querySelector('#eAdd').value, qty: +m.querySelector('#eAddQ').value || 1 });
+      const g = m.querySelector('#eGift').checked, n = m.querySelector('#eNote').value.trim();
+      if (g !== !!o.gift_wrap || n !== (o.gift_note || '')) ops.push({ op: 'gift', gift_wrap: g, gift_note: n });
+      if (m.querySelector('#eSplit') && m.querySelector('#eSplit').checked !== !!o.split) ops.push({ op: 'split', split: m.querySelector('#eSplit').checked });
+      if (m.querySelector('#eClear') && m.querySelector('#eClear').checked) ops.push({ op: 'problem_clear' });
+      if (!ops.length) return close();
+      if (ops.some(x => ['remove', 'qty', 'add'].includes(x.op)) && !why) { alert('Add a reason for changing pieces'); return; }
+      try { for (const op of ops) await adm('rs_order_edit', { order_name: o.order_name, by, reason: why, ...op }); close(); tOrders(false); } catch (e) { alert(e.message); }
+    };
+  });
+}
+
+// Courier booking through the same booking service the rack scanner uses; weight and box come from the pieces
+function parcelFor(o) {
+  let g = 0, l = 0, b = 0, h = 0, n = 0;
+  for (const ln of o.lines) {
+    if (ln.kind !== 'ready') { g += 380 * ln.qty; n += ln.qty; continue; }
+    const parts = ln.parts && ln.parts.length ? ln.parts.map(p => ({ sku: p.sku, qty: p.qty * ln.qty })) : [{ sku: ln.sku, qty: ln.qty }];
+    for (const p of parts) { const it = A.items.find(i => i.sku === p.sku) || {}; g += (it.weight_g || 500) * p.qty; n += p.qty; l = Math.max(l, +it.box_l || 0); b = Math.max(b, +it.box_b || 0); h += (+it.box_h || 0) * p.qty; }
+  }
+  return { kg: Math.max(.5, Math.ceil(g / 500) / 2), l: l || 24, b: b || 18, h: Math.max(5, Math.round(h) || 5 * n) };
+}
+async function bookOrders(names) {
+  const os = names.map(n => A.orders.find(o => o.order_name === n)).filter(o => o && !o.awb && !['cancelled', 'handed', 'packed'].includes(o.status));
+  if (!os.length) return alert('Nothing to book: the selected orders already have an AWB or are not bookable.');
+  const pv = {};
+  modal(`<h3>Book ${os.length} order(s)</h3><div id="bkBody" class="m">Checking couriers…</div>`, async (m, close) => {
+    try {
+      const overrides = {}; os.forEach(o => { overrides[o.order_name] = parcelFor(o); });
+      const d = await apiFetch({ action: 'booking_preview', order_names: os.map(o => o.order_name), overrides }, API, 45000);
+      for (const r of d.rows) pv[r.order_name] = r;
+    } catch (e) { m.querySelector('#bkBody').textContent = e.message; return; }
+    m.querySelector('#bkBody').outerHTML = `<table>${os.map(o => { const r = pv[o.order_name] || {}, p = parcelFor(o), opts = [{ carrier_id: r.carrier_id, name: r.carrier }, ...(r.alt || [])].filter(x => x.carrier_id); return `<tr><td><b>${esc(o.order_name)}</b><div class="m">${esc(o.city || '')} · ${p.kg} kg · ${p.l}×${p.b}×${p.h}</div>${r.why ? `<div class="m" style="color:${r.ok ? 'inherit' : 'var(--bad)'}">${esc(r.why)}</div>` : ''}</td><td><select data-car="${esc(o.order_name)}">${opts.map(c => `<option value="${c.carrier_id}">${esc(c.name || c.carrier_id)}</option>`).join('')}</select></td><td data-res="${esc(o.order_name)}"></td></tr>`; }).join('')}</table>
+      <div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Close</button><button class="a" id="bkGo">Book all</button></div>`;
+    m.querySelector('#bkGo').onclick = async () => {
+      if (!confirm(`Book ${os.length} parcel(s) now? This creates real AWBs.`)) return;
+      m.querySelector('#bkGo').disabled = true;
+      for (const o of os) {
+        const cell = m.querySelector(`[data-res="${CSS.escape(o.order_name)}"]`), r = pv[o.order_name] || {}, p = parcelFor(o);
+        cell.textContent = 'booking…';
+        try { const x = await apiFetch({ action: 'booking_book', order_name: o.order_name, carrier_id: +m.querySelector(`[data-car="${CSS.escape(o.order_name)}"]`).value, payment: r.payment, zone: r.zone, kg: p.kg, l: p.l, b: p.b, h: p.h, force: !!r.soft }, API, 58000); cell.innerHTML = `<span class="chip ok">${esc(x.awb)}</span>`; }
+        catch (e) { cell.innerHTML = `<span class="chip bad">${esc(e.message)}</span>`; }
+      }
+      tOrders(false);
+    };
+  });
+}
+function pickList(names) {
+  const tot = {};
+  for (const n of names) { const o = A.orders.find(x => x.order_name === n); if (!o || o.packed_at) continue; for (const l of o.lines) if (l.kind === 'ready') for (const p of (l.parts && l.parts.length ? l.parts.map(x => ({ sku: x.sku, qty: x.qty * l.qty })) : [{ sku: l.sku, qty: l.qty }])) tot[p.sku] = (tot[p.sku] || 0) + p.qty; }
+  const rows = Object.entries(tot).map(([sku, qty]) => ({ sku, qty, it: A.items.find(i => i.sku === sku) || {} })).sort((a, b) => String(a.it.shelf || 'zz').localeCompare(String(b.it.shelf || 'zz')));
+  printHtml(`<div style="padding:12mm;font-family:Arial"><h2 style="margin:0 0 4px">Pick list · ${new Date().toLocaleString('en-IN')}</h2><p style="margin:0 0 10px">${names.length} orders</p><table style="width:100%;border-collapse:collapse;font-size:14px">${rows.map(r => `<tr style="border-bottom:1px solid #ccc"><td style="padding:8px;font-size:18px">☐</td><td style="padding:8px"><b>${esc(r.it.shelf || '—')}</b></td><td style="padding:8px">${esc(itemName(r.sku))}<div style="color:#777;font-size:11px">${esc(r.sku)}</div></td><td style="padding:8px;font-size:20px;font-weight:900">×${r.qty}</td></tr>`).join('')}</table></div>`);
+}
+async function printSlips(names) {
+  const withAwb = names.filter(n => (A.orders.find(o => o.order_name === n) || {}).awb);
+  if (!withAwb.length) return alert('Book the courier first: none of these orders has an AWB yet.');
+  const slips = [];
+  for (let i = 0; i < withAwb.length; i += 15) { const d = await apiFetch({ action: 'get_batch_slips', order_names: withAwb.slice(i, i + 15) }, API, 40000).catch(e => ({ slips: [], error: e.message })); slips.push(...(d.slips || []).filter(s => !s.error)); }
+  if (!slips.length) return alert('Could not fetch the slips');
+  printHtml(await ntPrintSlips(slips), '@page{size:101.6mm 152.4mm;margin:0}');
+}
+function printHtml(html, pageCss) {
+  const pa = $('printArea'); pa.innerHTML = (pageCss ? `<style>${pageCss}</style>` : '') + html;
+  setTimeout(() => { window.print(); setTimeout(() => { pa.innerHTML = ''; }, 800); }, 250);
+}
+
+// ── Items & labels ──
+async function tItems() {
+  loading(); try { await loadItems(); } catch (e) { return fail(e); }
+  view().innerHTML = `<div class="card row"><b>Items</b><span class="m">${A.items.length}</span><span class="sp"></span><input id="impTag" value="sabr-shukr-collection" style="width:220px"><button id="impBtn">⇩ Import from Shopify tag</button><button class="p" id="newItem">+ New item / gift set</button></div>
+    <div class="card row"><b>Labels</b><span class="m">Set how many to print per item below, then</span><select id="lblFmt"><option value="thermal">Thermal 50×25 mm</option><option value="a4">A4 sheet 3×8</option></select><button class="a" id="lblPrint">🏷️ Print labels</button></div>
+    <div class="card tw"><table><tr><th>Item</th><th>SKU · EAN</th><th>Shelf</th><th>Stock</th><th>Weight · box</th><th>Vendor · lead</th><th>Labels</th><th></th></tr>
+    ${A.items.map(i => `<tr style="${i.active ? '' : 'opacity:.45'}"><td><b>${esc(i.name)}</b>${i.variant ? `<div class="m">${esc(i.variant)}</div>` : ''}${i.bundle ? `<div class="chip">gift set: ${esc(i.bundle.map(b => b.qty + '× ' + itemName(b.sku)).join(' + '))}</div>` : ''}</td>
+      <td>${esc(i.sku)}<div class="m">${esc(i.ean || '')}</div></td><td>${esc(i.shelf || '—')}</td><td>${i.bundle ? '—' : `<b>${i.stock}</b><div class="m">${i.reserved} promised</div>`}</td>
+      <td>${i.weight_g ? i.weight_g + ' g' : '—'}<div class="m">${i.box_l ? `${i.box_l}×${i.box_b}×${i.box_h}` : ''}</div></td><td>${esc(i.vendor || '—')}<div class="m">${i.lead_days} d lead</div></td>
+      <td><input type="number" min="0" value="0" data-lbl="${esc(i.sku)}" style="width:64px"></td><td><button data-ed="${esc(i.sku)}">Edit</button></td></tr>`).join('') || '<tr><td colspan="8" class="m">No items yet — import the collection from Shopify by its tag, or add one.</td></tr>'}</table></div>`;
+  $('impBtn').onclick = async () => { try { const r = await adm('rs_import', { tag: $('impTag').value.trim() }); alert(`${r.added.length} item(s) added`); tItems(); } catch (e) { alert(e.message); } };
+  $('newItem').onclick = () => editItem({});
+  view().querySelectorAll('[data-ed]').forEach(b => b.onclick = () => editItem(A.items.find(i => i.sku === b.dataset.ed)));
+  $('lblPrint').onclick = () => printLabels([...view().querySelectorAll('[data-lbl]')].map(x => ({ it: A.items.find(i => i.sku === x.dataset.lbl), n: +x.value || 0 })).filter(x => x.n > 0), $('lblFmt').value);
+}
+function editItem(i) {
+  const f = (k, label, type = 'text', w) => `<label>${label}<input data-k="${k}" type="${type}" value="${esc(i[k] == null ? '' : i[k])}"${w ? ` style="width:${w}"` : ''}></label>`;
+  modal(`<h3>${i.sku ? 'Edit ' + esc(i.name) : 'New item'}</h3><div class="grid2">${f('name', 'Name')}${f('variant', 'Finish / variant')}${f('sku', 'SKU (blank = auto)')}${f('ean', 'EAN (blank = auto)')}${f('shelf', 'Shelf')}${f('vendor', 'Vendor')}${f('cost', 'Cost ₹', 'number')}${f('weight_g', 'Weight (g, packed)', 'number')}${f('box_l', 'Box L cm', 'number')}${f('box_b', 'Box B cm', 'number')}${f('box_h', 'Box H cm', 'number')}${f('lead_days', 'Vendor lead (days)', 'number')}${f('safety_days', 'Safety days', 'number')}${f('moq', 'Min order qty', 'number')}${f('variant_id', 'Shopify variant ID')}</div>
+    <label class="m" style="display:block;margin-top:10px">Gift set pieces (SKU:qty, comma-separated — leave empty for a normal item)<input id="iBundle" style="width:100%" value="${esc((i.bundle || []).map(b => b.sku + ':' + b.qty).join(', '))}"></label>
+    <label class="tick"><input type="checkbox" id="iActive" ${i.active === false ? '' : 'checked'}> Active</label>
+    <div class="row"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Cancel</button><button class="p" id="iSave">Save</button></div>`, (m, close) => {
+    m.querySelector('[data-k="sku"]').disabled = !!i.sku;
+    m.querySelector('#iSave').onclick = async () => {
+      const it = { sku: i.sku || '' };
+      m.querySelectorAll('[data-k]').forEach(x => { if (x.dataset.k === 'sku' && i.sku) return; it[x.dataset.k] = x.type === 'number' ? (x.value === '' ? null : +x.value) : x.value.trim(); });
+      if (!i.sku && !it.sku) delete it.sku;
+      const bt = m.querySelector('#iBundle').value.trim(); it.bundle = bt ? bt.split(',').map(s => { const [sku, q] = s.split(':'); return { sku: (sku || '').trim().toUpperCase(), qty: +(q || 1) }; }).filter(b => b.sku) : null;
+      it.active = m.querySelector('#iActive').checked;
+      if (i.sku) it.sku = i.sku;
+      try { await adm('rs_item_save', { item: it }); close(); tItems(); } catch (e) { alert(e.message); }
+    };
+  });
+}
+// One label per piece: EAN-13 bars, a QR of the same number, the name and the SKU
+function printLabels(list, fmt) {
+  if (!list.length) return alert('Set a number of labels on at least one item');
+  const labs = []; list.forEach(x => { for (let k = 0; k < x.n; k++) labs.push(x.it); });
+  const svgFor = ean => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); try { JsBarcode(s, ean, { format: 'EAN13', height: 34, width: 1.4, fontSize: 11, margin: 0, flat: true }); } catch (e) { JsBarcode(s, ean, { format: 'CODE128', height: 34, width: 1.2, fontSize: 11, margin: 0 }); } return s.outerHTML; };
+  const qrFor = t => { const q = qrcode(0, 'M'); q.addData(t); q.make(); return q.createSvgTag({ cellSize: 2, margin: 0 }); };
+  const one = it => `<div class="lb"><div class="qr">${qrFor(it.ean)}</div><div class="tx"><b>${esc(it.name)}</b>${it.variant ? `<span>${esc(it.variant)}</span>` : ''}<span class="sku">${esc(it.sku)}</span><div class="bc">${svgFor(it.ean)}</div></div></div>`;
+  const css = fmt === 'a4'
+    ? '@page{size:A4;margin:10mm 7mm}.sheet{display:grid;grid-template-columns:repeat(3,63.5mm);grid-auto-rows:33.9mm;gap:0 2.5mm}.lb{padding:2mm}'
+    : '@page{size:50mm 25mm;margin:0}.lb{width:50mm;height:25mm;padding:1.2mm;break-after:page}';
+  printHtml(`<style>${css}.lb{display:flex;gap:1.5mm;align-items:center;overflow:hidden;font-family:Arial;box-sizing:border-box}.qr svg{width:15mm;height:15mm;display:block}.tx{display:flex;flex-direction:column;min-width:0;font-size:7.5px;line-height:1.15}.tx b{font-size:8.5px}.tx .sku{color:#444}.bc svg{width:30mm;height:auto;display:block;margin-top:.5mm}</style><div class="sheet">${labs.map(one).join('')}</div>`);
+}
+
+// ── Stock ──
+async function tStock() {
+  loading(); try { await loadItems(); } catch (e) { return fail(e); }
+  const its = A.items.filter(i => !i.bundle);
+  view().innerHTML = `<div class="card row"><b>Stock</b><span class="m">Shelf = last count + everything since. Count only when you want to correct it.</span><span class="sp"></span><button class="p" id="cSave">Save counts</button></div>
+    <div class="card tw"><table><tr><th>Item</th><th>On shelf</th><th>Promised</th><th>Free to sell</th><th>Last counted</th><th>Count now</th><th></th></tr>
+    ${its.map(i => `<tr><td><b>${esc(i.name)}</b>${i.variant ? ` · ${esc(i.variant)}` : ''}<div class="m">${esc(i.sku)} · ${esc(i.shelf || '')}</div></td><td class="b">${i.stock}</td><td>${i.reserved}</td><td class="b" style="color:${i.stock - i.reserved <= 0 ? 'var(--bad)' : 'inherit'}">${i.stock - i.reserved}</td><td class="m">${i.counted_at ? dayOnly(i.counted_at) : 'never'}</td><td><input type="number" min="0" data-cnt="${esc(i.sku)}" style="width:80px" placeholder="—"></td><td><button data-adj="${esc(i.sku)}">± / damage</button></td></tr>`).join('')}</table></div>
+    <div class="card"><div class="row"><b>Recent movements</b><span class="sp"></span><button id="mvLoad">Show</button></div><div class="tw" id="mv"></div></div>`;
+  $('cSave').onclick = async () => { const lines = [...view().querySelectorAll('[data-cnt]')].filter(x => x.value !== '').map(x => ({ sku: x.dataset.cnt, qty: +x.value })); if (!lines.length) return alert('Type a count in at least one row'); if (!confirm(`Save ${lines.length} count(s)? These become the new shelf numbers.`)) return; try { await adm('rs_count', { lines, by: 'admin' }); tStock(); } catch (e) { alert(e.message); } };
+  view().querySelectorAll('[data-adj]').forEach(b => b.onclick = () => modal(`<h3>Adjust ${esc(itemName(b.dataset.adj))}</h3><div class="grid2"><label>Kind<select id="aK"><option value="adjust">Correction (±)</option><option value="damage">Damaged / write-off</option></select></label><label>Quantity (± for corrections)<input id="aQ" type="number"></label></div><input id="aN" placeholder="Why" style="width:100%;margin-top:8px"><div class="row" style="margin-top:10px"><span class="sp"></span><button class="p" id="aGo">Save</button></div>`, (m, close) => { m.querySelector('#aGo').onclick = async () => { try { await adm('rs_adjust', { sku: b.dataset.adj, kind: m.querySelector('#aK').value, qty: +m.querySelector('#aQ').value, note: m.querySelector('#aN').value }); close(); tStock(); } catch (e) { alert(e.message); } }; }));
+  $('mvLoad').onclick = async () => { const d = await adm('rs_moves', { limit: 200 }); $('mv').innerHTML = `<table><tr><th>When</th><th>Item</th><th>What</th><th>Qty</th><th>Ref</th><th>By</th><th></th></tr>${d.moves.map(x => `<tr style="${x.undone_at ? 'opacity:.4' : ''}"><td class="m">${fmtD(x.at)}</td><td>${esc(itemName(x.sku))}</td><td>${esc(x.kind)}${x.note ? `<div class="m">${esc(x.note)}</div>` : ''}</td><td class="b">${x.kind === 'count' ? '= ' + x.qty : (x.qty > 0 ? '+' : '') + x.qty}</td><td class="m">${esc(x.ref || '')}</td><td class="m">${esc(x.by || '')}</td><td>${x.undone_at ? 'undone' : `<button data-un="${esc(x.ref)}">Undo</button>`}</td></tr>`).join('')}</table>`; $('mv').querySelectorAll('[data-un]').forEach(u => u.onclick = async () => { if (!confirm(`Undo everything recorded under ${u.dataset.un}?`)) return; try { await adm('rs_undo', { ref: u.dataset.un, by: 'admin' }); $('mvLoad').click(); } catch (e) { alert(e.message); } }); };
+}
+
+// ── Vendor POs ──
+async function tPos(prefill) {
+  loading(); let d, v; try { if (!A.items.length) await loadItems(); [d, v] = await Promise.all([adm('rs_pos'), adm('rs_vendors')]); } catch (e) { return fail(e); }
+  const st = { draft: '', placed: 'warn', partial: 'warn', received: 'ok', cancelled: 'bad' };
+  view().innerHTML = `<div class="card row"><b>Vendor orders</b><span class="sp"></span><button class="p" id="poNew">+ New PO</button></div>
+    <div class="card tw"><table><tr><th>PO</th><th>Vendor</th><th>Lines</th><th>Expected</th><th>Status</th><th></th></tr>${d.pos.map(p => `<tr><td><b>PO-${p.id}</b><div class="m">${dayOnly(p.created_at)}</div></td><td>${esc(p.vendor || '—')}</td><td>${p.lines.map(l => `${esc(itemName(l.sku))}: <b>${l.ok}</b>/${l.qty}${l.rejected ? ` <span style="color:var(--bad)">(${l.rejected} rejected)</span>` : ''}`).join('<br>')}</td><td>${p.expected_at ? dayOnly(p.expected_at) : '—'}</td><td><span class="chip ${st[p.status]}">${esc(p.status)}</span></td><td class="row"><button data-po="${p.id}">Edit</button>${['placed', 'partial'].includes(p.status) ? `<button class="g" data-rcv="${p.id}">Receive</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="m">No POs yet.</td></tr>'}</table></div>
+    <div class="card tw"><b>Vendor scorecard</b><table><tr><th>Vendor</th><th>POs</th><th>On time</th><th>Rejected</th><th>Real lead time</th></tr>${v.vendors.map(x => `<tr><td>${esc(x.vendor)}</td><td>${x.pos}</td><td>${x.ontime_pct == null ? '—' : x.ontime_pct + '%'}</td><td>${x.reject_pct == null ? '—' : x.reject_pct + '%'}</td><td>${x.lead_days == null ? '—' : x.lead_days + ' days'}</td></tr>`).join('') || '<tr><td colspan="5" class="m">Appears after the first delivery.</td></tr>'}</table></div>`;
+  $('poNew').onclick = () => editPo({ status: 'draft', lines: [] });
+  view().querySelectorAll('[data-po]').forEach(b => b.onclick = () => editPo(d.pos.find(p => p.id === +b.dataset.po)));
+  view().querySelectorAll('[data-rcv]').forEach(b => b.onclick = () => receivePo(d.pos.find(p => p.id === +b.dataset.rcv)));
+  if (prefill) editPo(prefill);
+}
+function editPo(p) {
+  const its = A.items.filter(i => !i.bundle && i.active);
+  const lineRow = l => `<tr><td><select data-ls>${its.map(i => `<option value="${esc(i.sku)}" ${i.sku === l.sku ? 'selected' : ''}>${esc([i.name, i.variant].filter(Boolean).join(' · '))}</option>`).join('')}</select></td><td><input type="number" min="1" data-lq value="${l.qty || ''}" style="width:80px"></td><td><input type="number" data-lc value="${l.cost == null ? '' : l.cost}" style="width:80px" placeholder="₹"></td><td><input type="hidden" data-lid value="${l.id || ''}"><button data-x>✕</button></td></tr>`;
+  modal(`<h3>${p.id ? 'PO-' + p.id : 'New vendor order'}</h3><div class="grid2"><label>Vendor<input id="pV" value="${esc(p.vendor || '')}"></label><label>Expected on<input id="pE" type="date" value="${esc(p.expected_at || '')}"></label><label>Status<select id="pS">${['draft', 'placed', 'partial', 'received', 'cancelled'].map(s => `<option ${s === p.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label></div>
+    <table id="pL" style="margin-top:10px"><tr><th>Item</th><th>Qty</th><th>Cost</th><th></th></tr>${(p.lines.length ? p.lines : [{}]).map(lineRow).join('')}</table><button id="pAdd">+ Line</button>
+    <input id="pN" placeholder="Note" value="${esc(p.note || '')}" style="width:100%;margin-top:8px"><div class="row" style="margin-top:10px"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Cancel</button><button class="p" id="pSave">Save</button></div>`, (m, close) => {
+    const bindX = () => m.querySelectorAll('[data-x]').forEach(b => b.onclick = () => b.closest('tr').remove());
+    bindX(); m.querySelector('#pAdd').onclick = () => { m.querySelector('#pL').insertAdjacentHTML('beforeend', lineRow({})); bindX(); };
+    m.querySelector('#pSave').onclick = async () => {
+      const lines = [...m.querySelectorAll('#pL tr')].slice(1).map(tr => ({ id: +tr.querySelector('[data-lid]').value || null, sku: tr.querySelector('[data-ls]').value, qty: +tr.querySelector('[data-lq]').value, cost: tr.querySelector('[data-lc]').value })).filter(l => l.sku && l.qty > 0);
+      try { await adm('rs_po_save', { po: { id: p.id, vendor: m.querySelector('#pV').value, expected_at: m.querySelector('#pE').value || null, status: m.querySelector('#pS').value, note: m.querySelector('#pN').value, lines, placed_at: p.placed_at } }); close(); tPos(); } catch (e) { alert(e.message); }
+    };
+  });
+}
+function receivePo(p) {
+  modal(`<h3>Receive PO-${p.id} · ${esc(p.vendor || '')}</h3><p class="m">Count what arrived. OK pieces go on the shelf; rejected ones count against the vendor.</p><table><tr><th>Item</th><th>Ordered</th><th>Already in</th><th>OK now</th><th>Rejected now</th></tr>${p.lines.map(l => `<tr><td>${esc(itemName(l.sku))}</td><td>${l.qty}</td><td>${l.ok}${l.rejected ? ` + ${l.rejected} rej` : ''}</td><td><input type="number" min="0" data-ok="${l.id}" style="width:80px" value="${Math.max(0, l.qty - l.ok - l.rejected)}"></td><td><input type="number" min="0" data-rj="${l.id}" style="width:80px" value="0"></td></tr>`).join('')}</table>
+    <div class="row" style="margin-top:10px"><button id="rcvLbl">🏷️ Print labels for OK pieces</button><span class="sp"></span><button class="g" id="rcvGo">Receive</button></div><div class="m" id="rcvPast"></div>`, async (m, close) => {
+    const vals = () => p.lines.map(l => ({ line_id: l.id, sku: l.sku, ok: +m.querySelector(`[data-ok="${l.id}"]`).value || 0, rejected: +m.querySelector(`[data-rj="${l.id}"]`).value || 0 }));
+    m.querySelector('#rcvLbl').onclick = () => printLabels(vals().filter(v => v.ok).map(v => ({ it: A.items.find(i => i.sku === v.sku), n: v.ok })), 'thermal');
+    m.querySelector('#rcvGo').onclick = async () => { try { await adm('rs_receive', { po_id: p.id, lines: vals(), by: 'admin' }); close(); tPos(); } catch (e) { alert(e.message); } };
+    try { const mv = await adm('rs_moves', { ref_prefix: `PO-${p.id}-R`, limit: 100 }); const by = {}; mv.moves.filter(x => !x.undone_at).forEach(x => (by[x.ref] ||= []).push(x)); m.querySelector('#rcvPast').innerHTML = Object.entries(by).map(([ref, xs]) => `<div class="row" style="margin-top:6px">${fmtD(xs[0].at)} · ${xs.map(x => `${x.qty} ${esc(itemName(x.sku))}`).join(', ')} <button data-ur="${esc(ref)}">Undo</button></div>`).join(''); m.querySelectorAll('[data-ur]').forEach(b => b.onclick = async () => { if (!confirm('Undo this delivery?')) return; await adm('rs_undo', { ref: b.dataset.ur, by: 'admin' }); close(); tPos(); }); } catch (e) {}
+  });
+}
+
+// ── Planning ──
+async function tPlan() {
+  const win = +(ls.get('rs_win') || 4);
+  loading(); let d; try { d = await adm('rs_plan', { window: win }); } catch (e) { return fail(e); }
+  const risk = { out_before_vendor: ['Runs out before vendor can deliver', 'bad'], low: ['Low', 'warn'], ok: ['OK', 'ok'] };
+  const rows = d.rows.sort((a, b) => ['out_before_vendor', 'low', 'ok'].indexOf(a.risk) - ['out_before_vendor', 'low', 'ok'].indexOf(b.risk) || (a.cover_days == null) - (b.cover_days == null) || (a.cover_days || 0) - (b.cover_days || 0));
+  view().innerHTML = `<div class="card row"><b>Planning</b><span class="m">Sales speed over the last</span><select id="win">${[2, 3, 4, 5, 6, 14].map(n => `<option ${n === d.window ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="m">days</span><span class="sp"></span><button class="p" id="mkPo" ${rows.some(r => r.suggest) ? '' : 'disabled'}>Draft PO from suggestions</button></div>
+    <div class="card tw"><table><tr><th>Item</th><th>Free</th><th>Incoming</th><th>Sold (${d.window} d)</th><th>Per day</th><th>vs 14 d</th><th>Lasts</th><th>Order</th><th>By</th><th></th></tr>
+    ${rows.map(r => `<tr><td><b>${esc(r.name)}</b><div class="m">${r.stock} on shelf · ${r.reserved} promised · ${r.sold30} in 30 d</div></td><td class="b">${r.free}</td><td>${r.incoming || '—'}${r.next_po ? `<div class="m">${dayOnly(r.next_po)}</div>` : ''}</td><td>${r.sold_window}</td><td>${r.rate}</td><td style="color:${r.trend > 15 ? 'var(--ok)' : r.trend < -15 ? 'var(--bad)' : 'inherit'}">${r.trend > 0 ? '▲' : r.trend < 0 ? '▼' : ''} ${Math.abs(r.trend)}%</td><td>${r.cover_days == null ? '—' : r.cover_days + ' d'}<div class="m">lead ${r.lead_days} d</div></td><td class="b">${r.suggest || '—'}</td><td>${r.suggest && r.order_by ? dayOnly(r.order_by) : '—'}</td><td><span class="chip ${risk[r.risk][1]}">${risk[r.risk][0]}</span></td></tr>`).join('') || '<tr><td colspan="10" class="m">Add items first.</td></tr>'}</table></div>`;
+  $('win').onchange = e => { ls.set('rs_win', e.target.value); tPlan(); };
+  $('mkPo').onclick = () => { aTab('pos'); setTimeout(() => tPos({ status: 'draft', lines: rows.filter(r => r.suggest).map(r => ({ sku: r.sku, qty: r.suggest })) }), 0); };
+}
+
+// ── Day close ──
+async function tClose() {
+  const date = ls.get('rs_close') || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  loading(); let d; try { d = await adm('rs_day_close', { date }); } catch (e) { return fail(e); }
+  const lst = (title, xs, f) => `<div class="card"><b>${title}</b> <span class="chip ${xs.length ? 'warn' : 'ok'}">${xs.length}</span>${xs.length ? `<table>${xs.map(f).join('')}</table>` : ''}</div>`;
+  view().innerHTML = `<div class="card row"><b>Day close</b><input type="date" id="cd" value="${esc(d.date)}"><span class="sp"></span><button onclick="window.print()">🖨️</button></div>
+    <div class="card row">${[['Booked', d.booked], ['Packed', d.packed], ['Handed over', d.handed]].map(([k, n]) => `<span class="stat"><span class="m">${k}</span><b>${n}</b></span>`).join('')}${Object.entries(d.by_packer).map(([k, n]) => `<span class="stat"><span class="m">${esc(k)}</span><b>${n}</b></span>`).join('')}</div>
+    ${lst('Packed but not handed over', d.packed_not_handed, x => `<tr><td>${esc(x.order_name)}</td><td>${esc(x.awb || '')}</td><td class="m">${esc(x.carrier || '')}</td></tr>`)}
+    ${lst('Ready but not packed', d.ready_not_packed, x => `<tr><td>${esc(x.order_name)}</td><td>${esc(x.awb || '')}</td><td class="m">${x.age_days} d old</td></tr>`)}
+    ${lst('Still to book', d.to_book, x => `<tr><td>${esc(x.order_name)}</td><td class="m">${x.age_days} d old</td></tr>`)}
+    ${lst('Problems', d.problems, x => `<tr><td>${esc(x.order_name)}</td><td>${esc(x.problem || '')}</td></tr>`)}
+    ${lst('Waiting 5+ days for a quote', d.waiting_long, x => `<tr><td>${esc(x.order_name)}</td><td>${x.quotes.found}/${x.quotes.need} painted</td><td class="m">${x.age_days} d</td></tr>`)}`;
+  $('cd').onchange = e => { ls.set('rs_close', e.target.value); tClose(); };
+}
+
+// ── Settings ──
+async function tSettings() {
+  loading(); let d; try { d = await adm('rs_settings'); } catch (e) { return fail(e); }
+  view().innerHTML = `<div class="card"><b>Website stock</b><p class="m">When on, the website's quantity for each item = on shelf − promised, updated after every pack, delivery, return and count. Keep it off until the products are priced and launched.</p><label class="tick"><input type="checkbox" id="sOn" ${d.shopify.on ? 'checked' : ''}> Keep Shopify quantities in step</label><label class="m">Shopify location ID <input id="sLoc" value="${esc(d.shopify.location_id)}"></label></div>
+    <div class="card grid2"><label>Packers (comma-separated)<input id="sPk" value="${esc(d.packers.join(', '))}"></label><label>Couriers for hand-over<input id="sCr" value="${esc(d.couriers.join(', '))}"></label><label>EAN prefix (20 = own codes; a GS1 prefix later)<input id="sEp" value="${esc(d.ean.prefix)}"></label><label>New admin PIN (leave empty to keep)<input id="sPin" type="password" inputmode="numeric"></label></div>
+    <div class="row"><span class="sp"></span><button class="p" id="sSave">Save settings</button></div>`;
+  $('sSave').onclick = async () => {
+    const on = $('sOn').checked;
+    if (on && !d.shopify.on && !confirm('Turn on website stock sync? Every ready item will show on the website with its free quantity. Make sure prices are set.')) return;
+    const set = { shopify: { on, location_id: $('sLoc').value.trim() }, packers: $('sPk').value.split(',').map(s => s.trim()).filter(Boolean), couriers: $('sCr').value.split(',').map(s => s.trim()).filter(Boolean), ean_prefix: $('sEp').value.trim() };
+    const pin = $('sPin').value.trim(); if (pin) set.new_pin = pin;
+    try { await adm('rs_settings', { set }); if (pin) ss.set('rs_pin', pin); alert('Saved'); tSettings(); } catch (e) { alert(e.message); }
+  };
+}
+
+renderPack(); loadToday(); focusScan();
+</script>
+</body></html>
