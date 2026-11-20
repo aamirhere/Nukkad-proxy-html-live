@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Haider turns 4 · Ayeza turns 8 — You're invited</title>
-<meta name="description" content="Join us for Haider's 4th and Ayeza's 8th birthday at the Community Centre, Maharani Bagh.">
+<meta name="description" content="Join us for Haider's 4th and Ayeza's 8th birthday on Sunday 29 November, 12:30 pm, at Fun for Smiles, Community Centre, Maharani Bagh, New Delhi.">
 <meta property="og:title" content="Haider turns 4 · Ayeza turns 8">
 <meta property="og:description" content="Two birthdays, one party. Open your invitation and tell us if you're coming.">
 <meta property="og:image" content="https://enzmxaswpluncupzrtfb.supabase.co/storage/v1/object/public/invite-frames/haider-ayeza/v4/hero.jpg">
@@ -111,6 +111,14 @@ button,input{font:inherit;color:inherit}
 .done button{margin-top:14px;background:none;border:0;text-decoration:underline;color:var(--ink2);cursor:pointer;font-size:13px}
 .tally{color:var(--ink2);font-size:13px;margin-top:18px;min-height:18px}
 footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2);font-size:15px}
+.music{position:fixed;z-index:45;top:calc(12px + env(safe-area-inset-top));right:12px;width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.8);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 18px -8px rgba(58,51,64,.5);display:grid;place-items:center;cursor:pointer;color:var(--ink)}
+.music .bars{display:flex;gap:3px;align-items:flex-end;height:16px}
+.music .bars i{width:3px;height:5px;border-radius:2px;background:currentColor}
+.music.on .bars i{animation:eq .9s ease-in-out infinite}
+.music.on .bars i:nth-child(2){animation-delay:-.3s}
+.music.on .bars i:nth-child(3){animation-delay:-.6s}
+@keyframes eq{0%,100%{height:5px}50%{height:16px}}
+.music:not(.on){opacity:.75}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:40}
 
 /* Hosts: make a personal link per guest */
@@ -144,16 +152,16 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
 
 <section class="screen" id="info">
   <div class="duo">
-    <div class="kid boy"><span class="num">4</span><img data-a="boy.webp" alt=""><h3 class="b">Haider Raza</h3><p>turns four</p></div>
+    <div class="kid boy"><span class="num">4</span><img data-a="boy.webp" alt=""><h3 class="b">Haider</h3><p>turns four</p></div>
     <div class="kid girl"><span class="num">8</span><img data-a="girl.webp" alt=""><h3 class="g">Ayeza</h3><p>turns eight</p></div>
   </div>
   <div class="ticket">
     <div class="rows">
-      <div><small class="b">When</small><strong>Sunday, 7 Dec</strong><span>5:00 pm onwards</span></div>
-      <div><small class="g">Where</small><strong>Community Centre</strong><span>Maharani Bagh</span></div>
+      <div><small class="b">When</small><strong>Sunday, 29 Nov</strong><span>12:30 pm onwards</span></div>
+      <div><small class="g">Where</small><strong>Fun for Smiles</strong><span>Community Centre, Maharani Bagh, New Delhi</span></div>
     </div>
     <div class="pills">
-      <a class="pill" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=Community+Centre+Maharani+Bagh+New+Delhi">
+      <a class="pill" target="_blank" rel="noopener" href="https://maps.app.goo.gl/HTQNBX3q6f8v4zDDA">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Map</a>
       <a class="pill" id="cal" target="_blank" rel="noopener">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Add to calendar</a>
@@ -179,7 +187,7 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
     <button id="again">Change my answer</button>
   </div>
   <div class="tally" id="tally"></div>
-  <footer>With love, the Raza family</footer>
+  <footer>With love, Shaziya and Amir</footer>
 </section>
 
 <div id="hostbox"><div class="hb-p">
@@ -190,6 +198,8 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
   <div class="hb-link" id="hbLink"></div>
   <button class="hb-x" id="hbX">Preview the invitation</button>
 </div></div>
+<button class="music" id="music" aria-label="Music on or off"><span class="bars"><i></i><i></i><i></i></span></button>
+<audio id="song" loop preload="none" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261120_123948_30575672-a476-4dc0-b2db-a482ed1407f5.mp3"></audio>
 <canvas id="confetti"></canvas>
 
 <script>
@@ -197,7 +207,7 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
   const A = 'https://enzmxaswpluncupzrtfb.supabase.co/storage/v1/object/public/invite-frames/haider-ayeza/v4/';
   const API = 'https://cozy-dieffenbachia-95eb4b.netlify.app/.netlify/functions/nt-rsvp';
   const EVENT = 'haider-ayeza-2026';
-  const PARTY = new Date('2026-12-07T17:00:00+05:30');
+  const PARTY = new Date('2026-11-29T12:30:00+05:30');
   const $ = s => document.querySelector(s);
   document.querySelectorAll('[data-a]').forEach(im => im.src = A + im.dataset.a);
 
@@ -226,12 +236,24 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
     $('#hbX').addEventListener('click', () => box.classList.remove('on'));
   }
 
+  // Phones only allow sound after a touch, so the song starts on the guest's first tap; the button turns it off and on
+  const song = $('#song'), mbtn = $('#music');
+  song.volume = .5;
+  const setOn = on => mbtn.classList.toggle('on', on);
+  song.addEventListener('play', () => setOn(true)); song.addEventListener('pause', () => setOn(false));
+  let muted = false;
+  mbtn.addEventListener('click', e => { e.stopPropagation(); if (song.paused) { muted = false; song.play().catch(() => {}); } else { muted = true; song.pause(); } });
+  const first = e => { if (e.target.closest('#music') || muted) return; song.play().catch(() => {}); removeEventListener('pointerdown', first); removeEventListener('touchend', first); };
+  addEventListener('pointerdown', first); addEventListener('touchend', first);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) song.pause(); else if (!muted && mbtn.dataset.started) song.play().catch(() => {}); });
+  song.addEventListener('play', () => mbtn.dataset.started = '1');
+
   $('#down').addEventListener('click', () => $('#info').scrollIntoView());
   new IntersectionObserver(([en]) => { if (en.isIntersecting) en.target.classList.add('in'); }, { threshold: .4 }).observe($('#info'));
 
   const gd = d => d.toISOString().replace(/[-:]|\.\d{3}/g, '');
   $('#cal').href = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent("Haider & Ayeza's birthday party") +
-    '&dates=' + gd(PARTY) + '/' + gd(new Date(PARTY.getTime() + 3 * 3600e3)) + '&location=' + encodeURIComponent('Community Centre, Maharani Bagh, New Delhi');
+    '&dates=' + gd(PARTY) + '/' + gd(new Date(PARTY.getTime() + 3 * 3600e3)) + '&location=' + encodeURIComponent('Fun for Smiles, Community Centre, Maharani Bagh, New Delhi');
 
   // RSVP
   const ask = $('#ask'), err = $('#err'), key = 'rsvp4-' + EVENT + '-' + guest.toLowerCase();
