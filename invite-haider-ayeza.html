@@ -49,7 +49,7 @@ button,input{font:inherit;color:inherit}
 @keyframes nudge{50%{transform:translateY(4px)}}
 
 /* 2 · The two birthdays + details */
-#info{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:5vh 18px;
+#info{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:3vh 18px;
   background:linear-gradient(90deg,#e6f0f8 0%,#f6eef3 50%,#fde9ed 100%)}
 #info::before,#info::after{content:"";position:absolute;width:60vw;height:60vw;border-radius:50%;filter:blur(50px);opacity:.55;pointer-events:none}
 #info::before{left:-25vw;top:-10vw;background:#c3dbee}
@@ -84,6 +84,13 @@ button,input{font:inherit;color:inherit}
 .rows span{font-size:12.5px;color:var(--ink2);display:block;margin-top:2px}
 .pills{display:flex;gap:8px;justify-content:center;margin-top:16px}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:10px 15px;border-radius:999px;border:1.5px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;font-weight:600;background:#fff}
+
+.torsvp{position:relative;z-index:1;width:min(420px,100%);display:flex;flex-direction:column;align-items:center;gap:4px;padding:15px 18px 12px;border-radius:20px;border:0;cursor:pointer;color:#fff;font-weight:700;font-size:16.5px;
+  background:linear-gradient(90deg,var(--boy) 0%,var(--girl) 100%);box-shadow:0 16px 30px -14px rgba(150,110,150,.8);opacity:0;transform:translateY(20px);transition:opacity .7s .8s, transform .7s .8s}
+#info.in .torsvp{opacity:1;transform:none;animation:beat 2.2s ease-in-out 1.8s infinite}
+.torsvp small{font-weight:500;font-size:12px;opacity:.9}
+.torsvp svg{animation:nudge 1.2s ease-in-out infinite;margin-top:2px}
+@keyframes beat{50%{transform:scale(1.03)}}
 
 /* 3 · RSVP: one tap */
 #rsvp{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6vh 20px;text-align:center;
@@ -167,6 +174,9 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Add to calendar</a>
     </div>
   </div>
+  <button class="torsvp" id="torsvp">Are you coming? Tell us
+    <small>One more step below</small>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></button>
 </section>
 
 <section class="screen" id="rsvp">
@@ -250,6 +260,7 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
   document.addEventListener('visibilitychange', () => { if (document.hidden) song.pause(); else if (!muted && mbtn.dataset.started) song.play().catch(() => {}); });
   song.addEventListener('play', () => mbtn.dataset.started = '1');
 
+  $('#torsvp').addEventListener('click', () => $('#rsvp').scrollIntoView());
   $('#down').addEventListener('click', () => $('#info').scrollIntoView());
   new IntersectionObserver(([en]) => { if (en.isIntersecting) en.target.classList.add('in'); }, { threshold: .4 }).observe($('#info'));
 
