@@ -83,29 +83,30 @@ textarea:focus{border-color:var(--boy)}
     <div id="others"></div>
   </div>
 </div>
-<div class="lock" id="lock" style="display:none"><h1>Guest list</h1><p>Open this page from your private dashboard link.</p></div>
+<div class="lock" id="lock" style="display:none"><h1>Guest list</h1><p id="lockmsg">Open this page from your private dashboard link, or paste your key here.</p>
+  <form id="keyform" style="margin-top:16px;display:flex;gap:8px;justify-content:center"><input id="keyin" placeholder="Dashboard key" autocomplete="off" style="padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);font-size:16px;width:220px"><button class="btn dark">Open</button></form></div>
 <div class="toast" id="toast"></div>
 
 <script>
 (() => {
   const SB = 'https://enzmxaswpluncupzrtfb.supabase.co/rest/v1/rpc/';
-  const PUB = 'sb_publishable_n2bU07ighHg5FKRuiKUgvw_BuWp1GCV';
+  const PUB = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuem14YXN3cGx1bmN1cHpydGZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MTYzNzEsImV4cCI6MjA5MzE5MjM3MX0.eMo1YmTxUjpaXGZAxgtgY_4Ar1dXSt9Lo-HazZKUij4';
   const EVENT = 'haider-ayeza-2026';
   const INVITE = location.origin + location.pathname.replace(/[^/]*$/, '') + 'invite-haider-ayeza.html';
   const $ = s => document.querySelector(s);
   const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  // The private key arrives once in the link, is kept on this phone, and is taken out of the address bar
+  // The private key arrives in the link and is kept on this phone; it stays in the address so the same link opens anywhere
   const q = new URLSearchParams(location.search);
   let key = q.get('k');
   try { if (key) localStorage.setItem('party-host-' + EVENT, key); else key = localStorage.getItem('party-host-' + EVENT); } catch {}
-  if (q.get('k')) history.replaceState(null, '', location.pathname);
+  $('#keyform').addEventListener('submit', e => { e.preventDefault(); const v = $('#keyin').value.trim(); if (v) location.href = location.pathname + '?k=' + encodeURIComponent(v); });
   if (!key) { $('#lock').style.display = ''; return; }
   $('#preview').href = INVITE;
 
   const rpc = async (fn, args) => {
     const r = await fetch(SB + fn, { method: 'POST', headers: { apikey: PUB, Authorization: 'Bearer ' + PUB, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_event: EVENT, p_key: key, ...args }) });
-    if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'locked' : 'failed');
+    if (!r.ok) throw new Error(r.status === 403 ? 'locked' : 'failed ' + r.status);
     return r.status === 204 ? null : r.json();
   };
   const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); };
@@ -130,7 +131,8 @@ textarea:focus{border-color:var(--boy)}
   async function load(quiet) {
     try { data = await rpc('party_host_list', {}); $('#app').style.display = ''; render(); if (!quiet) toast('Updated'); }
     catch (e) {
-      if (e.message === 'locked') { try { localStorage.removeItem('party-host-' + EVENT); } catch {} $('#app').style.display = 'none'; $('#lock').style.display = ''; }
+      if (e.message === 'locked') { try { localStorage.removeItem('party-host-' + EVENT); } catch {} $('#app').style.display = 'none'; $('#lock').style.display = ''; $('#lockmsg').textContent = "That key didn't work. Paste your dashboard key here."; }
+      else if ($('#app').style.display === 'none') { $('#lock').style.display = ''; $('#lockmsg').textContent = "Couldn't load the guest list (" + e.message + '). Check your connection and reload.'; }
       else if (!quiet) toast("Couldn't refresh");
     }
   }
