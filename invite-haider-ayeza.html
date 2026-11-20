@@ -26,12 +26,12 @@
 html{background:var(--cream);-webkit-text-size-adjust:100%;scroll-snap-type:y mandatory;scroll-behavior:smooth}
 body{font-family:var(--fb);color:var(--ink);overflow-x:hidden}
 button,input{font:inherit;color:inherit}
-.screen{position:relative;min-height:100vh;min-height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden}
+.screen{position:relative;min-height:100vh;min-height:var(--vh,100vh);scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden}
 .b{color:var(--boy-d)} .g{color:var(--girl-d)}
 .eyebrow{font-weight:700;letter-spacing:.28em;text-transform:uppercase;font-size:10.5px;color:var(--ink2)}
 
 /* 1 · Hero */
-#hero{height:100vh;height:100dvh;background:linear-gradient(90deg,#cfe0ee 0%,#e9d9e6 50%,#f7d3db 100%)}
+#hero{height:100vh;height:var(--vh,100vh);background:linear-gradient(90deg,#cfe0ee 0%,#e9d9e6 50%,#f7d3db 100%)}
 #hero video,#hero .poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 100%}
 #hero video{opacity:0;transition:opacity .8s}
 #hero video.on{opacity:1}
@@ -144,6 +144,15 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
 .hb-x{margin-top:12px;background:none;border:0;color:var(--ink2);font-size:13px;text-decoration:underline;cursor:pointer;width:100%}
 @media (prefers-reduced-motion:reduce){.htext > *,.down{animation:none;opacity:1;transform:none}}
 </style>
+<script>
+// Screen height is measured once and held: phone browsers resize the page when their toolbar hides on the first tap,
+// which re-scaled the artwork and cancelled the scroll to the next screen
+(function () {
+  var w = 0;
+  function set() { if (innerWidth === w) return; w = innerWidth; document.documentElement.style.setProperty('--vh', innerHeight + 'px'); }
+  set(); addEventListener('resize', set); addEventListener('orientationchange', function () { w = 0; setTimeout(set, 300); });
+})();
+</script>
 </head>
 <body>
 
@@ -262,8 +271,9 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
   document.addEventListener('visibilitychange', () => { if (document.hidden) song.pause(); else if (!muted && mbtn.dataset.started) song.play().catch(() => {}); });
   song.addEventListener('play', () => mbtn.dataset.started = '1');
 
-  $('#torsvp').addEventListener('click', () => $('#rsvp').scrollIntoView());
-  $('#down').addEventListener('click', () => $('#info').scrollIntoView());
+  const go = id => scrollTo({ top: $(id).offsetTop, behavior: 'smooth' });
+  $('#torsvp').addEventListener('click', () => go('#rsvp'));
+  $('#down').addEventListener('click', () => go('#info'));
   new IntersectionObserver(([en]) => { if (en.isIntersecting) en.target.classList.add('in'); }, { threshold: .4 }).observe($('#info'));
 
   const gd = d => d.toISOString().replace(/[-:]|\.\d{3}/g, '');
