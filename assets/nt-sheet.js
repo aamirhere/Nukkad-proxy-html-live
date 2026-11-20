@@ -40,13 +40,19 @@
     return { id: 'none', kind: 'none' };
   }
   // The live offer's numbers, read into the variables the rest of the script works from; called again when the window changes
-  var ACTIVE, KIND, OFFER, MODE, AREA, EVERY, UNIT, TIERS, offerLive, SALE, saleNow, NOTE_SHORT, CODES, TX, MAX_PRICE, ELIG, TH, GAP;
+  var ACTIVE, KIND, OFFER, MODE, AREA, EVERY, UNIT, TIERS, LAD, LP, LCAP, LPCT, LTX, offerLive, SALE, saleNow, NOTE_SHORT, CODES, TX, MAX_PRICE, ELIG, TH, GAP;
   var TX_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'You might also like', also_coll: 'You might also like', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
+  var LTX_DEFAULT = { title: 'Pick more, pay less', price_line: '₹599 · 2nd at ₹499 · 3rd onwards ₹449', l0: '2nd at ₹499 · 3rd onwards ₹449', l1: 'Your next one is just ₹499. Save ₹100.', l2: 'Your 3rd is ₹449. Every one after too.', l3: 'Every extra one is ₹449. 6 or more gets 20% off.', l5: 'Add 1 more and get 20% off everything.', l6: '20% off. Our best price.', bulk: 'Ordering for a team or an event? WhatsApp us for bulk pricing.', bulk_short: 'Team or event? WhatsApp us', also_next: 'Pick your next one, at {price}', also_cap: 'Pick your next one', delivery: 'Every piece is hand-painted to order. Delivery takes 14 to 16 days.' };
   function applyOffer(o) {
     ACTIVE = o; KIND = o.kind || 'none';
     SALE = KIND === 'sale' ? o : null;
-    OFFER = KIND === 'free_nth' || KIND === 'tiers' ? o : {};
-    MODE = KIND === 'free_nth' || KIND === 'tiers' ? KIND : 'none';
+    OFFER = KIND === 'free_nth' || KIND === 'tiers' || KIND === 'ladder' ? o : {};
+    MODE = KIND === 'free_nth' || KIND === 'tiers' || KIND === 'ladder' ? KIND : 'none';
+    // Price ladder: the nth ₹599 piece costs LP[n-1] (the last price repeats); from LCAP pieces the whole lot is LPCT% off instead
+    LAD = KIND === 'ladder';
+    LP = (OFFER.ladder_prices && OFFER.ladder_prices.length ? OFFER.ladder_prices : [599, 499, 449]).map(Number);
+    LCAP = +OFFER.cap_at || 6; LPCT = +OFFER.cap_pct || 20;
+    LTX = {}; for (var lk in LTX_DEFAULT) LTX[lk] = (OFFER.ltext && OFFER.ltext[lk]) || LTX_DEFAULT[lk];
     // The fixed areas the offer may show in; each is a switch on the dashboard
     AREA = {}; ['strip', 'drawer', 'band', 'ladder', 'price', 'also', 'cards'].forEach(function (k) { AREA[k] = !o.areas || o.areas[k] !== false; });
     EVERY = Math.max(2, +OFFER.every || 3); UNIT = +OFFER.price || 599; TIERS = MODE === 'tiers' ? (OFFER.tiers && OFFER.tiers.length ? OFFER.tiers : LADDER) : [];
@@ -95,7 +101,9 @@
   function tx(key, v) { return TX[key].replace(/\{(\w+)\}/g, function (m, k) { return v && v[k] != null ? v[k] : m; }).replace(/\s*·\s*·/g, ' ·').replace(/^\s*·\s*|\s*·\s*$/g, ''); }
   var bold = function (t) { return esc(t).replace(/FREE/g, '<b>FREE</b>'); };
   function eligibleHandle(h) { return h !== CUSTOM && (!ELIG || !!ELIG[h]); }
-  function eligible(it) { var p = (it.original_price != null ? it.original_price : it.price) / 100; if (it.handle === CUSTOM) return false; if (ELIG) return !!ELIG[it.handle]; return p >= UNIT && p <= MAX_PRICE && !/custom|personali|logo/i.test(it.product_type || ''); }
+  function eligible(it) { var p = (it.original_price != null ? it.original_price : it.price) / 100; if (it.handle === CUSTOM) return false;
+    // the ladder counts ₹599 quote variants only: a ₹799 colour, the gold finish, diaries, Sabr Shukr pieces and add-ons stay out
+    if (LAD) return p === UNIT && !/^sabr-shukr|desk-piece|diary/.test(it.handle || '') && !/custom|personali|logo|add-?on|gift ?wrap/i.test(it.product_type || '') && (!ELIG || !!ELIG[it.handle]); if (ELIG) return !!ELIG[it.handle]; return p >= UNIT && p <= MAX_PRICE && !/custom|personali|logo/i.test(it.product_type || ''); }
   function unitsOf(cart) { var u = []; (cart.items || []).forEach(function (it) { if (!eligible(it)) return; var p = (it.original_price != null ? it.original_price : it.price) / 100; for (var i = 0; i < it.quantity; i++) u.push(p); }); return u; }
   applyOffer(resolveOffer(Date.now()));
   function freeCount(n) { var k = 0; for (var i = 0; i < TH.length; i++) if (n >= TH[i]) k = i + 1; if (k === TH.length) k += Math.floor((n - TH[TH.length - 1]) / GAP); return k; }
@@ -145,11 +153,25 @@
     var n = cart.item_count || 0, total = (cart.total_price || 0) / 100;
     return { n: n, list: total, pay: total, saving: 0, free: 0, steps: [], next: null, a: n + ' in cart', line: fmt(total), side: '', after: '', short: '', pct: 0, hot: false, celebrate: false };
   }
-  function ladderState(cart) { return !offerLive ? plainState(cart) : TIERS.length ? tierState(cart) : freeState(cart); }
+  /* ── price ladder: what n ₹599 pieces cost together, and what the next one adds ── */
+  function lTotal(n) { if (n <= 0) return 0; if (n >= LCAP) return Math.round(UNIT * n * (100 - LPCT)) / 100; var t = 0; for (var i = 0; i < n; i++) t += LP[Math.min(i, LP.length - 1)]; return t; }
+  // the price shown for the next piece: its own step price below the cap, the cap's per-piece price from there
+  function lNext(n) { return n >= LCAP ? Math.round(UNIT * (100 - LPCT) / 100) : LP[Math.min(n, LP.length - 1)]; }
+  function lBulk(long) { var t = long ? LTX.bulk : LTX.bulk_short, u = OFFER.bulk_link || ''; return u ? '<a class="nts-bulk" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : '<span class="nts-bulk">' + esc(t) + '</span>'; }
+  function lState(cart) {
+    var units = unitsOf(cart), n = units.length, list = UNIT * n, pay = lTotal(n), saving = Math.max(0, list - pay);
+    var steps = [1, 2, 3].map(function (k) { return { at: k, v: fmt(lTotal(k)), l: k + (k === 1 ? ' piece' : ' pieces') }; }).concat([{ at: LCAP, v: LPCT + '% off', l: LCAP + '+ pieces' }]);
+    var next = null; for (var i = 0; i < steps.length; i++) if (steps[i].at > n) { next = steps[i]; break; }
+    var line = !n ? LTX.l0 : n === 1 ? LTX.l1 : n === 2 ? LTX.l2 : n < LCAP - 1 ? LTX.l3 : n === LCAP - 1 ? LTX.l5 : LTX.l6;
+    var a = n ? n + ' in cart · ' + fmt(pay) + (saving > 0 ? ' · saved ' + fmt(saving) : '') : LTX.title;
+    return { n: n, list: list, pay: pay, saving: saving, free: 0, steps: steps, next: next, a: a, line: '<b>' + esc(line) + '</b>', side: n >= 10 ? LTX.bulk_short : '', after: '', short: line, pct: !n ? 0 : Math.max(6, Math.min(100, (n - 1) / (LCAP - 1) * 100)), hot: n === LCAP - 1, celebrate: n === LCAP, bulk: n >= 10 };
+  }
+  function ladderState(cart) { return !offerLive ? plainState(cart) : LAD ? lState(cart) : TIERS.length ? tierState(cart) : freeState(cart); }
   function ladderHtml(S) {
     return '<div class="nts-ladder">' + S.steps.map(function (s) { return '<div class="st' + (S.n >= s.at ? ' done' : '') + (S.next && S.next.at === s.at ? ' next' : '') + '"><b>' + s.v + '</b>' + s.l + '</div>'; }).join('') + '</div>';
   }
   function offerRules() {
+    if (LAD) return ['1st piece <b>' + fmt(LP[0]) + '</b> · 2nd <b>' + fmt(LP[1] || LP[0]) + '</b>', '3rd, 4th and 5th piece <b>' + fmt(LP[LP.length - 1]) + ' each</b>', LCAP + ' or more pieces: <b>' + LPCT + '% off the whole order</b>', 'For ₹599 quotes · applies on its own at checkout'].map(function (x) { return '<li>' + x + '</li>'; }).join('');
     if (TIERS.length) return TIERS.map(function (s) { return '<li>' + s.at + ' pieces · <b>' + s.label + '</b></li>'; }).join('');
     var V = vars({ n: 0, pay: 0, list: 0, k: 0, more: 0, next_n: 0, next_pay: 0 });
     return ['rule1', 'rule2', 'rule3'].filter(function (k) { return CODES.length || (TX[k].indexOf('{code') < 0); }).map(function (k) { return '<li>' + chips(bold(tx(k, V))) + '</li>'; }).join('') + (OFFER.note ? '<li>' + esc(OFFER.note) + '</li>' : '');
@@ -194,6 +216,7 @@
     '#ntsPdp .nts-fest:not(.sale){color:var(--ink,#3a2b1d);background:#fff;border:1px solid var(--line,#e9ddca);box-shadow:0 2px 10px -4px rgba(58,43,29,.12);padding:10px 14px}' +
     // a phone page must never pan sideways: clip (not hidden) so sticky headers keep working
     'html,body{overflow-x:clip}#ntsPdp .nts-fest:not(.sale)::after{display:none}#ntsPdp .nts-fest:not(.sale) .t{font-size:14.5px;font-weight:600;color:var(--ink,#3a2b1d)}#ntsPdp .nts-fest:not(.sale) .s{color:var(--ink2,#6f5b46);opacity:1}#ntsPdp .nts-fest:not(.sale) .s b{color:var(--accent,#d4541f)}#ntsPdp .nts-fest:not(.sale) .n{background:#f1e7d9;color:var(--ink2,#6f5b46)}' +
+    '#ntSheetRoot .nts-ladder{grid-template-columns:repeat(4,minmax(0,1fr))}#ntsPdp .nts-ladder{grid-template-columns:repeat(4,minmax(0,1fr))}.nts-ladder .st{padding-top:9px}.ph-price .nts-pl{display:block;font-family:var(--fb,"Nunito",sans-serif);font-size:12.5px;font-weight:700;color:var(--accent,#d4541f);margin-top:6px;letter-spacing:0;white-space:normal}.ph-price.nts-on{white-space:normal!important}.nts-bulk{color:var(--accent,#d4541f);font-weight:800;text-decoration:underline;text-underline-offset:2px}.nts-bulkline{margin-top:10px;font-size:12.5px;line-height:1.4}' +
     '#ntsPdp .nts-fest .tm{display:flex;align-items:center;gap:7px;margin-top:7px;padding-top:7px;border-top:1px solid var(--line,#e9ddca);font-size:12px;color:var(--ink2,#6f5b46);font-variant-numeric:tabular-nums}#ntsPdp .nts-fest .tm::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent,#d4541f);opacity:.7;flex:none}#ntsPdp .nts-fest .tm b{color:var(--ink,#3a2b1d);font-weight:800}#ntsPdp .nts-fest .tm .ld{color:var(--accent,#d4541f);font-weight:800}' +
     '#ntSheetRoot .nts-mini .gift{display:grid;place-items:center;width:100%;height:100%;font-size:22px;background:#fbe9d7}#ntSheetRoot .nts-ladder{grid-template-columns:repeat(auto-fit,minmax(56px,1fr))}' +
     '#ntSheetRoot .nts-strip.sale{background:linear-gradient(100deg,#c1001a 0%,#e8192c 55%,#ff5a3c 100%);padding:8px 30px 8px 12px;animation:ntsGlow 1.1s ease-in-out infinite}@keyframes ntsGlow{0%,100%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 0 rgba(232,25,44,.65)}60%{box-shadow:0 8px 20px rgba(58,43,29,.3),0 0 0 8px rgba(232,25,44,0)}}#ntSheetRoot .nts-strip.sale .a{color:#fff2a8;font-weight:900;opacity:1;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;white-space:normal;overflow:visible;line-height:1.2}#ntSheetRoot .nts-strip.sale .b{display:flex;flex-direction:column;gap:4px;margin-top:4px;white-space:normal;line-height:1}#ntSheetRoot .nts-strip.sale .row{display:flex;align-items:center;gap:10px}#ntSheetRoot .nts-strip.sale .clk{display:inline-flex;align-items:center;gap:2px;flex:none}#ntSheetRoot .nts-strip.sale .clk b{display:inline-block;min-width:2ch;text-align:center;font-size:24px;font-weight:900;color:#fff;background:#1a0608;border-radius:7px;padding:5px 6px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.02em;box-shadow:inset 0 -2px 0 rgba(255,255,255,.08)}#ntSheetRoot .nts-strip.sale .clk b[data-s]{animation:ntsSec 1s steps(1) infinite}@keyframes ntsSec{0%{background:#5a0a12;color:#fff2a8}50%{background:#1a0608;color:#fff}}#ntSheetRoot .nts-strip.sale .clk i{font-style:normal;font-weight:900;font-size:20px;color:#fff;line-height:1;margin:0 1px;animation:ntsColon 1s steps(1) infinite}@keyframes ntsColon{50%{opacity:.35}}#ntSheetRoot .nts-strip.sale .of{color:#fff;font-size:16px;font-weight:900;line-height:1.1;min-width:0;flex:1 1 auto}@media(max-width:400px){#ntSheetRoot .nts-strip.sale{padding:7px 10px}#ntSheetRoot .nts-strip.sale .a{font-size:9.5px;letter-spacing:.05em}#ntSheetRoot .nts-strip.sale .row{gap:7px}#ntSheetRoot .nts-strip.sale .clk b{font-size:19px;padding:4px 4px;border-radius:6px}#ntSheetRoot .nts-strip.sale .clk i{font-size:16px}#ntSheetRoot .nts-strip.sale .of{font-size:13.5px}#ntSheetRoot .nts-strip.sale .hurry{font-size:10px}#ntSheetRoot .nts-dock .nts-cart{padding:8px 10px;font-size:12px}}@media(max-width:350px){#ntSheetRoot .nts-strip.sale .clk b{font-size:16px;padding:3px 3px}#ntSheetRoot .nts-strip.sale .of{font-size:12.5px}}#ntSheetRoot .nts-strip.sale .hurry{display:block;color:#fff;font-size:11px;font-weight:700;opacity:.95;line-height:1.2}#ntSheetRoot .nts-strip.sale .br,#ntSheetRoot .nts-strip.plain .br{display:none}#ntSheetRoot .nts-dock{max-width:calc(100vw - 24px);box-sizing:border-box}html.nts-sale .stock-badge,html.nts-sale .pstock-low,html.nts-sale .nt-non-stock-low,html.nts-sale .nts-urgency{display:none!important}#ntsPdp{contain:inline-size;min-width:0;max-width:100%;box-sizing:border-box}#ntsPdp .nts-lbox{min-width:0;max-width:100%;box-sizing:border-box}#ntsPdp .nts-arow{max-width:calc(100% + 20px)}#ntSheetRoot .nts-strip.sale .chev{display:none}#ntSheetRoot .nts-strip.sale{cursor:default}#ntSheetRoot .nts-strip.sale.hot{animation-duration:.6s}#ntSheetRoot .nts-strip.sale.hot .clk b{background:#fff;color:#c1001a}#ntSheetRoot .nts-strip.sale.hot .clk b[data-s]{animation:none}#ntSheetRoot .nts-foot .nts-strip.sale{animation:none;padding-right:12px}#ntSheetRoot .nts-foot .nts-strip.sale .clk b{font-size:18px;padding:4px 5px}#ntSheetRoot .nts-foot .nts-strip.sale .of{font-size:14px}#ntSheetRoot .nts-foot .nts-strip.sale .b small{display:block}' +
@@ -263,7 +286,7 @@
   // Every second: a sale's clock ticks; at a window edge the next offer takes over and every area is drawn again
   function switchOffer(o) {
     var el = document.querySelector('.ph-price'); if (el && _pp.base != null && el.innerHTML === _pp.html) { el.innerHTML = _pp.base; el.classList.remove('nts-on'); } _pp = { html: null, base: null };
-    applyOffer(o); closeSheet();
+    unLadderDelivery(); applyOffer(o); closeSheet();
     var box = document.getElementById('ntsPdp'); if (box) box.parentNode.removeChild(box); _pdp = null;
     mountProduct(); paintStrip(); decorateCards();
   }
@@ -297,7 +320,7 @@
     if (c.gift) all.gift.l = 'Another gift';
     return order.filter(function (k) { return (P[k] || []).filter(function (x) { return CAT[x]; }).length; }).map(function (k) { return { k: k, l: all[k].l, lead: all[k].lead, items: P[k].filter(function (x) { return CAT[x]; }).slice(0, 4) }; });
   }
-  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (saleNow) { var sp = salePrice(base); return sp ? sp.now : base; } if (!offerLive) return base; if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
+  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (saleNow) { var sp = salePrice(base); return sp ? sp.now : base; } if (!offerLive) return base; if (LAD) return base === UNIT && S.n < LCAP ? lNext(S.n) : base; if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
   function renderTabs() {
     $('ntsTabs').innerHTML = tabs.map(function (t, i) { return '<button class="nts-tab' + (i === tab ? ' on' : '') + '" data-i="' + i + '">' + t.l + '</button>'; }).join('');
     renderRow();
@@ -331,7 +354,7 @@
   }
   // The offers drawer: what the strip opens. The ladder, the rules, and the cart button.
   function renderOffers(S) {
-    $('ntsOffers').innerHTML = ladderHtml(S) + '<ul class="nts-rules">' + offerRules() + '</ul>';
+    $('ntsOffers').innerHTML = ladderHtml(S) + '<ul class="nts-rules">' + offerRules() + (LAD && S.bulk ? '<li>' + lBulk(true) + '</li>' : '') + '</ul>';
   }
   function openOffers() {
     // in the sale the strip is the timer and nothing more: a tap does nothing; with no offer (or the drawer switched off) it opens the cart
@@ -385,13 +408,14 @@
   // Stock quotes only: a piece whose own price, or one of its colour prices, is the quote price (₹599, read through the sale's cut)
   function has599(c) { var ps = [c.p].concat((c.cols || []).map(function (x) { return x.p; })); if (/custom|logo|hamper|personali/i.test(c.t || '')) return false; return ps.some(function (p) { var sp = salePrice(+p); return (sp ? sp.was : +p) === 599; }); }
   function pageColour() { var r = document.querySelector('input[type=radio][name^="ntpb-opt-"]:checked'); return r ? String(r.value).toLowerCase() : ''; }
-  function alsoHeader(S) { var r = S.n % EVERY, c = _pdp && (PICKS[_pdp.h] || {}).coll, nn = TIERS.length ? 0 : nextAt(S.n), V = vars({ n: S.n, pay: S.pay, list: S.list, k: 0, more: nn - S.n, next_n: nn, next_pay: nn ? payFor(withMore(unitsOf(_cart), nn - S.n)) : 0, coll: c ? c.t : '' }); return saleNow || !offerLive || !AREA.also || TIERS.length || !S.n ? tx(c ? 'also_coll' : 'also_empty', V) : r === EVERY - 1 ? tx('also_hot', V) : r ? tx('also_first', V) : tx('also_done', V); }
+  function alsoHeader(S) { if (LAD && offerLive && AREA.also && S.n && !saleNow) return S.n >= LCAP ? LTX.also_cap : LTX.also_next.replace('{price}', fmt(lNext(S.n)));
+    var r = S.n % EVERY, c = _pdp && (PICKS[_pdp.h] || {}).coll, nn = TIERS.length ? 0 : nextAt(S.n), V = vars({ n: S.n, pay: S.pay, list: S.list, k: 0, more: nn - S.n, next_n: nn, next_pay: nn ? payFor(withMore(unitsOf(_cart), nn - S.n)) : 0, coll: c ? c.t : '' }); return saleNow || !offerLive || !AREA.also || TIERS.length || !S.n ? tx(c ? 'also_coll' : 'also_empty', V) : r === EVERY - 1 ? tx('also_hot', V) : r ? tx('also_first', V) : tx('also_done', V); }
   var _pdp = null;
   function renderAlso() {
     if (!_pdp || !$('ntsAlsoRow')) return;
     // Each card shows what adding it really costs: the cheapest piece in a full set goes free, so a dearer colour is not "free"
     var S = ladderState(_cart), units = unitsOf(_cart), pc = pageColour();
-    var marginal = function (base) { return TIERS.length || !offerLive || !AREA.also ? base : Math.max(0, payFor(units.concat([base])) - payFor(units)); };
+    var marginal = function (base) { if (LAD) return offerLive && AREA.also && base === UNIT && S.n && S.n < LCAP ? lNext(S.n) : base; return TIERS.length || !offerLive || !AREA.also ? base : Math.max(0, payFor(units.concat([base])) - payFor(units)); };
     $('ntsAlsoH').innerHTML = '<span>' + esc(alsoHeader(S)) + '</span>';
     var inCart = {}; (_cart.items || []).forEach(function (it) { inCart[it.handle] = (inCart[it.handle] || 0) + it.quantity; });
     $('ntsAlsoRow').innerHTML = _pdp.list.map(function (x) {
@@ -429,6 +453,7 @@
   function decoratePrice() {
     var el = document.querySelector('.ph-price'), h = productHandle(); if (!el || !h) return;
     // Offer over (or the price area switched off) while the page is open: put the price back as the theme wrote it
+    if (LAD && offerLive && AREA.price) return decorateLadderPrice(el, h);
     if (TIERS.length || !offerLive || !AREA.price) { if (_pp.base != null && el.innerHTML === _pp.html && _pp.html !== _pp.base) { el.innerHTML = _pp.base; el.classList.remove('nts-on'); _pp = { html: null, base: null }; } return; }
     var base = el.innerHTML === _pp.html ? _pp.base : el.innerHTML;
     var tmp = document.createElement('span'); tmp.innerHTML = base; Array.prototype.forEach.call(tmp.querySelectorAll('s,small'), function (x) { x.parentNode.removeChild(x); });
@@ -441,7 +466,28 @@
     el.classList.toggle('nts-on', html !== base);
     _pp = { html: html, base: base };
   }
-  function renderPdp() { var l = $('ntsPdpLadder'); if (l) l.innerHTML = ladderHtml(ladderState(_cart)); renderAlso(); decoratePrice(); }
+  // Ladder: the step line always sits under a ₹599 price; with pieces in the cart the price reads what this one adds
+  function decorateLadderPrice(el, h) {
+    var base = el.innerHTML === _pp.html ? _pp.base : el.innerHTML;
+    var tmp = document.createElement('span'); tmp.innerHTML = base; Array.prototype.forEach.call(tmp.querySelectorAll('s,small'), function (x) { x.parentNode.removeChild(x); });
+    var m = tmp.textContent.match(/₹\s*([\d,]+)/), price = m ? +m[1].replace(/,/g, '') : 0;
+    var small = (base.match(/<small[^>]*>[\s\S]*<\/small>/) || [''])[0];
+    if (price !== UNIT || !eligible({ handle: h, price: price * 100, original_price: price * 100, product_type: '' })) { if (_pp.base != null && el.innerHTML === _pp.html) { el.innerHTML = _pp.base; el.classList.remove('nts-on'); } _pp = { html: null, base: null }; return; }
+    var n = unitsOf(_cart).length, np = lNext(n);
+    var head = n && np < price ? '<s>' + fmt(price) + '</s> <span class="nts-free">' + fmt(np) + ' <em>' + (n >= LCAP ? LPCT + '% off' : n + 1 === LCAP ? 'as your ' + ord(n + 1) + ' · ' + LPCT + '% off all' : 'as your ' + ord(n + 1)) + '</em></span>' : fmt(price);
+    var html = head + '<small class="nts-pl">' + esc(LTX.price_line) + '</small>' + small;
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.classList.add('nts-on');
+    _pp = { html: html, base: base };
+  }
+  // The delivery line in the product's options: the sale wording goes, the plain hand-painted line stays
+  function ladderDelivery() {
+    if (!LAD || !LTX.delivery) return;
+    var els = document.querySelectorAll('.opt-block.info-html');
+    for (var i = 0; i < els.length; i++) { var el = els[i]; if (el.getAttribute('data-nts-del') != null) continue; if (!/deliver/i.test(el.textContent || '')) continue; el.setAttribute('data-nts-del', el.innerHTML); el.innerHTML = '<p><b>Delivery:</b> ' + esc(LTX.delivery) + '</p>'; }
+  }
+  function unLadderDelivery() { var els = document.querySelectorAll('[data-nts-del]'); for (var i = 0; i < els.length; i++) { els[i].innerHTML = els[i].getAttribute('data-nts-del'); els[i].removeAttribute('data-nts-del'); } }
+  function renderPdp() { ladderDelivery(); var l = $('ntsPdpLadder'), S = ladderState(_cart); if (l) l.innerHTML = ladderHtml(S) + (LAD && S.bulk ? '<div class="nts-bulkline">' + lBulk(true) + '</div>' : ''); renderAlso(); decoratePrice(); }
   function mountProduct() {
     // Any product page gets the band and the ladder; the row needs the design in the data (its own rows, or borrowed ones)
     var h = productHandle(); if (!h) return;
@@ -452,10 +498,12 @@
     // A festive band above the offer: the offer title, its one-line promise and the small note
     var V0 = vars({ n: 0, pay: 0, list: 0, k: 0, more: 0, next_n: 0, next_pay: 0 });
     var band = saleNow ? '<div class="nts-fest sale"><div class="t">🔥 ' + esc(saleNow.day) + '</div><div class="s"><b>' + esc(SALE.title || 'Pick any at ₹399') + '</b> · ' + esc(SALE.sub || '') + ' <span class="n c" id="ntsFestClock">' + esc(saleNow.clock) + '</span></div></div>'
+      : LAD ? ''
       : offerLive && AREA.band ? '<div class="nts-fest"><div class="t">✨ ' + esc(OFFER.title) + '</div><div class="s">' + (TIERS.length ? esc(TIERS.map(function (t) { return t.label + ' at ' + t.at; }).join(' · ')) : bold(tx('empty_line', V0)) + ' · ' + esc(tx('empty_side', V0))) + '' + (OFFER.note ? ' <span class="n">' + esc(OFFER.note) + '</span>' : '') + '</div></div>' : '';
-    box.innerHTML = band + (!saleNow && offerLive && AREA.ladder ? '<div class="nts-lbox"><div class="h">' + esc(TIERS.length ? 'Buy more, pay less' : tx('ladder_title', V0)) + '</div><div id="ntsPdpLadder"></div></div>' : '') +
+    box.innerHTML = band + (!saleNow && offerLive && AREA.ladder ? '<div class="nts-lbox"><div class="h">' + esc(LAD ? LTX.title : TIERS.length ? 'Buy more, pay less' : tx('ladder_title', V0)) + '</div><div id="ntsPdpLadder"></div></div>' : '') +
       (list.length && AREA.also ? '<div class="nts-lbox nts-also"><div class="h" id="ntsAlsoH"></div><div class="nts-arow" id="ntsAlsoRow"></div></div>' : '');
     form.insertAdjacentElement('afterend', box);
+    ladderDelivery();
     _pdp = list.length && AREA.also ? { h: h, list: list, pick: {} } : null;
     renderPdp();
     // The theme rewrites the price on every colour change; follow it
@@ -563,7 +611,7 @@
   }
   // Collection and grid cards: a small tag on the photo of every piece the offer covers (stock quotes at the quote price)
   function decorateCards() {
-    if (!offerLive || TIERS.length || !AREA.cards) {
+    if (!offerLive || TIERS.length || LAD || !AREA.cards) {
       // Nothing to show: cards already touched go back to the theme's price
       var done = document.querySelectorAll('a.pcard .pp[data-nts]');
       for (var j = 0; j < done.length; j++) { var p0 = done[j], b0 = p0.getAttribute('data-nts'); if (p0.innerHTML !== b0) p0.innerHTML = b0; var l0 = p0.closest('a.pcard').querySelector('.nts-line'); if (l0) l0.style.display = 'none'; }
