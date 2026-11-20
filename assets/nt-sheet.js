@@ -52,7 +52,7 @@
     LAD = KIND === 'ladder';
     LP = (OFFER.ladder_prices && OFFER.ladder_prices.length ? OFFER.ladder_prices : [599, 499, 449]).map(Number);
     LCAP = +OFFER.cap_at || 6; LPCT = +OFFER.cap_pct || 20;
-    LCOUNT = (OFFER.count_prices && OFFER.count_prices.length ? OFFER.count_prices : [+OFFER.price || 599, 799]).map(Number);
+    LCOUNT = (OFFER.count_prices && OFFER.count_prices.length ? OFFER.count_prices : [+OFFER.price || 599, 799, 899]).map(Number);
     LTX = {}; for (var lk in LTX_DEFAULT) LTX[lk] = (OFFER.ltext && OFFER.ltext[lk]) || LTX_DEFAULT[lk];
     // The fixed areas the offer may show in; each is a switch on the dashboard
     AREA = {}; ['strip', 'drawer', 'band', 'ladder', 'price', 'also', 'cards'].forEach(function (k) { AREA[k] = !o.areas || o.areas[k] !== false; });
