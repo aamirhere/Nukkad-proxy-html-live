@@ -49,6 +49,42 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;
 #cam{position:fixed;inset:0;z-index:85;background:#000;display:flex;flex-direction:column}#cam video{flex:1;width:100%;object-fit:cover}#cam button{margin:12px}
 @media print{body>*:not(#printArea){display:none!important}#printArea{display:block!important}@page{margin:0}}
 #printArea{display:none}
+/* motion and progress */
+#topbar{position:fixed;top:0;left:0;height:3px;width:0;z-index:120;background:linear-gradient(90deg,var(--accent),#f0a060);box-shadow:0 0 8px rgba(212,84,31,.45);opacity:0;transition:width .3s ease,opacity .4s ease;pointer-events:none}#topbar.on{opacity:1}
+#toasts{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:110;display:flex;flex-direction:column;gap:8px;align-items:center;width:min(440px,calc(100vw - 32px));pointer-events:none}
+.toast{pointer-events:auto;width:100%;background:var(--ink);color:#fff;border-radius:12px;padding:10px 14px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);animation:tin .25s ease-out both;display:flex;flex-direction:column;gap:7px}
+.toast.ok{background:var(--ok)}.toast.bad{background:var(--bad)}.toast.warn{background:#8a5a12}.toast.out{animation:tout .25s ease-in forwards}
+.toast .pb{background:rgba(255,255,255,.25)}.toast .pb i{background:#fff}
+@keyframes tin{from{opacity:0;transform:translateY(12px) scale(.97)}}@keyframes tout{to{opacity:0;transform:translateY(8px) scale(.97)}}
+.pb{height:6px;border-radius:6px;background:#f1e7d9;overflow:hidden;min-width:60px}.pb i{display:block;height:100%;border-radius:6px;background:var(--accent);transition:width .45s cubic-bezier(.2,.8,.2,1);animation:grow .7s cubic-bezier(.2,.8,.2,1) both}
+.pb.ok i{background:var(--ok)}.pb.bad i{background:var(--bad)}.pb.warn i{background:#e0a030}.pb.dk i{background:var(--ink)}.pb.thin{height:4px;margin-top:5px}.pb.fat{height:10px}
+.pb.ind i{width:35%!important;animation:ind 1.1s ease-in-out infinite}
+@keyframes grow{from{width:0}}@keyframes ind{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+.pbl{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);font-weight:800;margin:0 0 5px}
+.sk{border-radius:8px;background:linear-gradient(90deg,#f3ebdf 25%,#fbf6ee 50%,#f3ebdf 75%);background-size:200% 100%;animation:shim 1.2s linear infinite}
+@keyframes shim{from{background-position:200% 0}to{background-position:-200% 0}}
+main,.card,.ln,.tick,.stat{animation:fup .32s ease-out both}
+#aView>:nth-child(2){animation-delay:.04s}#aView>:nth-child(3){animation-delay:.08s}#aView>:nth-child(4){animation-delay:.12s}#aView>:nth-child(n+5){animation-delay:.16s}
+.noanim .card,.noanim .ln,.noanim .tick,.noanim .stat,.noanim .pb i{animation:none}
+@keyframes fup{from{opacity:0;transform:translateY(6px)}}
+button{transition:transform .12s ease,background .2s,color .2s,box-shadow .2s,opacity .2s}button:active:not(:disabled){transform:scale(.96)}button:hover:not(:disabled){box-shadow:0 2px 8px rgba(58,43,29,.12)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(212,84,31,.12)}input,select,textarea{transition:border-color .2s,box-shadow .2s}
+.mb{animation:fin .18s ease-out both}.md{animation:pop .24s cubic-bezier(.2,.9,.3,1.15) both}.mb.out{animation:fout .16s ease-in forwards}.mb.out .md{animation:pout .16s ease-in forwards}
+@keyframes fin{from{opacity:0}}@keyframes fout{to{opacity:0}}@keyframes pop{from{opacity:0;transform:scale(.94) translateY(8px)}}@keyframes pout{to{opacity:0;transform:scale(.96)}}
+.bump{animation:bump .38s ease-out}@keyframes bump{40%{transform:scale(1.35);color:var(--ok)}}
+.ln{transition:border-color .3s,background .3s}.flash{animation:flin .18s ease-out both}@keyframes flin{from{opacity:0;transform:scale(1.04)}}
+tr{transition:background .2s}tr:hover>td{background:#fdf9f3}
+.chip{transition:background .2s,color .2s}
+.th{width:42px;height:42px;border-radius:8px;object-fit:cover;background:#f3ebdf;flex:none}.nmc{display:flex;gap:10px;align-items:center}
+.md.wide{width:min(1020px,100%)}
+.wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;max-height:56vh;overflow:auto;padding:2px}
+.wp{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;display:flex;flex-direction:column;animation:fup .3s ease-out both;transition:box-shadow .2s,border-color .2s}.wp:hover{box-shadow:0 6px 18px rgba(58,43,29,.1)}
+.wp img,.wp .noimg{width:100%;aspect-ratio:4/3;object-fit:cover;background:#f3ebdf;display:block}.wb{padding:10px}.wb>b{display:block;line-height:1.25}
+.wv{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;margin-top:5px;border:1px solid var(--line);cursor:pointer;font-size:13px;font-weight:700;transition:background .2s,border-color .2s}
+.wv:has(input:checked){background:#fff4ec;border-color:var(--accent)}.wv.added{opacity:.6;cursor:default}.wv input{width:17px;height:17px;accent-color:var(--accent)}
+.wfoot{position:sticky;bottom:-18px;background:#fff;padding:12px 0 2px;margin-top:10px;border-top:1px solid var(--line)}
+.link{background:none;border:0;padding:2px 0;color:var(--accent);font-weight:800;font-size:12px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head><body>
 <header>
@@ -80,6 +116,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;
 </main>
 
 <div id="printArea"></div>
+<div id="topbar"></div><div id="toasts"></div>
 
 <script src="assets/nt-slip.js"></script>
 <script>
@@ -90,19 +127,54 @@ const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { ret
 const ss = { get: k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} } };
 async function apiFetch(payload, url = API, timeoutMs = 30000) {
   const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), timeoutMs);
+  bar(true);
   try {
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: ctrl.signal });
     const d = await r.json().catch(() => ({}));
     if (d.error) { const e = new Error(d.error); e.status = r.status; throw e; }
     if (d.errorMessage) throw new Error('Server hiccup — try again');
     return d;
-  } catch (e) { if (e.name === 'AbortError') throw new Error('Timed out — try again'); throw e; } finally { clearTimeout(t); }
+  } catch (e) { if (e.name === 'AbortError') throw new Error('Timed out — try again'); throw e; } finally { clearTimeout(t); bar(false); }
 }
 const api = (action, body = {}) => apiFetch({ action, ...body });
 const adm = (action, body = {}) => apiFetch({ action, pin: ss.get('rs_pin') || '', ...body }).catch(e => { if (e.status === 401) { ss.set('rs_pin', ''); askPin(); } throw e; });
 const fmtD = t => t ? new Date(t).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
 const dayOnly = t => t ? new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—';
 const rs = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
+
+// ── feedback: top bar, toasts, progress ──
+let busy = 0, barI = null, barT = null;
+function bar(on) {
+  const b = $('topbar'); if (!b) return;
+  if (on) { if (busy++ === 0) { clearTimeout(barT); clearInterval(barI); b.classList.add('on'); let w = 10; b.style.width = w + '%'; barI = setInterval(() => { w += (92 - w) * .07; b.style.width = w + '%'; }, 200); } return; }
+  if (--busy > 0) return; busy = 0; clearInterval(barI); b.style.width = '100%';
+  barT = setTimeout(() => { b.classList.remove('on'); barT = setTimeout(() => { if (!busy) b.style.width = '0'; }, 400); }, 220);
+}
+function toast(msg, kind = '', ms = 2800) { const t = document.createElement('div'); t.className = 'toast ' + kind; t.textContent = msg; $('toasts').appendChild(t); setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, ms); return t; }
+const warn = m => toast(m, 'warn');
+function ptoast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = '<span></span><div class="pb thin"><i style="width:4%"></i></div>'; t.firstChild.textContent = msg; $('toasts').appendChild(t);
+  const i = t.querySelector('i');
+  return { set(n, of, m) { i.style.width = Math.max(4, of ? Math.round(n / of * 100) : 0) + '%'; if (m) t.firstChild.textContent = m; },
+    done(m, kind = 'ok') { i.style.width = '100%'; t.className = 'toast ' + kind; if (m) t.firstChild.textContent = m; setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, kind === 'bad' ? 4500 : 2600); } };
+}
+const pct = (n, of) => of > 0 ? Math.max(0, Math.min(100, Math.round(n / of * 100))) : 0;
+const pb = (n, of, cls = '', label) => `${label != null ? `<div class="pbl"><span>${label}</span><span>${n}/${of}</span></div>` : ''}<div class="pb ${cls}"><i style="width:${pct(n, of)}%"></i></div>`;
+function countUp(root) { root.querySelectorAll('[data-cu]').forEach(el => { const to = +el.dataset.cu, t0 = performance.now(); if (!to || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = to; return; } const step = t => { const k = Math.min(1, (t - t0) / 600); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }); }
+function shopToast(shop) {
+  if (!shop || shop.skipped) return;
+  if (shop.error) return warn('Website quantity not updated: ' + shop.error);
+  const s = shop.synced || []; if (!s.length) return;
+  const bad = s.filter(x => !x.ok);
+  toast(bad.length ? `Website: ${bad.length} item(s) not updated — ${bad[0].note}` : `Website quantity updated · ${s.length} item${s.length > 1 ? 's' : ''}`, bad.length ? 'warn' : 'ok', 2200);
+}
+function ask(msg, yes = 'Yes', danger) {
+  return new Promise(res => modal(`<h3>Please confirm</h3><p style="line-height:1.5">${esc(msg)}</p><div class="row"><span class="sp"></span><button data-n>Cancel</button><button class="${danger ? 'a' : 'p'}" data-y>${esc(yes)}</button></div>`, (m, close) => {
+    m.querySelector('[data-n]').onclick = () => { close(); res(false); }; m.querySelector('[data-y]').onclick = () => { close(); res(true); }; setTimeout(() => m.querySelector('[data-y]').focus(), 40);
+  }, () => res(false)));
+}
+// re-renders of the same screen (every scan, every tick) should not replay the entrance animation
+const still = (el, key) => { el.classList.toggle('noanim', el.dataset.k === key); el.dataset.k = key; };
 
 // ── sound and flash: green ding for right, red buzz for wrong ──
 let AC = null;
@@ -120,10 +192,11 @@ function openDoor(d) {
 }
 $('doorPack').onclick = () => openDoor('pack');
 $('doorAdmin').onclick = () => openDoor('admin');
-function modal(html, onReady) {
-  const mb = document.createElement('div'); mb.className = 'mb'; mb.innerHTML = `<div class="md">${html}</div>`;
-  mb.addEventListener('click', e => { if (e.target === mb) mb.remove(); });
-  document.body.appendChild(mb); if (onReady) onReady(mb.firstChild, () => mb.remove()); return mb;
+function modal(html, onReady, onDismiss, cls = '') {
+  const mb = document.createElement('div'); mb.className = 'mb'; mb.innerHTML = `<div class="md ${cls}">${html}</div>`;
+  let gone = false; const close = () => { if (gone) return; gone = true; mb.classList.add('out'); setTimeout(() => mb.remove(), 170); };
+  mb.addEventListener('click', e => { if (e.target === mb || e.target.closest('[data-close]')) { close(); if (onDismiss) onDismiss(); } });
+  document.body.appendChild(mb); if (onReady) onReady(mb.firstChild, close); return mb;
 }
 function askPin() {
   modal(`<h3>Admin PIN</h3><p class="m">The admin area changes stock and orders. Ask the owner for the PIN.</p><div class="row"><input id="pinIn" type="password" inputmode="numeric" placeholder="PIN" style="flex:1;font-size:20px"><button class="p" id="pinGo">Open</button></div><p class="m" id="pinErr"></p>`, (m, close) => {
@@ -133,7 +206,8 @@ function askPin() {
 }
 
 // ═════════════════════════ PACKING STATION ═════════════════════════
-let mode = 'pack', P = null, RTO = null, HAND = { courier: '', list: [] }, ITEMS = [], packers = [], couriers = [];
+let mode = 'pack', P = null, RTO = null, HAND = { courier: '', list: [] }, ITEMS = [], packers = [], couriers = [], toHand = [];
+const thumb = u => u ? u + (u.includes('?') ? '&' : '?') + 'width=160' : '';
 function focusScan() { if (door === 'pack' && !document.querySelector('.mb') && document.activeElement && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) $('scan').focus(); }
 document.addEventListener('click', () => setTimeout(focusScan, 0));
 $('packer').onchange = () => ls.set('rs_packer', $('packer').value);
@@ -167,12 +241,12 @@ async function packScan(code) {
       const need = P.need[it.sku];
       if (!need) { buzz(); flash('bad', 'Not in this order', [it.name, it.variant].filter(Boolean).join(' · ')); return; }
       if ((P.got[it.sku] || 0) >= need.qty) { buzz(); flash('bad', `Already ${need.qty} of ${need.qty}`, need.name); return; }
-      P.got[it.sku] = (P.got[it.sku] || 0) + 1; ding(); renderPack(); return;
+      P.got[it.sku] = (P.got[it.sku] || 0) + 1; P.bump = it.sku; ding(); renderPack(); return;
     }
     if (code.replace(/^#/, '') === String(P.order.order_name).replace(/^#/, '') || code === P.order.awb) { ding(); return; }
     // not a piece of this order: is it another order's slip? only then offer to switch
     let other; try { other = await api('rs_pack_open', { code }); } catch (e) { buzz(); flash('bad', 'Not in this order', code); return; }
-    if (!confirm(`That is ${other.order.order_name}'s slip. Leave ${P.order.order_name} unfinished and open it?`)) return;
+    if (!await ask(`That is ${other.order.order_name}'s slip. Leave ${P.order.order_name} unfinished and open it?`)) return;
     return openPack(other);
   }
   return openPack(await api('rs_pack_open', { code }));
@@ -199,24 +273,32 @@ function renderPack() {
   if (mode === 'rto') return renderRto();
   if (mode === 'hand') return renderHand();
   $('scanHint').textContent = P ? 'Scan each piece. Wrong piece = red buzz.' : 'Scan the AWB on the packing slip to open the order.';
+  still(v, P ? 'P' + P.order.order_name : 'P-');
   if (!P) { v.innerHTML = `<div class="card prompt">Scan a packing slip 📄</div>`; return; }
   const o = P.order, item = s => ITEMS.find(i => i.sku === s) || {};
+  const hasQ = o.lines.some(l => l.kind === 'quote');
+  let pcs = 0, pcsGot = 0; for (const s in P.need) { pcs += P.need[s].qty; pcsGot += Math.min(P.got[s] || 0, P.need[s].qty); }
+  const steps = [[`${pcsGot}/${pcs} pieces`, pcsGot === pcs], ...(Object.values(P.need).some(n => n.qty > 1) ? [['×N checked', Object.keys(P.need).every(s => P.need[s].qty < 2 || P.multi[s])]] : []), ...(hasQ ? [['quote', P.quotes]] : []), ...(o.gift_wrap ? [['gift', P.gift]] : []), ['photo', !!P.photo]];
+  const score = pcsGot + steps.slice(1).filter(x => x[1]).length, of = pcs + steps.length - 1, now = pct(score, of);
   const edited = (o.edits || []).filter(e => /^\+|→|removed/.test(e.what)).map(e => `${e.by}: ${e.what}`);
   let h = `<div class="card"><div class="row"><b style="font-size:20px">${esc(o.order_name)}</b><span class="chip">${esc(o.payment === 'cod' ? 'COD' : 'Prepaid')}</span>${o.awb ? `<span class="chip dk">${esc(o.carrier || '')} ${esc(o.awb)}</span>` : '<span class="chip warn">no AWB yet</span>'}<span class="sp"></span><button id="probBtn">⚠️ Problem</button></div>
-    <div class="m">${esc(o.customer || '')} · ${esc(o.city || '')}</div>${edited.length ? `<div class="chip warn" style="margin-top:6px">Edited — ${esc(edited.join(' · '))}</div>` : ''}</div>`;
+    <div class="m">${esc(o.customer || '')} · ${esc(o.city || '')}</div>${edited.length ? `<div class="chip warn" style="margin-top:6px">Edited — ${esc(edited.join(' · '))}</div>` : ''}
+    <div style="margin-top:12px"><div class="pbl"><span>${steps.map(([t, ok]) => `${ok ? '✓' : '○'} ${t}`).join(' · ')}</span><span>${now}%</span></div><div class="pb fat ${now === 100 ? 'ok' : ''}" id="packPb"><i style="width:${P.prev || 0}%;animation:none"></i></div></div></div>`;
   for (const s in P.need) {
     const n = P.need[s], g = P.got[s] || 0, it = item(s), done = g === n.qty;
-    h += `<div class="ln ${done ? 'done' : ''}"><div class="nm"><b>${esc(n.name)}</b><span class="m">${esc(it.shelf ? '📍 ' + it.shelf + ' · ' : '')}${esc(s)}</span></div>
-      <div class="stp"><button data-dec="${esc(s)}">−</button></div><div class="ct">${g}/${n.qty}</div><div class="stp"><button data-inc="${esc(s)}">+</button></div></div>`;
+    h += `<div class="ln ${done ? 'done' : ''}">${it.image ? `<img class="th" src="${esc(thumb(it.image))}" alt="">` : ''}<div class="nm"><b>${esc(n.name)}</b><span class="m">${esc(it.shelf ? '📍 ' + it.shelf + ' · ' : '')}${esc(s)}</span>${n.qty > 1 ? `<div class="pb thin ${done ? 'ok' : ''}"><i style="width:${pct(g, n.qty)}%;animation:none"></i></div>` : ''}</div>
+      <div class="stp"><button data-dec="${esc(s)}">−</button></div><div class="ct" data-ct="${esc(s)}">${g}/${n.qty}</div><div class="stp"><button data-inc="${esc(s)}">+</button></div></div>`;
     if (n.qty > 1 && done) h += `<label class="tick"><input type="checkbox" data-multi="${esc(s)}" ${P.multi[s] ? 'checked' : ''}> ×${n.qty} — all ${n.qty} pieces are in the box</label>`;
   }
-  for (const l of o.lines.filter(l => l.kind === 'quote')) h += `<div class="ln"><div class="nm"><b>${esc(l.name)}${l.color ? ' · ' + esc(l.color) : ''}</b><span class="m">Quote from the rack · ${l.found || 0}/${l.need || l.qty} painted</span></div><div class="ct">×${l.qty}</div></div>`;
+  for (const l of o.lines.filter(l => l.kind === 'quote')) h += `<div class="ln"><div class="nm"><b>${esc(l.name)}${l.color ? ' · ' + esc(l.color) : ''}</b><span class="m">Quote from the rack · ${l.found || 0}/${l.need || l.qty} painted</span><div class="pb thin ${(l.found || 0) >= (l.need || l.qty) ? 'ok' : 'warn'}"><i style="width:${pct(l.found || 0, l.need || l.qty)}%"></i></div></div><div class="ct">×${l.qty}</div></div>`;
   if (o.lines.some(l => l.kind === 'quote')) h += `<label class="tick"><input type="checkbox" id="qTick" ${P.quotes ? 'checked' : ''}> The quote(s) from the rack are in the box</label>`;
   if (o.gift_wrap) h += `<label class="tick gift"><input type="checkbox" id="gTick" ${P.gift ? 'checked' : ''}> 🎁 Gift wrapped${o.gift_note ? ` + card: “${esc(o.gift_note)}”` : ''}</label>`;
   h += `<div class="card row"><label class="big" style="border:2px dashed var(--line);border-radius:12px;cursor:pointer">📷 ${P.photo ? 'Retake box photo' : 'Take box photo'}<input type="file" accept="image/*" capture="environment" id="photoIn" style="display:none"></label>${P.photo ? `<span class="ph"><img src="${P.photo}"></span>` : '<span class="m">Photo of the open box before sealing</span>'}</div>`;
   h += `<button class="g big" id="doneBtn" style="width:100%;font-size:20px" ${allDone() ? '' : 'disabled'}>✓ Complete — bag it</button>`;
   v.innerHTML = h;
-  v.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => { const s = b.dataset.inc; if ((P.got[s] || 0) < P.need[s].qty) { P.got[s] = (P.got[s] || 0) + 1; ding(); } else buzz(); renderPack(); });
+  requestAnimationFrame(() => requestAnimationFrame(() => { const i = $('packPb') && $('packPb').firstChild; if (i) i.style.width = now + '%'; P.prev = now; }));
+  if (P.bump) { const c = v.querySelector(`[data-ct="${CSS.escape(P.bump)}"]`); if (c) c.classList.add('bump'); P.bump = null; }
+  v.querySelectorAll('[data-inc]').forEach(b => b.onclick = () => { const s = b.dataset.inc; if ((P.got[s] || 0) < P.need[s].qty) { P.got[s] = (P.got[s] || 0) + 1; P.bump = s; ding(); } else buzz(); renderPack(); });
   v.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => { const s = b.dataset.dec; P.got[s] = Math.max(0, (P.got[s] || 0) - 1); P.multi[s] = false; renderPack(); });
   v.querySelectorAll('[data-multi]').forEach(c => c.onchange = () => { P.multi[c.dataset.multi] = c.checked; renderPack(); });
   if ($('qTick')) $('qTick').onchange = e => { P.quotes = e.target.checked; renderPack(); };
@@ -237,7 +319,7 @@ async function packDone() {
 function packProblem() {
   const reasons = ['Piece damaged', 'Not on the shelf', 'Wrong colour / finish', 'Quote not with the order', 'Other'];
   modal(`<h3>Problem with ${esc(P.order.order_name)}</h3><div class="row" style="flex-direction:column;align-items:stretch">${reasons.map(r => `<button data-r="${esc(r)}" class="big">${esc(r)}</button>`).join('')}</div><input id="probNote" placeholder="Note (optional)" style="width:100%;margin-top:10px">`, (m, close) => {
-    m.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => { try { await api('rs_problem', { order_name: P.order.order_name, problem: b.dataset.r + (m.querySelector('#probNote').value ? ' — ' + m.querySelector('#probNote').value : ''), packer: packerName() }); close(); flash('ok', 'Sent to the admin team', P.order.order_name); P = null; renderPack(); } catch (e) { alert(e.message); } });
+    m.querySelectorAll('[data-r]').forEach(b => b.onclick = async () => { try { await api('rs_problem', { order_name: P.order.order_name, problem: b.dataset.r + (m.querySelector('#probNote').value ? ' — ' + m.querySelector('#probNote').value : ''), packer: packerName() }); close(); flash('ok', 'Sent to the admin team', P.order.order_name); P = null; renderPack(); } catch (e) { toast(e.message, 'bad'); } });
   });
 }
 
@@ -252,9 +334,11 @@ async function rtoScan(code) {
 function renderRto() {
   $('scanHint').textContent = RTO ? 'Scan each returned piece (counts as Good), or use the buttons.' : 'Scan the AWB of the returned parcel.';
   const v = $('packView');
+  still(v, RTO ? 'R' + RTO.order.order_name : 'R-');
   if (!RTO) { v.innerHTML = `<div class="card prompt">Scan the returned parcel's AWB ↩️</div>`; return; }
-  let h = `<div class="card"><b style="font-size:20px">${esc(RTO.order.order_name)}</b> <span class="m">${esc(RTO.order.customer || '')}</span></div>`;
-  RTO.lines.forEach((l, i) => { h += `<div class="ln"><div class="nm"><b>${esc(l.name)}</b><span class="m">${l.qty} sent</span></div><div><div class="m">Good</div><div class="stp"><button data-g="${i}" data-d="-1">−</button><span class="ct">${l.good}</span><button data-g="${i}" data-d="1">+</button></div></div><div><div class="m">Damaged</div><div class="stp"><button data-x="${i}" data-d="-1">−</button><span class="ct">${l.damaged}</span><button data-x="${i}" data-d="1">+</button></div></div></div>`; });
+  const sent = RTO.lines.reduce((a, l) => a + l.qty, 0), seen = RTO.lines.reduce((a, l) => a + l.good + l.damaged, 0);
+  let h = `<div class="card"><b style="font-size:20px">${esc(RTO.order.order_name)}</b> <span class="m">${esc(RTO.order.customer || '')}</span><div style="margin-top:10px">${pb(seen, sent, seen === sent ? 'ok' : '', 'Pieces checked')}</div></div>`;
+  RTO.lines.forEach((l, i) => { h += `<div class="ln ${l.good + l.damaged === l.qty ? 'done' : ''}"><div class="nm"><b>${esc(l.name)}</b><span class="m">${l.qty} sent${l.damaged ? ` · ${l.damaged} damaged` : ''}</span></div><div><div class="m">Good</div><div class="stp"><button data-g="${i}" data-d="-1">−</button><span class="ct">${l.good}</span><button data-g="${i}" data-d="1">+</button></div></div><div><div class="m">Damaged</div><div class="stp"><button data-x="${i}" data-d="-1">−</button><span class="ct">${l.damaged}</span><button data-x="${i}" data-d="1">+</button></div></div></div>`; });
   h += `<button class="g big" id="rtoSave" style="width:100%">Save return</button>`;
   v.innerHTML = h;
   const step = (l, k, d) => { const nv = l[k] + d; if (nv < 0 || (d > 0 && l.good + l.damaged >= l.qty)) return; l[k] = nv; renderRto(); };
@@ -272,16 +356,18 @@ async function handScan(code) {
 }
 function renderHand() {
   $('scanHint').textContent = 'Scan each parcel as it goes into the courier bag.';
-  const v = $('packView');
-  v.innerHTML = `<div class="card row"><b>Courier</b><select id="hCour"><option value="">— pick —</option>${couriers.map(c => `<option ${c === HAND.courier ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select><span class="sp"></span><span class="chip dk">${HAND.list.length} parcels</span></div>
-    <div class="card">${HAND.list.length ? `<table>${HAND.list.map(x => `<tr><td><b>${esc(x.order_name)}</b></td><td>${esc(x.awb || '')}</td><td class="m">${esc(x.carrier || '')}</td></tr>`).join('')}</table>` : '<div class="prompt">Scan parcels 🚚</div>'}</div>
+  const v = $('packView'); still(v, 'H' + HAND.courier + HAND.list.length);
+  const ck = (HAND.courier || '').toLowerCase().split(/\s+/)[0], mine = ck ? toHand.filter(x => (x.carrier || '').toLowerCase().includes(ck)) : [];
+  const inBag = new Set(HAND.list.map(x => x.order_name)), left = mine.filter(x => !inBag.has(x.order_name)), got = mine.length - left.length;
+  v.innerHTML = `${mine.length ? `<div class="card">${pb(got, mine.length, left.length ? '' : 'ok', `Packed parcels for ${esc(HAND.courier)} in the bag`)}${left.length ? `<div class="row" style="margin-top:8px"><span class="m">Still to scan:</span>${left.slice(0, 30).map(x => `<span class="chip">${esc(x.order_name)}</span>`).join('')}${left.length > 30 ? `<span class="m">+${left.length - 30}</span>` : ''}</div>` : ''}</div>` : ''}<div class="card row"><b>Courier</b><select id="hCour"><option value="">— pick —</option>${couriers.map(c => `<option ${c === HAND.courier ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select><span class="sp"></span><span class="chip dk">${HAND.list.length} parcels</span></div>
+    <div class="card">${HAND.list.length ? `<table>${HAND.list.map((x, i) => `<tr style="${i === 0 ? 'animation:fup .3s ease-out both' : ''}"><td><b>${esc(x.order_name)}</b></td><td>${esc(x.awb || '')}</td><td class="m">${esc(x.carrier || '')}</td></tr>`).join('')}</table>` : '<div class="prompt">Scan parcels 🚚</div>'}</div>
     <button class="g big" id="hDone" style="width:100%" ${HAND.list.length && HAND.courier ? '' : 'disabled'}>Finish hand-over</button>`;
   $('hCour').onchange = e => { HAND.courier = e.target.value; renderHand(); };
   $('hDone').onclick = async () => {
     try {
       const r = await api('rs_handover', { courier: HAND.courier, order_names: HAND.list.map(x => x.order_name), packer: packerName() });
-      HAND.list = [];
-      modal(`<h3>✓ ${r.handed} parcels handed to ${esc(HAND.courier)}</h3>${r.missing.length ? `<p class="b" style="color:var(--bad)">⚠️ ${r.missing.length} packed parcel(s) not scanned for this courier:</p><table>${r.missing.map(m => `<tr><td>${esc(m.order_name)}</td><td>${esc(m.awb || '')}</td></tr>`).join('')}</table>` : '<p>Nothing left behind.</p>'}<button class="p" onclick="this.closest('.mb').remove()">OK</button>`);
+      HAND.list = []; loadToday();
+      modal(`<h3>✓ ${r.handed} parcels handed to ${esc(HAND.courier)}</h3>${r.missing.length ? `<p class="b" style="color:var(--bad)">⚠️ ${r.missing.length} packed parcel(s) not scanned for this courier:</p><table>${r.missing.map(m => `<tr><td>${esc(m.order_name)}</td><td>${esc(m.awb || '')}</td></tr>`).join('')}</table>` : '<p>Nothing left behind.</p>'}<button class="p" data-close>OK</button>`);
       renderHand();
     } catch (e) { buzz(); flash('bad', e.message); }
   };
@@ -290,13 +376,13 @@ function renderHand() {
 async function loadToday() {
   try {
     const d = await api('rs_pack_today');
-    packers = d.packers || []; couriers = d.couriers || [];
+    packers = d.packers || []; couriers = d.couriers || []; toHand = d.to_hand || [];
     const cur = ls.get('rs_packer') || '';
     $('packer').innerHTML = `<option value="">— your name —</option>` + packers.map(p => `<option ${p === cur ? 'selected' : ''}>${esc(p)}</option>`).join('');
     const live = d.packs.filter(p => !p.undone_at);
-    $('todayCount').textContent = `${live.length} packed today`;
+    $('todayCount').innerHTML = `<b>${live.length}</b> packed today${toHand.length ? ` · ${toHand.length} waiting for the courier` : ''}`;
     $('todayTbl').innerHTML = d.packs.length ? d.packs.map(p => `<tr style="${p.undone_at ? 'opacity:.4' : ''}"><td><b>${esc(p.order_name)}</b></td><td>${esc(p.awb || '')}</td><td>${esc(p.packer || '')}</td><td class="m">${fmtD(p.at)}</td><td>${p.undone_at ? 'undone' : `<button data-undo="${p.id}">Undo</button>`}</td></tr>`).join('') : '<tr><td class="m">Nothing packed yet today.</td></tr>';
-    $('todayTbl').querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => { if (!confirm('Undo this pack? The pieces go back to stock and the order can be packed again.')) return; try { await api('rs_pack_undo', { id: +b.dataset.undo, by: packerName() }); loadToday(); } catch (e) { alert(e.message); } });
+    $('todayTbl').querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => { if (!await ask('Undo this pack? The pieces go back to stock and the order can be packed again.')) return; try { await api('rs_pack_undo', { id: +b.dataset.undo, by: packerName() }); toast('Pack undone — pieces back on the shelf', 'ok'); loadToday(); } catch (e) { toast(e.message, 'bad'); } });
     if (mode === 'hand') renderHand();
   } catch (e) { $('todayTbl').innerHTML = `<tr><td class="m">${esc(e.message)}</td></tr>`; }
 }
@@ -318,24 +404,34 @@ $('camBtn').onclick = async () => {
   }
   video.remove(); const div = document.createElement('div'); div.id = 'camLib'; div.style.cssText = 'flex:1;background:#000'; box.insertBefore(div, box.firstChild);
   if (!window.Html5Qrcode) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }).catch(() => {});
-  if (!window.Html5Qrcode) { alert('Camera scanning is not available on this browser'); return close(); }
-  lib = new Html5Qrcode('camLib'); lib.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 }, t => got(t)).catch(e => { alert('Camera: ' + e); close(); });
+  if (!window.Html5Qrcode) { warn('Camera scanning is not available on this browser'); return close(); }
+  lib = new Html5Qrcode('camLib'); lib.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 }, t => got(t)).catch(e => { warn('Camera: ' + e); close(); });
 };
 
 // ═════════════════════════ ADMIN ═════════════════════════
 let curTab = 'orders', A = { orders: [], items: [], filter: 'open', sel: new Set() };
 document.querySelectorAll('#aTabs button').forEach(b => b.onclick = () => aTab(b.dataset.t));
-function aTab(t) { curTab = t; document.querySelectorAll('#aTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); ({ orders: tOrders, items: tItems, stock: tStock, pos: tPos, plan: tPlan, close: tClose, settings: tSettings })[t](); }
+function aTab(t) { curTab = t; $('aView').classList.remove('noanim'); delete $('aView').dataset.k; document.querySelectorAll('#aTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); ({ orders: tOrders, items: tItems, stock: tStock, pos: tPos, plan: tPlan, close: tClose, settings: tSettings })[t](); }
 const view = () => $('aView');
-const loading = () => { view().innerHTML = '<div class="card m">Loading…</div>'; };
+const loading = (rows = 6) => { view().classList.remove('noanim'); view().innerHTML = `<div class="card row"><div class="sk" style="height:20px;width:30%"></div><span class="sp"></span><div class="sk" style="height:30px;width:120px"></div></div><div class="card">${Array.from({ length: rows }, (_, i) => `<div class="row" style="margin:14px 0"><div class="sk" style="width:42px;height:42px"></div><div style="flex:1"><div class="sk" style="height:13px;width:${70 - (i % 3) * 15}%"></div><div class="sk" style="height:10px;width:${40 - (i % 2) * 12}%;margin-top:7px"></div></div></div>`).join('')}</div>`; };
 const fail = e => { view().innerHTML = `<div class="card" style="color:var(--bad)">${esc(e.message)}</div>`; };
 async function loadItems() { A.items = (await adm('rs_items')).items; return A.items; }
 const itemName = s => { const i = A.items.find(x => x.sku === s); return i ? [i.name, i.variant].filter(Boolean).join(' · ') : s; };
+const webChip = i => !i.variant_id ? '<span class="chip">not on website</span>' : i.shop_note ? `<span class="chip warn" title="${esc(i.shop_note)}">${/₹0/.test(i.shop_note) ? 'held at 0 · no price' : esc(i.shop_note)}</span>` : i.shop_synced_at ? `<span class="chip ok" title="Updated ${esc(fmtD(i.shop_synced_at))}">web ${i.shop_qty == null ? '—' : i.shop_qty}</span>` : '<span class="chip">not synced yet</span>';
+async function syncNow(skus) {
+  const t = ptoast('Updating website quantities…'); let k = 4; const tm = setInterval(() => t.set(k = Math.min(90, k + 6), 100), 300);
+  try { const r = await adm('rs_shop_sync', { skus }); clearInterval(tm); if (r.skipped) return t.done(r.skipped, 'warn');
+    const bad = r.synced.filter(x => !x.ok), zero = r.synced.filter(x => x.note && /₹0/.test(x.note)).length;
+    t.done(`${r.synced.length - bad.length} item(s) updated on the website${zero ? ` · ${zero} held at 0 (no price)` : ''}${bad.length ? ` · ${bad.length} failed: ${bad[0].note}` : ''}`, bad.length ? 'warn' : 'ok');
+  } catch (e) { clearInterval(tm); t.done(e.message, 'bad'); }
+  if (curTab === 'items') tItems(); else if (curTab === 'stock') tStock();
+}
 const STATUS = { to_book: ['To book', 'warn'], waiting: ['Waiting for quote', ''], ready: ['Ready to pack', 'ok'], packed: ['Packed', 'dk'], handed: ['Handed over', 'dk'], problem: ['Problem', 'bad'], cancelled: ['Cancelled', 'bad'] };
 
 // ── Orders ──
 async function tOrders(sync) {
-  if (!A.orders.length || sync) loading();
+  if (!A.orders.length || sync) loading(8);
+  if (sync && A.orders.length) toast('Syncing orders from Shopify…', '', 1600);
   try { const d = await adm('rs_orders', { sync: sync !== false }); A.orders = d.orders; if (!A.items.length) await loadItems(); } catch (e) { return fail(e); }
   renderOrders();
 }
@@ -344,8 +440,11 @@ function renderOrders() {
   const cnt = k => A.orders.filter(F[k]).length;
   const list = A.orders.filter(F[A.filter]);
   A.sel = new Set([...A.sel].filter(n => list.some(o => o.order_name === n)));
-  const lineTxt = o => o.lines.map(l => l.kind === 'ready' ? `${l.qty}× ${l.name}` : `<span class="m">${l.qty}× quote “${esc(l.name)}” ${l.found || 0}/${l.need || l.qty}</span>`).join('<br>');
+  const lineTxt = o => o.lines.map(l => l.kind === 'ready' ? `${l.qty}× ${esc(l.name)}` : `<span class="m">${l.qty}× quote “${esc(l.name)}” ${l.found || 0}/${l.need || l.qty} painted</span><div class="pb thin ${(l.found || 0) >= (l.need || l.qty) ? 'ok' : 'warn'}" style="max-width:180px"><i style="width:${pct(l.found || 0, l.need || l.qty)}%"></i></div>`).join('<br>');
+  still(view(), 'orders');
+  const open = A.orders.filter(F.open), stage = k => open.filter(o => o.status === k).length, shipped = open.filter(o => o.status === 'packed').length;
   view().innerHTML = `<div class="card row">${['open', 'to_book', 'waiting', 'ready', 'packed', 'problem', 'mixed', 'all'].map(k => `<button data-f="${k}" class="${A.filter === k ? 'p' : ''}">${({ open: 'Open', to_book: 'To book', waiting: 'Waiting', ready: 'Ready', packed: 'Packed', problem: 'Problems', mixed: 'Mixed', all: 'All' })[k]} ${cnt(k)}</button>`).join('')}<span class="sp"></span><button id="oSync">↻ Sync orders</button></div>
+    ${open.length ? `<div class="card">${pb(shipped, open.length, 'ok', `Open orders packed · ${stage('to_book')} to book · ${stage('waiting')} waiting for a quote · ${stage('ready')} ready · ${stage('problem')} problems`)}</div>` : ''}
     <div class="card row"><span class="m">${A.sel.size} selected</span><button id="oBook" ${A.sel.size ? '' : 'disabled'}>🚚 Book courier</button><button id="oPick" ${A.sel.size ? '' : 'disabled'}>🧾 Pick list</button><button id="oSlips" ${A.sel.size ? '' : 'disabled'}>🖨️ Packing slips</button></div>
     <div class="card tw"><table><tr><th><input type="checkbox" id="oAll"></th><th>Order</th><th>Pieces</th><th>Status</th><th>AWB</th><th></th></tr>
     ${list.map(o => { const [t, c] = STATUS[o.status] || [o.status, '']; return `<tr><td><input type="checkbox" data-sel="${esc(o.order_name)}" ${A.sel.has(o.order_name) ? 'checked' : ''}></td>
@@ -359,7 +458,7 @@ function renderOrders() {
   view().querySelectorAll('[data-sel]').forEach(c => c.onchange = () => { c.checked ? A.sel.add(c.dataset.sel) : A.sel.delete(c.dataset.sel); renderOrders(); });
   $('oAll').onchange = e => { list.forEach(o => e.target.checked ? A.sel.add(o.order_name) : A.sel.delete(o.order_name)); renderOrders(); };
   view().querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editOrder(A.orders.find(o => o.order_name === b.dataset.edit)));
-  view().querySelectorAll('[data-photo]').forEach(b => b.onclick = async () => { try { const d = await adm('rs_photo', { pack_id: +b.dataset.photo }); modal(`<img src="${esc(d.url)}" style="width:100%;border-radius:12px">`); } catch (e) { alert(e.message); } });
+  view().querySelectorAll('[data-photo]').forEach(b => b.onclick = async () => { try { const d = await adm('rs_photo', { pack_id: +b.dataset.photo }); modal(`<img src="${esc(d.url)}" style="width:100%;border-radius:12px">`); } catch (e) { toast(e.message, 'bad'); } });
   $('oBook').onclick = () => bookOrders([...A.sel]);
   $('oPick').onclick = () => pickList([...A.sel]);
   $('oSlips').onclick = () => printSlips([...A.sel]);
@@ -374,7 +473,7 @@ function editOrder(o) {
     ${o.mixed ? `<label class="tick"><input type="checkbox" id="eSplit" ${o.split ? 'checked' : ''}> Ship ready pieces now (split — quote follows as a second parcel)</label>` : ''}
     ${o.problem ? `<div class="tick" style="border-color:var(--bad)">⚠️ ${esc(o.problem)} <span class="sp"></span><label><input type="checkbox" id="eClear"> clear</label></div>` : ''}
     <input id="eWhy" placeholder="Reason (e.g. customer called, swapped colour)" style="width:100%;margin-top:8px">
-    <div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Cancel</button><button class="p" id="eSave">Save</button></div>
+    <div class="row" style="margin-top:12px"><span class="sp"></span><button data-close>Cancel</button><button class="p" id="eSave">Save</button></div>
     ${(o.edits || []).length ? `<p class="m" style="margin-top:12px"><b>History</b><br>${o.edits.map(e => `${fmtD(e.at)} · ${esc(e.by)}: ${esc(e.what)}${e.why ? ' — ' + esc(e.why) : ''}`).join('<br>')}</p>` : ''}`, (m, close) => {
     const removed = new Set();
     m.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { removed.add(b.dataset.rm); b.closest('tr').style.opacity = .35; });
@@ -388,8 +487,9 @@ function editOrder(o) {
       if (m.querySelector('#eSplit') && m.querySelector('#eSplit').checked !== !!o.split) ops.push({ op: 'split', split: m.querySelector('#eSplit').checked });
       if (m.querySelector('#eClear') && m.querySelector('#eClear').checked) ops.push({ op: 'problem_clear' });
       if (!ops.length) return close();
-      if (ops.some(x => ['remove', 'qty', 'add'].includes(x.op)) && !why) { alert('Add a reason for changing pieces'); return; }
-      try { for (const op of ops) await adm('rs_order_edit', { order_name: o.order_name, by, reason: why, ...op }); close(); tOrders(false); } catch (e) { alert(e.message); }
+      if (ops.some(x => ['remove', 'qty', 'add'].includes(x.op)) && !why) { warn('Add a reason for changing pieces'); return; }
+      const sv = m.querySelector('#eSave'); sv.disabled = true;
+      try { let k = 0; for (const op of ops) { sv.textContent = `Saving ${++k}/${ops.length}…`; await adm('rs_order_edit', { order_name: o.order_name, by, reason: why, ...op }); } close(); toast(`${o.order_name} updated`, 'ok'); tOrders(false); } catch (e) { sv.disabled = false; sv.textContent = 'Save'; toast(e.message, 'bad'); }
     };
   });
 }
@@ -406,25 +506,30 @@ function parcelFor(o) {
 }
 async function bookOrders(names) {
   const os = names.map(n => A.orders.find(o => o.order_name === n)).filter(o => o && !o.awb && !['cancelled', 'handed', 'packed'].includes(o.status));
-  if (!os.length) return alert('Nothing to book: the selected orders already have an AWB or are not bookable.');
+  if (!os.length) return warn('Nothing to book: the selected orders already have an AWB or are not bookable.');
   const pv = {};
-  modal(`<h3>Book ${os.length} order(s)</h3><div id="bkBody" class="m">Checking couriers…</div>`, async (m, close) => {
+  modal(`<h3>Book ${os.length} order(s)</h3><div id="bkPb" style="margin-bottom:10px"><div class="pbl"><span>Checking couriers and rates…</span></div><div class="pb ind"><i></i></div></div><div id="bkBody" class="m"></div>`, async (m, close) => {
     try {
       const overrides = {}; os.forEach(o => { overrides[o.order_name] = parcelFor(o); });
       const d = await apiFetch({ action: 'booking_preview', order_names: os.map(o => o.order_name), overrides }, API, 45000);
       for (const r of d.rows) pv[r.order_name] = r;
-    } catch (e) { m.querySelector('#bkBody').textContent = e.message; return; }
+    } catch (e) { m.querySelector('#bkPb').innerHTML = ''; m.querySelector('#bkBody').textContent = e.message; return; }
+    m.querySelector('#bkPb').innerHTML = '';
     m.querySelector('#bkBody').outerHTML = `<table>${os.map(o => { const r = pv[o.order_name] || {}, p = parcelFor(o), opts = [{ carrier_id: r.carrier_id, name: r.carrier }, ...(r.alt || [])].filter(x => x.carrier_id); return `<tr><td><b>${esc(o.order_name)}</b><div class="m">${esc(o.city || '')} · ${p.kg} kg · ${p.l}×${p.b}×${p.h}</div>${r.why ? `<div class="m" style="color:${r.ok ? 'inherit' : 'var(--bad)'}">${esc(r.why)}</div>` : ''}</td><td><select data-car="${esc(o.order_name)}">${opts.map(c => `<option value="${c.carrier_id}">${esc(c.name || c.carrier_id)}</option>`).join('')}</select></td><td data-res="${esc(o.order_name)}"></td></tr>`; }).join('')}</table>
-      <div class="row" style="margin-top:12px"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Close</button><button class="a" id="bkGo">Book all</button></div>`;
+      <div class="row" style="margin-top:12px"><span class="sp"></span><button data-close>Close</button><button class="a" id="bkGo">Book all</button></div>`;
     m.querySelector('#bkGo').onclick = async () => {
-      if (!confirm(`Book ${os.length} parcel(s) now? This creates real AWBs.`)) return;
+      if (!await ask(`Book ${os.length} parcel(s) now? This creates real AWBs.`)) return;
       m.querySelector('#bkGo').disabled = true;
+      let k = 0, okN = 0; const prog = () => { m.querySelector('#bkPb').innerHTML = pb(k, os.length, k === os.length ? (okN === k ? 'ok' : 'warn') : '', `Booking · ${okN} booked${k - okN ? ` · ${k - okN} failed` : ''}`); };
+      prog();
       for (const o of os) {
         const cell = m.querySelector(`[data-res="${CSS.escape(o.order_name)}"]`), r = pv[o.order_name] || {}, p = parcelFor(o);
         cell.textContent = 'booking…';
-        try { const x = await apiFetch({ action: 'booking_book', order_name: o.order_name, carrier_id: +m.querySelector(`[data-car="${CSS.escape(o.order_name)}"]`).value, payment: r.payment, zone: r.zone, kg: p.kg, l: p.l, b: p.b, h: p.h, force: !!r.soft }, API, 58000); cell.innerHTML = `<span class="chip ok">${esc(x.awb)}</span>`; }
+        try { const x = await apiFetch({ action: 'booking_book', order_name: o.order_name, carrier_id: +m.querySelector(`[data-car="${CSS.escape(o.order_name)}"]`).value, payment: r.payment, zone: r.zone, kg: p.kg, l: p.l, b: p.b, h: p.h, force: !!r.soft }, API, 58000); cell.innerHTML = `<span class="chip ok">${esc(x.awb)}</span>`; okN++; }
         catch (e) { cell.innerHTML = `<span class="chip bad">${esc(e.message)}</span>`; }
+        k++; prog();
       }
+      toast(`${okN} of ${os.length} booked`, okN === os.length ? 'ok' : 'warn');
       tOrders(false);
     };
   });
@@ -437,10 +542,11 @@ function pickList(names) {
 }
 async function printSlips(names) {
   const withAwb = names.filter(n => (A.orders.find(o => o.order_name === n) || {}).awb);
-  if (!withAwb.length) return alert('Book the courier first: none of these orders has an AWB yet.');
-  const slips = [];
-  for (let i = 0; i < withAwb.length; i += 15) { const d = await apiFetch({ action: 'get_batch_slips', order_names: withAwb.slice(i, i + 15) }, API, 40000).catch(e => ({ slips: [], error: e.message })); slips.push(...(d.slips || []).filter(s => !s.error)); }
-  if (!slips.length) return alert('Could not fetch the slips');
+  if (!withAwb.length) return warn('Book the courier first: none of these orders has an AWB yet.');
+  const slips = [], t = ptoast(`Fetching ${withAwb.length} slip(s)…`);
+  for (let i = 0; i < withAwb.length; i += 15) { const d = await apiFetch({ action: 'get_batch_slips', order_names: withAwb.slice(i, i + 15) }, API, 40000).catch(e => ({ slips: [], error: e.message })); slips.push(...(d.slips || []).filter(s => !s.error)); t.set(Math.min(withAwb.length, i + 15), withAwb.length, `Fetching slips ${Math.min(withAwb.length, i + 15)}/${withAwb.length}…`); }
+  if (!slips.length) return t.done('Could not fetch the slips', 'bad');
+  t.done(`${slips.length} slip(s) ready to print${slips.length < withAwb.length ? ` · ${withAwb.length - slips.length} missing` : ''}`, slips.length < withAwb.length ? 'warn' : 'ok');
   printHtml(await ntPrintSlips(slips), '@page{size:101.6mm 152.4mm;margin:0}');
 }
 function printHtml(html, pageCss) {
@@ -451,24 +557,29 @@ function printHtml(html, pageCss) {
 // ── Items & labels ──
 async function tItems() {
   loading(); try { await loadItems(); } catch (e) { return fail(e); }
-  view().innerHTML = `<div class="card row"><b>Items</b><span class="m">${A.items.length}</span><span class="sp"></span><input id="impTag" value="sabr-shukr-collection" style="width:220px"><button id="impBtn">⇩ Import from Shopify tag</button><button class="p" id="newItem">+ New item / gift set</button></div>
+  const linked = A.items.filter(i => i.variant_id && !i.bundle), synced = linked.filter(i => i.shop_synced_at && !i.shop_note);
+  view().innerHTML = `<div class="card row"><b>Items</b><span class="chip dk" data-cu="${A.items.length}">${A.items.length}</span><span class="sp"></span><button class="a" id="addWeb">🛍️ Add from website</button><button class="p" id="newItem">+ New item / gift set</button></div>
+    <div class="card"><div class="row"><div style="flex:1;min-width:220px">${pb(synced.length, linked.length, synced.length === linked.length ? 'ok' : 'warn', 'Website quantity in step with the shelf')}</div><button id="syncWeb">↻ Sync website now</button></div><details style="margin-top:8px"><summary class="m" style="cursor:pointer">Import a whole Shopify tag</summary><div class="row" style="margin-top:8px"><input id="impTag" value="sabr-shukr-collection" style="width:220px"><button id="impBtn">⇩ Import</button></div></details></div>
     <div class="card row"><b>Labels</b><span class="m">Set how many to print per item below, then</span><select id="lblFmt"><option value="thermal">Thermal 50×25 mm</option><option value="a4">A4 sheet 3×8</option></select><button class="a" id="lblPrint">🏷️ Print labels</button></div>
-    <div class="card tw"><table><tr><th>Item</th><th>SKU · EAN</th><th>Shelf</th><th>Stock</th><th>Weight · box</th><th>Vendor · lead</th><th>Labels</th><th></th></tr>
-    ${A.items.map(i => `<tr style="${i.active ? '' : 'opacity:.45'}"><td><b>${esc(i.name)}</b>${i.variant ? `<div class="m">${esc(i.variant)}</div>` : ''}${i.bundle ? `<div class="chip">gift set: ${esc(i.bundle.map(b => b.qty + '× ' + itemName(b.sku)).join(' + '))}</div>` : ''}</td>
-      <td>${esc(i.sku)}<div class="m">${esc(i.ean || '')}</div></td><td>${esc(i.shelf || '—')}</td><td>${i.bundle ? '—' : `<b>${i.stock}</b><div class="m">${i.reserved} promised</div>`}</td>
+    <div class="card tw"><table><tr><th>Item</th><th>SKU · EAN</th><th>Shelf</th><th>Stock</th><th>Website</th><th>Weight · box</th><th>Vendor · lead</th><th>Labels</th><th></th></tr>
+    ${A.items.map(i => `<tr style="${i.active ? '' : 'opacity:.45'}"><td><div class="nmc">${i.image ? `<img class="th" loading="lazy" src="${esc(thumb(i.image))}" alt="">` : '<div class="th"></div>'}<div><b>${esc(i.name)}</b>${i.variant ? `<div class="m">${esc(i.variant)}</div>` : ''}${i.price ? `<div class="m">${rs(i.price)}</div>` : ''}${i.bundle ? `<div class="chip">gift set: ${esc(i.bundle.map(b => b.qty + '× ' + itemName(b.sku)).join(' + '))}</div>` : ''}</div></div></td>
+      <td>${esc(i.sku)}<div class="m">${esc(i.ean || '')}</div></td><td>${esc(i.shelf || '—')}</td><td>${i.bundle ? '—' : `<b>${i.stock}</b><div class="m">${i.reserved} promised</div>`}</td><td>${i.bundle ? '—' : webChip(i)}</td>
       <td>${i.weight_g ? i.weight_g + ' g' : '—'}<div class="m">${i.box_l ? `${i.box_l}×${i.box_b}×${i.box_h}` : ''}</div></td><td>${esc(i.vendor || '—')}<div class="m">${i.lead_days} d lead</div></td>
-      <td><input type="number" min="0" value="0" data-lbl="${esc(i.sku)}" style="width:64px"></td><td><button data-ed="${esc(i.sku)}">Edit</button></td></tr>`).join('') || '<tr><td colspan="8" class="m">No items yet — import the collection from Shopify by its tag, or add one.</td></tr>'}</table></div>`;
-  $('impBtn').onclick = async () => { try { const r = await adm('rs_import', { tag: $('impTag').value.trim() }); alert(`${r.added.length} item(s) added`); tItems(); } catch (e) { alert(e.message); } };
+      <td><input type="number" min="0" value="0" data-lbl="${esc(i.sku)}" style="width:64px"></td><td><button data-ed="${esc(i.sku)}">Edit</button></td></tr>`).join('') || '<tr><td colspan="9" class="m">No items yet — add them from the website, or create one by hand.</td></tr>'}</table></div>`;
+  countUp(view());
+  $('impBtn').onclick = async () => { const t = ptoast('Importing from Shopify…'); t.set(30, 100); try { const r = await adm('rs_import', { tag: $('impTag').value.trim() }); t.done(`${r.added.length} item(s) added`); tItems(); } catch (e) { t.done(e.message, 'bad'); } };
   $('newItem').onclick = () => editItem({});
+  $('addWeb').onclick = addFromSite;
+  $('syncWeb').onclick = () => syncNow(null);
   view().querySelectorAll('[data-ed]').forEach(b => b.onclick = () => editItem(A.items.find(i => i.sku === b.dataset.ed)));
   $('lblPrint').onclick = () => printLabels([...view().querySelectorAll('[data-lbl]')].map(x => ({ it: A.items.find(i => i.sku === x.dataset.lbl), n: +x.value || 0 })).filter(x => x.n > 0), $('lblFmt').value);
 }
 function editItem(i) {
   const f = (k, label, type = 'text', w) => `<label>${label}<input data-k="${k}" type="${type}" value="${esc(i[k] == null ? '' : i[k])}"${w ? ` style="width:${w}"` : ''}></label>`;
-  modal(`<h3>${i.sku ? 'Edit ' + esc(i.name) : 'New item'}</h3><div class="grid2">${f('name', 'Name')}${f('variant', 'Finish / variant')}${f('sku', 'SKU (blank = auto)')}${f('ean', 'EAN (blank = auto)')}${f('shelf', 'Shelf')}${f('vendor', 'Vendor')}${f('cost', 'Cost ₹', 'number')}${f('weight_g', 'Weight (g, packed)', 'number')}${f('box_l', 'Box L cm', 'number')}${f('box_b', 'Box B cm', 'number')}${f('box_h', 'Box H cm', 'number')}${f('lead_days', 'Vendor lead (days)', 'number')}${f('safety_days', 'Safety days', 'number')}${f('moq', 'Min order qty', 'number')}${f('variant_id', 'Shopify variant ID')}</div>
+  modal(`<h3>${i.sku ? 'Edit ' + esc(i.name) : 'New item'}</h3><div class="grid2">${f('name', 'Name')}${f('variant', 'Finish / variant')}${f('sku', 'SKU (blank = auto)')}${f('ean', 'EAN (blank = auto)')}${f('shelf', 'Shelf')}${f('vendor', 'Vendor')}${f('cost', 'Cost ₹', 'number')}${f('weight_g', 'Weight (g, packed)', 'number')}${f('box_l', 'Box L cm', 'number')}${f('box_b', 'Box B cm', 'number')}${f('box_h', 'Box H cm', 'number')}${f('lead_days', 'Vendor lead (days)', 'number')}${f('safety_days', 'Safety days', 'number')}${f('moq', 'Min order qty', 'number')}${f('price', 'Price ₹ (from the website)', 'number')}${f('variant_id', 'Shopify variant ID')}${f('inventory_item_id', 'Shopify inventory item ID')}${f('image', 'Image URL')}</div>
     <label class="m" style="display:block;margin-top:10px">Gift set pieces (SKU:qty, comma-separated — leave empty for a normal item)<input id="iBundle" style="width:100%" value="${esc((i.bundle || []).map(b => b.sku + ':' + b.qty).join(', '))}"></label>
     <label class="tick"><input type="checkbox" id="iActive" ${i.active === false ? '' : 'checked'}> Active</label>
-    <div class="row"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Cancel</button><button class="p" id="iSave">Save</button></div>`, (m, close) => {
+    <div class="row"><span class="sp"></span><button data-close>Cancel</button><button class="p" id="iSave">Save</button></div>`, (m, close) => {
     m.querySelector('[data-k="sku"]').disabled = !!i.sku;
     m.querySelector('#iSave').onclick = async () => {
       const it = { sku: i.sku || '' };
@@ -477,13 +588,58 @@ function editItem(i) {
       const bt = m.querySelector('#iBundle').value.trim(); it.bundle = bt ? bt.split(',').map(s => { const [sku, q] = s.split(':'); return { sku: (sku || '').trim().toUpperCase(), qty: +(q || 1) }; }).filter(b => b.sku) : null;
       it.active = m.querySelector('#iActive').checked;
       if (i.sku) it.sku = i.sku;
-      try { await adm('rs_item_save', { item: it }); close(); tItems(); } catch (e) { alert(e.message); }
+      const sv = m.querySelector('#iSave'); sv.disabled = true; sv.textContent = 'Saving…';
+      try { await adm('rs_item_save', { item: it }); close(); toast(`${it.name || i.name} saved`, 'ok'); tItems(); } catch (e) { sv.disabled = false; sv.textContent = 'Save'; toast(e.message, 'bad'); }
     };
   });
 }
+// Pick finishes straight from the website by collection or search; each becomes a shelf item tied to its Shopify variant
+function addFromSite() {
+  const picks = new Map(); let seq = 0, prods = [], tm = null;
+  modal(`<h3>🛍️ Add from the website</h3><p class="m" style="margin:0 0 10px">Pick a collection or search, then tick the finishes kept ready on the shelf. From then on, their website quantity follows this page (0 until you count them in), and their orders skip the rack scanner — so don't add quote pieces here.</p>
+    <div class="row"><select id="wCol" style="flex:1;min-width:180px"><option value="">Loading collections…</option></select><input id="wQ" placeholder="Search products…" style="flex:2;min-width:180px"></div>
+    <div class="pb thin ind" id="wPb" style="margin-top:8px;visibility:hidden"><i></i></div>
+    <div id="wRes" class="wgrid" style="margin-top:8px"></div>
+    <div class="row wfoot"><span class="m" id="wSel">Nothing selected</span><span class="sp"></span><button data-close>Cancel</button><button class="a" id="wGo" disabled>Add selected</button></div>`, async (m, close) => {
+    const $m = q => m.querySelector(q), busyOn = on => { $m('#wPb').style.visibility = on ? 'visible' : 'hidden'; };
+    const upd = () => { const n = picks.size; $m('#wSel').textContent = n ? `${n} finish${n > 1 ? 'es' : ''} selected${[...picks.values()].some(p => !(p.price > 0)) ? ' · some have no price yet (held at 0 on the website)' : ''}` : 'Nothing selected'; $m('#wGo').disabled = !n; $m('#wGo').textContent = n ? `Add ${n} selected` : 'Add selected'; };
+    const pickOf = (p, v) => ({ product_id: p.id, variant_id: v.id, inventory_item_id: v.inventory_item_id, name: p.name, variant: v.title, handle: p.handle, grams: v.grams, image: p.image, price: v.price });
+    const render = () => {
+      if (!prods.length) { $m('#wRes').innerHTML = '<div class="m" style="padding:20px">Nothing found. Try another collection or word.</div>'; return; }
+      $m('#wRes').innerHTML = prods.map((p, i) => { const free = p.variants.filter(v => !v.added); return `<div class="wp" style="animation-delay:${Math.min(i, 14) * 25}ms">${p.image ? `<img loading="lazy" src="${esc(thumb(p.image).replace('width=160', 'width=400'))}" alt="">` : '<div class="noimg"></div>'}<div class="wb"><b>${esc(p.name)}</b><div class="row" style="margin-top:3px">${p.status !== 'ACTIVE' ? `<span class="chip warn">${esc(p.status.toLowerCase())}</span>` : ''}${free.length > 1 ? `<span class="sp"></span><button class="link" data-all="${i}">Select all ${free.length}</button>` : ''}</div>
+        ${p.variants.map((v, j) => `<label class="wv ${v.added ? 'added' : ''}"><input type="checkbox" data-v="${i}:${j}" ${v.added ? 'checked disabled' : picks.has(v.id) ? 'checked' : ''}><span>${esc(v.title || 'Standard')}</span><span class="sp"></span>${v.added ? '<span class="chip ok">Added</span>' : v.price > 0 ? `<span>${rs(v.price)}</span>` : '<span class="chip warn">₹0</span>'}</label>`).join('')}</div></div>`; }).join('');
+      m.querySelectorAll('[data-v]').forEach(c => c.onchange = () => { const [i, j] = c.dataset.v.split(':').map(Number), p = prods[i], v = p.variants[j]; c.checked ? picks.set(v.id, pickOf(p, v)) : picks.delete(v.id); upd(); });
+      m.querySelectorAll('[data-all]').forEach(b => b.onclick = e => { e.preventDefault(); const p = prods[+b.dataset.all]; const all = p.variants.filter(v => !v.added).every(v => picks.has(v.id)); p.variants.filter(v => !v.added).forEach(v => all ? picks.delete(v.id) : picks.set(v.id, pickOf(p, v))); render(); upd(); });
+    };
+    const load = async () => {
+      const my = ++seq; busyOn(true);
+      $m('#wRes').innerHTML = Array.from({ length: 6 }, () => '<div class="wp"><div class="noimg sk"></div><div class="wb"><div class="sk" style="height:14px;width:70%"></div><div class="sk" style="height:28px;margin-top:10px"></div></div></div>').join('');
+      try { const d = await adm('rs_shop_search', { q: $m('#wQ').value.trim(), collection_id: $m('#wCol').value }); if (my !== seq) return; prods = d.products; render(); }
+      catch (e) { if (my === seq) $m('#wRes').innerHTML = `<div style="color:var(--bad);padding:20px">${esc(e.message)}</div>`; }
+      finally { if (my === seq) busyOn(false); }
+    };
+    $m('#wCol').onchange = load;
+    $m('#wQ').oninput = () => { clearTimeout(tm); tm = setTimeout(load, 350); };
+    $m('#wGo').onclick = async () => {
+      const list = [...picks.values()], b = $m('#wGo'); b.disabled = true; b.textContent = 'Adding…';
+      const t = ptoast(`Adding ${list.length} item(s)…`); let k = 0; const ti = setInterval(() => t.set(k = Math.min(88, k + 8), 100), 300);
+      try { const r = await adm('rs_add_variants', { picks: list }); clearInterval(ti); t.done(`${r.added.length} item(s) added — count them in on the Stock tab`); shopToast(r.shop); close(); tItems(); }
+      catch (e) { clearInterval(ti); t.done(e.message, 'bad'); b.disabled = false; upd(); }
+    };
+    try {
+      const c = await adm('rs_shop_collections'), pref = c.collections.find(x => /sabr|shukr/i.test(x.handle + x.title));
+      $m('#wCol').innerHTML = `<option value="">All products (search)</option>` + c.collections.map(x => `<option value="${esc(x.id)}" ${pref && x.id === pref.id ? 'selected' : ''}>${esc(x.title)}</option>`).join('');
+    } catch (e) { $m('#wCol').innerHTML = '<option value="">All products (search)</option>'; }
+    load(); setTimeout(() => $m('#wQ').focus(), 60);
+  }, null, 'wide');
+}
 // One label per piece: EAN-13 bars, a QR of the same number, the name and the SKU
 function printLabels(list, fmt) {
-  if (!list.length) return alert('Set a number of labels on at least one item');
+  if (!list.length) return warn('Set a number of labels on at least one item');
+  const total = list.reduce((a, x) => a + x.n, 0), t = ptoast(`Preparing ${total} label(s)…`); t.set(40, 100);
+  setTimeout(() => { buildLabels(list, fmt); t.done(`${total} label(s) sent to the printer`); }, 60);
+}
+function buildLabels(list, fmt) {
   const labs = []; list.forEach(x => { for (let k = 0; k < x.n; k++) labs.push(x.it); });
   const svgFor = ean => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); try { JsBarcode(s, ean, { format: 'EAN13', height: 34, width: 1.4, fontSize: 11, margin: 0, flat: true }); } catch (e) { JsBarcode(s, ean, { format: 'CODE128', height: 34, width: 1.2, fontSize: 11, margin: 0 }); } return s.outerHTML; };
   const qrFor = t => { const q = qrcode(0, 'M'); q.addData(t); q.make(); return q.createSvgTag({ cellSize: 2, margin: 0 }); };
@@ -498,13 +654,16 @@ function printLabels(list, fmt) {
 async function tStock() {
   loading(); try { await loadItems(); } catch (e) { return fail(e); }
   const its = A.items.filter(i => !i.bundle);
-  view().innerHTML = `<div class="card row"><b>Stock</b><span class="m">Shelf = last count + everything since. Count only when you want to correct it.</span><span class="sp"></span><button class="p" id="cSave">Save counts</button></div>
-    <div class="card tw"><table><tr><th>Item</th><th>On shelf</th><th>Promised</th><th>Free to sell</th><th>Last counted</th><th>Count now</th><th></th></tr>
-    ${its.map(i => `<tr><td><b>${esc(i.name)}</b>${i.variant ? ` · ${esc(i.variant)}` : ''}<div class="m">${esc(i.sku)} · ${esc(i.shelf || '')}</div></td><td class="b">${i.stock}</td><td>${i.reserved}</td><td class="b" style="color:${i.stock - i.reserved <= 0 ? 'var(--bad)' : 'inherit'}">${i.stock - i.reserved}</td><td class="m">${i.counted_at ? dayOnly(i.counted_at) : 'never'}</td><td><input type="number" min="0" data-cnt="${esc(i.sku)}" style="width:80px" placeholder="—"></td><td><button data-adj="${esc(i.sku)}">± / damage</button></td></tr>`).join('')}</table></div>
+  const tot = its.reduce((a, i) => a + Math.max(0, i.stock), 0), free = its.reduce((a, i) => a + Math.max(0, i.stock - i.reserved), 0), out = its.filter(i => i.stock - i.reserved <= 0).length, counted = its.filter(i => i.counted_at).length;
+  view().innerHTML = `<div class="card row"><b>Stock</b><span class="m">Shelf = last count + everything since. Count only when you want to correct it.</span><span class="sp"></span><button id="syncWeb">↻ Sync website</button><button class="p" id="cSave">Save counts</button></div>
+    <div class="card row"><span class="stat"><span class="m">On shelf</span><b data-cu="${tot}">${tot}</b></span><span class="stat"><span class="m">Free to sell</span><b data-cu="${free}">${free}</b></span><span class="stat"><span class="m">Sold out</span><b data-cu="${out}" style="color:${out ? 'var(--bad)' : 'inherit'}">${out}</b></span><div style="flex:1;min-width:220px">${pb(counted, its.length, counted === its.length ? 'ok' : 'warn', 'Items counted at least once')}</div></div>
+    <div class="card tw"><table><tr><th>Item</th><th>On shelf</th><th>Promised</th><th>Free to sell</th><th>Website</th><th>Last counted</th><th>Count now</th><th></th></tr>
+    ${its.map(i => `<tr><td><div class="nmc">${i.image ? `<img class="th" loading="lazy" src="${esc(thumb(i.image))}" alt="">` : ''}<div><b>${esc(i.name)}</b>${i.variant ? ` · ${esc(i.variant)}` : ''}<div class="m">${esc(i.sku)} · ${esc(i.shelf || '')}</div></div></div></td><td class="b">${i.stock}</td><td>${i.reserved}</td><td style="min-width:110px"><b style="color:${i.stock - i.reserved <= 0 ? 'var(--bad)' : 'inherit'}">${i.stock - i.reserved}</b>${pb(Math.max(0, i.stock - i.reserved), Math.max(i.stock, 1), i.stock - i.reserved <= 0 ? 'bad' : (i.stock - i.reserved) / Math.max(i.stock, 1) < .3 ? 'warn' : 'ok').replace('class="pb ', 'class="pb thin ')}</td><td>${webChip(i)}</td><td class="m">${i.counted_at ? dayOnly(i.counted_at) : 'never'}</td><td><input type="number" min="0" data-cnt="${esc(i.sku)}" style="width:80px" placeholder="—"></td><td><button data-adj="${esc(i.sku)}">± / damage</button></td></tr>`).join('')}</table></div>
     <div class="card"><div class="row"><b>Recent movements</b><span class="sp"></span><button id="mvLoad">Show</button></div><div class="tw" id="mv"></div></div>`;
-  $('cSave').onclick = async () => { const lines = [...view().querySelectorAll('[data-cnt]')].filter(x => x.value !== '').map(x => ({ sku: x.dataset.cnt, qty: +x.value })); if (!lines.length) return alert('Type a count in at least one row'); if (!confirm(`Save ${lines.length} count(s)? These become the new shelf numbers.`)) return; try { await adm('rs_count', { lines, by: 'admin' }); tStock(); } catch (e) { alert(e.message); } };
-  view().querySelectorAll('[data-adj]').forEach(b => b.onclick = () => modal(`<h3>Adjust ${esc(itemName(b.dataset.adj))}</h3><div class="grid2"><label>Kind<select id="aK"><option value="adjust">Correction (±)</option><option value="damage">Damaged / write-off</option></select></label><label>Quantity (± for corrections)<input id="aQ" type="number"></label></div><input id="aN" placeholder="Why" style="width:100%;margin-top:8px"><div class="row" style="margin-top:10px"><span class="sp"></span><button class="p" id="aGo">Save</button></div>`, (m, close) => { m.querySelector('#aGo').onclick = async () => { try { await adm('rs_adjust', { sku: b.dataset.adj, kind: m.querySelector('#aK').value, qty: +m.querySelector('#aQ').value, note: m.querySelector('#aN').value }); close(); tStock(); } catch (e) { alert(e.message); } }; }));
-  $('mvLoad').onclick = async () => { const d = await adm('rs_moves', { limit: 200 }); $('mv').innerHTML = `<table><tr><th>When</th><th>Item</th><th>What</th><th>Qty</th><th>Ref</th><th>By</th><th></th></tr>${d.moves.map(x => `<tr style="${x.undone_at ? 'opacity:.4' : ''}"><td class="m">${fmtD(x.at)}</td><td>${esc(itemName(x.sku))}</td><td>${esc(x.kind)}${x.note ? `<div class="m">${esc(x.note)}</div>` : ''}</td><td class="b">${x.kind === 'count' ? '= ' + x.qty : (x.qty > 0 ? '+' : '') + x.qty}</td><td class="m">${esc(x.ref || '')}</td><td class="m">${esc(x.by || '')}</td><td>${x.undone_at ? 'undone' : `<button data-un="${esc(x.ref)}">Undo</button>`}</td></tr>`).join('')}</table>`; $('mv').querySelectorAll('[data-un]').forEach(u => u.onclick = async () => { if (!confirm(`Undo everything recorded under ${u.dataset.un}?`)) return; try { await adm('rs_undo', { ref: u.dataset.un, by: 'admin' }); $('mvLoad').click(); } catch (e) { alert(e.message); } }); };
+  $('cSave').onclick = async () => { const lines = [...view().querySelectorAll('[data-cnt]')].filter(x => x.value !== '').map(x => ({ sku: x.dataset.cnt, qty: +x.value })); if (!lines.length) return warn('Type a count in at least one row'); if (!await ask(`Save ${lines.length} count(s)? These become the new shelf numbers.`)) return; const sv = $('cSave'); sv.disabled = true; sv.textContent = 'Saving…'; try { const r = await adm('rs_count', { lines, by: 'admin' }); toast(`${lines.length} count(s) saved`, 'ok'); shopToast(r.shop); tStock(); } catch (e) { sv.disabled = false; sv.textContent = 'Save counts'; toast(e.message, 'bad'); } };
+  $('syncWeb').onclick = () => syncNow(null); countUp(view());
+  view().querySelectorAll('[data-adj]').forEach(b => b.onclick = () => modal(`<h3>Adjust ${esc(itemName(b.dataset.adj))}</h3><div class="grid2"><label>Kind<select id="aK"><option value="adjust">Correction (±)</option><option value="damage">Damaged / write-off</option></select></label><label>Quantity (± for corrections)<input id="aQ" type="number"></label></div><input id="aN" placeholder="Why" style="width:100%;margin-top:8px"><div class="row" style="margin-top:10px"><span class="sp"></span><button class="p" id="aGo">Save</button></div>`, (m, close) => { m.querySelector('#aGo').onclick = async () => { try { const r = await adm('rs_adjust', { sku: b.dataset.adj, kind: m.querySelector('#aK').value, qty: +m.querySelector('#aQ').value, note: m.querySelector('#aN').value }); close(); toast('Saved', 'ok'); shopToast(r.shop); tStock(); } catch (e) { toast(e.message, 'bad'); } }; }));
+  $('mvLoad').onclick = async () => { $('mv').innerHTML = '<div class="sk" style="height:14px;margin:10px 0"></div>'.repeat(5); const d = await adm('rs_moves', { limit: 200 }); $('mv').innerHTML = `<table><tr><th>When</th><th>Item</th><th>What</th><th>Qty</th><th>Ref</th><th>By</th><th></th></tr>${d.moves.map(x => `<tr style="${x.undone_at ? 'opacity:.4' : ''}"><td class="m">${fmtD(x.at)}</td><td>${esc(itemName(x.sku))}</td><td>${esc(x.kind)}${x.note ? `<div class="m">${esc(x.note)}</div>` : ''}</td><td class="b">${x.kind === 'count' ? '= ' + x.qty : (x.qty > 0 ? '+' : '') + x.qty}</td><td class="m">${esc(x.ref || '')}</td><td class="m">${esc(x.by || '')}</td><td>${x.undone_at ? 'undone' : `<button data-un="${esc(x.ref)}">Undo</button>`}</td></tr>`).join('')}</table>`; $('mv').querySelectorAll('[data-un]').forEach(u => u.onclick = async () => { if (!await ask(`Undo everything recorded under ${u.dataset.un}?`)) return; try { const r = await adm('rs_undo', { ref: u.dataset.un, by: 'admin' }); toast(`${u.dataset.un} undone`, 'ok'); shopToast(r.shop); $('mvLoad').click(); } catch (e) { toast(e.message, 'bad'); } }); };
 }
 
 // ── Vendor POs ──
@@ -512,7 +671,7 @@ async function tPos(prefill) {
   loading(); let d, v; try { if (!A.items.length) await loadItems(); [d, v] = await Promise.all([adm('rs_pos'), adm('rs_vendors')]); } catch (e) { return fail(e); }
   const st = { draft: '', placed: 'warn', partial: 'warn', received: 'ok', cancelled: 'bad' };
   view().innerHTML = `<div class="card row"><b>Vendor orders</b><span class="sp"></span><button class="p" id="poNew">+ New PO</button></div>
-    <div class="card tw"><table><tr><th>PO</th><th>Vendor</th><th>Lines</th><th>Expected</th><th>Status</th><th></th></tr>${d.pos.map(p => `<tr><td><b>PO-${p.id}</b><div class="m">${dayOnly(p.created_at)}</div></td><td>${esc(p.vendor || '—')}</td><td>${p.lines.map(l => `${esc(itemName(l.sku))}: <b>${l.ok}</b>/${l.qty}${l.rejected ? ` <span style="color:var(--bad)">(${l.rejected} rejected)</span>` : ''}`).join('<br>')}</td><td>${p.expected_at ? dayOnly(p.expected_at) : '—'}</td><td><span class="chip ${st[p.status]}">${esc(p.status)}</span></td><td class="row"><button data-po="${p.id}">Edit</button>${['placed', 'partial'].includes(p.status) ? `<button class="g" data-rcv="${p.id}">Receive</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="m">No POs yet.</td></tr>'}</table></div>
+    <div class="card tw"><table><tr><th>PO</th><th>Vendor</th><th>Lines</th><th>Expected</th><th>Status</th><th></th></tr>${d.pos.map(p => `<tr><td><b>PO-${p.id}</b><div class="m">${dayOnly(p.created_at)}</div></td><td>${esc(p.vendor || '—')}</td><td style="min-width:200px">${p.lines.map(l => `<div style="margin-bottom:6px">${esc(itemName(l.sku))}: <b>${l.ok}</b>/${l.qty}${l.rejected ? ` <span style="color:var(--bad)">(${l.rejected} rejected)</span>` : ''}<div class="pb thin ${l.ok >= l.qty ? 'ok' : l.ok ? 'warn' : ''}"><i style="width:${pct(l.ok, l.qty)}%"></i></div></div>`).join('')}</td><td>${p.expected_at ? dayOnly(p.expected_at) : '—'}</td><td><span class="chip ${st[p.status]}">${esc(p.status)}</span></td><td class="row"><button data-po="${p.id}">Edit</button>${['placed', 'partial'].includes(p.status) ? `<button class="g" data-rcv="${p.id}">Receive</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="m">No POs yet.</td></tr>'}</table></div>
     <div class="card tw"><b>Vendor scorecard</b><table><tr><th>Vendor</th><th>POs</th><th>On time</th><th>Rejected</th><th>Real lead time</th></tr>${v.vendors.map(x => `<tr><td>${esc(x.vendor)}</td><td>${x.pos}</td><td>${x.ontime_pct == null ? '—' : x.ontime_pct + '%'}</td><td>${x.reject_pct == null ? '—' : x.reject_pct + '%'}</td><td>${x.lead_days == null ? '—' : x.lead_days + ' days'}</td></tr>`).join('') || '<tr><td colspan="5" class="m">Appears after the first delivery.</td></tr>'}</table></div>`;
   $('poNew').onclick = () => editPo({ status: 'draft', lines: [] });
   view().querySelectorAll('[data-po]').forEach(b => b.onclick = () => editPo(d.pos.find(p => p.id === +b.dataset.po)));
@@ -524,12 +683,12 @@ function editPo(p) {
   const lineRow = l => `<tr><td><select data-ls>${its.map(i => `<option value="${esc(i.sku)}" ${i.sku === l.sku ? 'selected' : ''}>${esc([i.name, i.variant].filter(Boolean).join(' · '))}</option>`).join('')}</select></td><td><input type="number" min="1" data-lq value="${l.qty || ''}" style="width:80px"></td><td><input type="number" data-lc value="${l.cost == null ? '' : l.cost}" style="width:80px" placeholder="₹"></td><td><input type="hidden" data-lid value="${l.id || ''}"><button data-x>✕</button></td></tr>`;
   modal(`<h3>${p.id ? 'PO-' + p.id : 'New vendor order'}</h3><div class="grid2"><label>Vendor<input id="pV" value="${esc(p.vendor || '')}"></label><label>Expected on<input id="pE" type="date" value="${esc(p.expected_at || '')}"></label><label>Status<select id="pS">${['draft', 'placed', 'partial', 'received', 'cancelled'].map(s => `<option ${s === p.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label></div>
     <table id="pL" style="margin-top:10px"><tr><th>Item</th><th>Qty</th><th>Cost</th><th></th></tr>${(p.lines.length ? p.lines : [{}]).map(lineRow).join('')}</table><button id="pAdd">+ Line</button>
-    <input id="pN" placeholder="Note" value="${esc(p.note || '')}" style="width:100%;margin-top:8px"><div class="row" style="margin-top:10px"><span class="sp"></span><button onclick="this.closest('.mb').remove()">Cancel</button><button class="p" id="pSave">Save</button></div>`, (m, close) => {
+    <input id="pN" placeholder="Note" value="${esc(p.note || '')}" style="width:100%;margin-top:8px"><div class="row" style="margin-top:10px"><span class="sp"></span><button data-close>Cancel</button><button class="p" id="pSave">Save</button></div>`, (m, close) => {
     const bindX = () => m.querySelectorAll('[data-x]').forEach(b => b.onclick = () => b.closest('tr').remove());
     bindX(); m.querySelector('#pAdd').onclick = () => { m.querySelector('#pL').insertAdjacentHTML('beforeend', lineRow({})); bindX(); };
     m.querySelector('#pSave').onclick = async () => {
       const lines = [...m.querySelectorAll('#pL tr')].slice(1).map(tr => ({ id: +tr.querySelector('[data-lid]').value || null, sku: tr.querySelector('[data-ls]').value, qty: +tr.querySelector('[data-lq]').value, cost: tr.querySelector('[data-lc]').value })).filter(l => l.sku && l.qty > 0);
-      try { await adm('rs_po_save', { po: { id: p.id, vendor: m.querySelector('#pV').value, expected_at: m.querySelector('#pE').value || null, status: m.querySelector('#pS').value, note: m.querySelector('#pN').value, lines, placed_at: p.placed_at } }); close(); tPos(); } catch (e) { alert(e.message); }
+      try { m.querySelector('#pSave').disabled = true; await adm('rs_po_save', { po: { id: p.id, vendor: m.querySelector('#pV').value, expected_at: m.querySelector('#pE').value || null, status: m.querySelector('#pS').value, note: m.querySelector('#pN').value, lines, placed_at: p.placed_at } }); close(); toast('PO saved', 'ok'); tPos(); } catch (e) { m.querySelector('#pSave').disabled = false; toast(e.message, 'bad'); }
     };
   });
 }
@@ -538,8 +697,8 @@ function receivePo(p) {
     <div class="row" style="margin-top:10px"><button id="rcvLbl">🏷️ Print labels for OK pieces</button><span class="sp"></span><button class="g" id="rcvGo">Receive</button></div><div class="m" id="rcvPast"></div>`, async (m, close) => {
     const vals = () => p.lines.map(l => ({ line_id: l.id, sku: l.sku, ok: +m.querySelector(`[data-ok="${l.id}"]`).value || 0, rejected: +m.querySelector(`[data-rj="${l.id}"]`).value || 0 }));
     m.querySelector('#rcvLbl').onclick = () => printLabels(vals().filter(v => v.ok).map(v => ({ it: A.items.find(i => i.sku === v.sku), n: v.ok })), 'thermal');
-    m.querySelector('#rcvGo').onclick = async () => { try { await adm('rs_receive', { po_id: p.id, lines: vals(), by: 'admin' }); close(); tPos(); } catch (e) { alert(e.message); } };
-    try { const mv = await adm('rs_moves', { ref_prefix: `PO-${p.id}-R`, limit: 100 }); const by = {}; mv.moves.filter(x => !x.undone_at).forEach(x => (by[x.ref] ||= []).push(x)); m.querySelector('#rcvPast').innerHTML = Object.entries(by).map(([ref, xs]) => `<div class="row" style="margin-top:6px">${fmtD(xs[0].at)} · ${xs.map(x => `${x.qty} ${esc(itemName(x.sku))}`).join(', ')} <button data-ur="${esc(ref)}">Undo</button></div>`).join(''); m.querySelectorAll('[data-ur]').forEach(b => b.onclick = async () => { if (!confirm('Undo this delivery?')) return; await adm('rs_undo', { ref: b.dataset.ur, by: 'admin' }); close(); tPos(); }); } catch (e) {}
+    m.querySelector('#rcvGo').onclick = async () => { try { const r = await adm('rs_receive', { po_id: p.id, lines: vals(), by: 'admin' }); close(); toast(`PO-${p.id}: ${vals().reduce((a, v) => a + v.ok, 0)} piece(s) on the shelf`, 'ok'); shopToast(r.shop); tPos(); } catch (e) { toast(e.message, 'bad'); } };
+    try { const mv = await adm('rs_moves', { ref_prefix: `PO-${p.id}-R`, limit: 100 }); const by = {}; mv.moves.filter(x => !x.undone_at).forEach(x => (by[x.ref] ||= []).push(x)); m.querySelector('#rcvPast').innerHTML = Object.entries(by).map(([ref, xs]) => `<div class="row" style="margin-top:6px">${fmtD(xs[0].at)} · ${xs.map(x => `${x.qty} ${esc(itemName(x.sku))}`).join(', ')} <button data-ur="${esc(ref)}">Undo</button></div>`).join(''); m.querySelectorAll('[data-ur]').forEach(b => b.onclick = async () => { if (!await ask('Undo this delivery?')) return; await adm('rs_undo', { ref: b.dataset.ur, by: 'admin' }); close(); tPos(); }); } catch (e) {}
   });
 }
 
@@ -548,10 +707,13 @@ async function tPlan() {
   const win = +(ls.get('rs_win') || 4);
   loading(); let d; try { d = await adm('rs_plan', { window: win }); } catch (e) { return fail(e); }
   const risk = { out_before_vendor: ['Runs out before vendor can deliver', 'bad'], low: ['Low', 'warn'], ok: ['OK', 'ok'] };
+  const nRisk = k => d.rows.filter(r => r.risk === k).length;
   const rows = d.rows.sort((a, b) => ['out_before_vendor', 'low', 'ok'].indexOf(a.risk) - ['out_before_vendor', 'low', 'ok'].indexOf(b.risk) || (a.cover_days == null) - (b.cover_days == null) || (a.cover_days || 0) - (b.cover_days || 0));
   view().innerHTML = `<div class="card row"><b>Planning</b><span class="m">Sales speed over the last</span><select id="win">${[2, 3, 4, 5, 6, 14].map(n => `<option ${n === d.window ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="m">days</span><span class="sp"></span><button class="p" id="mkPo" ${rows.some(r => r.suggest) ? '' : 'disabled'}>Draft PO from suggestions</button></div>
+    <div class="card row">${[['Runs out before vendor', 'out_before_vendor', 'bad'], ['Low', 'low', 'warn'], ['OK', 'ok', 'ok']].map(([t, k, c]) => `<span class="stat"><span class="m">${t}</span><b data-cu="${nRisk(k)}" style="color:var(--${c === 'ok' ? 'ok' : c === 'bad' ? 'bad' : 'warn'})">${nRisk(k)}</b></span>`).join('')}<div style="flex:1;min-width:220px">${pb(nRisk('ok'), d.rows.length, 'ok', 'Items with enough cover')}</div></div>
     <div class="card tw"><table><tr><th>Item</th><th>Free</th><th>Incoming</th><th>Sold (${d.window} d)</th><th>Per day</th><th>vs 14 d</th><th>Lasts</th><th>Order</th><th>By</th><th></th></tr>
-    ${rows.map(r => `<tr><td><b>${esc(r.name)}</b><div class="m">${r.stock} on shelf · ${r.reserved} promised · ${r.sold30} in 30 d</div></td><td class="b">${r.free}</td><td>${r.incoming || '—'}${r.next_po ? `<div class="m">${dayOnly(r.next_po)}</div>` : ''}</td><td>${r.sold_window}</td><td>${r.rate}</td><td style="color:${r.trend > 15 ? 'var(--ok)' : r.trend < -15 ? 'var(--bad)' : 'inherit'}">${r.trend > 0 ? '▲' : r.trend < 0 ? '▼' : ''} ${Math.abs(r.trend)}%</td><td>${r.cover_days == null ? '—' : r.cover_days + ' d'}<div class="m">lead ${r.lead_days} d</div></td><td class="b">${r.suggest || '—'}</td><td>${r.suggest && r.order_by ? dayOnly(r.order_by) : '—'}</td><td><span class="chip ${risk[r.risk][1]}">${risk[r.risk][0]}</span></td></tr>`).join('') || '<tr><td colspan="10" class="m">Add items first.</td></tr>'}</table></div>`;
+    ${rows.map(r => `<tr><td><b>${esc(r.name)}</b><div class="m">${r.stock} on shelf · ${r.reserved} promised · ${r.sold30} in 30 d</div></td><td class="b">${r.free}</td><td>${r.incoming || '—'}${r.next_po ? `<div class="m">${dayOnly(r.next_po)}</div>` : ''}</td><td>${r.sold_window}</td><td>${r.rate}</td><td style="color:${r.trend > 15 ? 'var(--ok)' : r.trend < -15 ? 'var(--bad)' : 'inherit'}">${r.trend > 0 ? '▲' : r.trend < 0 ? '▼' : ''} ${Math.abs(r.trend)}%</td><td style="min-width:120px">${r.cover_days == null ? '—' : r.cover_days + ' d'}<div class="m">needs ${(r.lead_days || 0) + (r.safety_days || 0)} d</div>${r.cover_days == null ? '' : `<div class="pb thin ${risk[r.risk][1]}"><i style="width:${pct(r.cover_days, ((r.lead_days || 0) + (r.safety_days || 0)) * 2 || 1)}%"></i></div>`}</td><td class="b">${r.suggest || '—'}</td><td>${r.suggest && r.order_by ? dayOnly(r.order_by) : '—'}</td><td><span class="chip ${risk[r.risk][1]}">${risk[r.risk][0]}</span></td></tr>`).join('') || '<tr><td colspan="10" class="m">Add items first.</td></tr>'}</table></div>`;
+  countUp(view());
   $('win').onchange = e => { ls.set('rs_win', e.target.value); tPlan(); };
   $('mkPo').onclick = () => { aTab('pos'); setTimeout(() => tPos({ status: 'draft', lines: rows.filter(r => r.suggest).map(r => ({ sku: r.sku, qty: r.suggest })) }), 0); };
 }
@@ -562,27 +724,30 @@ async function tClose() {
   loading(); let d; try { d = await adm('rs_day_close', { date }); } catch (e) { return fail(e); }
   const lst = (title, xs, f) => `<div class="card"><b>${title}</b> <span class="chip ${xs.length ? 'warn' : 'ok'}">${xs.length}</span>${xs.length ? `<table>${xs.map(f).join('')}</table>` : ''}</div>`;
   view().innerHTML = `<div class="card row"><b>Day close</b><input type="date" id="cd" value="${esc(d.date)}"><span class="sp"></span><button onclick="window.print()">🖨️</button></div>
-    <div class="card row">${[['Booked', d.booked], ['Packed', d.packed], ['Handed over', d.handed]].map(([k, n]) => `<span class="stat"><span class="m">${k}</span><b>${n}</b></span>`).join('')}${Object.entries(d.by_packer).map(([k, n]) => `<span class="stat"><span class="m">${esc(k)}</span><b>${n}</b></span>`).join('')}</div>
+    <div class="card row">${[['Booked', d.booked], ['Packed', d.packed], ['Handed over', d.handed]].map(([k, n]) => `<span class="stat"><span class="m">${k}</span><b data-cu="${n}">${n}</b></span>`).join('')}${Object.entries(d.by_packer).map(([k, n]) => `<span class="stat"><span class="m">📦 ${esc(k)}</span><b data-cu="${n}">${n}</b></span>`).join('')}</div>
+    <div class="card grid2"><div>${pb(d.packed, d.packed + d.ready_not_packed.length, d.ready_not_packed.length ? 'warn' : 'ok', 'Ready orders packed')}</div><div>${pb(Math.max(0, d.packed - d.packed_not_handed.length), d.packed, d.packed_not_handed.length ? 'warn' : 'ok', 'Packed today and handed over')}</div></div>
     ${lst('Packed but not handed over', d.packed_not_handed, x => `<tr><td>${esc(x.order_name)}</td><td>${esc(x.awb || '')}</td><td class="m">${esc(x.carrier || '')}</td></tr>`)}
     ${lst('Ready but not packed', d.ready_not_packed, x => `<tr><td>${esc(x.order_name)}</td><td>${esc(x.awb || '')}</td><td class="m">${x.age_days} d old</td></tr>`)}
     ${lst('Still to book', d.to_book, x => `<tr><td>${esc(x.order_name)}</td><td class="m">${x.age_days} d old</td></tr>`)}
     ${lst('Problems', d.problems, x => `<tr><td>${esc(x.order_name)}</td><td>${esc(x.problem || '')}</td></tr>`)}
     ${lst('Waiting 5+ days for a quote', d.waiting_long, x => `<tr><td>${esc(x.order_name)}</td><td>${x.quotes.found}/${x.quotes.need} painted</td><td class="m">${x.age_days} d</td></tr>`)}`;
+  countUp(view());
   $('cd').onchange = e => { ls.set('rs_close', e.target.value); tClose(); };
 }
 
 // ── Settings ──
 async function tSettings() {
   loading(); let d; try { d = await adm('rs_settings'); } catch (e) { return fail(e); }
-  view().innerHTML = `<div class="card"><b>Website stock</b><p class="m">When on, the website's quantity for each item = on shelf − promised, updated after every pack, delivery, return and count. Keep it off until the products are priced and launched.</p><label class="tick"><input type="checkbox" id="sOn" ${d.shopify.on ? 'checked' : ''}> Keep Shopify quantities in step</label><label class="m">Shopify location ID <input id="sLoc" value="${esc(d.shopify.location_id)}"></label></div>
+  view().innerHTML = `<div class="card"><b>Website stock</b><p class="m">On by default. The website's quantity for each item = on shelf − promised, updated after every pack, delivery, return, count and edit. A finish priced ₹0 on the website is held at 0 so it can never be bought by accident.</p><label class="tick"><input type="checkbox" id="sOn" ${d.shopify.on ? 'checked' : ''}> Keep Shopify quantities in step</label><label class="m">Shopify location ID <input id="sLoc" value="${esc(d.shopify.location_id)}"></label></div>
     <div class="card grid2"><label>Packers (comma-separated)<input id="sPk" value="${esc(d.packers.join(', '))}"></label><label>Couriers for hand-over<input id="sCr" value="${esc(d.couriers.join(', '))}"></label><label>EAN prefix (20 = own codes; a GS1 prefix later)<input id="sEp" value="${esc(d.ean.prefix)}"></label><label>New admin PIN (leave empty to keep)<input id="sPin" type="password" inputmode="numeric"></label></div>
     <div class="row"><span class="sp"></span><button class="p" id="sSave">Save settings</button></div>`;
   $('sSave').onclick = async () => {
     const on = $('sOn').checked;
-    if (on && !d.shopify.on && !confirm('Turn on website stock sync? Every ready item will show on the website with its free quantity. Make sure prices are set.')) return;
+    if (on && !d.shopify.on && !await ask('Turn on website stock sync? Every ready item will show on the website with its free quantity (₹0 items stay at 0).', 'Turn on')) return;
+    if (!on && d.shopify.on && !await ask('Turn off website stock sync? Website quantities will stop following the shelf until you turn it back on.', 'Turn off', true)) return;
     const set = { shopify: { on, location_id: $('sLoc').value.trim() }, packers: $('sPk').value.split(',').map(s => s.trim()).filter(Boolean), couriers: $('sCr').value.split(',').map(s => s.trim()).filter(Boolean), ean_prefix: $('sEp').value.trim() };
     const pin = $('sPin').value.trim(); if (pin) set.new_pin = pin;
-    try { await adm('rs_settings', { set }); if (pin) ss.set('rs_pin', pin); alert('Saved'); tSettings(); } catch (e) { alert(e.message); }
+    try { await adm('rs_settings', { set }); if (pin) ss.set('rs_pin', pin); toast('Settings saved', 'ok'); tSettings(); } catch (e) { toast(e.message, 'bad'); }
   };
 }
 
