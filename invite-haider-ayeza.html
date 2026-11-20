@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Haider turns 4 · Ayeza turns 8 — You're invited</title>
-<meta name="description" content="Join us for Haider's 4th and Ayeza's 8th birthday on Sunday 29 November, 12:30 pm, at Fun for Smiles, Community Centre, Maharani Bagh, New Delhi.">
+<meta name="description" content="Join us for Haider's 4th and Ayeza's 8th birthday on Sunday 29 November, 12:30 pm, at Funsmilez Wonderland, Community Centre, Maharani Bagh, New Delhi.">
 <meta property="og:title" content="Haider turns 4 · Ayeza turns 8">
 <meta property="og:description" content="Two birthdays, one party. Open your invitation and tell us if you're coming.">
 <meta property="og:image" content="https://enzmxaswpluncupzrtfb.supabase.co/storage/v1/object/public/invite-frames/haider-ayeza/v4/hero.jpg">
@@ -158,7 +158,7 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
   <div class="ticket">
     <div class="rows">
       <div><small class="b">When</small><strong>Sunday, 29 Nov</strong><span>12:30 pm onwards</span></div>
-      <div><small class="g">Where</small><strong>Fun for Smiles</strong><span>Community Centre, Maharani Bagh, New Delhi</span></div>
+      <div><small class="g">Where</small><strong>Funsmilez Wonderland</strong><span>Community Centre, Maharani Bagh, New Delhi</span></div>
     </div>
     <div class="pills">
       <a class="pill" target="_blank" rel="noopener" href="https://maps.app.goo.gl/HTQNBX3q6f8v4zDDA">
@@ -199,7 +199,7 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
   <button class="hb-x" id="hbX">Preview the invitation</button>
 </div></div>
 <button class="music" id="music" aria-label="Music on or off"><span class="bars"><i></i><i></i><i></i></span></button>
-<audio id="song" loop preload="none" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261120_123948_30575672-a476-4dc0-b2db-a482ed1407f5.mp3"></audio>
+<audio id="song" loop preload="auto" src="https://d8j0ntlcm91z4.cloudfront.net/user_34EEOh7aS06rQ0l9XGxWtkBZ5bu/hf_20261120_123948_30575672-a476-4dc0-b2db-a482ed1407f5.mp3"></audio>
 <canvas id="confetti"></canvas>
 
 <script>
@@ -245,6 +245,8 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
   mbtn.addEventListener('click', e => { e.stopPropagation(); if (song.paused) { muted = false; song.play().catch(() => {}); } else { muted = true; song.pause(); } });
   const first = e => { if (e.target.closest('#music') || muted) return; song.play().catch(() => {}); removeEventListener('pointerdown', first); removeEventListener('touchend', first); };
   addEventListener('pointerdown', first); addEventListener('touchend', first);
+  // Try straight away too: browsers that allow sound without a touch will start it on load
+  song.play().catch(() => {});
   document.addEventListener('visibilitychange', () => { if (document.hidden) song.pause(); else if (!muted && mbtn.dataset.started) song.play().catch(() => {}); });
   song.addEventListener('play', () => mbtn.dataset.started = '1');
 
@@ -253,7 +255,7 @@ footer{margin-top:22px;font-family:var(--ff);font-style:italic;color:var(--ink2)
 
   const gd = d => d.toISOString().replace(/[-:]|\.\d{3}/g, '');
   $('#cal').href = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent("Haider & Ayeza's birthday party") +
-    '&dates=' + gd(PARTY) + '/' + gd(new Date(PARTY.getTime() + 3 * 3600e3)) + '&location=' + encodeURIComponent('Fun for Smiles, Community Centre, Maharani Bagh, New Delhi');
+    '&dates=' + gd(PARTY) + '/' + gd(new Date(PARTY.getTime() + 3 * 3600e3)) + '&location=' + encodeURIComponent('Funsmilez Wonderland, Community Centre, Maharani Bagh, New Delhi');
 
   // RSVP
   const ask = $('#ask'), err = $('#err'), key = 'rsvp4-' + EVENT + '-' + guest.toLowerCase();

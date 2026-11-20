@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Guest list — Haider & Ayeza's party</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--boy:#5b8db4;--boy-d:#3f6f96;--boy-l:#dcebf6;--girl:#d9798f;--girl-d:#b9566e;--girl-l:#fce3e8;--cream:#fbf6ef;--ink:#3a3340;--ink2:#7d7482;--line:#ece3d8;--ok:#3f8f63;--ok-l:#e2f3e9;
+  --ff:"Fraunces",Georgia,serif;--fb:"DM Sans",system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--fb);color:var(--ink);background:linear-gradient(90deg,#e6f0f8,#f6eef3 50%,#fde9ed) fixed;min-height:100vh;padding:calc(18px + env(safe-area-inset-top)) 14px 60px}
+button,input,textarea{font:inherit;color:inherit}
+.wrap{max-width:560px;margin:0 auto}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:14px}
+h1{font-family:var(--ff);font-weight:500;font-size:28px;line-height:1.05}
+h1 small{display:block;font-family:var(--fb);font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:700;color:var(--ink2);margin-bottom:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:600;text-decoration:none;color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.stat{background:#fff;border-radius:16px;padding:12px 6px;text-align:center;box-shadow:0 14px 26px -22px rgba(58,51,64,.5)}
+.stat b{display:block;font-family:var(--ff);font-size:26px;font-weight:500;line-height:1}
+.stat span{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--ink2);display:block;margin-top:6px}
+.stat.y b{color:var(--ok)} .stat.n b{color:var(--girl-d)} .stat.p b{color:var(--boy-d)}
+.card{background:#fff;border-radius:18px;padding:14px;box-shadow:0 14px 26px -22px rgba(58,51,64,.5);margin-bottom:14px}
+.card h2{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;color:var(--ink2);margin-bottom:10px}
+textarea{width:100%;min-height:74px;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);font-size:16px;resize:vertical;outline:none}
+textarea:focus{border-color:var(--boy)}
+.addrow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px}
+.hint{font-size:12px;color:var(--ink2)}
+.filters{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.chip{padding:7px 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink2)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.row{display:flex;align-items:center;gap:10px;padding:11px 2px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.who{flex:1;min-width:0}
+.who strong{display:block;font-size:15.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{display:inline-block;margin-top:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+.tag.yes{background:var(--ok-l);color:var(--ok)} .tag.no{background:var(--girl-l);color:var(--girl-d)}
+.tag.wait{background:var(--boy-l);color:var(--boy-d)} .tag.new{background:#f1ede6;color:var(--ink2)}
+.wa{display:inline-flex;align-items:center;gap:6px;padding:10px 13px;border-radius:999px;background:#1f8f4e;color:#fff;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap}
+.wa.sent{background:#fff;color:#1f8f4e;box-shadow:inset 0 0 0 1.5px #1f8f4e}
+.ic{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;flex:none;color:var(--ink2)}
+.ic.sure{background:var(--girl);border-color:var(--girl);color:#fff}
+.empty{text-align:center;color:var(--ink2);font-size:14px;padding:18px 0}
+.msg{text-align:center;color:var(--girl-d);font-size:13.5px;min-height:18px;margin:8px 0}
+.lock{text-align:center;padding:60px 20px;color:var(--ink2)}
+.lock h1{color:var(--ink);margin-bottom:10px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;transition:transform .3s;z-index:9}
+.toast.on{transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <h1><small>Haider &amp; Ayeza · 29 Nov</small>Guest list</h1>
+    <a class="btn dark" id="preview" target="_blank" rel="noopener">Preview invite</a>
+  </header>
+  <div class="stats">
+    <div class="stat"><b id="sAll">0</b><span>Invited</span></div>
+    <div class="stat y"><b id="sYes">0</b><span>Coming</span></div>
+    <div class="stat n"><b id="sNo">0</b><span>Can't</span></div>
+    <div class="stat p"><b id="sWait">0</b><span>No reply</span></div>
+  </div>
+  <div class="card">
+    <h2>Add guests</h2>
+    <textarea id="names" placeholder="One name per line, e.g.&#10;Khan Family&#10;Sara Aunty"></textarea>
+    <div class="addrow"><span class="hint">The name appears on their invitation.</span><button class="btn dark" id="add">Save names</button></div>
+    <div class="msg" id="msg"></div>
+  </div>
+  <div class="card">
+    <div class="filters" id="filters">
+      <button class="chip on" data-f="all">All</button><button class="chip" data-f="tosend">To send</button><button class="chip" data-f="wait">No reply</button><button class="chip" data-f="yes">Coming</button><button class="chip" data-f="no">Can't</button>
+      <button class="chip" id="refresh" style="margin-left:auto">↻ Refresh</button>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div class="card" id="othersCard" style="display:none">
+    <h2>Replied without a personal link</h2>
+    <div id="others"></div>
+  </div>
+</div>
+<div class="lock" id="lock" style="display:none"><h1>Guest list</h1><p>Open this page from your private dashboard link.</p></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const SB = 'https://enzmxaswpluncupzrtfb.supabase.co/rest/v1/rpc/';
+  const PUB = 'sb_publishable_n2bU07ighHg5FKRuiKUgvw_BuWp1GCV';
+  const EVENT = 'haider-ayeza-2026';
+  const INVITE = location.origin + location.pathname.replace(/[^/]*$/, '') + 'invite-haider-ayeza.html';
+  const $ = s => document.querySelector(s);
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // The private key arrives once in the link, is kept on this phone, and is taken out of the address bar
+  const q = new URLSearchParams(location.search);
+  let key = q.get('k');
+  try { if (key) localStorage.setItem('party-host-' + EVENT, key); else key = localStorage.getItem('party-host-' + EVENT); } catch {}
+  if (q.get('k')) history.replaceState(null, '', location.pathname);
+  if (!key) { $('#lock').style.display = ''; return; }
+  $('#preview').href = INVITE;
+
+  const rpc = async (fn, args) => {
+    const r = await fetch(SB + fn, { method: 'POST', headers: { apikey: PUB, Authorization: 'Bearer ' + PUB, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_event: EVENT, p_key: key, ...args }) });
+    if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'locked' : 'failed');
+    return r.status === 204 ? null : r.json();
+  };
+  const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); };
+  const link = n => `${INVITE}?to=${encodeURIComponent(n)}`;
+  const waText = n => `Dear ${n}, Haider is turning 4 and Ayeza is turning 8, and we'd love you to celebrate with us on Sunday, 29 November! Open your invitation and tell us if you're coming: ${link(n)}`;
+
+  let data = { guests: [], others: [] }, filter = 'all', sure = null;
+  function render() {
+    const g = data.guests, yes = g.filter(x => x.status === 'yes').length, no = g.filter(x => x.status === 'no').length;
+    $('#sAll').textContent = g.length; $('#sYes').textContent = yes + data.others.filter(x => x.status === 'yes').length; $('#sNo').textContent = no; $('#sWait').textContent = g.length - yes - no;
+    const show = g.filter(x => filter === 'all' || (filter === 'tosend' && !x.sent && !x.status) || (filter === 'wait' && !x.status) || filter === x.status);
+    $('#list').innerHTML = show.length ? show.map(x => {
+      const tag = x.status === 'yes' ? '<span class="tag yes">Coming 🎈</span>' : x.status === 'no' ? '<span class="tag no">Can\'t make it</span>' : x.status === 'maybe' ? '<span class="tag wait">Maybe</span>' : x.sent ? '<span class="tag wait">Sent · no reply yet</span>' : '<span class="tag new">Not sent yet</span>';
+      return `<div class="row" data-n="${esc(x.name)}"><div class="who"><strong>${esc(x.name)}</strong>${tag}</div>
+        <a class="wa${x.sent ? ' sent' : ''}" data-a="wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(waText(x.name))}">${x.sent ? 'Resend' : 'WhatsApp'}</a>
+        <button class="ic" data-a="copy" aria-label="Copy link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button>
+        <button class="ic${sure === x.name ? ' sure' : ''}" data-a="del" aria-label="Remove">${sure === x.name ? '✓' : '×'}</button></div>`;
+    }).join('') : `<div class="empty">${g.length ? 'Nobody in this filter.' : 'Add your first guests above.'}</div>`;
+    $('#othersCard').style.display = data.others.length ? '' : 'none';
+    $('#others').innerHTML = data.others.map(x => `<div class="row"><div class="who"><strong>${esc(x.name)}</strong><span class="tag ${x.status === 'yes' ? 'yes' : x.status === 'no' ? 'no' : 'wait'}">${x.status === 'yes' ? 'Coming 🎈' : x.status === 'no' ? "Can't make it" : 'Maybe'}</span></div></div>`).join('');
+  }
+  async function load(quiet) {
+    try { data = await rpc('party_host_list', {}); $('#app').style.display = ''; render(); if (!quiet) toast('Updated'); }
+    catch (e) {
+      if (e.message === 'locked') { try { localStorage.removeItem('party-host-' + EVENT); } catch {} $('#app').style.display = 'none'; $('#lock').style.display = ''; }
+      else if (!quiet) toast("Couldn't refresh");
+    }
+  }
+
+  $('#add').addEventListener('click', async () => {
+    const names = $('#names').value.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length >= 2);
+    if (!names.length) return $('#msg').textContent = 'Type at least one name.';
+    $('#msg').textContent = '';
+    try { const n = await rpc('party_host_add', { p_names: names }); $('#names').value = ''; toast(n ? `Saved ${n} ${n === 1 ? 'name' : 'names'}` : 'Already on the list'); load(true); }
+    catch { $('#msg').textContent = "Couldn't save — please try again."; }
+  });
+  $('#list').addEventListener('click', async e => {
+    const b = e.target.closest('[data-a]'); if (!b) return;
+    const n = b.closest('.row').dataset.n, a = b.dataset.a;
+    if (a === 'wa') { const g = data.guests.find(x => x.name === n); if (g && !g.sent) { g.sent = true; rpc('party_host_sent', { p_name: n }).catch(() => {}); setTimeout(render, 600); } }
+    if (a === 'copy') { try { await navigator.clipboard.writeText(link(n)); toast('Link copied'); } catch { toast(link(n)); } }
+    // Removing takes two taps on the same button, so a slip of the thumb can't drop a guest
+    if (a === 'del') {
+      if (sure !== n) { sure = n; render(); setTimeout(() => { if (sure === n) { sure = null; render(); } }, 3000); return; }
+      sure = null;
+      try { await rpc('party_host_remove', { p_name: n }); toast('Removed'); load(true); } catch { toast("Couldn't remove"); }
+    }
+  });
+  $('#filters').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    if (c.id === 'refresh') return load();
+    filter = c.dataset.f; document.querySelectorAll('#filters .chip[data-f]').forEach(x => x.classList.toggle('on', x === c)); render();
+  });
+  load(true);
+  setInterval(() => { if (!document.hidden) load(true); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(true); });
+})();
+</script>
+</body>
+</html>
