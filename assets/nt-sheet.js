@@ -40,9 +40,9 @@
     return { id: 'none', kind: 'none' };
   }
   // The live offer's numbers, read into the variables the rest of the script works from; called again when the window changes
-  var ACTIVE, KIND, OFFER, MODE, AREA, EVERY, UNIT, TIERS, LAD, LP, LCAP, LPCT, LTX, offerLive, SALE, saleNow, NOTE_SHORT, CODES, TX, MAX_PRICE, ELIG, TH, GAP;
+  var ACTIVE, KIND, OFFER, MODE, AREA, EVERY, UNIT, TIERS, LAD, LP, LCAP, LPCT, LCOUNT, LTX, offerLive, SALE, saleNow, NOTE_SHORT, CODES, TX, MAX_PRICE, ELIG, TH, GAP;
   var TX_DEFAULT = { empty_line: 'Buy {t1_1}, get the {t1_nth} FREE', empty_side: '{t1} for {t1_pay}', first: 'Add {more} more — 1 is FREE', mid: 'Add {more} more — 1 is FREE', hot: '🎁 Add 1 more — it’s FREE', done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', side_next: '{next_n} for {next_pay} · use code {next_code}', side_done: '{next_n} for {next_pay} · use code {next_code}', summary: '{n} in cart · {pay}', summary_done: '{pay} · {k} FREE ✓ · code {code}', ladder_title: 'Buy {t1_1}, get the {t1_nth} free', rule1: 'Add {t1} quotes, the cheapest one is FREE (worth up to {unit})', rule2: '{t2} quotes → 2 FREE · {t3} quotes → 3 FREE', rule3: 'Codes {codes} apply on their own at checkout', also_empty: 'You might also like', also_coll: 'You might also like', also_first: 'Buy {t1_1}, get the {t1_nth} FREE', also_hot: 'Pick your FREE {t1_nth} quote', also_done: 'Make it {next_n} — pay for {next_paid}, {next_free} FREE', sim_tag: 'similar', card_tag: '', card_tag_more: 'Add {more} more, get 1 free', card_tag_free: 'FREE' };
-  var LTX_DEFAULT = { title: 'Pick more, pay less', price_line: '₹599 · 2nd at ₹499 · 3rd onwards ₹449', l0: '2nd at ₹499 · 3rd onwards ₹449', l1: '2nd for just ₹499 · save ₹100', l2: '3rd for just ₹449 · save ₹150', l3: 'Each extra just ₹449', l5: 'Add 1 more → 20% off everything', l6: '20% off unlocked 🎉', bulk: 'Ordering for a team or an event? Contact us for bulk pricing.', bulk_short: 'Team or event? Contact us', also_next: 'Pick your next one, at {price}', also_cap: 'Pick your next one', delivery: 'Every piece is hand-painted to order. Delivery takes 14 to 16 days.' };
+  var LTX_DEFAULT = { title: 'Pick more, pay less', price_line: '₹599 · 2nd at ₹499 · 3rd onwards ₹449', price_line_cut: '₹100 off your 2nd · ₹150 off each from the 3rd', l0: '2nd at ₹499 · 3rd onwards ₹449', l1: '2nd for just ₹499 · save ₹100', l2: '3rd for just ₹449 · save ₹150', l3: 'Each extra just ₹449', l5: 'Add 1 more → 20% off everything', l6: '20% off unlocked 🎉', bulk: 'Ordering for a team or an event? Contact us for bulk pricing.', bulk_short: 'Team or event? Contact us', also_next: 'Pick your next one, at {price}', also_cap: 'Pick your next one', delivery: 'Every piece is hand-painted to order. Delivery takes 14 to 16 days.' };
   function applyOffer(o) {
     ACTIVE = o; KIND = o.kind || 'none';
     SALE = KIND === 'sale' ? o : null;
@@ -52,6 +52,7 @@
     LAD = KIND === 'ladder';
     LP = (OFFER.ladder_prices && OFFER.ladder_prices.length ? OFFER.ladder_prices : [599, 499, 449]).map(Number);
     LCAP = +OFFER.cap_at || 6; LPCT = +OFFER.cap_pct || 20;
+    LCOUNT = (OFFER.count_prices && OFFER.count_prices.length ? OFFER.count_prices : [+OFFER.price || 599, 799]).map(Number);
     LTX = {}; for (var lk in LTX_DEFAULT) LTX[lk] = (OFFER.ltext && OFFER.ltext[lk]) || LTX_DEFAULT[lk];
     // The fixed areas the offer may show in; each is a switch on the dashboard
     AREA = {}; ['strip', 'drawer', 'band', 'ladder', 'price', 'also', 'cards'].forEach(function (k) { AREA[k] = !o.areas || o.areas[k] !== false; });
@@ -103,7 +104,7 @@
   function eligibleHandle(h) { return h !== CUSTOM && (!ELIG || !!ELIG[h]); }
   function eligible(it) { var p = (it.original_price != null ? it.original_price : it.price) / 100; if (it.handle === CUSTOM) return false;
     // the ladder counts ₹599 quote variants only: a ₹799 colour, the gold finish, diaries, Sabr Shukr pieces and add-ons stay out
-    if (LAD) return p === UNIT && !/^sabr-shukr|desk-piece|diary/.test(it.handle || '') && !/custom|personali|logo|add-?on|gift ?wrap/i.test(it.product_type || '') && (!ELIG || !!ELIG[it.handle]); if (ELIG) return !!ELIG[it.handle]; return p >= UNIT && p <= MAX_PRICE && !/custom|personali|logo/i.test(it.product_type || ''); }
+    if (LAD) return LCOUNT.indexOf(p) >= 0 && !/^sabr-shukr|desk-piece|diary/.test(it.handle || '') && !/custom|personali|logo|add-?on|gift ?wrap/i.test(it.product_type || '') && (!ELIG || !!ELIG[it.handle]); if (ELIG) return !!ELIG[it.handle]; return p >= UNIT && p <= MAX_PRICE && !/custom|personali|logo/i.test(it.product_type || ''); }
   function unitsOf(cart) { var u = []; (cart.items || []).forEach(function (it) { if (!eligible(it)) return; var p = (it.original_price != null ? it.original_price : it.price) / 100; for (var i = 0; i < it.quantity; i++) u.push(p); }); return u; }
   applyOffer(resolveOffer(Date.now()));
   function freeCount(n) { var k = 0; for (var i = 0; i < TH.length; i++) if (n >= TH[i]) k = i + 1; if (k === TH.length) k += Math.floor((n - TH[TH.length - 1]) / GAP); return k; }
@@ -157,6 +158,10 @@
   function lTotal(n) { if (n <= 0) return 0; if (n >= LCAP) return Math.round(UNIT * n * (100 - LPCT)) / 100; var t = 0; for (var i = 0; i < n; i++) t += LP[Math.min(i, LP.length - 1)]; return t; }
   // the price shown for the next piece: its own step price below the cap, the cap's per-piece price from there
   function lNext(n) { return n >= LCAP ? Math.round(UNIT * (100 - LPCT) / 100) : LP[Math.min(n, LP.length - 1)]; }
+  // Below the cap each piece after the first is a fixed cut off its own price (₹100, then ₹150), so a ₹799 colour as the 2nd is ₹699
+  function lCut(i) { return i <= 0 ? 0 : UNIT - LP[Math.min(i, LP.length - 1)]; }
+  function lNextFor(n, base) { return n >= LCAP ? Math.round(base * (100 - LPCT) / 100) : base - lCut(n); }
+  function lDisc(units) { var n = units.length, sum = 0; units.forEach(function (p) { sum += p; }); if (n >= LCAP) return Math.round(sum * LPCT) / 100; var d = 0; for (var i = 1; i < n; i++) d += lCut(i); return d; }
   function lBulk(long) { var t = long ? LTX.bulk : LTX.bulk_short, u = OFFER.bulk_link || '/pages/contact'; return u ? '<a class="nts-bulk" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : '<span class="nts-bulk">' + esc(t) + '</span>'; }
   // prices and "N% off" become glowing pills; "save ₹X" goes green
   function lHi(t) { var keep = []; return esc(t).replace(/save ₹[\d,]+/g, function (m) { keep.push(m); return '\u0001' + (keep.length - 1) + '\u0001'; }).replace(/(₹[\d,]+|\d+% off)/g, '<b class="pz">$1</b>').replace(/\u0001(\d+)\u0001/g, function (m, i) { return '<span class="sv">' + keep[+i] + '</span>'; }); }
@@ -167,10 +172,10 @@
     var head = !n ? 'The more quotes you pick, the less each one costs.' : n >= LCAP ? 'You’ve unlocked our best price: ' + LPCT + '% off everything.' : 'You have ' + n + ' · your next one is just ' + fmt(lNext(n)) + '.';
     return '<div class="nts-lhead">' + lHi(head) + '</div><div class="nts-lt">' + rows.map(function (r) { var on = n >= r[0] && n <= r[1], done = n > r[1], nx = nextRow === r; return '<div class="r' + (on ? ' on' : '') + (done ? ' done' : '') + (nx ? ' nx' : '') + '"><span class="k">' + (done ? '✓ ' : '') + esc(r[2]) + (nx ? ' <i>next</i>' : '') + '</span><span class="v"><b>' + esc(r[3]) + '</b>' + (r[4] ? '<small>' + esc(r[4]) + '</small>' : '') + '</span></div>'; }).join('') + '</div>' +
       (n ? '<div class="nts-ltot">' + n + ' in cart · <b>' + fmt(S.pay) + '</b>' + (S.saving > 0 ? ' · <span>you save ' + fmt(S.saving) + '</span>' : '') + '</div>' : '') +
-      '<div class="nts-lfoot">✓ No code needed, it applies on its own at checkout · on ₹599 quotes</div>' + (S.bulk ? '<div class="nts-bulkline">' + lBulk(true) + '</div>' : '');
+      '<div class="nts-lfoot">✓ No code needed, it applies on its own at checkout · other colours get the same ₹ off</div>' + (S.bulk ? '<div class="nts-bulkline">' + lBulk(true) + '</div>' : '');
   }
   function lState(cart) {
-    var units = unitsOf(cart), n = units.length, list = UNIT * n, pay = lTotal(n), saving = Math.max(0, list - pay);
+    var units = unitsOf(cart), n = units.length, list = 0; units.forEach(function (p) { list += p; }); var pay = list - lDisc(units), saving = Math.max(0, list - pay);
     var steps = [1, 2, 3].map(function (k) { return { at: k, v: fmt(lTotal(k)), l: k + (k === 1 ? ' piece' : ' pieces') }; }).concat([{ at: LCAP, v: LPCT + '% off', l: LCAP + '+ pieces' }]);
     var next = null; for (var i = 0; i < steps.length; i++) if (steps[i].at > n) { next = steps[i]; break; }
     var line = !n ? LTX.l0 : n === 1 ? LTX.l1 : n === 2 ? LTX.l2 : n < LCAP - 1 ? LTX.l3 : n === LCAP - 1 ? LTX.l5 : LTX.l6;
@@ -333,7 +338,7 @@
     if (c.gift) all.gift.l = 'Another gift';
     return order.filter(function (k) { return (P[k] || []).filter(function (x) { return CAT[x]; }).length; }).map(function (k) { return { k: k, l: all[k].l, lead: all[k].lead, items: P[k].filter(function (x) { return CAT[x]; }).slice(0, 4) }; });
   }
-  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (saleNow) { var sp = salePrice(base); return sp ? sp.now : base; } if (!offerLive) return base; if (LAD) return base === UNIT && S.n < LCAP ? lNext(S.n) : base; if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
+  function nextPrice(h, base) { var S = ladderState(_cart); base = base || CAT[h].p; if (saleNow) { var sp = salePrice(base); return sp ? sp.now : base; } if (!offerLive) return base; if (LAD) return LCOUNT.indexOf(base) >= 0 && S.n < LCAP ? lNextFor(S.n, base) : base; if (TIERS.length) { if (S.n === 1 && TIERS[0].off && base < 999) return base - TIERS[0].off; return base; } return (S.n + 1) % EVERY === 0 ? 0 : base; }
   function renderTabs() {
     $('ntsTabs').innerHTML = tabs.map(function (t, i) { return '<button class="nts-tab' + (i === tab ? ' on' : '') + '" data-i="' + i + '">' + t.l + '</button>'; }).join('');
     renderRow();
@@ -428,7 +433,7 @@
     if (!_pdp || !$('ntsAlsoRow')) return;
     // Each card shows what adding it really costs: the cheapest piece in a full set goes free, so a dearer colour is not "free"
     var S = ladderState(_cart), units = unitsOf(_cart), pc = pageColour();
-    var marginal = function (base) { if (LAD) return offerLive && AREA.also && base === UNIT && S.n && S.n < LCAP ? lNext(S.n) : base; return TIERS.length || !offerLive || !AREA.also ? base : Math.max(0, payFor(units.concat([base])) - payFor(units)); };
+    var marginal = function (base) { if (LAD) return offerLive && AREA.also && LCOUNT.indexOf(base) >= 0 && S.n && S.n < LCAP ? lNextFor(S.n, base) : base; return TIERS.length || !offerLive || !AREA.also ? base : Math.max(0, payFor(units.concat([base])) - payFor(units)); };
     $('ntsAlsoH').innerHTML = '<span>' + esc(alsoHeader(S)) + '</span>';
     var inCart = {}; (_cart.items || []).forEach(function (it) { inCart[it.handle] = (inCart[it.handle] || 0) + it.quantity; });
     $('ntsAlsoRow').innerHTML = _pdp.list.map(function (x) {
@@ -485,10 +490,10 @@
     var tmp = document.createElement('span'); tmp.innerHTML = base; Array.prototype.forEach.call(tmp.querySelectorAll('s,small'), function (x) { x.parentNode.removeChild(x); });
     var m = tmp.textContent.match(/₹\s*([\d,]+)/), price = m ? +m[1].replace(/,/g, '') : 0;
     var small = (base.match(/<small[^>]*>[\s\S]*<\/small>/) || [''])[0];
-    if (price !== UNIT || !eligible({ handle: h, price: price * 100, original_price: price * 100, product_type: '' })) { if (_pp.base != null && el.innerHTML === _pp.html) { el.innerHTML = _pp.base; el.classList.remove('nts-on'); } _pp = { html: null, base: null }; return; }
-    var n = unitsOf(_cart).length, np = lNext(n);
+    if (LCOUNT.indexOf(price) < 0 || !eligible({ handle: h, price: price * 100, original_price: price * 100, product_type: '' })) { if (_pp.base != null && el.innerHTML === _pp.html) { el.innerHTML = _pp.base; el.classList.remove('nts-on'); } _pp = { html: null, base: null }; return; }
+    var n = unitsOf(_cart).length, np = lNextFor(n, price);
     var head = n && np < price ? '<s>' + fmt(price) + '</s> <span class="nts-free">' + fmt(np) + ' <em>' + (n >= LCAP ? LPCT + '% off' : n + 1 === LCAP ? 'as your ' + ord(n + 1) + ' · ' + LPCT + '% off all' : 'as your ' + ord(n + 1)) + '</em></span>' : fmt(price);
-    var html = head + '<small class="nts-pl">' + esc(LTX.price_line) + '</small>' + small;
+    var html = head + '<small class="nts-pl">' + esc(price === UNIT ? LTX.price_line : LTX.price_line_cut) + '</small>' + small;
     if (el.innerHTML !== html) el.innerHTML = html;
     el.classList.add('nts-on');
     _pp = { html: html, base: base };
