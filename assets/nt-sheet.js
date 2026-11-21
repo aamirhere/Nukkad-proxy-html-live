@@ -193,7 +193,7 @@
     return ['rule1', 'rule2', 'rule3'].filter(function (k) { return CODES.length || (TX[k].indexOf('{code') < 0); }).map(function (k) { return '<li>' + chips(bold(tx(k, V))) + '</li>'; }).join('') + (OFFER.note ? '<li>' + esc(OFFER.note) + '</li>' : '');
   }
   var _cart = { item_count: 0, items: [], total_price: 0 };
-  function readCart() { return fetch('/cart.js').then(function (r) { return r.json(); }).then(function (c) { _cart = c; return c; }).catch(function () { return _cart; }); }
+  function readCart() { return fetch('/cart.js').then(function (r) { return r.json(); }).then(function (c) { _cart = c; try { document.dispatchEvent(new CustomEvent('nt:cart', { detail: c })); } catch (e) {} return c; }).catch(function () { return _cart; }); }
 
   /* ── DOM shell ───────────────────────────────────────────── */
   var root = document.createElement('div'); root.id = 'ntSheetRoot';
@@ -205,6 +205,9 @@
     '<div class="nts-body"><div class="nts-offers" id="ntsOffers"></div><div class="nts-tabs" id="ntsTabs"></div><div class="nts-lead" id="ntsLead"></div><div class="nts-row" id="ntsRow"></div></div>' +
     '<div class="nts-foot"><div class="nts-strip"><div class="a" id="ntsFootA"></div><div class="b" id="ntsFootB"></div></div><button class="nts-cart" id="ntsCart2" type="button">🛒 Cart<small id="ntsCartN2"></small></button></div></div>';
   document.body.appendChild(root);
+  // the cart lives in the bottom nav now, so the dock carries only the offer; the sabr · shukr range is outside the offer, so it shows no dock at all
+  var offCss = document.createElement('style'); offCss.textContent = '#ntSheetRoot .nts-dock .nts-cart{display:none!important}#ntSheetRoot.nts-off .nts-dock{display:none!important}'; document.head.appendChild(offCss);
+  if (/\/collections\/sabr-shukr|\/products\/[^\/?#]*(sabr-shukr|desk-piece)/.test(String(window.NT_PREVIEW_PATH || location.pathname))) root.classList.add('nts-off');
   var $ = function (id) { return document.getElementById(id); };
   var cur = null, tab = 0, tabs = [];
 
@@ -584,6 +587,7 @@
     st.classList.remove('pulse'); cb.classList.remove('bump'); void st.offsetWidth; st.classList.add('pulse'); cb.classList.add('bump', 'added');
     cb.firstChild.textContent = '✓ Added';
     clearTimeout(_fxT); _fxT = setTimeout(function () { cb.classList.remove('bump', 'added'); cb.firstChild.textContent = '🛒 Cart'; }, 1800);
+    try { document.dispatchEvent(new CustomEvent('nt:added')); } catch (e) {}
   }
   var _sig = '';
   function pollCart() { if (document.hidden) return; readCart().then(function (c) { var sig = c.item_count + ':' + c.total_price; if (sig !== _sig) { _sig = sig; paintStrip(); } }); }
