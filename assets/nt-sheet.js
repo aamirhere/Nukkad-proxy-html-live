@@ -104,7 +104,7 @@
   function eligibleHandle(h) { return h !== CUSTOM && (!ELIG || !!ELIG[h]); }
   function eligible(it) { var p = (it.original_price != null ? it.original_price : it.price) / 100; if (it.handle === CUSTOM) return false;
     // the ladder counts ₹599 quote variants only: a ₹799 colour, the gold finish, diaries, Sabr Shukr pieces and add-ons stay out
-    if (LAD) return LCOUNT.indexOf(p) >= 0 && !/^sabr-shukr|desk-piece|diary/.test(it.handle || '') && !/custom|personali|logo|add-?on|gift ?wrap/i.test(it.product_type || '') && (!ELIG || !!ELIG[it.handle]); if (ELIG) return !!ELIG[it.handle]; return p >= UNIT && p <= MAX_PRICE && !/custom|personali|logo/i.test(it.product_type || ''); }
+    if (LAD) return LCOUNT.indexOf(p) >= 0 && !/^sabr-shukr-|desk-piece|diary/.test(it.handle || '') && !/custom|personali|logo|add-?on|gift ?wrap/i.test(it.product_type || '') && (!ELIG || !!ELIG[it.handle]); if (ELIG) return !!ELIG[it.handle]; return p >= UNIT && p <= MAX_PRICE && !/custom|personali|logo/i.test(it.product_type || ''); }
   function unitsOf(cart) { var u = []; (cart.items || []).forEach(function (it) { if (!eligible(it)) return; var p = (it.original_price != null ? it.original_price : it.price) / 100; for (var i = 0; i < it.quantity; i++) u.push(p); }); return u; }
   applyOffer(resolveOffer(Date.now()));
   function freeCount(n) { var k = 0; for (var i = 0; i < TH.length; i++) if (n >= TH[i]) k = i + 1; if (k === TH.length) k += Math.floor((n - TH[TH.length - 1]) / GAP); return k; }
@@ -207,7 +207,7 @@
   document.body.appendChild(root);
   // the cart lives in the bottom nav now, so the dock carries only the offer; the sabr · shukr range is outside the offer, so it shows no dock at all
   var offCss = document.createElement('style'); offCss.textContent = '#ntSheetRoot .nts-dock .nts-cart{display:none!important}#ntSheetRoot.nts-off .nts-dock{display:none!important}'; document.head.appendChild(offCss);
-  if (/\/collections\/sabr-shukr|\/products\/[^\/?#]*(sabr-shukr|desk-piece)/.test(String(window.NT_PREVIEW_PATH || location.pathname))) root.classList.add('nts-off');
+  if (/\/collections\/sabr-shukr|\/products\/(sabr-shukr-[^\/?#]+|[^\/?#]*desk-piece)/.test(String(window.NT_PREVIEW_PATH || location.pathname))) root.classList.add('nts-off');
   var $ = function (id) { return document.getElementById(id); };
   var cur = null, tab = 0, tabs = [];
 
