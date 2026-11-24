@@ -1312,7 +1312,7 @@ async function loadWaitlist(reset) {
   const body = document.getElementById('wlBody');
   if (reset) body.innerHTML = '<div class="skel" style="height:90px"></div>';
   let d; try { d = await api({ action: 'waitlist' }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
-  const name = h => ({ 'sabr-shukr-serving-tray': 'Serving tray' }[h] || h);
+  const name = h => ({ 'sabr-shukr-collection': 'sabr · shukr next pieces', 'sabr-shukr-serving-tray': 'Serving tray' }[h] || h);
   const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
   const days = Object.entries(d.byDay).sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 14);
   const max = Math.max(1, ...days.map(x => x[1]));
