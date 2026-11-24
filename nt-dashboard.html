@@ -247,6 +247,14 @@ html,body{overflow-x:hidden;max-width:100%}
     </div>
     <div id="cwBody"><div class="skel" style="height:120px"></div></div>
   </section>
+  <section id="wl" class="pace">
+    <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <h2 style="margin:0;font-size:1.05rem">✉️ Launch list</h2>
+      <span class="note" id="wlWhen"></span>
+      <span style="margin-left:auto"><button class="btn" onclick="loadWaitlist(true)">↻</button></span>
+    </div>
+    <div id="wlBody"><div class="skel" style="height:90px"></div></div>
+  </section>
   <section id="who" class="pace">
     <div class="hd" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <h2 style="margin:0;font-size:1.05rem">👥 Who buys</h2>
@@ -1299,6 +1307,22 @@ function renderCod() {
     <div class="todo" style="margin-top:12px"><div class="hd" style="margin-bottom:6px"><b>What to do</b> <span class="note">rules read from the tables above; each one names its numbers</span></div><div class="tl">${d.actions.map(actionCard).join('') || '<div class="note">Nothing stands out right now.</div>'}</div></div>
     <div class="note" style="margin-top:6px">${esc(d.note)}</div>`;
 }
+// ---------- Launch list ----------
+async function loadWaitlist(reset) {
+  const body = document.getElementById('wlBody');
+  if (reset) body.innerHTML = '<div class="skel" style="height:90px"></div>';
+  let d; try { d = await api({ action: 'waitlist' }); } catch (e) { body.innerHTML = `<div class="warn">${esc(e.message)}</div>`; return; }
+  const name = h => ({ 'sabr-shukr-serving-tray': 'Serving tray' }[h] || h);
+  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  const days = Object.entries(d.byDay).sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 14);
+  const max = Math.max(1, ...days.map(x => x[1]));
+  document.getElementById('wlWhen').textContent = `${d.total} on the list · ${d.byDay[today] || 0} today`;
+  const tile = (n, l, s) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`;
+  body.innerHTML = `
+    <div class="pt">${tile(d.total, 'People waiting', 'all launch lists')}${Object.entries(d.byProduct).map(([k, v]) => tile(v, esc(name(k)), 'want to hear on launch')).join('')}${tile(d.byDay[today] || 0, 'Joined today', 'IST')}</div>
+    ${days.length ? `<div class="note" style="margin:10px 0 4px"><b>Sign-ups by day</b></div><div style="display:flex;flex-direction:column;gap:3px;font-size:.8rem">${days.map(([k, v]) => `<div style="display:flex;align-items:center;gap:8px"><span style="width:84px;color:var(--muted)">${k.slice(5)}</span><span style="height:10px;border-radius:5px;background:var(--accent);width:${Math.max(4, v / max * 60)}%"></span><b>${v}</b></div>`).join('')}</div>` : '<div class="note">No sign-ups yet.</div>'}
+    ${d.recent.length ? `<div class="note" style="margin:12px 0 4px"><b>Latest</b> · emails are masked here; the full list is in Supabase table nt_launch_waitlist</div><div style="overflow-x:auto"><table class="dt" style="table-layout:auto"><thead><tr><th>Email</th><th>For</th><th>Page</th><th>When</th></tr></thead><tbody>${d.recent.map(r => `<tr><td>${esc(r.email)}</td><td>${esc(name(r.product))}</td><td>${esc(r.source || '')}</td><td>${esc(new Date(r.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+}
 // ---------- Ledger ----------
 let _lg = null, _lgGroup = 'day';
 function lgSet(g) { _lgGroup = g; document.querySelectorAll('#lgGroup .pill').forEach(p => p.classList.toggle('on', p.dataset.g === g)); document.getElementById('lgDays').style.display = g === 'day' ? '' : 'none'; document.getElementById('lgWeeks').style.display = g === 'week' ? '' : 'none'; loadLedger(true); }
@@ -1887,7 +1911,7 @@ async function loadCrawl() {
 async function refreshAll() {
   const b = document.getElementById('refreshAll'); b.disabled = true; b.textContent = 'Refreshing…';
   _adsAt = 0; _shop = {}; _plan7 = null; _design && Object.keys(_design).forEach(k => delete _design[k]);
-  loadPace(true); loadNight(true); loadCod(true); loadLedger(true); loadBasket(true); loadWho(true, true); loadSaleDay(true);
+  loadPace(true); loadNight(true); loadCod(true); loadWaitlist(true); loadLedger(true); loadBasket(true); loadWho(true, true); loadSaleDay(true);
   try { await Promise.all([loadAds('hard'), loadBlocks(), document.getElementById('shopModal').classList.contains('open') ? loadShop(true) : null]); } catch {}
   document.getElementById('asof').textContent = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST';
   b.disabled = false; b.textContent = '↻ Refresh all';
