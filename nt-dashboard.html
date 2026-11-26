@@ -1098,6 +1098,13 @@ function ofRenderEditor() {
         <div class="row" style="margin-top:6px">${inp('prices', 'Price points to cut', o.prices.join(', '), 'text', 'style="width:150px"')}${inp('off', '₹ off each', o.off, 'number', 'style="width:80px"')}<label style="flex-direction:row;align-items:center;gap:6px;margin-top:14px"><input type="checkbox" ${o.change_prices !== false ? 'checked' : ''} onchange="ofField('change_prices', this.checked)"> cut the prices in Shopify for the window (old price kept as compare-at, restored after)</label></div>` : ''}
       ${o.kind === 'ladder' ? `<div class="row" style="margin-top:8px">${inp('ladder_prices', 'Price of the 1st, 2nd, 3rd+ piece', (o.ladder_prices || []).join(', '), 'text', 'style="width:150px"')}${inp('count_prices', 'Prices that count', (o.count_prices || []).join(', '), 'text', 'style="width:110px"')}${inp('cap_at', 'From N pieces', o.cap_at, 'number', 'style="width:80px"')}${inp('cap_pct', '% off the whole lot (max 20)', o.cap_pct, 'number', 'style="width:80px" max="20"')}${inp('bulk_link', 'Bulk link (WhatsApp, 10+)', o.bulk_link, 'text', 'style="width:220px" placeholder="https://wa.me/91…"')}${inp('codes', 'Shopflo codes (for reference)', (o.codes || []).join(', '), 'text', 'style="width:220px"')}</div>
         <div class="note" style="margin-top:4px">The site only shows the ladder; Shopflo's auto-apply coupons give the discount. Counts ₹599 quote variants only.</div>
+        <div style="margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fdf8f1">
+          <div class="row" style="align-items:center;gap:8px"><b style="font-size:.8rem">Delivery time on the quote product page</b>
+            <input id="dlMin" type="number" min="1" max="60" placeholder="8" style="width:64px"> <span class="note">to</span> <input id="dlMax" type="number" min="1" max="60" placeholder="10" style="width:64px"> <span class="note">working days</span>
+            <button class="btn" onclick="dlRun(true)">Preview</button><button class="btn" style="background:var(--accent);color:#fff;border-color:var(--accent)" onclick="dlRun(false)">Update everywhere</button></div>
+          <div class="note" style="margin-top:4px">Changes the days in the delivery note, trust bar, policy popup, product details and scrolling strip together. Nothing changes until you press Update.</div>
+          <div id="dlOut" style="margin-top:6px;font-size:.8rem"></div>
+        </div>
         <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Texts on the site (blank = default)</summary><div class="row">${Object.entries(OF_LTEXT_LABELS).map(([k, l]) => `<label style="min-width:240px;flex:1">${l}<input value="${esc((o.ltext || {})[k] || OF_LTEXT[k])}" oninput="ofLText('${k}', this.value)"></label>`).join('')}</div></details>` : ''}
       ${!sale && !none && o.kind !== 'ladder' ? `<div class="row" style="margin-top:8px">${inp('title', 'Title on the site', o.title, 'text', 'style="width:200px"')}${inp('note', 'Small line (right of the bar)', o.note, 'text', 'style="width:200px"')}${inp('price', 'Quote price ₹', o.price, 'number', 'style="width:90px"')}</div>
         ${o.kind === 'free_nth' ? `<div class="row" style="margin-top:6px">${inp('steps', 'Free quote unlocks at (quotes in cart)', (o.steps || []).join(', '), 'text', 'style="width:150px"')}<label>Shopify discount is set on<select id="of_collection" onchange="ofField('collection', this.value)" style="min-width:200px"><option value=""${!o.collection ? ' selected' : ''}>by price (below)</option>${(_sp && _sp.collections || []).map(c => `<option value="${c.handle}"${o.collection === c.handle ? ' selected' : ''}>${esc(c.title)} (${c.count})</option>`).join('')}</select></label>${inp('max_price', 'else counts items up to ₹', o.max_price, 'number', 'style="width:100px"')}${inp('codes', 'Coupon codes, one per unlock', (o.codes || []).join(', '), 'text', 'style="width:220px"')}</div>` : ''}
@@ -1354,6 +1361,16 @@ function wlCsv() {
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const csv = ['email,whatsapp,list,page,joined_at'].concat((_wlRows || []).map(r => [r.email, r.phone, r.product, r.source, r.at].map(q).join(','))).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'launch-list-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
+}
+// ---------- Delivery time, one click ----------
+async function dlRun(dry) {
+  const out = document.getElementById('dlOut'), min = +document.getElementById('dlMin').value, max = +document.getElementById('dlMax').value;
+  if (!(min >= 1 && max >= min)) { out.innerHTML = '<span style="color:#c0392b">Enter two numbers, for example 8 and 10.</span>'; return; }
+  if (!dry && !confirm(`Set delivery to ${min}-${max} days everywhere on the live quote product page?`)) return;
+  out.textContent = dry ? 'Checking…' : 'Updating the live page…';
+  let d; try { d = await api({ action: 'delivery_set', min, max, dry }); } catch (e) { out.innerHTML = `<span style="color:#c0392b">${esc(e.message)}</span>`; return; }
+  const rows = d.changes.map(c => `<tr><td>${esc(c.where)}</td><td>${esc(c.before)}</td><td><b>${esc(c.after)}</b></td></tr>`).join('');
+  out.innerHTML = (d.changes.length ? `<div style="margin-bottom:4px;color:${d.applied ? '#2e8b57' : 'var(--ink)'}"><b>${d.applied ? `Done. ${d.changes.length} places now say ${esc(d.to)}.` : `${d.changes.length} places would change to ${esc(d.to)}. Press Update everywhere to apply.`}</b></div><div style="overflow-x:auto"><table class="dt" style="table-layout:auto"><thead><tr><th>Where</th><th>Now</th><th>After</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<b>Every place already says ${esc(d.to)}.</b>`);
 }
 // ---------- Ledger ----------
 let _lg = null, _lgGroup = 'day';
