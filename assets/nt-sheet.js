@@ -501,12 +501,8 @@
     el.classList.add('nts-on');
     _pp = { html: html, base: base };
   }
-  // The delivery line in the product's options: the sale wording goes, the plain hand-painted line stays
-  function ladderDelivery() {
-    if (!LAD || !LTX.delivery) return;
-    var els = document.querySelectorAll('.opt-block.info-html');
-    for (var i = 0; i < els.length; i++) { var el = els[i]; if (el.getAttribute('data-nts-del') != null) continue; if (!/deliver/i.test(el.textContent || '')) continue; el.setAttribute('data-nts-del', el.innerHTML); el.innerHTML = '<p><b>Delivery:</b> ' + esc(LTX.delivery) + '</p>'; }
-  }
+  // The delivery note on the product page belongs to the theme editor; the offers script leaves it alone
+  function ladderDelivery() {}
   function unLadderDelivery() { var els = document.querySelectorAll('[data-nts-del]'); for (var i = 0; i < els.length; i++) { els[i].innerHTML = els[i].getAttribute('data-nts-del'); els[i].removeAttribute('data-nts-del'); } }
   function renderPdp() { ladderDelivery(); var l = $('ntsPdpLadder'), S = ladderState(_cart); if (l) l.innerHTML = ladderHtml(S) + (LAD && S.bulk ? '<div class="nts-bulkline">' + lBulk(true) + '</div>' : ''); renderAlso(); decoratePrice(); }
   function mountProduct() {
